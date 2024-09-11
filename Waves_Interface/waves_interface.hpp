@@ -1,6 +1,7 @@
 // Copyright 2021 SAMURAI TEAM. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
+//
 #include <samurai/algorithm/update.hpp>
 #include <samurai/mr/mesh.hpp>
 #include <samurai/bc.hpp>
@@ -40,9 +41,9 @@ T CHeaviside(const T x, const T eps) {
 // and, in this case, some parameters related to EOS
 using namespace EquationData;
 
-// This is the class for the simulation of a two-scale model
-// for the waves-interface interaction
-//
+/** This is the class for the simulation of a model
+ *  for the waves-interface interaction
+ **/
 template<std::size_t dim>
 class WaveInterface {
 public:
@@ -120,41 +121,27 @@ private:
 
 // Implement class constructor
 //
-#ifdef RUSANOV_FLUX
-  template<std::size_t dim>
-  WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
-                                    const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                                    std::size_t min_level, std::size_t max_level,
-                                    double Tf_, double cfl_, std::size_t nfiles_,
-                                    bool apply_relax_):
-    box(min_corner, max_corner), mesh(box, min_level, max_level, {false}),
-    apply_relax(apply_relax_), Tf(Tf_), cfl(cfl_), nfiles(nfiles_),
-    eps(1e-20),
-    EOS_phase1(EquationData::p0_phase1, EquationData::rho0_phase1, EquationData::c0_phase1),
-    EOS_phase2(EquationData::p0_phase2, EquationData::rho0_phase2, EquationData::c0_phase2),
-    Rusanov_flux(EOS_phase1, EOS_phase2, eps) {
-      std::cout << "Initializing variables " << std::endl;
-      std::cout << std::endl;
-      init_variables();
+template<std::size_t dim>
+WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
+                                  const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
+                                  std::size_t min_level, std::size_t max_level,
+                                  double Tf_, double cfl_, std::size_t nfiles_,
+                                  bool apply_relax_):
+  box(min_corner, max_corner), mesh(box, min_level, max_level, {false}),
+  apply_relax(apply_relax_), Tf(Tf_), cfl(cfl_), nfiles(nfiles_),
+  eps(1e-20),
+  EOS_phase1(EquationData::p0_phase1, EquationData::rho0_phase1, EquationData::c0_phase1),
+  EOS_phase2(EquationData::p0_phase2, EquationData::rho0_phase2, EquationData::c0_phase2),
+  #ifdef RUSANOV_FLUX
+    Rusanov_flux(EOS_phase1, EOS_phase2, eps)
+  #elifdef GODUNOV_FLUX
+    Godunov_flux(EOS_phase1, EOS_phase2, eps)
+  #endif
+  {
+    std::cout << "Initializing variables " << std::endl;
+    std::cout << std::endl;
+    init_variables();
   }
-#elifdef GODUNOV_FLUX
-  template<std::size_t dim>
-  WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
-                                    const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                                    std::size_t min_level, std::size_t max_level,
-                                    double Tf_, double cfl_, std::size_t nfiles_,
-                                    bool apply_relax_):
-    box(min_corner, max_corner), mesh(box, min_level, max_level, {false}),
-    apply_relax(apply_relax_), Tf(Tf_), cfl(cfl_), nfiles(nfiles_),
-    eps(1e-20),
-    EOS_phase1(EquationData::p0_phase1, EquationData::rho0_phase1, EquationData::c0_phase1),
-    EOS_phase2(EquationData::p0_phase2, EquationData::rho0_phase2, EquationData::c0_phase2),
-    Godunov_flux(EOS_phase1, EOS_phase2, eps) {
-      std::cout << "Initializing variables " << std::endl;
-      std::cout << std::endl;
-      init_variables();
-  }
-#endif
 
 // Initialization of conserved and auxiliary variables
 //
@@ -254,11 +241,10 @@ double WaveInterface<dim>::get_max_lambda() const {
 //
 template<std::size_t dim>
 void WaveInterface<dim>::apply_relaxation() {
-  const double tol    = 1e-12; /*--- Tolerance of the Newton method ---*/
-  const double lambda = 0.9;   /*--- Parameter for bound preserving strategy ---*/
+  const double tol    = 1e-12; // Tolerance of the Newton method
+  const double lambda = 0.9;   // Parameter for bound preserving strategy
 
-  // Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
-  // over each cell would be more logic, but this would lead to issues to call 'update_geometry'
+  // Loop of Newton method.
   std::size_t Newton_iter = 0;
   bool relaxation_applied = true;
   while(relaxation_applied == true) {
@@ -317,7 +303,7 @@ void WaveInterface<dim>::save(const fs::path& path,
 template<std::size_t dim>
 void WaveInterface<dim>::run() {
   // Default output arguemnts
-  fs::path path        = fs::current_path();
+  fs::path path = fs::current_path();
   #ifdef RUSANOV_FLUX
     std::string filename = "waves_interface_Rusanov";
   #elifdef GODUNOV_FLUX
@@ -434,7 +420,7 @@ void WaveInterface<dim>::run() {
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
-                               dalpha1[cell] = std::numeric_limits<double>::infinity();
+                               dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                              });
       apply_relaxation();
     }
@@ -496,7 +482,7 @@ void WaveInterface<dim>::run() {
         samurai::for_each_cell(mesh,
                                [&](const auto& cell)
                                {
-                                 dalpha1[cell] = std::numeric_limits<double>::infinity();
+                                 dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                                });
         apply_relaxation();
       }
@@ -515,18 +501,18 @@ void WaveInterface<dim>::run() {
                              {
                                // Compute pressure fields
                                p1.resize();
-                               const auto rho1   = (alpha1[cell] > eps) ? conserved_variables[cell][M1_INDEX]/alpha1[cell] : nan("");
-                               p1[cell]          = EOS_phase1.pres_value(rho1);
+                               const auto rho1 = (alpha1[cell] > eps) ? conserved_variables[cell][M1_INDEX]/alpha1[cell] : nan("");
+                               p1[cell] = EOS_phase1.pres_value(rho1);
 
                                p2.resize();
                                const auto alpha2 = 1.0 - alpha1[cell];
                                const auto rho2   = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
-                               p2[cell]          = EOS_phase2.pres_value(rho2);
+                               p2[cell] = EOS_phase2.pres_value(rho2);
 
                                p.resize();
-                               p[cell]           = (alpha1[cell] > eps && alpha2 > eps) ?
-                                                   alpha1[cell]*p1[cell] + alpha2*p2[cell] :
-                                                   ((alpha1[cell] < eps) ? p2[cell] : p1[cell]);
+                               p[cell] = (alpha1[cell] > eps && alpha2 > eps) ?
+                                          alpha1[cell]*p1[cell] + alpha2*p2[cell] :
+                                         ((alpha1[cell] < eps) ? p2[cell] : p1[cell]);
 
                               // Compute velocity field
                               u.resize();

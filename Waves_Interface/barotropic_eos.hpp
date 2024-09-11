@@ -13,7 +13,7 @@ public:
 
   virtual ~BarotropicEOS() = default;
 
-  virtual T pres_value(const T& rho) const = 0; // Function to actually compute the pressure from the density
+  virtual T pres_value(const T& rho) const = 0; // Function to compute the pressure from the density
 
   virtual T c_value(const T& rho) const = 0; // Function to compute the speed of sound
 
