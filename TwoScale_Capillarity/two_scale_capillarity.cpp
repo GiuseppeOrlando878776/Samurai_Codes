@@ -7,8 +7,6 @@
 // Main function to run the program
 //
 int main(int argc, char* argv[]) {
-  constexpr std::size_t dim = 2;
-
   // Mesh parameters
   xt::xtensor_fixed<double, xt::xshape<dim>> min_corner = {0.0, 0.0};
   xt::xtensor_fixed<double, xt::xshape<dim>> max_corner = {4.0, 2.0};
@@ -16,7 +14,7 @@ int main(int argc, char* argv[]) {
   std::size_t max_level = 7;
 
   // Simulation parameters
-  double Tf  = 2.5;
+  double Tf  = 2.0;
   double cfl = 0.4;
 
   bool apply_relaxation = true;
