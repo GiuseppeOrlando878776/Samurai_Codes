@@ -4,7 +4,7 @@
 // Preprocessor to define whether order 2 is desired
 #define ORDER_2
 
-// Preprocessor to define whether relaxation is desired qfter reconstruction for order 2
+// Preprocessor to define whether relaxation is desired after reconstruction for order 2
 #ifdef ORDER_2
   #define RELAX_RECONSTRUCTION
 #endif
@@ -979,7 +979,7 @@ namespace samurai {
       {
         static constexpr int d = decltype(integral_constant_d)::value;
 
-        // Compute now the "discrete" flux function, in this case a Rusanov flux
+        // Compute now the "discrete" flux function, in this case a Godunov flux
         Godunov_f[d].cons_flux_function = [&](auto& cells, const Field& field)
                                           {
                                             #ifdef ORDER_2

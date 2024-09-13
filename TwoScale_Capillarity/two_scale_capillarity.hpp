@@ -438,7 +438,6 @@ void TwoScaleCapillarity<dim>::run() {
   #elifdef GODUNOV_FLUX
     filename += "_Godunov";
   #endif
-  const double dt_save = Tf/static_cast<double>(nfiles);
 
   #ifdef ORDER_2
     filename += "_order2";
@@ -448,6 +447,8 @@ void TwoScaleCapillarity<dim>::run() {
   #else
     filename += "_order1";
   #endif
+
+  const double dt_save = Tf/static_cast<double>(nfiles);
 
   // Auxiliary variables to save updated fields
   #ifdef ORDER_2
@@ -547,7 +548,7 @@ void TwoScaleCapillarity<dim>::run() {
                                if(conserved_variables[cell][ALPHA1_D_INDEX] < 0.0) {
                                  if(conserved_variables[cell][ALPHA1_D_INDEX] < -1e-14) {
                                    std::cerr << "Negative small-scale volume fraction at the beginning of the relaxation" << std::endl;
-                                   save(fs::current_path(), filename", "_diverged", conserved_variables);
+                                   save(fs::current_path(), filename, "_diverged", conserved_variables);
                                    exit(1);
                                  }
                                  conserved_variables[cell][ALPHA1_D_INDEX] = 0.0;

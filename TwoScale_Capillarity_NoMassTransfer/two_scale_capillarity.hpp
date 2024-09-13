@@ -383,7 +383,6 @@ void TwoScaleCapillarity<dim>::run() {
   #elifdef GODUNOV_FLUX
     filename += "_Godunov";
   #endif
-  const double dt_save = Tf/static_cast<double>(nfiles);
 
   #ifdef ORDER_2
     filename += "_order2";
@@ -393,6 +392,8 @@ void TwoScaleCapillarity<dim>::run() {
   #else
     filename += "_order1";
   #endif
+
+  const double dt_save = Tf/static_cast<double>(nfiles);
 
   // Auxiliary variables to save updated fields
   #ifdef ORDER_2

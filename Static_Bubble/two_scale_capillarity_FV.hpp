@@ -1,6 +1,14 @@
 #pragma once
 #include <samurai/schemes/fv.hpp>
 
+// Preprocessor to define whether order 2 is desired
+#define ORDER_2
+
+// Preprocessor to define whether relaxation is desired after reconstruction for order 2
+#ifdef ORDER_2
+  #define RELAX_RECONSTRUCTION
+#endif
+
 /**
  * Useful parameters and enumerators
  */
@@ -90,6 +98,20 @@ namespace samurai {
     FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; // Conversion from conserved to primitive variables
 
     FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; // Conversion from conserved to primitive variables
+
+    #ifdef ORDER_2
+      void perform_reconstruction(const FluxValue<cfg>& primLL,
+                                  const FluxValue<cfg>& primL,
+                                  const FluxValue<cfg>& primR,
+                                  const FluxValue<cfg>& primRR,
+                                  FluxValue<cfg>& primL_recon,
+                                  FluxValue<cfg>& primR_recon); // Reconstruction for second order scheme
+
+      #ifdef RELAX_RECONSTRUCTION
+        void relax_reconstruction(FluxValue<cfg>& q,
+                                  const typename Field::value_type H); // Relax reconstructed state
+      #endif
+    #endif
   };
 
   // Class constructor in order to be able to work with the equation of state
@@ -205,6 +227,52 @@ namespace samurai {
     return cons;
   }
 
+  // Perform reconstruction for order 2 scheme
+  //
+  #ifdef ORDER_2
+    template<class Field>
+    void Flux<Field>::perform_reconstruction(const FluxValue<cfg>& primLL,
+                                             const FluxValue<cfg>& primL,
+                                             const FluxValue<cfg>& primR,
+                                             const FluxValue<cfg>& primRR,
+                                             FluxValue<cfg>& primL_recon,
+                                             FluxValue<cfg>& primR_recon) {
+      // Initialize with the original state
+      primL_recon = primL;
+      primR_recon = primR;
+
+      // Perform the reconstruction. TODO: Modify to be coherent with multiresolution
+      const double beta = 1.0; // MINMOD limiter
+      for(std::size_t comp = 0; comp < Field::size; ++comp) {
+        if(primR(comp) - primL(comp) > 0.0) {
+          primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
+                                                                   primR(comp) - primL(comp)),
+                                                          std::min(primL(comp) - primLL(comp),
+                                                                   beta*(primR(comp) - primL(comp)))));
+        }
+        else if(primR(comp) - primL(comp) < 0.0) {
+          primL_recon(comp) += 0.5*std::min(0.0, std::min(std::max(beta*(primL(comp) - primLL(comp)),
+                                                                   primR(comp) - primL(comp)),
+                                                          std::max(primL(comp) - primLL(comp),
+                                                                   beta*(primR(comp) - primL(comp)))));
+        }
+
+        if(primRR(comp) - primR(comp) > 0.0) {
+          primR_recon(comp) -= 0.5*std::max(0.0, std::max(std::min(beta*(primR(comp) - primL(comp)),
+                                                                   primRR(comp) - primR(comp)),
+                                                          std::min(primR(comp) - primL(comp),
+                                                                   beta*(primRR(comp) - primR(comp)))));
+        }
+        else if(primRR(comp) - primR(comp) < 0.0) {
+          primR_recon(comp) -= 0.5*std::min(0.0, std::min(std::max(beta*(primR(comp) - primL(comp)),
+                                                                   primRR(comp) - primR(comp)),
+                                                          std::max(primR(comp) - primL(comp),
+                                                                   beta*(primRR(comp) - primR(comp)))));
+        }
+      }
+    }
+  #endif
+
   // Perform a Newton step relaxation for a single vector state (i.e. a single cell)
   //
   template<class Field>
@@ -248,7 +316,7 @@ namespace samurai {
                                    phase2.c_value(rho2)*phase2.c_value(rho2);
 
       // Compute the pseudo time step starting as initial guess from the ideal unmodified Newton method
-      auto dtau_ov_epsilon = std::numeric_limits<typename Field::value_tpye>::infinity();
+      auto dtau_ov_epsilon = std::numeric_limits<typename Field::value_type>::infinity();
 
       /*--- Upper bound of the pseudo time to preserve the bounds for the volume fraction ---*/
       const auto upper_denominator = (F + lambda*(1.0 - alpha1_bar)*dF_dalpha1_bar)/
@@ -256,7 +324,6 @@ namespace samurai {
       if(upper_denominator > 0.0) {
         dtau_ov_epsilon = lambda*(1.0 - alpha1_bar)/upper_denominator;
       }
-
       /*--- Lower bound of the pseudo time to preserve the bounds for the volume fraction ---*/
       const auto lower_denominator = (F - lambda*alpha1_bar*dF_dalpha1_bar)/
                                      (1.0 - (*conserved_variables)(ALPHA1_D_INDEX));
@@ -292,6 +359,40 @@ namespace samurai {
     (*conserved_variables)(RHO_ALPHA1_BAR_INDEX) = rho*alpha1_bar;
   }
 
+  // Relax reconstruction
+  //
+  #ifdef ORDER_2
+    #ifdef RELAX_RECONSTRUCTION
+      template<class Field>
+      void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q,
+                                             const typename Field::value_type H) {
+        // Declare and set relevant parameters
+        const double tol    = 1e-12; // Tolerance of the Newton method
+        const double lambda = 0.9;   // Parameter for bound preserving strategy
+        std::size_t Newton_iter = 0;
+        bool relaxation_applied = true;
+        typename Field::value_type dalpha1_bar = std::numeric_limits<typename Field::value_type>::infinity();
+        typename Field::value_type alpha1_bar  = q(RHO_ALPHA1_BAR_INDEX)/
+                                                 (q(M1_INDEX) + q(M2_INDEX) + q(M1_D_INDEX));
+
+        // Apply Newton method
+        while(relaxation_applied == true) {
+          relaxation_applied = false;
+          Newton_iter++;
+
+          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q), H, dalpha1_bar, alpha1_bar,
+                                               relaxation_applied, tol, lambda);
+
+          // Newton cycle diverged
+          if(Newton_iter > 60) {
+            std::cout << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
+            exit(1);
+          }
+        }
+      }
+    #endif
+  #endif
+
 
   /**
     * Implementation of a Rusanov flux
@@ -304,8 +405,14 @@ namespace samurai {
                 const double eps_,
                 const double mod_grad_alpha1_bar_min_); // Constructor which accepts in inputs the equations of state of the two phases
 
-    template<typename Gradient>
-    auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); // Compute the flux over all the directions
+    #ifdef ORDER_2
+      template<typename Gradient, typename Field_Scalar>
+      auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
+                                      const Field_Scalar& H); // Compute the flux over all the directions
+    #else
+      template<typename Gradient>
+      auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); // Compute the flux over all the directions
+    #endif
 
   private:
     template<typename Gradient>
@@ -374,8 +481,15 @@ namespace samurai {
   // Implement the contribution of the discrete flux for all the directions.
   //
   template<class Field>
-  template<typename Gradient>
-  auto RusanovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar) {
+  #ifdef ORDER_2
+    template<typename Gradient, typename Field_Scalar>
+    auto RusanovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
+                                                        const Field_Scalar& H)
+  #else
+    template<typename Gradient>
+    auto RusanovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar)
+  #endif
+  {
     FluxDefinition<typename Flux<Field>::cfg> Rusanov_f;
 
     // Perform the loop over each dimension to compute the flux contribution
@@ -387,11 +501,39 @@ namespace samurai {
         // Compute now the "discrete" flux function, in this case a Rusanov flux
         Rusanov_f[d].cons_flux_function = [&](auto& cells, const Field& field)
                                           {
-                                            const auto& left  = cells[0];
-                                            const auto& right = cells[1];
+                                            #ifdef ORDER_2
+                                              // Compute the stencil
+                                              const auto& left_left   = cells[0];
+                                              const auto& left        = cells[1];
+                                              const auto& right       = cells[2];
+                                              const auto& right_right = cells[3];
 
-                                            FluxValue<typename Flux<Field>::cfg> qL = field[left];
-                                            FluxValue<typename Flux<Field>::cfg> qR = field[right];
+                                              // MUSCL reconstruction
+                                              const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
+                                              const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
+                                              const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
+                                              const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
+
+                                              FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                   primR_recon;
+                                              this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                           primL_recon, primR_recon);
+
+                                              FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                              FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+
+                                              #ifdef RELAX_RECONSTRUCTION
+                                                this->relax_reconstruction(qL, H[left]);
+                                                this->relax_reconstruction(qR, H[right]);
+                                              #endif
+                                            #else
+                                              // Compute the stencil and extract state
+                                              const auto& left  = cells[0];
+                                              const auto& right = cells[1];
+
+                                              const FluxValue<typename Flux<Field>::cfg> qL = field[left];
+                                              const FluxValue<typename Flux<Field>::cfg> qR = field[right];
+                                            #endif
 
                                             // Compute the numerical flux
                                             return compute_discrete_flux(qL, qR, d,
@@ -414,8 +556,14 @@ namespace samurai {
                 const double eps_,
                 const double mod_grad_alpha1_bar_min_); // Constructor which accepts in inputs the equations of state of the two phases
 
-    template<typename Gradient>
-    auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); // Compute the flux over all cells
+    #ifdef ORDER_2
+      template<typename Gradient, typename Field_Scalar>
+      auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
+                                      const Field_Scalar& H); // Compute the flux over all the directions
+    #else
+      template<typename Gradient>
+      auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); // Compute the flux over all the directions
+    #endif
 
   private:
     template<typename Gradient>
@@ -847,7 +995,7 @@ namespace samurai {
           if(-(vel_d_R - u_star)/(c_R*(1.0 - qR(ALPHA1_D_INDEX))) < 100.0) {
             alpha1_d_R_star = 1.0 - 1.0/(1.0 + qR(ALPHA1_D_INDEX)/(1.0 - qR(ALPHA1_D_INDEX))*
                                                std::exp(-(vel_d_R - u_star)/(c_R*(1.0 - qR(ALPHA1_D_INDEX)))));
-            sT_R            = u_star + c_R*(1.0 + qR(ALPHA1_D_INDEX)*std::exp((vel_d_R - u_star)/(c_R*(1.0 - qR(ALPHA1_D_INDEX))))); // TODO: Check this sign of vel_d_R - u_star
+            sT_R            = u_star + c_R*(1.0 + qR(ALPHA1_D_INDEX)*std::exp((vel_d_R - u_star)/(c_R*(1.0 - qR(ALPHA1_D_INDEX)))));
           }
 
           // Right of right fan is qR
@@ -874,7 +1022,7 @@ namespace samurai {
             q_star(SIGMA_D_INDEX)        = Sigma_d_R_fan;
             q_star(RHO_ALPHA1_BAR_INDEX) = rho_R_fan*alpha1_bar_R;
             if(curr_d == 0) {
-              q_star(RHO_U_INDEX)     = rho_R_fan*(-c_R*(1.0 - qR(ALPHA1_D_INDEX))/(1.0 - alpha1_d_R_fan)); // TODO: Check this sign of the velocity
+              q_star(RHO_U_INDEX)     = rho_R_fan*(-c_R*(1.0 - qR(ALPHA1_D_INDEX))/(1.0 - alpha1_d_R_fan));
               q_star(RHO_U_INDEX + 1) = rho_R_fan*(qR(RHO_U_INDEX + 1)/rho_R);
             }
             else if(curr_d == 1) {
@@ -943,8 +1091,15 @@ namespace samurai {
   // Implement the contribution of the discrete flux for all the directions.
   //
   template<class Field>
-  template<typename Gradient>
-  auto GodunovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar) {
+  #ifdef ORDER_2
+    template<typename Gradient, typename Field_Scalar>
+    auto GodunovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
+                                                        const Field_Scalar& H)
+  #else
+    template<typename Gradient>
+    auto GodunovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar)
+  #endif
+  {
     FluxDefinition<typename Flux<Field>::cfg> Godunov_f;
 
     // Perform the loop over each dimension to compute the flux contribution
@@ -953,14 +1108,42 @@ namespace samurai {
       {
         static constexpr int d = decltype(integral_constant_d)::value;
 
-        // Compute now the "discrete" flux function, in this case a Rusanov flux
+        // Compute now the "discrete" flux function, in this case a Godunov flux
         Godunov_f[d].cons_flux_function = [&](auto& cells, const Field& field)
                                           {
-                                            const auto& left  = cells[0];
-                                            const auto& right = cells[1];
+                                            #ifdef ORDER_2
+                                              // Compute the stencil
+                                              const auto& left_left   = cells[0];
+                                              const auto& left        = cells[1];
+                                              const auto& right       = cells[2];
+                                              const auto& right_right = cells[3];
 
-                                            FluxValue<typename Flux<Field>::cfg> qL = field[left];
-                                            FluxValue<typename Flux<Field>::cfg> qR = field[right];
+                                              // MUSCL reconstruction
+                                              const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
+                                              const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
+                                              const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
+                                              const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
+
+                                              FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                   primR_recon;
+                                              this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                           primL_recon, primR_recon);
+
+                                              FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                              FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+
+                                              #ifdef RELAX_RECONSTRUCTION
+                                                this->relax_reconstruction(qL, H[left]);
+                                                this->relax_reconstruction(qR, H[right]);
+                                              #endif
+                                            #else
+                                              // Compute the stencil and extract state
+                                              const auto& left  = cells[0];
+                                              const auto& right = cells[1];
+
+                                              const FluxValue<typename Flux<Field>::cfg> qL = field[left];
+                                              const FluxValue<typename Flux<Field>::cfg> qR = field[right];
+                                            #endif
 
                                             // Check if we are at a cell with discontinuity in the state. This is not sufficient to say that the
                                             // flux is equal to the 'continuous' one because of surface tension, which involves gradients,
