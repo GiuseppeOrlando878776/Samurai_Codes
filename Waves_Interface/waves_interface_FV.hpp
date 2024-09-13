@@ -1,8 +1,13 @@
 #pragma once
 #include <samurai/schemes/fv.hpp>
 
-/*--- Preprocessor to get order 2 (if desired) ---*/
+// Preprocessor to define whether order 2 is desired
 #define ORDER_2
+
+// Preprocessor to define whether relaxation is desired after reconstruction for order 2
+#ifdef ORDER_2
+  #define RELAX_RECONSTRUCTION
+#endif
 
 /**
  * Useful parameters and enumerators
@@ -83,7 +88,20 @@ namespace samurai {
 
     FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; // Conversion from conservative to primitive variables
 
-    FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; // Conversion from primitive to conservative variabless
+    FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; // Conversion from primitive to conservative variables
+
+    #ifdef ORDER_2
+      void perform_reconstruction(const FluxValue<cfg>& primLL,
+                                  const FluxValue<cfg>& primL,
+                                  const FluxValue<cfg>& primR,
+                                  const FluxValue<cfg>& primRR,
+                                  FluxValue<cfg>& primL_recon,
+                                  FluxValue<cfg>& primR_recon); // Reconstruction for second order scheme
+
+      #ifdef RELAX_RECONSTRUCTION
+        void relax_reconstruction(FluxValue<cfg>& q); // Relax reconstructed state
+      #endif
+    #endif
   };
 
   // Class constructor in order to be able to work with the equation of state
@@ -155,10 +173,56 @@ namespace samurai {
     FluxValue<cfg> cons = prim;
 
     // Apply conversion only to the mixture density times volume fraction
-    cons(RHO_ALPHA1_INDEX) = (prim(M1_INDEX) + prim(M2_INDEX))*prim(ALPHA1_INDEX);
+    cons(RHO_ALPHA1_INDEX) = (cons(M1_INDEX) + cons(M2_INDEX))*prim(ALPHA1_INDEX);
 
     return cons;
   }
+
+  // Perform reconstruction for order 2 scheme
+  //
+  #ifdef ORDER_2
+    template<class Field>
+    void Flux<Field>::perform_reconstruction(const FluxValue<cfg>& primLL,
+                                             const FluxValue<cfg>& primL,
+                                             const FluxValue<cfg>& primR,
+                                             const FluxValue<cfg>& primRR,
+                                             FluxValue<cfg>& primL_recon,
+                                             FluxValue<cfg>& primR_recon) {
+      // Initialize with the original state
+      primL_recon = primL;
+      primR_recon = primR;
+
+      // Perform the reconstruction. TODO: Modify to be coherent with multiresolution
+      const double beta = 1.0; // MINMOD limiter
+      for(std::size_t comp = 0; comp < Field::size; ++comp) {
+        if(primR(comp) - primL(comp) > 0.0) {
+          primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
+                                                                   primR(comp) - primL(comp)),
+                                                          std::min(primL(comp) - primLL(comp),
+                                                                   beta*(primR(comp) - primL(comp)))));
+        }
+        else if(primR(comp) - primL(comp) < 0.0) {
+          primL_recon(comp) += 0.5*std::min(0.0, std::min(std::max(beta*(primL(comp) - primLL(comp)),
+                                                                   primR(comp) - primL(comp)),
+                                                          std::max(primL(comp) - primLL(comp),
+                                                                   beta*(primR(comp) - primL(comp)))));
+        }
+
+        if(primRR(comp) - primR(comp) > 0.0) {
+          primR_recon(comp) -= 0.5*std::max(0.0, std::max(std::min(beta*(primR(comp) - primL(comp)),
+                                                                   primRR(comp) - primR(comp)),
+                                                          std::min(primR(comp) - primL(comp),
+                                                                   beta*(primRR(comp) - primR(comp)))));
+        }
+        else if(primRR(comp) - primR(comp) < 0.0) {
+          primR_recon(comp) -= 0.5*std::min(0.0, std::min(std::max(beta*(primR(comp) - primL(comp)),
+                                                                   primRR(comp) - primR(comp)),
+                                                          std::max(primR(comp) - primL(comp),
+                                                                   beta*(primRR(comp) - primR(comp)))));
+        }
+      }
+    }
+  #endif
 
   // Perform a Newton step relaxation for a single vector state (i.e. a single cell)
   //
@@ -219,6 +283,40 @@ namespace samurai {
         + (*conserved_variables)(M2_INDEX);
     (*conserved_variables)(RHO_ALPHA1_INDEX) = rho*alpha1;
   }
+
+  // Relax reconstruction
+  //
+  #ifdef ORDER_2
+    #ifdef RELAX_RECONSTRUCTION
+      template<class Field>
+      void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q) {
+        // Declare and set relevant parameters
+        const double tol    = 1e-12; // Tolerance of the Newton method
+        const double lambda = 0.9;   // Parameter for bound preserving strategy
+        std::size_t Newton_iter = 0;
+        bool relaxation_applied = true;
+        typename Field::value_type dalpha1 = std::numeric_limits<typename Field::value_type>::infinity();
+        typename Field::value_type alpha1  = q(RHO_ALPHA1_INDEX)/(q(M1_INDEX) + q(M2_INDEX));
+        typename Field::value_type rho     = q(M1_INDEX) + q(M2_INDEX);
+
+        // Apply Newton method
+        while(relaxation_applied == true) {
+          relaxation_applied = false;
+          Newton_iter++;
+
+          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
+                                               dalpha1, alpha1, rho,
+                                               relaxation_applied, tol, lambda);
+
+          // Newton cycle diverged
+          if(Newton_iter > 60) {
+            std::cout << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
+            exit(1);
+          }
+        }
+      }
+    #endif
+  #endif
 
 
   /**
@@ -307,48 +405,24 @@ namespace samurai {
                                               const auto& right       = cells[2];
                                               const auto& right_right = cells[3];
 
-                                              // MUSCL reconstruction. TODO: Modify to be coherent with multiresolution
+                                              // MUSCL reconstruction
                                               const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
                                               const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
                                               const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
                                               const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
 
-                                              const double beta = 1.0; // MINMOD limiter
-                                              auto primL_recon = primL;
-                                              auto primR_recon = primR;
-                                              for(std::size_t comp = 0; comp < Field::size; ++comp) {
-                                                if(primR(comp) - primL(comp) > 0.0) {
-                                                  primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
-                                                                                                           primR(comp) - primL(comp)),
-                                                                                                  std::min(primL(comp) - primLL(comp),
-                                                                                                           beta*(primR(comp) - primL(comp)))));
-                                                }
-                                                else if(primR(comp) - primL(comp) < 0.0) {
-                                                  primL_recon(comp) += 0.5*std::min(0.0, std::min(std::max(beta*(primL(comp) - primLL(comp)),
-                                                                                                           primR(comp) - primL(comp)),
-                                                                                                  std::max(primL(comp) - primLL(comp),
-                                                                                                           beta*(primR(comp) - primL(comp)))));
-                                                }
+                                              FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                   primR_recon;
+                                              this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                           primL_recon, primR_recon);
 
-                                                if(primRR(comp) - primR(comp) > 0.0) {
-                                                  primR_recon(comp) -= 0.5*std::max(0.0, std::max(std::min(beta*(primR(comp) - primL(comp)),
-                                                                                                           primRR(comp) - primR(comp)),
-                                                                                                  std::min(primR(comp) - primL(comp),
-                                                                                                           beta*(primRR(comp) - primR(comp)))));
-                                                }
-                                                else if(primRR(comp) - primR(comp) < 0.0) {
-                                                  primR_recon(comp) -= 0.5*std::min(0.0, std::min(std::max(beta*(primR(comp) - primL(comp)),
-                                                                                                           primRR(comp) - primR(comp)),
-                                                                                                  std::max(primR(comp) - primL(comp),
-                                                                                                           beta*(primRR(comp) - primR(comp)))));
-                                                }
-                                              }
+                                              FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                              FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                              const FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                              const FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
-
-                                              //TODO: Add possible relaxation
-                                              //(since alpha is changed, partial pressures are modified and possibly out-of-equilibrium)
+                                              #ifdef RELAX_RECONSTRUCTION
+                                                this->relax_reconstruction(qL);
+                                                this->relax_reconstruction(qR);
+                                              #endif
                                             #else
                                               // Compute the stencil and extract state
                                               const auto& left  = cells[0];
@@ -752,42 +826,18 @@ namespace samurai {
                                               const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
                                               const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
 
-                                              const double beta = 1.0;
-                                              auto primL_recon = primL;
-                                              auto primR_recon = primR;
-                                              for(std::size_t comp = 0; comp < Field::size; ++comp) {
-                                                if(primR(comp) - primL(comp) > 0.0) {
-                                                  primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
-                                                                                                           primR(comp) - primL(comp)),
-                                                                                                  std::min(primL(comp) - primLL(comp),
-                                                                                                           beta*(primR(comp) - primL(comp)))));
-                                                }
-                                                else if(primR(comp) - primL(comp) < 0.0) {
-                                                  primL_recon(comp) += 0.5*std::min(0.0, std::min(std::max(beta*(primL(comp) - primLL(comp)),
-                                                                                                           primR(comp) - primL(comp)),
-                                                                                                  std::max(primL(comp) - primLL(comp),
-                                                                                                           beta*(primR(comp) - primL(comp)))));
-                                                }
+                                              FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                   primR_recon;
+                                              this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                           primL_recon, primR_recon);
 
-                                                if(primRR(comp) - primR(comp) > 0.0) {
-                                                  primR_recon(comp) -= 0.5*std::max(0.0, std::max(std::min(beta*(primR(comp) - primL(comp)),
-                                                                                                           primRR(comp) - primR(comp)),
-                                                                                                  std::min(primR(comp) - primL(comp),
-                                                                                                           beta*(primRR(comp) - primR(comp)))));
-                                                }
-                                                else if(primRR(comp) - primR(comp) < 0.0) {
-                                                  primR_recon(comp) -= 0.5*std::min(0.0, std::min(std::max(beta*(primR(comp) - primL(comp)),
-                                                                                                           primRR(comp) - primR(comp)),
-                                                                                                  std::max(primR(comp) - primL(comp),
-                                                                                                           beta*(primRR(comp) - primR(comp)))));
-                                                }
-                                              }
+                                              FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                              FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                              const FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                              const FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
-
-                                              //TODO: Add possible relaxation
-                                              //(since alpha is changed, partial pressures are modified and possibly out-of-equilibrium)
+                                              #ifdef RELAX_RECONSTRUCTION
+                                                this->relax_reconstruction(qL);
+                                                this->relax_reconstruction(qR);
+                                              #endif
                                             #else
                                               // Compute the stencil and extract state
                                               const auto& left  = cells[0];

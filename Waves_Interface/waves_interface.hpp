@@ -304,16 +304,20 @@ template<std::size_t dim>
 void WaveInterface<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
+  std::string filename = "waves_interface";
   #ifdef RUSANOV_FLUX
-    std::string filename = "waves_interface_Rusanov";
+    filename += "_Rusanov";
   #elifdef GODUNOV_FLUX
-    std::string filename = "waves_interface_Godunov";
+    filename += "_Godunov";
   #endif
 
   #ifdef ORDER_2
-    filename = filename + "_order2";
+    filename += "_order2";
+    #ifdef RELAX_RECONSTRUCTION
+      filename += "_relaxed_reconstruction";
+    #endif
   #else
-    filename = filename + "_order1";
+    filename += "_order1";
   #endif
 
   const double dt_save = Tf/static_cast<double>(nfiles);
@@ -336,14 +340,12 @@ void WaveInterface<dim>::run() {
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, filename, suffix_init, conserved_variables, alpha1, rho, p1, p2, p, u);
 
-  // Set initial time step
-  const double dx = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
-  double dt       = cfl*dx/get_max_lambda();
-
   // Start the loop
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   double t          = 0.0;
+  const double dx   = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
+  double dt         = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
     t += dt;
     if(t > Tf) {
@@ -353,13 +355,56 @@ void WaveInterface<dim>::run() {
 
     std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
 
-    /*--- Apply mesh adaptation ---*/
-    samurai::update_ghost_mr(alpha1);
-    auto MRadaptation = samurai::make_MRAdapt(alpha1);
-    MRadaptation(1e-5, 0, conserved_variables);
+    /*--- Apply mesh adaptation (available only for order 1 at the moment) ---*/
+    #if !defined(ORDER_2)
+      samurai::update_ghost_mr(alpha1);
+      auto MRadaptation = samurai::make_MRAdapt(alpha1);
+      MRadaptation(1e-5, 0, conserved_variables);
+
+      // Sanity check (and numerical artefacts to clear data) after mesh adaptastion
+      samurai::for_each_cell(mesh,
+                             [&](const auto& cell)
+                             {
+                               // Start with rho_alpha1
+                               if(conserved_variables[cell][RHO_ALPHA1_INDEX] < 0.0) {
+                                 if(conserved_variables[cell][RHO_ALPHA1_INDEX] < -1e-10) {
+                                   std::cerr << " Negative volume fraction at the beginning of the relaxation" << std::endl;
+                                   save(fs::current_path(), filename, "_diverged", conserved_variables);
+                                   exit(1);
+                                 }
+                                 conserved_variables[cell][RHO_ALPHA1_INDEX] = 0.0;
+                               }
+                               // Sanity check for m1
+                               if(conserved_variables[cell][M1_INDEX] < 0.0) {
+                                 if(conserved_variables[cell][M1_INDEX] < -1e-14) {
+                                   std::cerr << "Negative mass for phase 1 at the beginning of the relaxation" << std::endl;
+                                   save(fs::current_path(), filename, "_diverged", conserved_variables);
+                                   exit(1);
+                                 }
+                                 conserved_variables[cell][M1_INDEX] = 0.0;
+                               }
+                               // Sanity check for m2
+                               if(conserved_variables[cell][M2_INDEX] < 0.0) {
+                                 if(conserved_variables[cell][M2_INDEX] < -1e-14) {
+                                   std::cerr << "Negative mass for phase 2 at the beginning of the relaxation" << std::endl;
+                                   save(fs::current_path(), filename, "_diverged", conserved_variables);
+                                   exit(1);
+                                 }
+                                 conserved_variables[cell][M2_INDEX] = 0.0;
+                               }
+
+                               // Update volume fraction (and consequently density)
+                               rho.resize();
+                               rho[cell]    = conserved_variables[cell][M1_INDEX]
+                                            + conserved_variables[cell][M2_INDEX];
+
+                               alpha1[cell] = std::min(std::max(0.0, conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell]), 1.0);
+                             });
+    #endif
 
     /*--- Apply the numerical scheme without relaxation ---*/
     samurai::update_ghost_mr(conserved_variables);
+    samurai::update_bc(conserved_variables);
     auto flux_conserved = numerical_flux(conserved_variables);
     #ifdef ORDER_2
       conserved_variables_tmp.resize();
@@ -405,7 +450,6 @@ void WaveInterface<dim>::run() {
                              }
 
                              // Update volume fraction (and consequently density)
-                             rho.resize();
                              rho[cell]    = conserved_variables[cell][M1_INDEX]
                                           + conserved_variables[cell][M2_INDEX];
 
@@ -416,7 +460,9 @@ void WaveInterface<dim>::run() {
     if(apply_relax) {
       // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
       // concerns next time step, rho_alpha1
-      dalpha1.resize();
+      #if !defined(ORDER_2)
+        dalpha1.resize();
+      #endif
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
@@ -429,6 +475,7 @@ void WaveInterface<dim>::run() {
     #ifdef ORDER_2
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
+      samurai::update_bc(conserved_variables);
       flux_conserved = numerical_flux(conserved_variables);
       conserved_variables_tmp_2.resize();
       conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved;
@@ -500,22 +547,30 @@ void WaveInterface<dim>::run() {
                              [&](const auto& cell)
                              {
                                // Compute pressure fields
-                               p1.resize();
+                               #if !defined(ORDER_2)
+                                 p1.resize();
+                               #endif
                                const auto rho1 = (alpha1[cell] > eps) ? conserved_variables[cell][M1_INDEX]/alpha1[cell] : nan("");
                                p1[cell] = EOS_phase1.pres_value(rho1);
 
-                               p2.resize();
+                               #if !defined(ORDER_2)
+                                 p2.resize();
+                               #endif
                                const auto alpha2 = 1.0 - alpha1[cell];
                                const auto rho2   = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
                                p2[cell] = EOS_phase2.pres_value(rho2);
 
-                               p.resize();
+                               #if !defined(ORDER_2)
+                                 p.resize();
+                               #endif
                                p[cell] = (alpha1[cell] > eps && alpha2 > eps) ?
                                           alpha1[cell]*p1[cell] + alpha2*p2[cell] :
                                          ((alpha1[cell] < eps) ? p2[cell] : p1[cell]);
 
                               // Compute velocity field
-                              u.resize();
+                              #if !defined(ORDER_2)
+                                u.resize();
+                              #endif
                               u[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
                              });
 

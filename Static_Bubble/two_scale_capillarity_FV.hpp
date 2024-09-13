@@ -222,7 +222,7 @@ namespace samurai {
     FluxValue<cfg> cons = prim;
 
     // Apply conversion only to the mixture density times volume fraction
-    cons(RHO_ALPHA1_BAR_INDEX) = (prim(M1_INDEX) + prim(M2_INDEX) + prim(M1_D_INDEX))*prim(ALPHA1_BAR_INDEX);
+    cons(RHO_ALPHA1_BAR_INDEX) = (cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX))*prim(ALPHA1_BAR_INDEX);
 
     return cons;
   }
