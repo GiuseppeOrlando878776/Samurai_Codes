@@ -1,87 +1,92 @@
-#ifndef EOS_H_
-#define EOS_H_
+#ifndef eos_hpp
+#define eos_hpp
 
-#include "etat.hpp"
+/**
+  * Implementation of a generic lcass to handle the EOS. It has several
+    pure virtual functions to be implementede for the specific EOS
+  */
+template<typename T = double>
+class EOS {
+public:
+  static_assert(std::is_arithmetic_v<T>, "Template argument EOS not well suited for arithemtic operations");
+
+  EOS() = default; // Default constructor
+
+  EOS(const EOS&) = default; // Default copy-constructor
+
+  virtual ~EOS() {} // Virtual destructor (it can be useful since we work thourgh the base class)
+
+  virtual T pres_value(const T rho, const T e) const = 0; // Function to compute the pressure from the density and the internal energy
+
+  virtual T rho_value(const T pres, const T e) const = 0; // Function to compute the density from the pressure and the internal energy
+
+  virtual T e_value(const T rho, const T pres) const = 0; // Function to compute the internal energy from density and pressure
+
+  virtual T c_value(const T rho, const T pres) const = 0; // Function to compute the speed of sound from density and pressure
+};
 
 
-// Loi de pression phase 1
+/**
+ * Implementation of the stiffened gas equation of state (SG-EOS)
+ */
+template<typename T = double>
+class SG_EOS: public EOS<T> {
+public:
+  SG_EOS() = default; // Default constructor
 
-double Gamma1 = 3.0;
-double pp1 = 100.0;
+  SG_EOS(const SG_EOS&) = default; // Default copy-constructor
 
+  SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_ = 0.0); // Constructor which accepts as arguments
+                                                                                    // the isentropic exponent and the two parameters
+                                                                                    // that characterize the fluid
 
-inline double p1(double r1, double e1)
-{
-	return (Gamma1-1.)*r1*e1-Gamma1*pp1;
+  virtual T pres_value(const T rho, const T e) const override; // Function to compute the pressure from the density and the internal energy
+
+  virtual T rho_value(const T pres, const T e) const override; // Function to compute the density from the pressure and the internal energy
+
+  virtual T e_value(const T rho, const T pres) const override; // Function to compute the internal energy from density and pressure
+
+  virtual T c_value(const T rho, const T pres) const override; // Function to compute the speed of sound from density and pressure
+
+private:
+  const double gamma;    // Isentropic exponent
+  const double pi_infty; // Pressure at 'infinite'
+  const double q_infty;  // Internal energy at 'infinite'
+};
+
+// Implement the constructor
+//
+template<typename T>
+SG_EOS<T>::SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_):
+  EOS<T>(), gamma(gamma_), pi_infty(pi_infty_), q_infty(q_infty_) {}
+
+// Compute the pressure value from the density and the internal energy
+//
+template<typename T>
+T SG_EOS<T>::pres_value(const T rho, const T e) const {
+  return (gamma - 1.0)*rho*(e - q_infty) - gamma*pi_infty;
 }
 
-
-inline double P1(Etat e)
-{
-  double r1 = e.alrho1/e.al1;
-  double e1 = (e.alrhoE1-e.alrhou1*e.alrhou1/2./e.alrho1)/e.alrho1;
-  return p1(r1,e1);
+// Compute the density from the pressure and the internal energy
+//
+template<typename T>
+T SG_EOS<T>::rho_value(const T pres, const T e) const {
+  return (pres + gamma*pi_infty)/((gamma - 1.0)*(e - q_infty));
 }
 
-// energie interne specifique phase 1
-inline double e1(double r1, double p1)
-{
-	return (p1+Gamma1*pp1)/(Gamma1-1.)/r1;
+// Compute the internal energy from density and pressure
+//
+template<typename T>
+T SG_EOS<T>::e_value(const T rho, const T pres) const {
+  return (pres + gamma*pi_infty)/((gamma - 1.0)*rho) + q_infty;
 }
 
-
-// vitesse du son phase 1
-
-inline double cc1(double r1, double e1)
-{
-	return sqrt(Gamma1*(p1(r1,e1)+pp1)/r1);
+// Compute the speed of sound from density and pressure
+//
+template<typename T>
+T SG_EOS<T>::c_value(const T rho, const T pres) const {
+  return std::sqrt(gamma*(pres + pi_infty)/rho);
 }
-
-inline double c1(Etat e)
-{
-  double r1 = e.alrho1/e.al1;
-  double e1 = (e.alrhoE1-e.alrhou1*e.alrhou1/2./e.alrho1)/e.alrho1;
-  return cc1(r1,e1);
-}
-
-// Loi de pression phase 2
-
-double Gamma2 = 1.4;
-double pp2 = 0.0;
-
-
-inline double p2(double r2, double e2)
-{
-	return (Gamma2-1.)*r2*e2-Gamma2*pp2;
-}
-
-inline double P2(Etat e)
-{
-  double r2 = e.alrho2/(1.-e.al1);
-  double e2 = (e.alrhoE2-e.alrhou2*e.alrhou2/2./e.alrho2)/e.alrho2;
-  return p2(r2,e2);
-}
-
-// energie interne specifique phase 2
-inline double e2(double r2, double p2)
-{
-	return (p2+Gamma2*pp2)/(Gamma2-1.)/r2;
-}
-
-// vitesse du son phase 2
-
-inline double cc2(double r2, double e2)
-{
-	return sqrt(Gamma2*(p2(r2,e2)+pp2)/r2);
-}
-
-inline double c2(Etat e)
-{
-  double r2 = e.alrho2/(1.-e.al1);
-  double e2 = (e.alrhoE2-e.alrhou2*e.alrhou2/2./e.alrho2)/e.alrho2;
-  return cc2(r2,e2);
-}
-
 
 
 #endif
