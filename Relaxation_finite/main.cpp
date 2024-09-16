@@ -8,13 +8,13 @@
 //
 int main(int argc, char* argv[]) {
   // Mesh parameters
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {-0.5};
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {0.5};
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {0.0};
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {1.0};
   std::size_t min_level = 7;
   std::size_t max_level = 7;
 
   // Simulation parameters
-  double Tf  = 0.15;
+  double Tf  = 0.007;
   double cfl = 0.45;
 
   // Output parameters

@@ -157,7 +157,7 @@ void BN_Solver<dim>::init_variables() {
   vel2 = samurai::make_field<double, dim>("vel2", mesh);
 
   /*--- Set the initial state ---*/
-  const double xd = 0.0;
+  const double xd = 0.8;
 
   // Initialize the fields with a loop over all cells
   samurai::for_each_cell(mesh,
@@ -167,26 +167,26 @@ void BN_Solver<dim>::init_variables() {
                            const double x    = center[0];
 
                            if(x <= xd) {
-                             conserved_variables[cell][ALPHA1_INDEX] = 0.7;
+                             conserved_variables[cell][ALPHA1_INDEX] = 0.8;
 
-                             rho1[cell] = 1.00003;
-                             vel1[cell] = 0.00007;
-                             p1[cell]   = 1.0;
+                             rho1[cell] = 1.0;
+                             vel1[cell] = -19.59716;
+                             p1[cell]   = 1000.0;
 
-                             rho2[cell] = 0.21430;
-                             vel2[cell] = -0.02609;
-                             p2[cell]   = 0.3;
+                             rho2[cell] = 1.0;
+                             vel2[cell] = -19.59741;
+                             p2[cell]   = 1000.0;
                            }
                            else {
-                             conserved_variables[cell][ALPHA1_INDEX] = 0.2;
+                             conserved_variables[cell][ALPHA1_INDEX] = 0.3;
 
-                             rho1[cell] = 0.99993;
-                             vel1[cell] = -0.00004;
-                             p1[cell]   = 1.0;
+                             rho1[cell] = 1.0;
+                             vel1[cell] = -19.59741;
+                             p1[cell]   = 0.1;
 
-                             rho2[cell] = 0.96964;
-                             vel2[cell] = -0.03629;
-                             p2[cell]   = 0.95776;
+                             rho2[cell] = 1.0;
+                             vel2[cell] = -19.59741;
+                             p2[cell]   = 0.1;
                            }
 
                            conserved_variables[cell][ALPHA1_RHO1_INDEX]    = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];

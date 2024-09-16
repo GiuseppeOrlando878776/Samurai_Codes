@@ -6,8 +6,8 @@
 
 // Loi de pression phase 1
 
-double Gamma1 = 1.4;
-double pp1 = 0.0;
+double Gamma1 = 3.0;
+double pp1 = 100.0;
 
 
 inline double p1(double r1, double e1)
