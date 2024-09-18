@@ -1,0 +1,10 @@
+name: samurai-0.17
+channels:
+  - conda-forge
+dependencies:
+  - cmake
+  - cli11
+  - h5py
+  - cxx-compiler
+  - samurai>=0.17,<0.18
+  - matplotlib
