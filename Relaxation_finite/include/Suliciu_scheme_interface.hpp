@@ -69,7 +69,7 @@ namespace samurai {
   template<class Field>
   void RelaxationFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                     const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                    std::size_t curr_d,
+                                                    [[maybe_unused]] std::size_t curr_d,
                                                     FluxValue<typename Flux<Field>::cfg>& F_minus,
                                                     FluxValue<typename Flux<Field>::cfg>& F_plus,
                                                     double& c) {

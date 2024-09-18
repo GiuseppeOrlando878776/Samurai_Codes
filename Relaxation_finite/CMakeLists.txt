@@ -12,7 +12,7 @@ if(PETSC_FOUND)
     find_package(MPI)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 
 add_executable(BN_test main.cpp)
 target_link_libraries(BN_test samurai::samurai CLI11::CLI11)

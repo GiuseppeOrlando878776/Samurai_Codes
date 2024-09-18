@@ -106,8 +106,8 @@ double flux_relax(Etat UL, Etat UR, Etat &fWmoins, Etat &fWplus, int &ptfix, int
 	double u1d, pi1d, t1Ld, t1Rd;
 	double u2d, pi2d, t2Ld, t2Rd;
 
-	double alpha1m, tau1m, u1m, w1m, pi1m, E1m;
-	double alpha1p, tau1p, u1p, w1p, pi1p, E1p;
+	double alpha1m, tau1m, u1m, /*w1m,*/ pi1m, E1m;
+	double alpha1p, tau1p, u1p, /*w1p,*/ pi1p, E1p;
 
 	double alpha2m, tau2m, u2m, w2m, pi2m, E2m;
 	double alpha2p, tau2p, u2p, w2p, pi2p, E2p;
@@ -212,7 +212,7 @@ double flux_relax(Etat UL, Etat UR, Etat &fWmoins, Etat &fWplus, int &ptfix, int
 
         //u1e	= Dichotomie(cible, a1, alpha1L, alpha1R, u1d, t1Ld, t1Rd, a2, alpha2L, alpha2R, u2d, t2Ld, t2Rd, eps, ptfix);
 
-	
+
 
 	// Enfin les flux !
 

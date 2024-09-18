@@ -33,13 +33,13 @@ double duepsi(double ue, double a, double alphaL, double alphaR, double ud, doub
 }
 
 
-double Psi(double ue, double a1, double alpha1L, double alpha1R, double u1d, double t1Ld, double t1Rd, double a2, double alpha2L, double alpha2R, double u2d, double t2Ld, double t2Rd)
+double Psi(double ue, double a1, double alpha1L, double alpha1R, double u1d, [[maybe_unused]] double t1Ld, [[maybe_unused]] double t1Rd, double a2, double alpha2L, double alpha2R, double u2d, double t2Ld, double t2Rd)
 {
 	return  a1*(alpha1L+alpha1R)*(ue-u1d)+ psi(ue, a2, alpha2L, alpha2R, u2d, t2Ld, t2Rd);
 }
 
 // Derivee de Psi par rapport a ue, pour le Newton
-double duePsi(double ue, double a1, double alpha1L, double alpha1R, double u1d, double t1Ld, double t1Rd, double a2, double alpha2L, double alpha2R, double u2d, double t2Ld, double t2Rd)
+double duePsi(double ue, double a1, double alpha1L, double alpha1R, [[maybe_unused]] double u1d, [[maybe_unused]] double t1Ld, [[maybe_unused]] double t1Rd, double a2, double alpha2L, double alpha2R, double u2d, double t2Ld, double t2Rd)
 {
         return a1*(alpha1L+alpha1R)+duepsi(ue, a2, alpha2L, alpha2R, u2d, t2Ld, t2Rd);
 }
@@ -260,7 +260,7 @@ void Riemannsoldec (double ksi,
 	double M;
 	double Mzero;
 	double mu	= 0.9;
-	double nuc;
+	// double nuc;
 	double t 	= taudR/taudL;
 
 	dissip 		= 0;

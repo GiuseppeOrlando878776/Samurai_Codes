@@ -6,7 +6,8 @@
 
 // Main function to run the program
 //
-int main(int argc, char* argv[]) {
+int main()
+{
   // Mesh parameters
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {0.0};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {1.0};
