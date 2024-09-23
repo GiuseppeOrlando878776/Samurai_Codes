@@ -21,9 +21,9 @@ def scatter_update(scatter, points):
 
 def line_plot(ax, x_Rusanov, y_Rusanov, x_HLLC, y_HLLC, x_HLLC_BR, y_HLLC_BR):
     #Plot results
-    plot_Rusanov = ax.plot(x_Rusanov, y_Rusanov, color='orange', linewidth=1, markersize=4, alpha=1)[0]
-    plot_HLLC    = ax.plot(x_HLLC, y_HLLC, 'r-', linewidth=1, markersize=4, alpha=1)[0]
-    plot_HLLC_BR = ax.plot(x_HLLC_BR, y_HLLC_BR, 'go', linewidth=1, markersize=4, alpha=1, markevery=32)[0]
+    plot_Rusanov = ax.plot(x_Rusanov, y_Rusanov, 'ro', linewidth=1, markersize=4, alpha=1, markevery=128)[0]
+    plot_HLLC    = ax.plot(x_HLLC, y_HLLC, 'b-', linewidth=1, markersize=4, alpha=1)[0]
+    #plot_HLLC_BR = ax.plot(x_HLLC_BR, y_HLLC_BR, 'go', linewidth=1, markersize=4, alpha=1, markevery=32)[0]
 
     #Read and plot the analytical results
     if args.analytical is not None:
@@ -51,9 +51,10 @@ def line_plot(ax, x_Rusanov, y_Rusanov, x_HLLC, y_HLLC, x_HLLC_BR, y_HLLC_BR):
         ax.legend([plot_Rusanov, plot_HLLC, plot_HLLC_BR, plot_ref], \
                   ['Rusanov + BR', 'HLLC (wave propagation)', 'HLLC + BR', 'Reference results'], fontsize="20", loc="best")
     else:
-        ax.legend([plot_Rusanov, plot_HLLC, plot_HLLC_BR], ['Rusanov + BR', 'HLLC (wave propagation)', 'HLLC + BR'], fontsize="20", loc="best")
+        #ax.legend([plot_Rusanov, plot_HLLC, plot_HLLC_BR], ['Rusanov + BR', 'HLLC (wave propagation)', 'HLLC + BR'], fontsize="20", loc="best")
+        ax.legend([plot_Rusanov, plot_HLLC], ['Rusanov + BR', 'HLLC (wave propagation)'], fontsize="20", loc="best")
 
-    return plot_Rusanov, plot_HLLC, plot_HLLC_BR
+    return plot_Rusanov, plot_HLLC#, plot_HLLC_BR
 
 def line_update(lines, x_Rusanov, y_Rusanov, x_HLLC, y_HLLC, x_HLLC_BR, y_HLLC_BR):
     lines[1].set_data(x_Rusanov, y_Rusanov)

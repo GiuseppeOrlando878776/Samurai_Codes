@@ -11,17 +11,17 @@ int main(int argc, char* argv[]) {
   /*--- Mesh parameters ---*/
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {0.0};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {1.0};
-  std::size_t min_level = 16;
-  std::size_t max_level = 16;
+  std::size_t min_level = 14;
+  std::size_t max_level = 14;
 
   /*--- Simulation parameters ---*/
-  double Tf  = 0.15;
+  double Tf  = 2.9e-5;
   double cfl = 0.45;
 
   /*--- Output parameters ---*/
   std::size_t nfiles = 10;
 
-  bool apply_pressure_relax = false;
+  bool apply_pressure_relax = true;
   #ifdef RELAX_POLYNOM
     bool apply_pressure_reinit = true;
 

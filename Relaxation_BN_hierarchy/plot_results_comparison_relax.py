@@ -19,12 +19,12 @@ def scatter_plot(ax, points):
 def scatter_update(scatter, points):
     scatter.set_offsets(points[:, :2])
 
-def line_plot(ax, x_polynom, y_polynom, x_polynom_reinit, y_polynom_reinit, x_pI_liquid, y_pI_liquid, x_pI_gas, y_pI_gas):
+def line_plot(ax, x_polynom, y_polynom, x_linearization, y_linearization, x_pI_liquid, y_pI_liquid, x_pI_gas, y_pI_gas):
     #Plot results
-    plot_polynom        = ax.plot(x_polynom, y_polynom, 'k-', linewidth=1, markersize=4, alpha=1)[0]
-    plot_polynom_reinit = ax.plot(x_polynom_reinit, y_polynom_reinit, 'bx', linewidth=1, markersize=6, alpha=1, markevery=32)[0]
-    plot_pI_liquid      = ax.plot(x_pI_liquid, y_pI_liquid, 'r-', linewidth=1, markersize=4, alpha=1)[0]
-    plot_pI_gas         = ax.plot(x_pI_gas, y_pI_gas, 'go', linewidth=1, markersize=4, alpha=1, markevery=24)[0]
+    plot_polynom       = ax.plot(x_polynom, y_polynom, 'k-', linewidth=1, markersize=4, alpha=1)[0]
+    #plot_linearization = ax.plot(x_linearization, y_linearization, 'bx', linewidth=1, markersize=6, alpha=1, markevery=32)[0]
+    plot_pI_liquid     = ax.plot(x_pI_liquid, y_pI_liquid, 'r-', linewidth=1, markersize=4, alpha=1)[0]
+    plot_pI_gas        = ax.plot(x_pI_gas, y_pI_gas, 'bo', linewidth=1, markersize=4, alpha=1, markevery=1)[0]
 
     #Read and plot the analytical results
     if args.analytical is not None:
@@ -43,28 +43,35 @@ def line_plot(ax, x_polynom, y_polynom, x_polynom_reinit, y_polynom_reinit, x_pI
     #Add legend
     if args.analytical is not None:
         if args.reference is not None:
-            ax.legend([plot_polynom, plot_polynom_reinit, plot_pI_liquid, plot_pI_gas, plot_analytical, plot_ref], \
-                      ['Polynomial method', 'Polynomial method with reinit step', 'pI liquid', 'pI gas', 'Reference results'], fontsize="20", loc="best")
+            ax.legend([plot_polynom, plot_linearization, plot_pI_liquid, plot_pI_gas, plot_analytical, plot_ref], \
+                      ['Polynomial method (Saurel et al., 2019)', 'Linearization method (Pelanti-Shyue, 2014)', 'pI liquid', 'pI gas', 'Reference results'], \
+                       fontsize="20", loc="best")
         else:
-            ax.legend([plot_polynom, plot_polynom_reinit, plot_pI_liquid, plot_pI_gas, plot_analytical], \
-                      ['Polynomial method', 'Polynomial method with reinit step', 'pI liquid', 'pI gas', 'Analytical (5 equations)'], fontsize="20", loc="best")
+            ax.legend([plot_polynom, plot_linearization, plot_pI_liquid, plot_pI_gas, plot_analytical], \
+                      ['Polynomial method (Saurel et al., 2019)', 'Linearization method (Pelanti-Shyue, 2014)', 'pI liquid', 'pI gas', 'Analytical (5 equations)'], \
+                       fontsize="20", loc="best")
     elif args.reference is not None:
-        ax.legend([plot_polynom, plot_polynom_reinit, plot_pI_liquid, plot_pI_gas, plot_ref], \
-                  ['Polynomial method', 'Polynomial method with reinit step', 'pI liquid', 'pI gas', 'Reference results'], fontsize="20", loc="best")
+        ax.legend([plot_polynom, plot_linearization, plot_pI_liquid, plot_pI_gas, plot_ref], \
+                  ['Polynomial method (Saurel et al., 2019)', 'Linearization method (Pelanti-Shyue, 2014)', 'pI liquid', 'pI gas', 'Reference results'], \
+                   fontsize="20", loc="best")
     else:
-        ax.legend([plot_polynom, plot_polynom_reinit, plot_pI_liquid, plot_pI_gas], \
-                  ['Polynomial method', 'Polynomial method with reinit step', 'pI liquid', 'pI gas'], fontsize="20", loc="best")
+        ax.legend(#[plot_polynom, plot_linearization, plot_pI_liquid, plot_pI_gas], \
+                  #['Polynomial method (Saurel et al., 2019)', 'Linearization method (Pelanti-Shyue, 2014)', 'pI liquid', 'pI gas'], \
+                  [plot_polynom, plot_pI_liquid, plot_pI_gas], \
+                  ['Polynomial method (Saurel et al., 2019)', 'pI liquid', 'pI gas'], \
+                   fontsize="20", loc="best")
 
-    return plot_polynom, plot_polynom_reinit, plot_pI_liquid, plot_pI_gas
+    #return plot_polynom, plot_linearization, plot_pI_liquid, plot_pI_gas
+    return plot_polynom, plot_pI_liquid, plot_pI_gas
 
-def line_update(lines, x_polynom, y_polynom, x_polynom_reinit, y_polynom_reinit, x_pI_liquid, y_pI_liquid, x_pI_gas, y_pI_gas):
+def line_update(lines, x_polynom, y_polynom, x_linearization, y_linearization, x_pI_liquid, y_pI_liquid, x_pI_gas, y_pI_gas):
     lines[1].set_data(x_polynom, y_polynom)
-    lines[2].set_data(x_polynom_reinit, y_polynom_reinit)
+    lines[2].set_data(x_linearization, y_linearization)
     lines[3].set_data(x_pI_liquid, y_pI_liquid)
     lines[4].set_data(x_pI_gas, y_pI_gas)
 
 class Plot:
-    def __init__(self, filename_polynom, filename_polynom_reinit, filename_pI_liquid, filename_pI_gas):
+    def __init__(self, filename_polynom, filename_linearization, filename_pI_liquid, filename_pI_gas):
         self.fig = plt.figure()
         self.artists = []
         self.ax = []
@@ -76,15 +83,15 @@ class Plot:
             ax.set_title("Mesh")
             self.ax = [ax]
         else:
-            mesh_polynom_reinit = read_mesh(filename_polynom_reinit)
+            mesh_linearization = read_mesh(filename_linearization)
             mesh_pI_liquid      = read_mesh(filename_pI_liquid)
             mesh_pI_gas         = read_mesh(filename_pI_gas)
             for i, f in enumerate(args.field):
                 ax = plt.subplot(1, len(args.field), i + 1)
-                self.plot(ax, mesh_polynom, mesh_polynom_reinit, mesh_pI_liquid, mesh_pI_gas, f)
+                self.plot(ax, mesh_polynom, mesh_linearization, mesh_pI_liquid, mesh_pI_gas, f)
                 ax.set_title(f)
 
-    def plot(self, ax, mesh_polynom, mesh_polynom_reinit=None, mesh_pI_liquid=None, mesh_pI_gas=None, field=None, init=True):
+    def plot(self, ax, mesh_polynom, mesh_linearization=None, mesh_pI_liquid=None, mesh_pI_gas=None, field=None, init=True):
         points_polynom       = mesh_polynom['points']
         connectivity_polynom = mesh_polynom['connectivity']
 
@@ -108,14 +115,14 @@ class Plot:
             # ax.scatter(centers, data, marker='+')
             index_polynom = np.argsort(centers_polynom)
 
-            points_polynom_reinit       = mesh_polynom_reinit['points']
-            connectivity_polynom_reinit = mesh_polynom_reinit['connectivity']
-            segments_polynom_reinit     = np.zeros((connectivity_polynom_reinit.shape[0], 2, 2))
-            segments_polynom_reinit[:, :, 0] = points_polynom_reinit[:][connectivity_polynom_reinit[:]][:, :, 0]
-            data_polynom_reinit    = mesh_polynom_reinit['fields'][field][:]
-            centers_polynom_reinit = 0.5*(segments_polynom_reinit[:, 0, 0] + segments_polynom_reinit[:, 1, 0])
-            segments_polynom_reinit[:, :, 1] = data_polynom_reinit[:, np.newaxis]
-            index_polynom_reinit = np.argsort(centers_polynom_reinit)
+            points_linearization       = mesh_linearization['points']
+            connectivity_linearization = mesh_linearization['connectivity']
+            segments_linearization     = np.zeros((connectivity_linearization.shape[0], 2, 2))
+            segments_linearization[:, :, 0] = points_linearization[:][connectivity_linearization[:]][:, :, 0]
+            data_linearization    = mesh_linearization['fields'][field][:]
+            centers_linearization = 0.5*(segments_linearization[:, 0, 0] + segments_linearization[:, 1, 0])
+            segments_linearization[:, :, 1] = data_linearization[:, np.newaxis]
+            index_linearization = np.argsort(centers_linearization)
 
             points_pI_liquid       = mesh_pI_liquid['points']
             connectivity_pI_liquid = mesh_pI_liquid['connectivity']
@@ -136,12 +143,12 @@ class Plot:
             index_pI_gas = np.argsort(centers_pI_gas)
             if init:
                 self.artists.append(line_plot(ax, centers_polynom[index_polynom], data_polynom[index_polynom], \
-						                          centers_polynom_reinit[index_polynom_reinit], data_polynom_reinit[index_polynom_reinit], \
+						                          centers_linearization[index_linearization], data_linearization[index_linearization], \
 						                          centers_pI_liquid[index_pI_liquid], data_pI_liquid[index_pI_liquid], \
                                                   centers_pI_gas[index_pI_gas], data_pI_gas[index_pI_gas]))
             else:
                 line_update(self.artists[self.index], centers_polynom[index_polynom], data_polynom[index_polynom], \
-                                                      centers_polynom_reinit[index_polynom_reinit], data_polynom_reinit[index_polynom_reinit], \
+                                                      centers_linearization[index_linearization], data_linearization[index_linearization], \
                                                       centers_pI_liquid[index_pI_liquid], data_pI_liquid[index_pI_liquid], \
                                                       centers_pI_gas[index_pI_gas], data_pI_gas[index_pI_gas])
                 self.index += 1
@@ -150,25 +157,25 @@ class Plot:
             aax.relim()
             aax.autoscale_view()
 
-    def update(self, filename_polynom, filename_polynom_reinit, filename_pI_liquid, filename_pI_gas):
+    def update(self, filename_polynom, filename_linearization, filename_pI_liquid, filename_pI_gas):
         mesh_polynom = read_mesh(filename_polynom)
         self.index = 0
         if args.field is None:
             self.plot(None, mesh_polynom, init=False)
         else:
-            mesh_polynom_reinit = read_mesh(filename_polynom_reinit)
+            mesh_linearization = read_mesh(filename_linearization)
             mesh_pI_liquid      = read_mesh(filename_pI_liquid)
             mesh_pI_gas         = read_mesh(filename_pI_gas)
 
             for i, f in enumerate(args.field):
-                self.plot(None, mesh_polynom, mesh_polynom_reinit, mesh_pI_liquid, mesh_pI_gas, f, init=False)
+                self.plot(None, mesh_polynom, mesh_linearization, mesh_pI_liquid, mesh_pI_gas, f, init=False)
 
     def get_artist(self):
         return self.artists
 
 parser = argparse.ArgumentParser(description='Plot 1d mesh and field from samurai simulations.')
 parser.add_argument('filename_polynom', type=str, help='hdf5 file to plot without .h5 extension')
-parser.add_argument('filename_polynom_reinit', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_linearization', type=str, help='hdf5 file to plot without .h5 extension')
 parser.add_argument('filename_pI_liquid', type=str, help='hdf5 file to plot without .h5 extension')
 parser.add_argument('filename_pI_gas', type=str, help='hdf5 file to plot without .h5 extension')
 parser.add_argument('--field', nargs="+", type=str, required=False, help='list of fields to plot')
@@ -183,13 +190,13 @@ parser.add_argument('--column_reference', type=int, required=False, help='variab
 args = parser.parse_args()
 
 if args.end is None:
-    Plot(args.filename_polynom, args.filename_polynom_reinit, args.filename_pI_liquid, args.filename_pI_gas)
+    Plot(args.filename_polynom, args.filename_linearization, args.filename_pI_liquid, args.filename_pI_gas)
 else:
-    p = Plot(f"{args.filename_polynom}{args.start}", f"{args.filename_polynom_reinit}{args.start}", \
+    p = Plot(f"{args.filename_polynom}{args.start}", f"{args.filename_linearization}{args.start}", \
              f"{args.filename_pI_liquid}{args.start}", f"{args.filename_pI_gas}{args.start}")
     def animate(i):
         p.fig.suptitle(f"iteration {i + args.start}")
-        p.update(f"{args.filename_polynom}{i + args.start}", f"{args.filename_polynom_reinit}{args.start}", \
+        p.update(f"{args.filename_polynom}{i + args.start}", f"{args.filename_linearization}{args.start}", \
                  f"{args.filename_pI_liquid}{args.start}", f"{args.filename_pI_gas}{args.start}")
         return p.get_artist()
     ani = animation.FuncAnimation(p.fig, animate, frames=args.end-args.start, interval=args.wait, repeat=True)
