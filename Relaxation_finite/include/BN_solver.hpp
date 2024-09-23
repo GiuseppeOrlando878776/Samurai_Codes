@@ -18,6 +18,8 @@ namespace fs = std::filesystem;
 #include "non_conservative_flux.hpp"
 #include "Suliciu_scheme_interface.hpp"
 
+#include "containers.hpp"
+
 #define SULICIU_RELAXATION
 //#define RUSANOV_FLUX
 
@@ -43,11 +45,10 @@ public:
 
   BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
             const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-            std::size_t min_level, std::size_t max_level,
-            double Tf_, double cfl_, std::size_t nfiles_ = 100);  // Class constrcutor with the arguments related
-                                                                  // to the grid and to the physics.
-                                                                  // Maybe in the future,
-                                                                  // we could think to add parameters related to EOS
+            const Simulation_Paramaters& sim_param); // Class constrcutor with the arguments related
+                                                     // to the grid and to the physics.
+                                                     // Maybe in the future,
+                                                     // we could think to add parameters related to EOS
 
   void run(); // Function which actually executes the temporal loop
 
@@ -119,10 +120,9 @@ private:
 template<std::size_t dim>
 BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                           const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                          std::size_t min_level, std::size_t max_level,
-                          double Tf_, double cfl_, std::size_t nfiles_):
-  box(min_corner, max_corner), mesh(box, min_level, max_level, {false}),
-  Tf(Tf_), cfl(cfl_), nfiles(nfiles_),
+                          const Simulation_Paramaters& sim_param):
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
+  Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   EOS_phase1(EquationData::gamma_1, EquationData::pi_infty_1, EquationData::q_infty_1),
   EOS_phase2(EquationData::gamma_2, EquationData::pi_infty_2, EquationData::q_infty_2),
   #ifdef SULICIU_RELAXATION
