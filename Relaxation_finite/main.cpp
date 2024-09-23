@@ -33,8 +33,24 @@ int main()
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
 
+  // Set and declare simulation parameters related to EOS
+  EOS_Parameters eos_param;
+  eos_param.gamma_1 = 3.0;
+  eos_param.pi_infty_1 = 100.0;
+  eos_param.q_infty_1 = 0.0;
+  eos_param.gamma_2 = 1.4;
+  eos_param.pi_infty_2 = 0.0;
+  eos_param.q_infty_2 = 0.0;
+
+  app.add_option("--gammma_1", eos_param.gamma_1, "gamma_1")->capture_default_str()->group("EOS parameters");
+  app.add_option("--pi_infty_1", eos_param.pi_infty_1, "pi_infty_1")->capture_default_str()->group("EOS parameters");
+  app.add_option("--q_infty_1", eos_param.q_infty_1, "q_infty_1")->capture_default_str()->group("EOS parameters");
+  app.add_option("--gammma_2", eos_param.gamma_2, "gamma_2")->capture_default_str()->group("EOS parameters");
+  app.add_option("--pi_infty_2", eos_param.pi_infty_2, "pi_infty_2")->capture_default_str()->group("EOS parameters");
+  app.add_option("--q_infty_2", eos_param.q_infty_2, "q_infty_2")->capture_default_str()->group("EOS parameters");
+
   // Create the instance of the class to perform the simulation
-  auto BN_Solver_Sim = BN_Solver(min_corner, max_corner, sim_param);
+  auto BN_Solver_Sim = BN_Solver(min_corner, max_corner, sim_param, eos_param);
 
   BN_Solver_Sim.run();
 

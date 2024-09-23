@@ -13,4 +13,14 @@ struct Simulation_Paramaters {
   std::size_t nfiles;
 };
 
+// Declare a struct with EOS parameters
+struct EOS_Parameters {
+  double gamma_1;
+  double pi_infty_1;
+  double q_infty_1;
+  double gamma_2;
+  double pi_infty_2;
+  double q_infty_2;
+};
+
 #endif

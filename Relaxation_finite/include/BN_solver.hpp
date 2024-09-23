@@ -45,10 +45,9 @@ public:
 
   BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
             const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-            const Simulation_Paramaters& sim_param); // Class constrcutor with the arguments related
-                                                     // to the grid and to the physics.
-                                                     // Maybe in the future,
-                                                     // we could think to add parameters related to EOS
+            const Simulation_Paramaters& sim_param,
+            const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
+                                              // to the grid and to the physics.
 
   void run(); // Function which actually executes the temporal loop
 
@@ -120,11 +119,12 @@ private:
 template<std::size_t dim>
 BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                           const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                          const Simulation_Paramaters& sim_param):
+                          const Simulation_Paramaters& sim_param,
+                          const EOS_Parameters& eos_param):
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
-  EOS_phase1(EquationData::gamma_1, EquationData::pi_infty_1, EquationData::q_infty_1),
-  EOS_phase2(EquationData::gamma_2, EquationData::pi_infty_2, EquationData::q_infty_2),
+  EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1),
+  EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2),
   #ifdef SULICIU_RELAXATION
     numerical_flux()
   #elifdef RUSANOV_FLUX
