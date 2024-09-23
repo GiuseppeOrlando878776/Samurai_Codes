@@ -46,8 +46,9 @@ public:
   BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
             const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
             const Simulation_Paramaters& sim_param,
-            const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
-                                              // to the grid and to the physics.
+            const EOS_Parameters& eos_param,
+            const Riemann_Parameters& Riemann_param); // Class constrcutor with the arguments related
+                                                      // to the grid and to the physics.
 
   void run(); // Function which actually executes the temporal loop
 
@@ -104,7 +105,7 @@ private:
              vel2;
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
-  void init_variables(); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+  void init_variables(const Riemann_Parameters& Riemann_param); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
   void update_auxiliary_fields(); // Routine to update auxilairy fields for output and time step update
 
@@ -120,7 +121,8 @@ template<std::size_t dim>
 BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                           const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                           const Simulation_Paramaters& sim_param,
-                          const EOS_Parameters& eos_param):
+                          const EOS_Parameters& eos_param,
+                          const Riemann_Parameters& Riemann_param):
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1),
@@ -132,13 +134,13 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
     numerical_flux_non_cons(EOS_phase1, EOS_phase2)
   #endif
   {
-    init_variables();
+    init_variables(Riemann_param);
   }
 
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void BN_Solver<dim>::init_variables() {
+void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   // Create conserved and auxiliary fields
   conserved_variables = samurai::make_field<double, EquationData::NVARS>("conserved", mesh);
 
@@ -156,9 +158,6 @@ void BN_Solver<dim>::init_variables() {
   vel1 = samurai::make_field<double, dim>("vel1", mesh);
   vel2 = samurai::make_field<double, dim>("vel2", mesh);
 
-  /*--- Set the initial state ---*/
-  const double xd = 0.8;
-
   // Initialize the fields with a loop over all cells
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -166,27 +165,27 @@ void BN_Solver<dim>::init_variables() {
                            const auto center = cell.center();
                            const double x    = center[0];
 
-                           if(x <= xd) {
-                             conserved_variables[cell][ALPHA1_INDEX] = 0.8;
+                           if(x <= Riemann_param.xd) {
+                             conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1L;
 
-                             rho1[cell] = 1.0;
-                             vel1[cell] = -19.59716;
-                             p1[cell]   = 1000.0;
+                             rho1[cell] = Riemann_param.rho1L;
+                             vel1[cell] = Riemann_param.vel1L;
+                             p1[cell]   = Riemann_param.p1L;
 
-                             rho2[cell] = 1.0;
-                             vel2[cell] = -19.59741;
-                             p2[cell]   = 1000.0;
+                             rho2[cell] = Riemann_param.rho2L;
+                             vel2[cell] = Riemann_param.vel2L;
+                             p2[cell]   = Riemann_param.p2L;
                            }
                            else {
-                             conserved_variables[cell][ALPHA1_INDEX] = 0.3;
+                             conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1R;
 
-                             rho1[cell] = 1.0;
-                             vel1[cell] = -19.59741;
-                             p1[cell]   = 0.1;
+                             rho1[cell] = Riemann_param.rho1R;
+                             vel1[cell] = Riemann_param.vel1R;
+                             p1[cell]   = Riemann_param.p1R;
 
-                             rho2[cell] = 1.0;
-                             vel2[cell] = -19.59741;
-                             p2[cell]   = 0.1;
+                             rho2[cell] = Riemann_param.rho2R;
+                             vel2[cell] = Riemann_param.vel2R;
+                             p2[cell]   = Riemann_param.p2R;
                            }
 
                            conserved_variables[cell][ALPHA1_RHO1_INDEX]    = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];
