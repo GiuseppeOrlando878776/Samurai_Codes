@@ -17,6 +17,8 @@ int main()
 
   sim_param.xL = 0.0;
   sim_param.xR = 1.0;
+  sim_param.yL = 0.0;
+  sim_param.yR = 1.0;
 
   sim_param.min_level = 7;
   sim_param.max_level = 7;
@@ -27,8 +29,10 @@ int main()
 
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--xL", sim_param.xL, "Left-end of the domain")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--xR", sim_param.xR, "Right-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--yL", sim_param.yL, "y Left-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--yR", sim_param.yR, "y Right-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
@@ -62,34 +66,42 @@ int main()
   Riemann_param.alpha1L = 0.8;
   Riemann_param.rho1L = 1.0;
   Riemann_param.p1L = 1000.0;
-  Riemann_param.vel1L = -19.59716;
+  Riemann_param.u1L = -19.59716;
+  Riemann_param.v1L = 0.0;
   Riemann_param.rho2L = 1.0;
   Riemann_param.p2L = 1000.0;
-  Riemann_param.vel2L = -19.59741;
+  Riemann_param.u2L = -19.59741;
+  Riemann_param.v2L = 0.0;
 
   Riemann_param.alpha1R = 0.3;
   Riemann_param.rho1R = 1.0;
   Riemann_param.p1R = 0.1;
-  Riemann_param.vel1R = -19.59741;
+  Riemann_param.u1R = -19.59741;
+  Riemann_param.v1R = 0.0;
   Riemann_param.rho2R = 1.0;
   Riemann_param.p2R = 0.1;
-  Riemann_param.vel2R = -19.59741;
+  Riemann_param.u2R = -19.59741;
+  Riemann_param.v2R = 0.0;
 
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
   app.add_option("--alpha1L", Riemann_param.alpha1L, "Initial volume fraction at left")->capture_default_str()->group("Initial conditions");
   app.add_option("--rho1L", Riemann_param.rho1L, "Initial density phase 1 at left")->capture_default_str()->group("Initial conditions");
   app.add_option("--p1L", Riemann_param.p1L, "Initial pressure phase 1 at left")->capture_default_str()->group("Initial conditions");
-  app.add_option("--vel1L", Riemann_param.vel1L, "Initial velocity phase 1 at left")->capture_default_str()->group("Initial conditions");
+  app.add_option("--u1L", Riemann_param.u1L, "Initial horizontal velocity phase 1 at left")->capture_default_str()->group("Initial conditions");
+  app.add_option("--v1L", Riemann_param.v1L, "Initial vertical velocity phase 1 at left")->capture_default_str()->group("Initial conditions");
   app.add_option("--rho2L", Riemann_param.rho2L, "Initial density phase 2 at left")->capture_default_str()->group("Initial conditions");
   app.add_option("--p2L", Riemann_param.p2L, "Initial pressure phase 2 at left")->capture_default_str()->group("Initial conditions");
-  app.add_option("--vel2L", Riemann_param.vel2L, "Initial velocity phase 2 at left")->capture_default_str()->group("Initial conditions");
+  app.add_option("--u2L", Riemann_param.u2L, "Initial horizontal velocity phase 2 at left")->capture_default_str()->group("Initial conditions");
+  app.add_option("--v2L", Riemann_param.v2L, "Initial vertical velocity phase 2 at left")->capture_default_str()->group("Initial conditions");
   app.add_option("--alpha1R", Riemann_param.alpha1R, "Initial volume fraction at right")->capture_default_str()->group("Initial conditions");
   app.add_option("--rho1R", Riemann_param.rho1R, "Initial density phase 1 at right")->capture_default_str()->group("Initial conditions");
   app.add_option("--p1R", Riemann_param.p1R, "Initial pressure phase 1 at right")->capture_default_str()->group("Initial conditions");
-  app.add_option("--vel1R", Riemann_param.vel1R, "Initial velocity phase 1 at right")->capture_default_str()->group("Initial conditions");
+  app.add_option("--u1R", Riemann_param.u1R, "Initial horizotnal velocity phase 1 at right")->capture_default_str()->group("Initial conditions");
+  app.add_option("--v1R", Riemann_param.v1R, "Initial vertical velocity phase 1 at right")->capture_default_str()->group("Initial conditions");
   app.add_option("--rho2R", Riemann_param.rho2R, "Initial density phase 2 at right")->capture_default_str()->group("Initial conditions");
   app.add_option("--p2R", Riemann_param.p2R, "Initial pressure phase 2 at right")->capture_default_str()->group("Initial conditions");
-  app.add_option("--vel2R", Riemann_param.vel2R, "Initial velocity phase 2 at right")->capture_default_str()->group("Initial conditions");
+  app.add_option("--u2R", Riemann_param.u2R, "Initial horizontal velocity phase 2 at right")->capture_default_str()->group("Initial conditions");
+  app.add_option("--v2R", Riemann_param.v2R, "Initial vertical velocity phase 2 at right")->capture_default_str()->group("Initial conditions");
 
   // Create the instance of the class to perform the simulation
   auto BN_Solver_Sim = BN_Solver(min_corner, max_corner, sim_param, eos_param, Riemann_param);

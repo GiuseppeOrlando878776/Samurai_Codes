@@ -6,6 +6,8 @@
 struct Simulation_Paramaters {
   double xL;
   double xR;
+  double yL;
+  double yR;
   std::size_t min_level;
   std::size_t max_level;
 
@@ -20,7 +22,7 @@ struct EOS_Parameters {
   double gamma_1;
   double pi_infty_1;
   double q_infty_1;
-  
+
   double gamma_2;
   double pi_infty_2;
   double q_infty_2;
@@ -33,18 +35,22 @@ struct Riemann_Parameters {
   double alpha1L;
   double rho1L;
   double p1L;
-  double vel1L;
+  double u1L;
+  double v1L;
   double rho2L;
   double p2L;
-  double vel2L;
+  double u2L;
+  double v2L;
 
   double alpha1R;
   double rho1R;
   double p1R;
-  double vel1R;
+  double u1R;
+  double v1R;
   double rho2R;
   double p2R;
-  double vel2R;
+  double u2R;
+  double v2R;
 };
 
 #endif

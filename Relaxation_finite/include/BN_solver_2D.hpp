@@ -123,7 +123,7 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
                           const Simulation_Paramaters& sim_param,
                           const EOS_Parameters& eos_param,
                           const Riemann_Parameters& Riemann_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false, true}),
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2),
@@ -168,37 +168,51 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            if(x <= Riemann_param.xd) {
                              conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1L;
 
-                             rho1[cell] = Riemann_param.rho1L;
-                             vel1[cell] = Riemann_param.u1L;
-                             p1[cell]   = Riemann_param.p1L;
+                             rho1[cell]    = Riemann_param.rho1L;
+                             vel1[cell][0] = Riemann_param.u1L;
+                             vel1[cell][1] = Riemann_param.v1L;
+                             p1[cell]      = Riemann_param.p1L;
 
-                             rho2[cell] = Riemann_param.rho2L;
-                             vel2[cell] = Riemann_param.u2L;
-                             p2[cell]   = Riemann_param.p2L;
+                             rho2[cell]    = Riemann_param.rho2L;
+                             vel2[cell][0] = Riemann_param.u2L;
+                             vel2[cell][1] = Riemann_param.v2L;
+                             p2[cell]      = Riemann_param.p2L;
                            }
                            else {
                              conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1R;
 
-                             rho1[cell] = Riemann_param.rho1R;
-                             vel1[cell] = Riemann_param.u1R;
-                             p1[cell]   = Riemann_param.p1R;
+                             rho1[cell]    = Riemann_param.rho1R;
+                             vel1[cell][0] = Riemann_param.u1R;
+                             vel1[cell][1] = Riemann_param.v1R;
+                             p1[cell]      = Riemann_param.p1R;
 
-                             rho2[cell] = Riemann_param.rho2R;
-                             vel2[cell] = Riemann_param.u2R;
-                             p2[cell]   = Riemann_param.p2R;
+                             rho2[cell]    = Riemann_param.rho2R;
+                             vel2[cell][0] = Riemann_param.u2R;
+                             vel2[cell][1] = Riemann_param.v2R;
+                             p2[cell]      = Riemann_param.p2R;
                            }
 
-                           conserved_variables[cell][ALPHA1_RHO1_INDEX]    = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];
-                           conserved_variables[cell][ALPHA1_RHO1_U1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*vel1[cell];
+                           conserved_variables[cell][ALPHA1_RHO1_INDEX] = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];
+                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                             conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*vel1[cell][d];
+                           }
                            const auto e1 = EOS_phase1.e_value(rho1[cell], p1[cell]);
-                           conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                                                             (e1 + 0.5*vel1[cell]*vel1[cell]);
+                           conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*e1;
+                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                             conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] += conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                                                                (0.5*vel1[cell][d]*vel1[cell][d]);
+                           }
 
-                           conserved_variables[cell][ALPHA2_RHO2_INDEX]    = (1.0 - conserved_variables[cell][ALPHA1_INDEX])*rho2[cell];
-                           conserved_variables[cell][ALPHA2_RHO2_U2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*vel2[cell];
+                           conserved_variables[cell][ALPHA2_RHO2_INDEX] = (1.0 - conserved_variables[cell][ALPHA1_INDEX])*rho2[cell];
+                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                             conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*vel2[cell][d];
+                           }
                            const auto e2 = EOS_phase2.e_value(rho2[cell], p2[cell]);
-                           conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                                             (e2 + 0.5*vel2[cell]*vel2[cell]);
+                           conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*e2;
+                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                             conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] += conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                                                                (0.5*vel2[cell][d]*vel2[cell][d]);
+                           }
 
                            c1[cell] = EOS_phase1.c_value(rho1[cell], p1[cell]);
 
@@ -211,7 +225,7 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                    + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
                          });
 
-  samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+  samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
 }
 
 // Compute the estimate of the maximum eigenvalue for CFL condition
@@ -224,8 +238,10 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
-                             res = std::max(std::max(std::abs(vel1[cell]) + c1[cell],
-                                                     std::abs(vel2[cell]) + c2[cell]),
+                             res = std::max(std::max(std::max(std::abs(vel1[cell][0]) + c1[cell],
+                                                              std::abs(vel2[cell][0]) + c2[cell]),
+                                                     std::max(std::abs(vel1[cell][1]) + c1[cell],
+                                                              std::abs(vel2[cell][1]) + c2[cell])),
                                             res);
                            });
 
@@ -261,14 +277,14 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                            rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                         conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            for(std::size_t d = 0; d < EquationData::dim; ++d) {
-                             vel1[cell] = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]/
-                                          conserved_variables[cell][ALPHA1_RHO1_INDEX];
+                             vel1[cell][d] = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]/
+                                             conserved_variables[cell][ALPHA1_RHO1_INDEX];
                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            }
                            auto e1 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
                                      conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            for(std::size_t d = 0; d < EquationData::dim; ++d) {
-                             e1 -= 0.5*vel1[cell]*vel1[cell];
+                             e1 -= 0.5*vel1[cell][d]*vel1[cell][d];
                            }
                            p1[cell] = EOS_phase1.pres_value(rho1[cell], e1);
                            c1[cell] = EOS_phase1.c_value(rho1[cell], p1[cell]);
@@ -276,14 +292,14 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                            rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
                                         (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
-                            vel2[cell] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]/
-                                         conserved_variables[cell][ALPHA2_RHO2_INDEX];
+                            vel2[cell][d] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]/
+                                            conserved_variables[cell][ALPHA2_RHO2_INDEX];
                             /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            }
                            auto e2 = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
                                      conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            for(std::size_t d = 0; d < EquationData::dim; ++d) {
-                             e2 -= 0.5*vel2[cell]*vel2[cell];
+                             e2 -= 0.5*vel2[cell][d]*vel2[cell][d];
                            }
                            p2[cell] = EOS_phase2.pres_value(rho2[cell], e2);
                            c2[cell] = EOS_phase2.c_value(rho2[cell], p2[cell]);
