@@ -66,7 +66,8 @@ namespace samurai {
                                  const T wL, const T wR, const T pL, const T pR, const T EL, const T ER,
                                  const T w_diesis, const T tauL_diesis, const T tauR_diesis, const T a,
                                  T& alpha_m, T& tau_m, T& w_m, T& pres_m, T& E_m,
-                                 T& alpha_p, T& tau_p, T& w_p, T& pres_p, T& E_p);
+                                 T& alpha_p, T& tau_p, T& w_p, T& pres_p, T& E_p,
+                                 T& w_star);
 
     void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                const FluxValue<typename Flux<Field>::cfg>& qR,
@@ -101,7 +102,7 @@ namespace samurai {
       e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                   (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto p1L     = this->phase1.pres_value(rho1L, e1L);
+    const auto p1L = this->phase1.pres_value(rho1L, e1L);
 
     // Compute the relevant variables from right state for phase 1
     const auto alpha1R = qR(ALPHA1_INDEX);
@@ -113,7 +114,7 @@ namespace samurai {
       e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                   (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto p1R     = this->phase1.pres_value(rho1R, e1R);
+    const auto p1R = this->phase1.pres_value(rho1R, e1R);
 
     // Compute the relevant variables from left state for phase 2
     const auto alpha2L = 1.0 - alpha1L;
@@ -125,7 +126,7 @@ namespace samurai {
       e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                   (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto p2L     = this->phase2.pres_value(rho2L, e2L);
+    const auto p2L = this->phase2.pres_value(rho2L, e2L);
 
     // Compute the relevant variables from right state for phase 2
     const auto alpha2R = 1.0 - alpha1R;
@@ -137,7 +138,7 @@ namespace samurai {
       e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                   (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto p2R     = this->phase2.pres_value(rho2R, e2R);
+    const auto p2R = this->phase2.pres_value(rho2R, e2R);
 
     // Compute first rhs of relaxation related parameters (Whitham's approach)
     auto a1 = std::max(this->phase1.c_value(rho1L, p1L)*rho1L, this->phase1.c_value(rho1R, p1R)*rho1R);
@@ -227,17 +228,20 @@ namespace samurai {
     field_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
                alpha1_p, tau1_p, u1_p, p1_p, E1_p,
                alpha2_m, tau2_m, u2_m, p2_m, E2_m, w2_m,
-               alpha2_p, tau2_p, u2_p, p2_p, E2_p, w2_p;
+               alpha2_p, tau2_p, u2_p, p2_p, E2_p, w2_p,
+               u2_star;
     Riemann_solver_phase_pI(-uI_star,
                             alpha2L, alpha2R, 1.0/rho2L, 1.0/rho2R, vel2L_d - uI_star, vel2R_d - uI_star,
                             p2L, p2R, E2L - (vel2L_d - uI_star)*uI_star - 0.5*uI_star*uI_star, E2R - (vel2R_d - uI_star)*uI_star - 0.5*uI_star*uI_star,
                             vel2_diesis - uI_star, tau2L_diesis, tau2R_diesis, a2,
                             alpha2_m, tau2_m, w2_m, p2_m, E2_m,
-                            alpha2_p, tau2_p, w2_p, p2_p, E2_p);
+                            alpha2_p, tau2_p, w2_p, p2_p, E2_p,
+                            u2_star);
     u2_m = w2_m + uI_star;
     E2_m += (u2_m - uI_star)*uI_star + 0.5*uI_star*uI_star;
     u2_p = w2_p + uI_star;
     E2_p += (u2_p - uI_star)*uI_star + 0.5*uI_star*uI_star;
+    u2_star += uI_star;
     Riemann_solver_phase_vI(0.0,
                             alpha1L, alpha1R, 1.0/rho1L, 1.0/rho1R, vel1L_d, vel1R_d, p1L, p1R, E1L, E1R,
                             a1, uI_star,
@@ -249,41 +253,20 @@ namespace samurai {
 
     F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m/tau1_m*u1_m;
     F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m/tau1_m*u1_m*u1_m + alpha1_m*p1_m;
-    if(EquationData::dim > 1) {
-      if(curr_d == 0) {
-        const auto vel1_L_t = qL(ALPHA1_RHO1_U1_INDEX + 1)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        const auto vel1_R_t = qR(ALPHA1_RHO1_U1_INDEX + 1)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-        F_minus(ALPHA1_RHO1_U1_INDEX + 1) = 0.5*u1_m*(vel1_L_t + vel1_R_t) - 0.5*std::abs(u1_m)*(vel1_R_t - vel1_L_t) -
-                                            u1_m*vel1_L_t;
-      }
-      else if(curr_d == 1) {
-        const auto vel1_L_t = qL(ALPHA1_RHO1_U1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        const auto vel1_R_t = qR(ALPHA1_RHO1_U1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-        F_minus(ALPHA1_RHO1_U1_INDEX) = 0.5*u1_m*(vel1_L_t + vel1_R_t) - 0.5*std::abs(u1_m)*(vel1_R_t - vel1_L_t) -
-                                        u1_m*vel1_L_t;
-      }
+    const auto u1_star = uI_star;
+    for(std::size_t d = 0; d < EquationData::dim && d != curr_d; ++d) {
+      F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
+                                        - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
+      F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
     }
     F_minus(ALPHA1_RHO1_E1_INDEX)          = alpha1_m/tau1_m*E1_m*u1_m + alpha1_m*p1_m*u1_m;
 
     F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m/tau2_m*u2_m;
     F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m/tau2_m*u2_m*u2_m + alpha2_m*p2_m;
-    if(EquationData::dim > 1) {
-      if(curr_d == 0) {
-        const auto vel2_L_t = qL(ALPHA2_RHO2_U2_INDEX + 1)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        const auto vel2_R_t = qR(ALPHA2_RHO2_U2_INDEX + 1)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-        F_minus(ALPHA2_RHO2_U2_INDEX + 1) = 0.5*u2_m*(vel2_L_t + vel2_R_t) - 0.5*std::abs(u2_m)*(vel2_R_t - vel2_L_t) -
-                                            u2_m*vel2_L_t;
-      }
-      else if(curr_d == 1) {
-        const auto vel2_L_t = qL(ALPHA2_RHO2_U2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        const auto vel2_R_t = qR(ALPHA2_RHO2_U2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-        F_minus(ALPHA2_RHO2_U2_INDEX) = 0.5*u2_m*(vel2_L_t + vel2_R_t) - 0.5*std::abs(u2_m)*(vel2_R_t - vel2_L_t) -
-                                        u2_m*vel2_L_t;
-      }
+    for(std::size_t d = 0; d < EquationData::dim && d != curr_d; ++d) {
+      F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
+                                        - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
+      F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
     }
     F_minus(ALPHA2_RHO2_E2_INDEX) = alpha2_m/tau2_m*E2_m*u2_m + alpha2_m*p2_m*u2_m;
 
@@ -291,43 +274,11 @@ namespace samurai {
 
     F_plus(ALPHA1_RHO1_INDEX)             = alpha1_p/tau1_p*u1_p;
     F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_p/tau1_p*u1_p*u1_p + alpha1_p*p1_p;
-    if(EquationData::dim > 1) {
-      if(curr_d == 0) {
-        const auto vel1_L_t = qL(ALPHA1_RHO1_U1_INDEX + 1)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        const auto vel1_R_t = qR(ALPHA1_RHO1_U1_INDEX + 1)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-        F_plus(ALPHA1_RHO1_U1_INDEX + 1) = 0.5*u1_p*(vel1_L_t + vel1_R_t) - 0.5*std::abs(u1_p)*(vel1_R_t - vel1_L_t) -
-                                           u1_p*vel1_R_t;
-      }
-      else if(curr_d == 1) {
-        const auto vel1_L_t = qL(ALPHA1_RHO1_U1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        const auto vel1_R_t = qR(ALPHA1_RHO1_U1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-        F_plus(ALPHA1_RHO1_U1_INDEX) = 0.5*u1_p*(vel1_L_t + vel1_R_t) - 0.5*std::abs(u1_p)*(vel1_R_t - vel1_L_t) -
-                                       u1_p*vel1_R_t;
-      }
-    }
-    F_plus(ALPHA1_RHO1_E1_INDEX) = alpha1_p/tau1_p*E1_p*u1_p + alpha1_p*p1_p*u1_p;
+    F_plus(ALPHA1_RHO1_E1_INDEX)          = alpha1_p/tau1_p*E1_p*u1_p + alpha1_p*p1_p*u1_p;
 
     F_plus(ALPHA2_RHO2_INDEX)             = alpha2_p/tau2_p*u2_p;
     F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_p/tau2_p*u2_p*u2_p + alpha2_p*p2_p;
-    if(EquationData::dim > 1) {
-      if(curr_d == 0) {
-        const auto vel2_L_t = qL(ALPHA2_RHO2_U2_INDEX + 1)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        const auto vel2_R_t = qR(ALPHA2_RHO2_U2_INDEX + 1)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-        F_plus(ALPHA2_RHO2_U2_INDEX + 1) = 0.5*u2_p*(vel2_L_t + vel2_R_t) - 0.5*std::abs(u2_p)*(vel2_R_t - vel2_L_t) -
-                                           u2_p*vel2_R_t;
-      }
-      else if(curr_d == 1) {
-        const auto vel2_L_t = qL(ALPHA2_RHO2_U2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        const auto vel2_R_t = qR(ALPHA2_RHO2_U2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-        F_plus(ALPHA2_RHO2_U2_INDEX) = 0.5*u2_p*(vel2_L_t + vel2_R_t) - 0.5*std::abs(u2_p)*(vel2_R_t - vel2_L_t) -
-                                       u2_p*vel2_R_t;
-      }
-    }
-    F_plus(ALPHA2_RHO2_E2_INDEX) = alpha2_p/tau2_p*E2_p*u2_p + alpha2_p*p2_p*u2_p;
+    F_plus(ALPHA2_RHO2_E2_INDEX)          = alpha2_p/tau2_p*E2_p*u2_p + alpha2_p*p2_p*u2_p;
 
     // Focus on non-conservative term
     const auto pidxalpha2 = p2_diesis*(alpha2R - alpha2L) + psi(uI_star, a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
@@ -371,7 +322,6 @@ namespace samurai {
         discrete_flux[d].flux_function = [&](auto& cells, const Field& field)
                                             {
                                               #ifdef ORDER_2
-                                                /*--- NOTE: this does not work, it is implemented just for testing purposes ---*/
                                                 // Compute the stencil
                                                 const auto& left_left   = cells[0];
                                                 const auto& left        = cells[1];
@@ -663,7 +613,8 @@ namespace samurai {
                                                       const T wL, const T wR, const T pL, const T pR, const T EL, const T ER,
                                                       const T w_diesis, const T tauL_diesis, const T tauR_diesis, const T a,
                                                       T& alpha_m, T& tau_m, T& w_m, T& pres_m, T& E_m,
-                                                      T& alpha_p, T& tau_p, T& w_p, T& pres_p, T& E_p) {
+                                                      T& alpha_p, T& tau_p, T& w_p, T& pres_p, T& E_p,
+                                                      T& w_star) {
     const T nu  = alphaL/alphaR;
     const T ML  = wL/(a*tauL);
     const T MdL = w_diesis/(a*tauL_diesis);
@@ -682,7 +633,7 @@ namespace samurai {
                      (1.0 + std::sqrt(std::abs(1.0 - 4.0*nu/((nu + 1.0)*(nu + 1.0))*
                                                      4.0*MdL*MdL/((1.0 + MdL*MdL)*(1.0 + MdL*MdL))))));
 
-        if(mu*tauR_diesis <= tauR_diesis + tauL_diesis*(MdL + nu*Mzero)/(1.+nu*Mzero)){
+        if(mu*tauR_diesis <= tauR_diesis + tauL_diesis*(MdL + nu*Mzero)/(1.+nu*Mzero)) {
           M = Mzero;
         }
         else {
@@ -849,17 +800,22 @@ namespace samurai {
           }
         }
       }
+      w_star = nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
     }
     else {
       if(w_diesis < 0.0) {
         Riemann_solver_phase_pI(-xi,
                                 alphaR, alphaL, tauR, tauL, -wR, -wL, pR, pL, ER, EL,
                                 -w_diesis, tauR_diesis, tauL_diesis, a,
-                                alpha_p, tau_p, w_p, pres_p, E_p, alpha_m, tau_m, w_m, pres_m, E_m);
+                                alpha_p, tau_p, w_p, pres_p, E_p,
+                                alpha_m, tau_m, w_m, pres_m, E_m,
+                                w_star);
         w_m = -w_m;
         w_p = -w_p;
+        w_star = -w_star;
       }
       else {
+        w_star = 0.0;
         if(xi < wL - a*tauL) {
           alpha_m = alphaL;
           tau_m   = tauL;

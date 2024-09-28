@@ -16,18 +16,12 @@ namespace fs = std::filesystem;
 
 #include "Rusanov_flux.hpp"
 #include "non_conservative_flux.hpp"
-#include "Suliciu_scheme_interface.hpp"
+#include "Suliciu_scheme.hpp"
 
 #include "containers.hpp"
 
 #define SULICIU_RELAXATION
 //#define RUSANOV_FLUX
-
-#ifdef SULICIU_RELAXATION
-  #ifdef ORDER_2
-    #undef ORDER_2
-  #endif
-#endif
 
 // Specify the use of this namespace where we just store the indices
 // and some parameters related to the equations of state
@@ -128,7 +122,7 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2),
   #ifdef SULICIU_RELAXATION
-    numerical_flux()
+    numerical_flux(EOS_phase1, EOS_phase2)
   #elifdef RUSANOV_FLUX
     numerical_flux_cons(EOS_phase1, EOS_phase2),
     numerical_flux_non_cons(EOS_phase1, EOS_phase2)

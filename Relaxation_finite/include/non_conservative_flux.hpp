@@ -2,6 +2,9 @@
 #define non_conservative_flux_hpp
 
 //#define BR
+#define CENTERED
+
+//#define PERFORM_RECON
 
 namespace samurai {
   using namespace EquationData;
@@ -84,6 +87,19 @@ namespace samurai {
       F_plus(ALPHA1_RHO1_E1_INDEX)  = -(0.5*(pIL*velIL*qL(ALPHA1_INDEX) + pIR*velIR*qR(ALPHA1_INDEX)) -
                                         0.5*(pIL*velIL + pIR*velIR)*qR(ALPHA1_INDEX));
       F_plus(ALPHA2_RHO2_E2_INDEX)  = -F_plus(ALPHA1_RHO1_E1_INDEX);
+    #elifdef CENTERED
+      F_minus(ALPHA1_INDEX) = 0.5*velIL*(qR(ALPHA1_INDEX) + qL(ALPHA1_INDEX));
+      F_plus(ALPHA1_INDEX)  = 0.5*velIR*(qL(ALPHA1_INDEX) + qR(ALPHA1_INDEX));
+
+      F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = -0.5*pIL*(qR(ALPHA1_INDEX) + qL(ALPHA1_INDEX));
+      F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = -F_minus(ALPHA1_RHO1_U1_INDEX + curr_d);
+      F_plus(ALPHA1_RHO1_U1_INDEX + curr_d)  = -0.5*pIR*(qL(ALPHA1_INDEX) + qR(ALPHA1_INDEX));
+      F_plus(ALPHA2_RHO2_U2_INDEX + curr_d)  = -F_plus(ALPHA1_RHO1_U1_INDEX + curr_d);
+
+      F_minus(ALPHA1_RHO1_E1_INDEX) = -0.5*velIL*pIL*(qR(ALPHA1_INDEX) + qL(ALPHA1_INDEX));
+      F_minus(ALPHA2_RHO2_E2_INDEX) = -F_minus(ALPHA1_RHO1_E1_INDEX);
+      F_plus(ALPHA1_RHO1_E1_INDEX)  = -0.5*velIR*pIR*(qL(ALPHA1_INDEX) + qR(ALPHA1_INDEX));
+      F_plus(ALPHA2_RHO2_E2_INDEX)  = -F_plus(ALPHA1_RHO1_E1_INDEX);
     #else
       F_minus(ALPHA1_INDEX) = 0.5*velIL*qR(ALPHA1_INDEX);
       F_plus(ALPHA1_INDEX)  = 0.5*velIR*qL(ALPHA1_INDEX);
@@ -116,25 +132,34 @@ namespace samurai {
         discrete_flux[d].flux_function = [&](auto& cells, const Field& field)
                                             {
                                               #ifdef ORDER_2
-                                                // Compute the stencil
-                                                const auto& left_left   = cells[0];
-                                                const auto& left        = cells[1];
-                                                const auto& right       = cells[2];
-                                                const auto& right_right = cells[3];
+                                                #ifdef PERFORM_RECON
+                                                  // Compute the stencil
+                                                  const auto& left_left   = cells[0];
+                                                  const auto& left        = cells[1];
+                                                  const auto& right       = cells[2];
+                                                  const auto& right_right = cells[3];
 
-                                                // MUSCL reconstruction
-                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
-                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
-                                                const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
-                                                const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
+                                                  // MUSCL reconstruction
+                                                  const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
 
-                                                FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                     primR_recon;
-                                                this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                             primL_recon, primR_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                       primR_recon;
+                                                  this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                               primL_recon, primR_recon);
 
-                                                FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                #else
+                                                  // Compute the stencil
+                                                  const auto& left  = cells[1];
+                                                  const auto& right = cells[2];
+
+                                                  const FluxValue<typename Flux<Field>::cfg>& qL = field[left];
+                                                  const FluxValue<typename Flux<Field>::cfg>& qR = field[right];
+                                                #endif
                                               #else
                                                 // Compute the stencil and extract state
                                                 const auto& left  = cells[0];

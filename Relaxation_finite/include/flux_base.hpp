@@ -6,7 +6,7 @@
 
 #include "eos.hpp"
 
-//#define ORDER_2
+#define ORDER_2
 
 namespace EquationData {
   static constexpr std::size_t dim = 1; /*--- Spatial dimension. It would be ideal to be able to get it
@@ -20,6 +20,13 @@ namespace EquationData {
   static constexpr std::size_t ALPHA2_RHO2_INDEX    = ALPHA1_RHO1_E1_INDEX + 1;
   static constexpr std::size_t ALPHA2_RHO2_U2_INDEX = ALPHA2_RHO2_INDEX + 1;
   static constexpr std::size_t ALPHA2_RHO2_E2_INDEX = ALPHA2_RHO2_U2_INDEX + dim;
+
+  static constexpr std::size_t RHO1_INDEX = 1;
+  static constexpr std::size_t U1_INDEX   = 2;
+  static constexpr std::size_t P1_INDEX   = 2 + dim;
+  static constexpr std::size_t RHO2_INDEX = P1_INDEX + 1;
+  static constexpr std::size_t U2_INDEX   = RHO2_INDEX + 1;
+  static constexpr std::size_t P2_INDEX   = U2_INDEX + dim;
 
   static constexpr std::size_t NVARS = ALPHA2_RHO2_E2_INDEX + 1;
 }
@@ -98,11 +105,8 @@ namespace samurai {
     /*--- Compute the flux for the equations "associated" to phase 1 ---*/
     res(ALPHA1_INDEX) = 0.0;
     res(ALPHA1_RHO1_INDEX) *= vel1_d;
-    res(ALPHA1_RHO1_U1_INDEX) *= vel1_d;
-    if(EquationData::dim > 1) {
-      for(std::size_t d = 1; d < EquationData::dim; ++d) {
-        res(ALPHA1_RHO1_U1_INDEX + d) *= vel1_d;
-      }
+    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      res(ALPHA1_RHO1_U1_INDEX + d) *= vel1_d;
     }
     res(ALPHA1_RHO1_U1_INDEX + curr_d) += alpha1*pres1;
     res(ALPHA1_RHO1_E1_INDEX) *= vel1_d;
@@ -121,11 +125,8 @@ namespace samurai {
 
     /*--- Compute the flux for the equations "associated" to phase 2 ---*/
     res(ALPHA2_RHO2_INDEX) *= vel2_d;
-    res(ALPHA2_RHO2_U2_INDEX) *= vel2_d;
-    if(EquationData::dim > 1) {
-      for(std::size_t d = 1; d < EquationData::dim; ++d) {
-        res(ALPHA2_RHO2_U2_INDEX + d) *= vel2_d;
-      }
+    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      res(ALPHA2_RHO2_U2_INDEX + d) *= vel2_d;
     }
     res(ALPHA2_RHO2_U2_INDEX + curr_d) += alpha2*pres2;
     res(ALPHA2_RHO2_E2_INDEX) *= vel2_d;
@@ -141,10 +142,35 @@ namespace samurai {
     //
     template<class Field>
     FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
-      // Create a copy of the state to save the output
-      FluxValue<cfg> prim = cons;
+      // Create a suitable variable to set primitive variables
+      FluxValue<cfg> prim;
 
-      // Set primitive equal to conservative (TODO: Modify according to the choice of primitive variables)
+      // Start with phase 1
+      prim(ALPHA1_INDEX) = cons(ALPHA1_INDEX);
+      prim(RHO1_INDEX)   = cons(ALPHA1_RHO1_INDEX)/cons(ALPHA1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+        prim(U1_INDEX + d) = cons(ALPHA1_RHO1_U1_INDEX + d)/cons(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      }
+      /*--- Compute internal energy ---*/
+      auto e1 = cons(ALPHA1_RHO1_E1_INDEX)/cons(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+        e1 -= 0.5*(prim(U1_INDEX + d)*prim(U1_INDEX + d)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      }
+      prim(P1_INDEX) = phase1.pres_value(prim(RHO1_INDEX), e1);
+
+      // Proceed with phase 2
+      prim(RHO2_INDEX) = cons(ALPHA2_RHO2_INDEX)/(1.0 - cons(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+        prim(U2_INDEX + d) = cons(ALPHA2_RHO2_U2_INDEX + d)/cons(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      }
+      /*--- Compute internal energy ---*/
+      auto e2 = cons(ALPHA2_RHO2_E2_INDEX)/cons(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+        e2 -= 0.5*(prim(U2_INDEX + d)*prim(U2_INDEX + d));
+      }
+      prim(P2_INDEX) = phase2.pres_value(prim(RHO2_INDEX), e2);
+
+      // Return computed primitive variables
       return prim;
     }
 
@@ -152,10 +178,35 @@ namespace samurai {
     //
     template<class Field>
     FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
-      // Create a copy of the state to save the output
-      FluxValue<cfg> cons = prim;
+      // Create a suitable variable to save the conserved variables
+      FluxValue<cfg> cons;
 
-      // Set conservative equal to primtiive (TODO: Modify according to the choice of primitive variables)
+      // Start with phase 1
+      cons(ALPHA1_INDEX)      = prim(ALPHA1_INDEX);
+      cons(ALPHA1_RHO1_INDEX) = prim(RHO1_INDEX)*prim(ALPHA1_INDEX);
+      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+        cons(ALPHA1_RHO1_U1_INDEX + d) = cons(ALPHA1_RHO1_INDEX)*prim(U1_INDEX + d);
+      }
+      /*--- Compute internal energy ---*/
+      auto E1 = phase1.e_value(prim(RHO1_INDEX), prim(P1_INDEX));
+      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+        E1 += 0.5*(prim(U1_INDEX + d)*prim(U1_INDEX + d));
+      }
+      cons(ALPHA1_RHO1_E1_INDEX) = cons(ALPHA1_RHO1_INDEX)*E1;
+
+      // Proceed with phase 2
+      cons(ALPHA2_RHO2_INDEX) = prim(RHO2_INDEX)*(1.0 - prim(ALPHA1_INDEX));
+      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+        cons(ALPHA2_RHO2_U2_INDEX + d) = cons(ALPHA2_RHO2_INDEX)*prim(U2_INDEX + d);
+      }
+      /*--- Compute internal energy ---*/
+      auto E2 = phase2.e_value(prim(RHO2_INDEX), prim(P2_INDEX));
+      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+        E2 += 0.5*(prim(U2_INDEX + d)*prim(U2_INDEX + d));
+      }
+      cons(ALPHA2_RHO2_E2_INDEX) = cons(ALPHA2_RHO2_INDEX)*E2;
+
+      // Return computed conserved variables
       return cons;
     }
 
