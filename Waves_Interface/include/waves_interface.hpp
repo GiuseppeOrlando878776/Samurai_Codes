@@ -16,6 +16,9 @@ namespace fs = std::filesystem;
 // Add header file for the multiresolution
 #include <samurai/mr/adapt.hpp>
 
+// Add header with auxiliary structs
+#include "containers.hpp"
+
 // Include the headers with the numerical fluxes
 //#define RUSANOV_FLUX
 #define GODUNOV_FLUX
@@ -57,11 +60,9 @@ public:
 
   WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                 const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                std::size_t min_level, std::size_t max_level,
-                double Tf_, double cfl_, std::size_t nfiles_ = 100,
-                bool apply_relax_ = true);                             // Class constrcutor with the arguments related
-                                                                       // to the grid, to the physics and to the relaxation.
-                                                                       // Maybe in the future, we could think to add parameters related to EOS
+                const Simulation_Paramaters& sim_param,
+                const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
+                                                  // to the grid and to the physics.
 
   void run(); // Function which actually executes the temporal loop
 
@@ -115,7 +116,7 @@ private:
   #endif
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
-  void init_variables(); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+  void init_variables(const double eps_interface_over_dx); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
   double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
 
@@ -134,14 +135,13 @@ private:
 template<std::size_t dim>
 WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                                   const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                                  std::size_t min_level, std::size_t max_level,
-                                  double Tf_, double cfl_, std::size_t nfiles_,
-                                  bool apply_relax_):
-  box(min_corner, max_corner), mesh(box, min_level, max_level, {false}),
-  apply_relax(apply_relax_), Tf(Tf_), cfl(cfl_), nfiles(nfiles_),
-  eps(1e-20),
-  EOS_phase1(EquationData::p0_phase1, EquationData::rho0_phase1, EquationData::c0_phase1),
-  EOS_phase2(EquationData::p0_phase2, EquationData::rho0_phase2, EquationData::c0_phase2),
+                                  const Simulation_Paramaters& sim_param,
+                                  const EOS_Parameters& eos_param):
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
+  apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf), cfl(sim_param.Courant),
+  nfiles(sim_param.nfiles), eps(sim_param.eps_nan),
+  EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
+  EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
     Rusanov_flux(EOS_phase1, EOS_phase2, eps)
   #elifdef GODUNOV_FLUX
@@ -150,13 +150,13 @@ WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim
   {
     std::cout << "Initializing variables " << std::endl;
     std::cout << std::endl;
-    init_variables();
+    init_variables(sim_param.eps_interface_over_dx);
   }
 
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void WaveInterface<dim>::init_variables() {
+void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
   // Create conserved and auxiliary fields
   conserved_variables = samurai::make_field<double, EquationData::NVARS>("conserved", mesh);
 
@@ -176,7 +176,7 @@ void WaveInterface<dim>::init_variables() {
   const double x_shock       = 0.3;
   const double x_interface   = 0.7;
   const double dx            = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
-  const double eps_interface = 3.0*dx;
+  const double eps_interface = eps_interface_over_dx*dx;
   const double eps_shock     = 3.0*dx;
 
   // Initialize some fields to define the bubble with a loop over all cells

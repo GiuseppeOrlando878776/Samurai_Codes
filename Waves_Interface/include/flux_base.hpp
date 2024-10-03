@@ -25,16 +25,6 @@ namespace EquationData {
   // Declare spatial dimension
   static constexpr std::size_t dim = 1;
 
-  // Declare some parameters related to EOS.
-  static constexpr double p0_phase1   = 1e5;
-  static constexpr double p0_phase2   = 1e5;
-
-  static constexpr double rho0_phase1 = 1e3;
-  static constexpr double rho0_phase2 = 1.0;
-
-  static constexpr double c0_phase1   = 1631.617602258568427706;
-  static constexpr double c0_phase2   = 340.0;
-
   // Use auxiliary variables for the indices for the sake of generality
   static constexpr std::size_t M1_INDEX         = 0;
   static constexpr std::size_t M2_INDEX         = 1;
@@ -69,8 +59,8 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const BarotropicEOS<>& EOS_phase1,
-         const BarotropicEOS<>& EOS_phase2,
+    Flux(const LinearizedBarotropicEOS<>& EOS_phase1,
+         const LinearizedBarotropicEOS<>& EOS_phase2,
          const double eps_); // Constructor which accepts in inputs the equations of state of the two phases
 
     template<typename State>
@@ -83,8 +73,8 @@ namespace samurai {
                                                                                               // for MUSCL reconstruction)
 
   protected:
-    const BarotropicEOS<>& phase1;
-    const BarotropicEOS<>& phase2;
+    const LinearizedBarotropicEOS<>& phase1;
+    const LinearizedBarotropicEOS<>& phase2;
 
     const double eps; // Tolerance of pure phase to set NaNs
 
@@ -112,8 +102,8 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const BarotropicEOS<>& EOS_phase1,
-                    const BarotropicEOS<>& EOS_phase2,
+  Flux<Field>::Flux(const LinearizedBarotropicEOS<>& EOS_phase1,
+                    const LinearizedBarotropicEOS<>& EOS_phase2,
                     const double eps_): phase1(EOS_phase1), phase2(EOS_phase2), eps(eps_) {}
 
   // Evaluate the 'continuous flux'
@@ -239,10 +229,10 @@ namespace samurai {
                                                    const double tol, const double lambda) {
     // Reinitialization of partial masses in case of evanascent volume fraction
     if(alpha1 < eps) {
-      (*conserved_variables)(M1_INDEX) = alpha1*EquationData::rho0_phase1;
+      (*conserved_variables)(M1_INDEX) = alpha1*phase1.get_rho0();
     }
     if(1.0 - alpha1 < eps) {
-      (*conserved_variables)(M2_INDEX) = (1.0 - alpha1)*EquationData::rho0_phase2;
+      (*conserved_variables)(M2_INDEX) = (1.0 - alpha1)*phase2.get_rho0();
     }
 
     // Update auxiliary values affected by the nonlinear function for which we seek a zero
@@ -257,7 +247,7 @@ namespace samurai {
     const auto F = p1 - p2;
 
     // Perform the relaxation only where really needed
-    if(!std::isnan(F) && std::abs(F) > tol*EquationData::p0_phase1 && std::abs(dalpha1) > tol && alpha1 > eps && alpha2 > eps) {
+    if(!std::isnan(F) && std::abs(F) > tol*phase1.get_p0() && std::abs(dalpha1) > tol && alpha1 > eps && alpha2 > eps) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t volume fraction recalling that for a barotropic EOS dp/drho = c^2

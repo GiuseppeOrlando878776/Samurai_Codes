@@ -16,8 +16,8 @@ namespace samurai {
   template<class Field>
   class GodunovFlux: public Flux<Field> {
   public:
-    GodunovFlux(const BarotropicEOS<>& EOS_phase1,
-                const BarotropicEOS<>& EOS_phase2,
+    GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
+                const LinearizedBarotropicEOS<>& EOS_phase2,
                 const double eps_); // Constructor which accepts in inputs the equations of state of the two phases
 
     auto make_flux(); // Compute the flux along all the directions
@@ -40,8 +40,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  GodunovFlux<Field>::GodunovFlux(const BarotropicEOS<>& EOS_phase1,
-                                  const BarotropicEOS<>& EOS_phase2,
+  GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
+                                  const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double eps_): Flux<Field>(EOS_phase1, EOS_phase2, eps_) {}
 
   // Compute p* through Newton-Rapson method
@@ -201,9 +201,9 @@ namespace samurai {
                              + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
       const auto c_L         = std::sqrt(c_squared_L/rho_L);
 
-      const auto p0_L        = EquationData::p0_phase1
-                             - alpha1_L*EquationData::rho0_phase1*EquationData::c0_phase1*EquationData::c0_phase1
-                             - alpha2_L*EquationData::rho0_phase2*EquationData::c0_phase2*EquationData::c0_phase2;
+      const auto p0_L        = this->phase1.get_p0()
+                             - alpha1_L*this->phase1.get_rho0()*this->phase1.get_c0()*this->phase1.get_c0()
+                             - alpha2_L*this->phase2.get_rho0()*this->phase2.get_c0()*this->phase2.get_c0();
 
       // Right state useful variables
       const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
@@ -216,9 +216,9 @@ namespace samurai {
                              + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
       const auto c_R         = std::sqrt(c_squared_R/rho_R);
 
-      const auto p0_R        = EquationData::p0_phase1
-                             - alpha1_R*EquationData::rho0_phase1*EquationData::c0_phase1*EquationData::c0_phase1
-                             - alpha2_R*EquationData::rho0_phase2*EquationData::c0_phase2*EquationData::c0_phase2;
+      const auto p0_R        = this->phase1.get_p0()
+                             - alpha1_R*this->phase1.get_rho0()*this->phase1.get_c0()*this->phase1.get_c0()
+                             - alpha2_R*this->phase2.get_rho0()*this->phase2.get_c0()*this->phase2.get_c0();
 
       // Compute p*
       const auto p_L = (alpha1_L > this->eps && alpha2_L > this->eps) ?
