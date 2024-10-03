@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib import collections as mc
 from matplotlib import animation
 from matplotlib import rc
+from matplotlib import ticker
 import argparse
 
 def read_mesh(filename, ite=None):
@@ -22,7 +23,11 @@ def scatter_update(scatter, points):
 def line_plot(ax, x, y):
     #Plot results
     plot = ax.plot(x, y, 'k-', linewidth=1, markersize=4, alpha=0.5)[0]
-    #plt.ylim(100000.0, 110000.à)
+    #ax.set_yscale('log')
+    #ax.set_yticks([1e5, 2e5, 5e5, 1e6, 2e6, 5e6], labels=['1e5', '2e5', '5e5', '1e6', '2e6', '5e6'])
+    #ax.get_yaxis().set_major_formatter(ticker.ScalarFormatter())
+    #plt.ylim(100000.0,110000.0)
+    #plt.xlim(0.698,0.712)
 
     return plot
 

@@ -29,6 +29,8 @@ namespace fs = std::filesystem;
   #include "non_conservative_6eqs_flux.hpp"
 #endif
 
+#include "containers.hpp"
+
 #define assertm(exp, msg) assert(((void)msg, exp))
 
 // Specify the use of this namespace where we just store the indices
@@ -47,12 +49,10 @@ public:
 
   Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
              const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-             std::size_t min_level, std::size_t max_level,
-             double Tf_, double cfl_, std::size_t nfiles_ = 100,
-             bool do_pres_relax = true, bool do_pres_reinit = true); // Class constrcutor with the arguments related
-                                                                     // to the grid, to the physics and to the relaxation.
-                                                                     // Maybe in the future,
-                                                                     // we could think to add parameters related to EOS
+             const Simulation_Paramaters& sim_param,
+             const EOS_Parameters& eos_param,
+             const Riemann_Parameters& Riemann_param); // Class constrcutor with the arguments related
+                                                       // to the grid, to the physics and to the relaxation
 
   void run(); // Function which actually executes the temporal loop
 
@@ -128,7 +128,7 @@ private:
   Field_Vect vel;
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
-  void init_variables(); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+  void init_variables(const Riemann_Parameters& Riemann_param); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
   void update_auxiliary_fields(); // Routine to update auxiliary fields for output and time step update
 
@@ -150,16 +150,17 @@ private:
 template<std::size_t dim>
 Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                             const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                            std::size_t min_level, std::size_t max_level,
-                            double Tf_, double cfl_, std::size_t nfiles_,
-                            bool do_pres_relax, bool do_pres_reinit):
-  box(min_corner, max_corner), mesh(box, min_level, max_level, {false}),
-  Tf(Tf_), cfl(cfl_), nfiles(nfiles_),  apply_pressure_relax(do_pres_relax),
+                            const Simulation_Paramaters& sim_param,
+                            const EOS_Parameters& eos_param,
+                            const Riemann_Parameters& Riemann_param):
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
+  Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
+  apply_pressure_relax(sim_param.apply_pressure_relax),
   #ifdef RELAX_POLYNOM
-    apply_pressure_reinit(do_pres_reinit),
+    apply_pressure_reinit(sim_param.apply_pressure_reinit),
   #endif
-  EOS_phase1(EquationData::gamma_1, EquationData::pi_infty_1, EquationData::q_infty_1),
-  EOS_phase2(EquationData::gamma_2, EquationData::pi_infty_2, EquationData::q_infty_2),
+  EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1),
+  EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2),
   #if defined RUSANOV_FLUX || defined HLLC_BR_FLUX
       numerical_flux_cons(EOS_phase1, EOS_phase2),
       numerical_flux_non_cons(EOS_phase1, EOS_phase2)
@@ -169,13 +170,13 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
   {
     std::cout << "Initializing variables" << std::endl;
     std::cout << std::endl;
-    init_variables();
+    init_variables(Riemann_param);
   }
 
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void Relaxation<dim>::init_variables() {
+void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_field<double, EquationData::NVARS>("conserved", mesh);
 
@@ -206,32 +207,32 @@ void Relaxation<dim>::init_variables() {
   de2    = samurai::make_field<double, 1>("de2", mesh);
 
   /*--- Set the initial state ---*/
-  const double xd = 0.6;
+  const double xd = Riemann_param.xd;
 
   // Initialize the fields with a loop over all cells
-  const double alpha1L = 0.5954;
+  const double alpha1L = Riemann_param.alpha1L;
 
-  const double velL    = 0.0;
+  const double velL    = Riemann_param.uL;
 
-  const double p1L     = 2e11;
-  const double rho1L   = 1185.0;
+  const double p1L     = Riemann_param.p1L;
+  const double rho1L   = Riemann_param.rho1L;
 
   const double alpha2L = 1.0 - alpha1L;
 
-  const double p2L     = 2e11;
-  const double rho2L   = 3622.0;
+  const double p2L     = Riemann_param.p2L;
+  const double rho2L   = Riemann_param.rho2L;
 
   const double alpha1R = alpha1L;
 
-  const double velR    = 0.0;
+  const double velR    = Riemann_param.uR;
 
-  const double p1R     = 1e5;
-  const double rho1R   = 1185.0;
+  const double p1R     = Riemann_param.p1R;
+  const double rho1R   = Riemann_param.rho1R;
 
   const double alpha2R = 1.0 - alpha1R;
 
-  const double p2R     = 1e5;
-  const double rho2R   = 3622.0;
+  const double p2R     = Riemann_param.p2R;
+  const double rho2R   = Riemann_param.rho2R;
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
