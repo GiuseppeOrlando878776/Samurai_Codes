@@ -104,6 +104,7 @@ int main()
   app.add_option("--v2R", Riemann_param.v2R, "Initial vertical velocity phase 2 at right")->capture_default_str()->group("Initial conditions");
 
   // Create the instance of the class to perform the simulation
+  CLI11_PARSE(app, argc, argv);
   auto BN_Solver_Sim = BN_Solver(min_corner, max_corner, sim_param, eos_param, Riemann_param);
 
   BN_Solver_Sim.run();
