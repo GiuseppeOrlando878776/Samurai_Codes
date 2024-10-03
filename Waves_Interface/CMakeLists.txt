@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(static_bubble)
+project(waves_interface)
 
 find_package(samurai)
 find_package(CLI11)

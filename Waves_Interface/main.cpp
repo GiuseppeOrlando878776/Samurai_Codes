@@ -4,7 +4,7 @@
 //
 #include <CLI/CLI.hpp>
 
-#include "waves_interface.hpp"
+#include "include/waves_interface.hpp"
 
 // Main function to run the program
 //
