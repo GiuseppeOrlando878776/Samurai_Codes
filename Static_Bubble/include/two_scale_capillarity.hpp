@@ -99,7 +99,7 @@ private:
   divergence_type divergence;
 
   const double R; // Bubble radius
-  const double sigma; // SUrface tension coefficient
+  const double sigma; // Surface tension coefficient
 
   const double eps;                     // Tolerance when we want to avoid division by zero
   const double mod_grad_alpha1_bar_min; // Minimum threshold for which not computing anymore the unit normal
