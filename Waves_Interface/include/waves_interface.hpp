@@ -123,7 +123,7 @@ private:
   double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
 
   void clear_data(const std::string& filename,
-                  unsigned int flag = 0); // NUmerical artefact to avoid spurious small negative values
+                  unsigned int flag = 0); // Numerical artefact to avoid spurious small negative values
 
   void perform_mesh_adaptation(const std::string& filename); // Perform the mesh adaptation
 
