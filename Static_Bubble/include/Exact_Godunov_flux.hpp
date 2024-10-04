@@ -195,22 +195,7 @@ namespace samurai {
         dF_p_star += std::sqrt(1.0 - qR(ALPHA1_D_INDEX))*(2.0*p0_R - p_star - p_bar_R)/
                      (2.0*(p_star - p0_R)*std::sqrt(rho_R*(p_star - p0_R)));
       }
-      typename Field::value_type ddF_p_star;
-      if(p_star <= p_bar_L) {
-        ddF_p_star = c_L*(1.0 - qL(ALPHA1_D_INDEX))/((p0_L - p_star)*(p0_L - p_star));
-      }
-      else {
-        ddF_p_star = std::sqrt(1.0 - qL(ALPHA1_D_INDEX))*(-4.0*p0_L + p_star + 3.0*p_bar_L)/
-                     (4.0*(p_star - p0_L)*(p_star - p0_L)*std::sqrt(rho_L*(p_star - p0_L)));
-      }
-      if(p_star <= p_bar_R) {
-        ddF_p_star += c_R*(1.0 - qR(ALPHA1_D_INDEX))/((p0_R - p_star)*(p0_R - p_star));
-      }
-      else {
-        ddF_p_star += std::sqrt(1.0 - qR(ALPHA1_D_INDEX))*(-4.0*p0_R + p_star + 3.0*p_bar_R)/
-                      (4.0*(p_star - p0_R)*(p_star - p0_R)*std::sqrt(rho_R*(p_star - p0_R)));
-      }
-      dp_star = -2.0*F_p_star*dF_p_star/(2.0*dF_p_star*dF_p_star - F_p_star*ddF_p_star);
+      dp_star = -F_p_star/dF_p_star;
 
       // Bound preserving increment
       dp_star = std::max(dp_star, lambda*(std::max(p0_L, p0_R) - p_star));
@@ -272,10 +257,6 @@ namespace samurai {
                               + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
       const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
 
-      const auto p0_L         = this->phase1.get_p0()
-                              - alpha1_bar_L*this->phase1.get_rho0()*this->phase1.get_c0()*this->phase1.get_c0()
-                              - (1.0 - alpha1_bar_L)*this->phase2.get_rho0()*this->phase2.get_c0()*this->phase2.get_c0();
-
       // Right state useful variables
       const auto rho_R        = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
       const auto vel_d_R      = qR(RHO_U_INDEX + curr_d)/rho_R;
@@ -288,10 +269,6 @@ namespace samurai {
                               + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
       const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
-      const auto p0_R         = this->phase1.get_p0()
-                              - alpha1_bar_R*this->phase1.get_rho0()*this->phase1.get_c0()*this->phase1.get_c0()
-                              - (1.0 - alpha1_bar_R)*this->phase2.get_rho0()*this->phase2.get_c0()*this->phase2.get_c0();
-
       // Compute p*
       const auto p_bar_L = (alpha1_L > this->eps && alpha2_L > this->eps) ?
                             alpha1_bar_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->phase2.pres_value(rho2_L) :
@@ -299,8 +276,12 @@ namespace samurai {
       const auto p_bar_R = (alpha1_R > this->eps && alpha2_R > this->eps) ?
                             alpha1_bar_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->phase2.pres_value(rho2_R) :
                            ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
-      auto p_star        = std::max(0.5*(p_bar_L + p_bar_R),
-                                    std::max(p0_L, p0_R) + 0.1*std::abs(std::max(p0_L, p0_R)));
+
+      const auto p0_L = p_bar_L - rho_L*c_L*c_L;
+      const auto p0_R = p_bar_R - rho_R*c_R*c_R;
+
+      auto p_star = std::max(0.5*(p_bar_L + p_bar_R),
+                             std::max(p0_L, p0_R) + 0.1*std::abs(std::max(p0_L, p0_R)));
       solve_p_star(qL, qR, vel_d_L - vel_d_R, vel_d_L, p0_L, p0_R, p_star);
 
       // Compute u*

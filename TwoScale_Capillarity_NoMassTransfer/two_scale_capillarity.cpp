@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
 
   sim_param.apply_relaxation = true;
   sim_param.eps_nan = 1e-20;
-  sim_param.mod_grad_alpha1_bar_min = 0.0;
+  sim_param.mod_grad_alpha1_min = 0.0;
 
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--sigma", sim_param.sigma, "Surface tension coefficient")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--eps_nan", sim_param.eps_nan, "Tolerance for zero volume fraction")->capture_default_str()->group("Simulation_Paramaters");
-  app.add_option("--mod_grad_alpha1_bar_min", sim_param.mod_grad_alpha1_bar_min,
+  app.add_option("--mod_grad_alpha1_min", sim_param.mod_grad_alpha1_min,
                  "Tolerance for zero gradient volume fraction")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");

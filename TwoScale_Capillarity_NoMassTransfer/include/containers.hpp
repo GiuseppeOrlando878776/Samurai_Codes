@@ -24,7 +24,7 @@ struct Simulation_Paramaters {
 
   bool apply_relaxation;
   double eps_nan;
-  double mod_grad_alpha1_bar_min;
+  double mod_grad_alpha1_min;
 };
 
 // Declare a struct with EOS parameters
