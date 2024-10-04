@@ -22,6 +22,8 @@ int main(int argc, char* argv[]) {
 
   sim_param.min_level = 8;
   sim_param.max_level = 8;
+  sim_param.MR_param = 1e-2;
+  sim_param.MR_regularity = 2;
 
   sim_param.Tf = 1.0;
   sim_param.Courant = 0.4;
@@ -52,6 +54,8 @@ int main(int argc, char* argv[]) {
                  "Tolerance for zero gradient volume fraction")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
+  app.add_option("--MR_param", sim_param.MR_param, "MR parameter for adaptation")->capture_default_str()->group("AMR parameter");
+  app.add_option("--MR_regularity", sim_param.MR_regularity, "MR parameter for mesh regularity")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL, sim_param.yL};

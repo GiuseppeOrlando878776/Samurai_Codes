@@ -14,6 +14,8 @@ struct Simulation_Paramaters {
   double yR;
   std::size_t min_level;
   std::size_t max_level;
+  double MR_param;
+  unsigned int MR_regularity;
 
   double R;
   double sigma;

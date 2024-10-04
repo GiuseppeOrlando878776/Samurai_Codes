@@ -74,6 +74,9 @@ private:
 
   std::size_t nfiles; // Number of files desired for output
 
+  double MR_param;
+  unsigned int MR_regularity; // multiresolution parameters
+
   Field conserved_variables; // The variable which stores the conserved variables,
                              // namely the varialbes for which we solve a PDE system
 
@@ -314,7 +317,7 @@ template<std::size_t dim>
 void StaticBubble<dim>::perform_mesh_adaptation(const std::string& filename) {
   samurai::update_ghost_mr(grad_alpha1_bar);
   auto MRadaptation = samurai::make_MRAdapt(grad_alpha1_bar);
-  MRadaptation(1e-5, 0, conserved_variables);
+  MRadaptation(MR_param, MR_regularity, conserved_variables);
 
   // Sanity check (and numerical artefacts to clear data) after mesh adaptation
   alpha1_bar.resize();
