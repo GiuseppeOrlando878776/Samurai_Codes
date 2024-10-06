@@ -20,11 +20,11 @@ int main(int argc, char* argv[]) {
   sim_param.min_level = 10;
   sim_param.max_level = 10;
 
-  sim_param.Tf = 2.9e-5;
+  sim_param.Tf = 0.15;
   sim_param.Courant = 0.45;
   sim_param.nfiles = 10;
 
-  sim_param.apply_pressure_relax = true;
+  sim_param.apply_pressure_relax = false;
   #ifdef RELAX_POLYNOM
     sim_param.apply_pressure_reinit = true;
   #endif
@@ -49,12 +49,12 @@ int main(int argc, char* argv[]) {
   // Set and declare simulation parameters related to EOS
   EOS_Parameters eos_param;
 
-  eos_param.gamma_1 = 2.43;
-  eos_param.pi_infty_1 = 5.3e9;
+  eos_param.gamma_1 = 1.4;
+  eos_param.pi_infty_1 = 0.0;
   eos_param.q_infty_1 = 0.0;
 
-  eos_param.gamma_2 = 1.62;
-  eos_param.pi_infty_2 = 141e9;
+  eos_param.gamma_2 = 1.4;
+  eos_param.pi_infty_2 = 0.0;
   eos_param.q_infty_2 = 0.0;
 
   app.add_option("--gammma_1", eos_param.gamma_1, "gamma_1")->capture_default_str()->group("EOS parameters");
@@ -67,21 +67,21 @@ int main(int argc, char* argv[]) {
   // Set and declare simulation parameters related to initial condition
   Riemann_Parameters Riemann_param;
 
-  Riemann_param.xd = 0.6;
+  Riemann_param.xd = 0.5;
 
-  Riemann_param.alpha1L = 0.5954;
-  Riemann_param.rho1L = 1185.0;
-  Riemann_param.p1L = 2e11;
-  Riemann_param.uL = 0.0;
-  Riemann_param.rho2L = 3622.0;
-  Riemann_param.p2L = 2e11;
+  Riemann_param.alpha1L = 0.8;
+  Riemann_param.rho1L = 1.0;
+  Riemann_param.p1L = 1.0;
+  Riemann_param.uL = 0.75;
+  Riemann_param.rho2L = 1.0;
+  Riemann_param.p2L = 1.0;
 
-  Riemann_param.alpha1R = 0.5954;
-  Riemann_param.rho1R = 1185.0;
-  Riemann_param.p1R = 1e5;
+  Riemann_param.alpha1R = 0.3;
+  Riemann_param.rho1R = 0.125;
+  Riemann_param.p1R = 0.1;
   Riemann_param.uR = 0.0;
-  Riemann_param.rho2R = 3622.0;
-  Riemann_param.p2R = 1e5;
+  Riemann_param.rho2R = 0.125;
+  Riemann_param.p2R = 0.1;
 
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
   app.add_option("--alpha1L", Riemann_param.alpha1L, "Initial volume fraction at left")->capture_default_str()->group("Initial conditions");

@@ -7,6 +7,10 @@
 
 #include "flux_6eqs_base.hpp"
 
+#define BR
+//#define CENTERED
+//#define MEAN_CENTERED
+
 namespace samurai {
   using namespace EquationData;
 
@@ -101,20 +105,54 @@ namespace samurai {
     const auto p2R = this->phase2.pres_value(rho2R, e2R);
 
     // Build the non conservative flux (a lot of approximations to be checked here)
-    F_minus(ALPHA1_INDEX) = (0.5*(velL*qL(ALPHA1_INDEX) + velR*qR(ALPHA1_INDEX)) -
-                             0.5*(velL + velR)*qL(ALPHA1_INDEX));
-    F_plus(ALPHA1_INDEX)  = (0.5*(velL*qL(ALPHA1_INDEX) + velR*qR(ALPHA1_INDEX)) -
-                             0.5*(velL + velR)*qR(ALPHA1_INDEX));
+    #ifdef BR
+      F_minus(ALPHA1_INDEX) = (0.5*(velL*alpha1L + velR*alpha1R) -
+                               0.5*(velL + velR)*alpha1L);
+      F_plus(ALPHA1_INDEX)  = (0.5*(velL*alpha1L + velR*alpha1R) -
+                               0.5*(velL + velR)*alpha1R);
 
-    F_minus(ALPHA1_RHO1_E1_INDEX) = -(0.5*(velL*Y2L*alpha1L*p1L + velR*Y2R*alpha1R*p1R) -
-                                      0.5*(velL*Y2L + velR*Y2R)*alpha1L*p1L)
-                                    +(0.5*(velL*Y1L*alpha2L*p2L + velR*Y1R*alpha2R*p2R) -
-                                      0.5*(velL*Y1L + velR*Y1R)*alpha2L*p2L);
-    F_plus(ALPHA1_RHO1_E1_INDEX)  = -(0.5*(velL*Y2L*alpha1L*p1L + velR*Y2R*alpha1R*p1R) -
-                                      0.5*(velL*Y2L + velR*Y2R)*alpha1R*p1R)
-                                    +(0.5*(velL*Y1L*alpha2L*p2L + velR*Y1R*alpha2R*p2R) -
-                                      0.5*(velL*Y1L + velR*Y1R)*alpha2R*p2R);
+      F_minus(ALPHA1_RHO1_E1_INDEX) = -(0.5*(velL*Y2L*alpha1L*p1L + velR*Y2R*alpha1R*p1R) -
+                                        0.5*(velL*Y2L + velR*Y2R)*alpha1L*p1L)
+                                      +(0.5*(velL*Y1L*alpha2L*p2L + velR*Y1R*alpha2R*p2R) -
+                                        0.5*(velL*Y1L + velR*Y1R)*alpha2L*p2L);
+      F_plus(ALPHA1_RHO1_E1_INDEX)  = -(0.5*(velL*Y2L*alpha1L*p1L + velR*Y2R*alpha1R*p1R) -
+                                        0.5*(velL*Y2L + velR*Y2R)*alpha1R*p1R)
+                                      +(0.5*(velL*Y1L*alpha2L*p2L + velR*Y1R*alpha2R*p2R) -
+                                        0.5*(velL*Y1L + velR*Y1R)*alpha2R*p2R);
+    #elifdef CENTERED
+      F_minus(ALPHA1_INDEX) = velL*(0.5*(alpha1L + alpha1R));
+      F_plus(ALPHA1_INDEX)  = velR*(0.5*(alpha1L + alpha1R));
 
+      F_minus(ALPHA1_RHO1_E1_INDEX) = -velL*(Y2L*(0.5*(alpha1L*p1L + alpha1R*p1R)) -
+                                             Y1L*(0.5*(alpha2L*p2L + alpha2R*p2R)));
+      F_plus(ALPHA1_RHO1_E1_INDEX) = -velR*(Y2R*(0.5*(alpha1L*p1L + alpha1R*p1R)) -
+                                            Y1R*(0.5*(alpha2L*p2L + alpha2R*p2R)));
+    #elifdef MEAN_CENTERED
+      F_minus(ALPHA1_INDEX) = velL*(alpha1R - alpha1L);
+      F_plus(ALPHA1_INDEX)  = 0.0;
+
+      F_minus(ALPHA1_RHO1_E1_INDEX) = -velL*(Y2L*(alpha1R*p1R - alpha1L*p1L) -
+                                             Y1L*(alpha2R*p2R - alpha2L*p2L));
+      F_plus(ALPHA1_RHO1_E1_INDEX)  = 0.0;
+    #else
+      const auto vel_est = 0.5*(velL + velR);
+      if(vel_est < 0.0) {
+        F_minus(ALPHA1_INDEX) = vel_est*(alpha1R - alpha1L);
+        F_plus(ALPHA1_INDEX) = 0.0;
+
+        F_minus(ALPHA1_RHO1_E1_INDEX) = vel_est*((-0.5*(Y2L + Y2R))*(alpha1R*p1R - alpha1L*p1L) +
+                                                 (0.5*(Y1L + Y1R))*(alpha2R*p2R - alpha2L*p2L));
+        F_plus(ALPHA1_RHO1_E1_INDEX) = 0.0;
+      }
+      else {
+        F_plus(ALPHA1_INDEX) = -vel_est*(alpha1R - alpha1L);
+        F_minus(ALPHA1_INDEX) = 0.0;
+
+        F_plus(ALPHA1_RHO1_E1_INDEX) = -vel_est*((-0.5*(Y2L + Y2R))*(alpha1R*p1R - alpha1L*p1L) +
+                                                 (0.5*(Y1L + Y1R))*(alpha2R*p2R - alpha2L*p2L));
+        F_minus(ALPHA1_RHO1_E1_INDEX) = 0.0;
+      }
+    #endif
     F_minus(ALPHA2_RHO2_E2_INDEX) = -F_minus(ALPHA1_RHO1_E1_INDEX);
     F_plus(ALPHA2_RHO2_E2_INDEX)  = -F_plus(ALPHA1_RHO1_E1_INDEX);
   }
@@ -134,34 +172,17 @@ namespace samurai {
         // Compute now the "discrete" non-conservative flux function
         discrete_flux[d].flux_function = [&](auto& cells, const Field& field)
                                             {
+                                              // Compute the stencil
                                               #ifdef ORDER_2
-                                                // Compute the stencil
-                                                const auto& left_left   = cells[0];
-                                                const auto& left        = cells[1];
-                                                const auto& right       = cells[2];
-                                                const auto& right_right = cells[3];
-
-                                                // MUSCL reconstruction
-                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
-                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
-                                                const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
-                                                const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
-
-                                                FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                     primR_recon;
-                                                this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                             primL_recon, primR_recon);
-
-                                                FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                const auto& left  = cells[1];
+                                                const auto& right = cells[2];
                                               #else
-                                                // Compute the stencil and extract state
                                                 const auto& left  = cells[0];
                                                 const auto& right = cells[1];
-
-                                                const FluxValue<typename Flux<Field>::cfg>& qL = field[left];
-                                                const FluxValue<typename Flux<Field>::cfg>& qR = field[right];
                                               #endif
+
+                                              const FluxValue<typename Flux<Field>::cfg>& qL = field[left];
+                                              const FluxValue<typename Flux<Field>::cfg>& qR = field[right];
 
                                               FluxValue<typename Flux<Field>::cfg> F_minus,
                                                                                    F_plus;

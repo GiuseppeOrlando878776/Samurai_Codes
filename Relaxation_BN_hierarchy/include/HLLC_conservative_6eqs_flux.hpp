@@ -7,6 +7,8 @@
 
 #include "flux_6eqs_base.hpp"
 
+//#define ONLY_CONSERVATIVE
+
 namespace samurai {
   using namespace EquationData;
 
@@ -68,7 +70,7 @@ namespace samurai {
     // Compute middle state
     FluxValue<typename Flux<Field>::cfg> q_star;
 
-    q_star(ALPHA1_INDEX)      = 0.0;
+    q_star(ALPHA1_INDEX)      = alpha1;
     q_star(ALPHA1_RHO1_INDEX) = q(ALPHA1_RHO1_INDEX)*((S - vel_d)/(S - S_star));
     q_star(ALPHA2_RHO2_INDEX) = q(ALPHA2_RHO2_INDEX)*((S - vel_d)/(S - S_star));
     q_star(RHO_U_INDEX + curr_d) = rho*((S - vel_d)/(S - S_star))*S_star;
@@ -157,18 +159,32 @@ namespace samurai {
                         (rhoL*(sL - velL_d) - rhoR*(sR - velR_d));
 
     /*--- Compute intermediate states ---*/
-    const auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
-    const auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
+    auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
+    auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
 
     /*--- Compute the flux ---*/
     if(sL >= 0.0) {
       return this->evaluate_continuous_flux(qL, curr_d);
     }
     else if(sL < 0.0 && s_star >= 0.0) {
-      return this->evaluate_continuous_flux(qL, curr_d) + sL*(q_star_L - qL);
+      #ifdef ONLY_CONSERVATIVE
+        q_star_L(ALPHA1_INDEX) = 0.0;
+        auto qL_mod = qL;
+        qL_mod(ALPHA1_INDEX) = 0.0;
+        return this->evaluate_continuous_flux(qL, curr_d) + sL*(q_star_L - qL_mod);
+      #else
+        return this->evaluate_continuous_flux(qL, curr_d) + sL*(q_star_L - qL);
+      #endif
     }
     else if(s_star < 0.0 && sR >= 0.0) {
-      return this->evaluate_continuous_flux(qR, curr_d) + sR*(q_star_R - qR);
+      #ifdef ONLY_CONSERVATIVE
+        q_star_R(ALPHA1_INDEX) = 0.0;
+        auto qR_mod = qR;
+        qR_mod(ALPHA1_INDEX) = 0.0;
+        return this->evaluate_continuous_flux(qR, curr_d) + sR*(q_star_R - qR_mod);
+      #else
+        return this->evaluate_continuous_flux(qR, curr_d) + sR*(q_star_R - qR);
+      #endif
     }
     else if(sR < 0.0) {
       return this->evaluate_continuous_flux(qR, curr_d);

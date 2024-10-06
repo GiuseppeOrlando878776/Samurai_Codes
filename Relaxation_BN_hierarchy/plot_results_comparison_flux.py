@@ -19,11 +19,11 @@ def scatter_plot(ax, points):
 def scatter_update(scatter, points):
     scatter.set_offsets(points[:, :2])
 
-def line_plot(ax, x_Rusanov, y_Rusanov, x_HLLC, y_HLLC, x_HLLC_BR, y_HLLC_BR):
+def line_plot(ax, x_Rusanov_BR, y_Rusanov_BR, x_Rusanov_centered, y_Rusanov_centered, x_HLLC, y_HLLC):
     #Plot results
-    plot_Rusanov = ax.plot(x_Rusanov, y_Rusanov, 'ro', linewidth=1, markersize=4, alpha=1, markevery=128)[0]
-    plot_HLLC    = ax.plot(x_HLLC, y_HLLC, 'b-', linewidth=1, markersize=4, alpha=1)[0]
-    #plot_HLLC_BR = ax.plot(x_HLLC_BR, y_HLLC_BR, 'go', linewidth=1, markersize=4, alpha=1, markevery=32)[0]
+    plot_Rusanov_BR       = ax.plot(x_Rusanov_BR, y_Rusanov_BR, 'ro', linewidth=1, markersize=4, alpha=1, markevery=128)[0]
+    plot_Rusanov_centered = ax.plot(x_Rusanov_centered, y_Rusanov_centered, 'gx', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
+    plot_HLLC             = ax.plot(x_HLLC, y_HLLC, 'b-', linewidth=1, markersize=4, alpha=1)[0]
 
     #Read and plot the analytical results
     if args.analytical is not None:
@@ -42,119 +42,122 @@ def line_plot(ax, x_Rusanov, y_Rusanov, x_HLLC, y_HLLC, x_HLLC_BR, y_HLLC_BR):
     #Add legend
     if args.analytical is not None:
         if args.reference is not None:
-            ax.legend([plot_Rusanov, plot_HLLC, plot_HLLC_BR, plot_analytical, plot_ref], \
-                      ['Rusanov + BR', 'HLLC (wave propagation)', 'HLLC + BR', 'Analytical (5 equations)', 'Reference results'], fontsize="20", loc="best")
+            ax.legend([plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC, plot_analytical, plot_ref], \
+                      ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)', \
+                       'Analytical (5 equations)', 'Reference results'], fontsize="20", loc="best")
         else:
-            ax.legend([plot_Rusanov, plot_HLLC, plot_HLLC_BR, plot_analytical], \
-                      ['Rusanov + BR', 'HLLC (wave propagation)', 'HLLC + BR', 'Analytical (5 equations)'], fontsize="20", loc="best")
+            ax.legend([plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC, plot_analytical], \
+                      ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)', \
+                       'Analytical (5 equations)'], fontsize="20", loc="best")
     elif args.reference is not None:
-        ax.legend([plot_Rusanov, plot_HLLC, plot_HLLC_BR, plot_ref], \
-                  ['Rusanov + BR', 'HLLC (wave propagation)', 'HLLC + BR', 'Reference results'], fontsize="20", loc="best")
+        ax.legend([plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC, plot_ref], \
+                  ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)', \
+                   'Reference results'], fontsize="20", loc="best")
     else:
-        #ax.legend([plot_Rusanov, plot_HLLC, plot_HLLC_BR], ['Rusanov + BR', 'HLLC (wave propagation)', 'HLLC + BR'], fontsize="20", loc="best")
-        ax.legend([plot_Rusanov, plot_HLLC], ['Rusanov + BR', 'HLLC (wave propagation)'], fontsize="20", loc="best")
+        ax.legend([plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC], ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)'], \
+                  fontsize="20", loc="best")
 
-    return plot_Rusanov, plot_HLLC#, plot_HLLC_BR
+    return plot_Rusanov_BR, plot_Rusanov_centered#, plot_HLLC
 
-def line_update(lines, x_Rusanov, y_Rusanov, x_HLLC, y_HLLC, x_HLLC_BR, y_HLLC_BR):
-    lines[1].set_data(x_Rusanov, y_Rusanov)
-    lines[2].set_data(x_HLLC, y_HLLC)
-    lines[3].set_data(x_HLLC_BR, y_HLLC_BR)
+def line_update(lines, x_Rusanov_BR, y_Rusanov_BR, x_Rusanov_centered, y_Rusanov_centered, x_HLLC, y_HLLC):
+    lines[1].set_data(x_Rusanov_BR, y_Rusanov_BR)
+    lines[2].set_data(x_Rusanov_centered, y_Rusanov_centered)
+    lines[3].set_data(x_HLLC, y_HLLC)
 
 class Plot:
-    def __init__(self, filename_Rusanov, filename_HLLC, filename_HLLC_BR):
+    def __init__(self, filename_Rusanov_BR, filename_Rusanov_centered, filename_HLLC):
         self.fig = plt.figure()
         self.artists = []
         self.ax = []
 
-        mesh_Rusanov = read_mesh(filename_Rusanov)
+        mesh_Rusanov_BR = read_mesh(filename_Rusanov_BR)
         if args.field is None:
             ax = plt.subplot(111)
-            self.plot(ax, mesh_Rusanov)
+            self.plot(ax, mesh_Rusanov_BR)
             ax.set_title("Mesh")
             self.ax = [ax]
         else:
-            mesh_HLLC    = read_mesh(filename_HLLC)
-            mesh_HLLC_BR = read_mesh(filename_HLLC_BR)
+            mesh_Rusanov_centered = read_mesh(filename_Rusanov_centered)
+            mesh_HLLC = read_mesh(filename_HLLC)
             for i, f in enumerate(args.field):
                 ax = plt.subplot(1, len(args.field), i + 1)
-                self.plot(ax, mesh_Rusanov, mesh_HLLC, mesh_HLLC_BR, f)
+                self.plot(ax, mesh_Rusanov_BR, mesh_Rusanov_centered, mesh_HLLC, f)
                 ax.set_title(f)
 
-    def plot(self, ax, mesh_Rusanov, mesh_HLLC=None, mesh_HLLC_BR=None, field=None, init=True):
-        points_Rusanov       = mesh_Rusanov['points']
-        connectivity_Rusanov = mesh_Rusanov['connectivity']
+    def plot(self, ax, mesh_Rusanov_BR, mesh_Rusanov_centered=None, mesh_HLLC=None, field=None, init=True):
+        points_Rusanov_BR       = mesh_Rusanov_BR['points']
+        connectivity_Rusanov_BR = mesh_Rusanov_BR['connectivity']
 
-        segments_Rusanov = np.zeros((connectivity_Rusanov.shape[0], 2, 2))
-        segments_Rusanov[:, :, 0] = points_Rusanov[:][connectivity_Rusanov[:]][:, :, 0]
+        segments_Rusanov_BR = np.zeros((connectivity_Rusanov_BR.shape[0], 2, 2))
+        segments_Rusanov_BR[:, :, 0] = points_Rusanov_BR[:][connectivity_Rusanov_BR[:]][:, :, 0]
 
         if field is None:
-            segments_Rusanov[:, :, 1] = 0
+            segments_Rusanov_BR[:, :, 1] = 0
             if init:
                 self.artists.append(scatter_plot(ax, points))
-                self.lc = mc.LineCollection(segments_Rusanov, colors='b', linewidths=2)
+                self.lc = mc.LineCollection(segments_Rusanov_BR, colors='b', linewidths=2)
                 self.lines = ax.add_collection(self.lc)
             else:
                 scatter_update(self.artists[self.index], points)
                 self.index += 1
                 # self.lc.set_array(segments)
         else:
-            data_Rusanov    = mesh_Rusanov['fields'][field][:]
-            centers_Rusanov = 0.5*(segments_Rusanov[:, 0, 0] + segments_Rusanov[:, 1, 0])
-            segments_Rusanov[:, :, 1] = data_Rusanov[:, np.newaxis]
+            data_Rusanov_BR    = mesh_Rusanov_BR['fields'][field][:]
+            centers_Rusanov_BR = 0.5*(segments_Rusanov_BR[:, 0, 0] + segments_Rusanov_BR[:, 1, 0])
+            segments_Rusanov_BR[:, :, 1] = data_Rusanov_BR[:, np.newaxis]
             # ax.scatter(centers, data, marker='+')
-            index_Rusanov = np.argsort(centers_Rusanov)
+            index_Rusanov_BR = np.argsort(centers_Rusanov_BR)
+
+            points_Rusanov_centered       = mesh_Rusanov_centered['points']
+            connectivity_Rusanov_centered = mesh_Rusanov_centered['connectivity']
+            segments_Rusanov_centered     = np.zeros((connectivity_Rusanov_centered.shape[0], 2, 2))
+            segments_Rusanov_centered[:, :, 0] = points_Rusanov_centered[:][connectivity_Rusanov_centered[:]][:, :, 0]
+            data_Rusanov_centered    = mesh_Rusanov_centered['fields'][field][:]
+            centers_Rusanov_centered = 0.5*(segments_Rusanov_centered[:, 0, 0] + segments_Rusanov_centered[:, 1, 0])
+            segments_Rusanov_centered[:, :, 1] = data_Rusanov_centered[:, np.newaxis]
+            index_Rusanov_centered = np.argsort(centers_Rusanov_centered)
 
             points_HLLC       = mesh_HLLC['points']
             connectivity_HLLC = mesh_HLLC['connectivity']
             segments_HLLC     = np.zeros((connectivity_HLLC.shape[0], 2, 2))
             segments_HLLC[:, :, 0] = points_HLLC[:][connectivity_HLLC[:]][:, :, 0]
-            data_HLLC    = mesh_HLLC['fields'][field][:]
-            centers_HLLC = 0.5*(segments_HLLC[:, 0, 0] + segments_HLLC[:, 1, 0])
+            data_HLLC     = mesh_HLLC['fields'][field][:]
+            centers_HLLC  = .5*(segments_HLLC[:, 0, 0] + segments_HLLC[:, 1, 0])
             segments_HLLC[:, :, 1] = data_HLLC[:, np.newaxis]
             index_HLLC = np.argsort(centers_HLLC)
-
-            points_HLLC_BR       = mesh_HLLC_BR['points']
-            connectivity_HLLC_BR = mesh_HLLC_BR['connectivity']
-            segments_HLLC_BR     = np.zeros((connectivity_HLLC_BR.shape[0], 2, 2))
-            segments_HLLC_BR[:, :, 0] = points_HLLC_BR[:][connectivity_HLLC_BR[:]][:, :, 0]
-            data_HLLC_BR     = mesh_HLLC_BR['fields'][field][:]
-            centers_HLLC_BR  = .5*(segments_HLLC_BR[:, 0, 0] + segments_HLLC_BR[:, 1, 0])
-            segments_HLLC_BR[:, :, 1] = data_HLLC_BR[:, np.newaxis]
-            index_HLLC_BR = np.argsort(centers_HLLC_BR)
             if init:
-                self.artists.append(line_plot(ax, centers_Rusanov[index_Rusanov], data_Rusanov[index_Rusanov], \
-						                          centers_HLLC[index_HLLC], data_HLLC[index_HLLC], \
-						                          centers_HLLC_BR[index_HLLC_BR], data_HLLC_BR[index_HLLC_BR]))
+                self.artists.append(line_plot(ax, centers_Rusanov_BR[index_Rusanov_BR], data_Rusanov_BR[index_Rusanov_BR], \
+						                          centers_Rusanov_centered[index_Rusanov_centered], data_Rusanov_centered[index_Rusanov_centered], \
+						                          centers_HLLC[index_HLLC], data_HLLC[index_HLLC]))
             else:
-                line_update(self.artists[self.index], centers_Rusanov[index_Rusanov], data_Rusanov[index_Rusanov], \
-                                                      centers_HLLC[index_HLLC], data_HLLC[index_HLLC], \
-                                                      centers_HLLC_BR[index_HLLC_BR], data_HLLC_BR[index_HLLC_BR])
+                line_update(self.artists[self.index], centers_Rusanov_BR[index_Rusanov_BR], data_Rusanov_BR[index_Rusanov_BR], \
+                                                      centers_Rusanov_centered[index_Rusanov_centered], data_Rusanov_centered[index_Rusanov_centered], \
+                                                      centers_HLLC[index_HLLC], data_HLLC[index_HLLC])
                 self.index += 1
 
         for aax in self.ax:
             aax.relim()
             aax.autoscale_view()
 
-    def update(self, filename_Rusanov, filename_HLLC, filename_HLLC_BR):
-        mesh_Rusanov = read_mesh(filename_Rusanov)
+    def update(self, filename_Rusanov_BR, filename_Rusanov_centered, filename_HLLC):
+        mesh_Rusanov_BR = read_mesh(filename_Rusanov_BR)
         self.index = 0
         if args.field is None:
-            self.plot(None, mesh_Rusanov, init=False)
+            self.plot(None, mesh_Rusanov_BR, init=False)
         else:
-            mesh_HLLC    = read_mesh(filename_HLLC)
-            mesh_HLLC_BR = read_mesh(filename_HLLC_BR)
+            mesh_Rusanov_centered = read_mesh(filename_Rusanov_centered)
+            mesh_HLLC = read_mesh(filename_HLLC)
 
             for i, f in enumerate(args.field):
-                self.plot(None, mesh_Rusanov, mesh_HLLC, mesh_HLLC_BR, f, init=False)
+                self.plot(None, mesh_Rusanov_BR, mesh_Rusanov_centered, mesh_HLLC, f, init=False)
 
     def get_artist(self):
         return self.artists
 
 parser = argparse.ArgumentParser(description='Plot 1d mesh and field from samurai simulations.')
-parser.add_argument('filename_Rusanov', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_Rusanov_BR', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_Rusanov_centered', type=str, help='hdf5 file to plot without .h5 extension')
 parser.add_argument('filename_HLLC', type=str, help='hdf5 file to plot without .h5 extension')
-parser.add_argument('filename_HLLC_BR', type=str, help='hdf5 file to plot without .h5 extension')
 parser.add_argument('--field', nargs="+", type=str, required=False, help='list of fields to plot')
 parser.add_argument('--start', type=int, required=False, default=0, help='iteration start')
 parser.add_argument('--end', type=int, required=False, default=None, help='iteration end')
@@ -167,12 +170,12 @@ parser.add_argument('--column_reference', type=int, required=False, help='variab
 args = parser.parse_args()
 
 if args.end is None:
-    Plot(args.filename_Rusanov, args.filename_HLLC, args.filename_HLLC_BR)
+    Plot(args.filename_Rusanov_BR, args.filename_Rusanov_centered, args.filename_HLLC)
 else:
-    p = Plot(f"{args.filename_Rusanov}{args.start}", f"{args.filename_HLLC}{args.start}", f"{args.filename_HLLC_BR}{args.start}")
+    p = Plot(f"{args.filename_Rusanov_BR}{args.start}", f"{args.filename_Rusanov_centered}{args.start}", f"{args.filename_HLLC}{args.start}")
     def animate(i):
         p.fig.suptitle(f"iteration {i + args.start}")
-        p.update(f"{args.filename_Rusanov}{i + args.start}", f"{args.filename_HLLC}{args.start}", f"{args.filename_HLLC_BR}{args.start}")
+        p.update(f"{args.filename_Rusanov_BR}{i + args.start}", f"{args.filename_Rusanov_centered}{args.start}", f"{args.filename_HLLC}{args.start}")
         return p.get_artist()
     ani = animation.FuncAnimation(p.fig, animate, frames=args.end-args.start, interval=args.wait, repeat=True)
 
