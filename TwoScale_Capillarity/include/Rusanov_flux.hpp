@@ -23,7 +23,11 @@ namespace samurai {
                 const double mod_grad_alpha1_bar_min_,
                 const bool mass_transfer_,
                 const double kappa_,
-                const double Hmax_); // Constructor which accepts in inputs the equations of state of the two phases
+                const double Hmax_,
+                const double alpha1d_max_ = 0.5,
+                const double lambda_ = 0.9,
+                const double tol_Newton_ = 1e-12,
+                const std::size_t max_Newton_iters_ = 60); // Constructor which accepts in inputs the equations of state of the two phases
 
     #ifdef ORDER_2
       template<typename Gradient, typename Field_Scalar>
@@ -50,9 +54,17 @@ namespace samurai {
                                   const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double sigma_,
                                   const double eps_,
-                                  const double grad_alpha1_bar_min_):
+                                  const double grad_alpha1_bar_min_,
+                                  const bool mass_transfer_,
+                                  const double kappa_,
+                                  const double Hmax_,
+                                  const double alpha1d_max_,
+                                  const double lambda_,
+                                  const double tol_Newton_,
+                                  const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_bar_min_,
-                mass_transfer_, kappa_, Hmax_) {}
+                mass_transfer_, kappa_, Hmax_,
+                alpha1d_max_, lambda_, tol_Newton_, max_Newton_iters_) {}
 
   // Implementation of a Rusanov flux
   //

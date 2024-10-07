@@ -110,9 +110,12 @@ private:
 
   bool mass_transfer; // Choose wheter to apply or not the mass transfer
 
+  std::size_t max_Newton_iters; // Maximum number of Newton iterations
+
   LinearizedBarotropicEOS<> EOS_phase1,
                             EOS_phase2; // The two variables which take care of the
                                         // barotropic EOS to compute the speed of sound
+
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
   #elifdef GODUNOV_FLUX
@@ -150,13 +153,15 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   divergence(samurai::make_divergence_order2<decltype(normal)>()),
   sigma(sim_param.sigma),
   eps(sim_param.eps_nan), mod_grad_alpha1_bar_min(sim_param.mod_grad_alpha1_bar_min),
-  mass_transfer(sim_param.mass_transfer),
+  mass_transfer(sim_param.mass_transfer), max_Newton_iters(sim_param.max_Newton_iters),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax)
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
+                 sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters)
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax)
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
+                 sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters, sim_param.tol_Newton_p_star)
   #endif
   {
     std::cout << "Initializing variables " << std::endl;
@@ -266,28 +271,27 @@ void TwoScaleCapillarity<dim>::init_variables() {
                            const double r = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
 
                            // Set mass large-scale phase 1
-                           typename Field::value_type p1;
                            if(r >= R + eps_R) {
-                             p1 = nan("");
+                             p1[cell] = nan("");
                            }
                            else {
-                             p1 = EOS_phase2.get_p0();
+                             p1[cell] = EOS_phase2.get_p0();
                              if(r >= R && r < R + eps_R) {
-                               p1 += sigma*H[cell];
+                               p1[cell] += sigma*H[cell];
                              }
                              else {
-                               p1 += sigma/R;
+                               p1[cell] += sigma/R;
                              }
                            }
-                           const auto rho1 = EOS_phase1.rho_value(p1);
+                           const auto rho1 = EOS_phase1.rho_value(p1[cell]);
 
                            conserved_variables[cell][M1_INDEX] = (!std::isnan(rho1)) ?
                                                                  alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho1 :
                                                                  0.0;
 
                            // Set mass phase 2
-                           const auto p2   = (r >= R) ? EOS_phase2.get_p0() : nan("");
-                           const auto rho2 = EOS_phase2.rho_value(p2);
+                           p2[cell] = (r >= R) ? EOS_phase2.get_p0() : nan("");
+                           const auto rho2 = EOS_phase2.rho_value(p2[cell]);
 
                            conserved_variables[cell][M2_INDEX] = (!std::isnan(rho2)) ?
                                                                  (1.0 - alpha1_bar[cell])*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho2 :
@@ -464,10 +468,6 @@ void TwoScaleCapillarity<dim>::clear_data(const std::string& filename, unsigned 
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::apply_relaxation() {
-  const double tol         = 1e-12; // Tolerance of the Newton method
-  const double lambda      = 0.9;   // Parameter for bound preserving strategy
-  const double alpha1d_max = 0.5;   // Maximum allowed value of the small-scale volume fraction
-
   // Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
   // over each cell would be more logic, but this would lead to issues to call 'update_geometry'
   std::size_t Newton_iter = 0;
@@ -484,11 +484,11 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              #ifdef RUSANOV_FLUX
                                Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                            H[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                           relaxation_applied, mass_transfer_NR, tol, lambda, alpha1d_max);
+                                                                           relaxation_applied, mass_transfer_NR);
                              #elifdef GODUNOV_FLUX
                                Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                            H[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                           relaxation_applied, mass_transfer_NR, tol, lambda, alpha1d_max);
+                                                                           relaxation_applied, mass_transfer_NR);
                              #endif
 
                            });
@@ -497,12 +497,12 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
     //update_geometry();
 
     // Stop the mass transfer after a sufficient time of Newton iterations for safety
-    if(mass_transfer_NR && Newton_iter > 30) {
+    if(mass_transfer_NR && Newton_iter > max_Newton_iters/2) {
       mass_transfer_NR = false;
     }
 
     // Newton cycle diverged
-    if(Newton_iter > 60) {
+    if(Newton_iter > max_Newton_iters) {
       std::cout << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "static_bubble", "_diverged",
            conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H);

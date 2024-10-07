@@ -23,7 +23,12 @@ namespace samurai {
                 const double mod_grad_alpha1_bar_min_,
                 const bool mass_transfer_,
                 const double kappa_,
-                const double Hmax_); // Constructor which accepts in inputs the equations of state of the two phases
+                const double Hmax_,
+                const double alpha1d_max_ = 0.5,
+                const double lambda_ = 0.9,
+                const double tol_Newton_ = 1e-12,
+                const std::size_t max_Newton_iters_ = 60,
+                const double tol_Newton_p_star_ = 1e-8); // Constructor which accepts in inputs the equations of state of the two phases
 
     #ifdef ORDER_2
       template<typename Gradient, typename Field_Scalar>
@@ -35,6 +40,8 @@ namespace samurai {
     #endif
 
   private:
+    const double tol_Newton_p_star; // Tolerance of the Newton method to compute p_star
+
     template<typename Gradient>
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
@@ -65,19 +72,21 @@ namespace samurai {
                                   const double grad_alpha1_bar_min_,
                                   const bool mass_transfer_,
                                   const double kappa_,
-                                  const double Hmax_):
+                                  const double Hmax_,
+                                  const double alpha1d_max_,
+                                  const double lambda_,
+                                  const double tol_Newton_,
+                                  const std::size_t max_Newton_iters_,
+                                  const double tol_Newton_p_star_):
     Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_bar_min_,
-                mass_transfer_, kappa_, Hmax_) {}
+                mass_transfer_, kappa_, Hmax_,
+                alpha1d_max_, lambda_, tol_Newton_, max_Newton_iters_), tol_Newton_p_star(tol_Newton_p_star_) {}
 
   // Compute small-scale volume fraction for the fan through Newton-Rapson method
   //
   template<class Field>
   void GodunovFlux<Field>::solve_alpha1_d_fan(const typename Field::value_type rhs,
                                               typename Field::value_type& alpha1_d) {
-    const double tol            = 1e-12; // Tolerance of the Newton method
-    const double lambda         = 0.9;   // Parameter for bound preserving strategy
-    const std::size_t max_iters = 60;    // Maximum number of Newton iterations
-
     typename Field::value_type dalpha1_d = std::numeric_limits<typename Field::value_type>::infinity();
 
     const auto alpha1_d_0 = alpha1_d;
@@ -85,8 +94,8 @@ namespace samurai {
 
     // Loop of Newton method
     std::size_t Newton_iter = 0;
-    while(Newton_iter < max_iters && alpha1_d > this->eps && 1.0 - alpha1_d > this->eps &&
-          std::abs(F_alpha1_d - rhs) > tol*std::abs(rhs) && std::abs(dalpha1_d)/alpha1_d > tol) {
+    while(Newton_iter < this->max_Newton_iters && alpha1_d > this->eps && 1.0 - alpha1_d > this->eps &&
+          std::abs(F_alpha1_d - rhs) > this->tol_Newton*std::abs(rhs) && std::abs(dalpha1_d)/alpha1_d > this->tol_Newton) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment
@@ -94,7 +103,8 @@ namespace samurai {
       dalpha1_d         = -(F_alpha1_d - rhs)/dF_dalpha1_d;
 
       // Bound preserving increment
-      dalpha1_d = (dalpha1_d < 0.0) ? std::max(dalpha1_d, -lambda*alpha1_d) : std::min(dalpha1_d, lambda*(1.0 - alpha1_d));
+      dalpha1_d = (dalpha1_d < 0.0) ? std::max(dalpha1_d, -this->lambda*alpha1_d) :
+                                      std::min(dalpha1_d, this->lambda*(1.0 - alpha1_d));
 
       if(alpha1_d + dalpha1_d < 0.0 || alpha1_d + dalpha1_d > 1.0) {
         std::cerr << "Bounds exceeding value for small-scale volume fraction in the Newton method at fan" << std::endl;
@@ -105,7 +115,7 @@ namespace samurai {
       }
 
       // Newton cycle diverged
-      if(Newton_iter == max_iters) {
+      if(Newton_iter == this->max_Newton_iters) {
         std::cout << "Netwon method not converged to compute small-scale volume fraction in the fan" << std::endl;
         exit(1);
       }
@@ -125,10 +135,6 @@ namespace samurai {
                                         const typename Field::value_type p0_L,
                                         const typename Field::value_type p0_R,
                                         typename Field::value_type& p_star) {
-    const double tol            = 1e-8; // Tolerance of the Newton method
-    const double lambda         = 0.9;  // Parameter for bound preserving strategy
-    const std::size_t max_iters = 100;  // Maximum number of Newton iterations
-
     typename Field::value_type dp_star = std::numeric_limits<typename Field::value_type>::infinity();
 
     // Left state useful variables
@@ -181,7 +187,8 @@ namespace samurai {
 
     // Loop of Newton method
     std::size_t Newton_iter = 0;
-    while(Newton_iter < max_iters && std::abs(F_p_star) > tol*std::abs(vel_d_L) && std::abs(dp_star/p_star) > tol) {
+    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->tol_Newton_p_star*std::abs(vel_d_L) &&
+          std::abs(dp_star/p_star) > this->tol_Newton_p_star) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment
@@ -203,7 +210,7 @@ namespace samurai {
       dp_star = -F_p_star/dF_p_star;
 
       // Bound preserving increment
-      dp_star = std::max(dp_star, lambda*(std::max(p0_L, p0_R) - p_star));
+      dp_star = std::max(dp_star, this->lambda*(std::max(p0_L, p0_R) - p_star));
 
       if(p_star + dp_star <= p0_L) {
         std::cerr << "Non-admissible value for the pressure in the Newton moethod to compute p* in Godunov solver" << std::endl;
@@ -214,7 +221,7 @@ namespace samurai {
       }
 
       // Newton cycle diverged
-      if(Newton_iter == max_iters) {
+      if(Newton_iter == this->max_Newton_iters) {
         std::cout << "Netwon method not converged to compute p* in the Godunov solver" << std::endl;
         exit(1);
       }

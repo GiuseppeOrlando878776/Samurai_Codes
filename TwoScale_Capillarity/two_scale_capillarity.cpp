@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
   sim_param.min_level = 7;
   sim_param.max_level = 7;
 
-  sim_param.Tf = 1.0;
+  sim_param.Tf = 2.0;
   sim_param.Courant = 0.4;
 
   sim_param.nfiles = 10;
@@ -36,6 +36,12 @@ int main(int argc, char* argv[]) {
   sim_param.mass_transfer = false;
   sim_param.kappa = 1.0;
   sim_param.Hmax = 40.0;
+
+  sim_param.alpha1d_max = 0.5;
+  sim_param.lambda = 0.9;
+  sim_param.tol_Newton = 1e-12;
+  sim_param.max_Newton_iters = 60;
+  sim_param.tol_Newton_p_star = 1e-8;
 
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
@@ -57,6 +63,16 @@ int main(int argc, char* argv[]) {
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
+  app.add_option("--alpha1d_max", sim_param.alpha1d_max,
+                 "Maximum admitted small-scale volume fraction")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--lambda", sim_param.lambda,
+                 "Parameter for bound preserving strategy")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--tol_Newton", sim_param.tol_Newton,
+                 "Tolerance of Newton method for the relaxation")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--max_Newton_iters", sim_param.max_Newton_iters,
+                 "Maximum number of Newton iterations")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--tol_Newton_p_star", sim_param.tol_Newton_p_star,
+                 "Tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
 
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL, sim_param.yL};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR, sim_param.yR};

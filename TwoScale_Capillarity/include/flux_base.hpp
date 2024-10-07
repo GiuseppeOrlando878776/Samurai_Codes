@@ -70,7 +70,11 @@ namespace samurai {
          const double mod_grad_alpha1_bar_min_,
          const bool mass_transfer_,
          const double kappa_,
-         const double Hmax_); // Constructor which accepts in inputs the equations of state of the two phases
+         const double Hmax_,
+         const double alpha1d_max_ = 0.5,
+         const double lambda_ = 0.9,
+         const double tol_Newton_ = 1e-12,
+         const std::size_t max_Newton_iters_ = 60); // Constructor which accepts in inputs the equations of state of the two phases
 
     template<typename State, typename Gradient>
     void perform_Newton_step_relaxation(std::unique_ptr<State> conserved_variables,
@@ -78,12 +82,10 @@ namespace samurai {
                                         typename Field::value_type& dalpha1_bar,
                                         typename Field::value_type& alpha1_bar,
                                         const Gradient& grad_alpha1_bar,
-                                        bool& relaxation_applied, const bool mass_transfer_NR,
-                                        const double tol = 1e-12, const double lambda = 0.9,
-                                        const double alpha1d_max = 0.5); // Perform a Newton step relaxation for a state vector
-                                                                         // (it is not a real space dependent procedure,
-                                                                         // but I would need to be able to do it inside the flux location
-                                                                         // for MUSCL reconstruction)
+                                        bool& relaxation_applied, const bool mass_transfer_NR); // Perform a Newton step relaxation for a state vector
+                                                                                                // (it is not a real space dependent procedure,
+                                                                                                // but I would need to be able to do it inside the flux location
+                                                                                                // for MUSCL reconstruction)
 
   protected:
     const LinearizedBarotropicEOS<>& phase1;
@@ -96,6 +98,11 @@ namespace samurai {
     const double sigma;                   // Surfaace tension parameter
     const double eps;                     // Tolerance of pure phase to set NaNs
     const double mod_grad_alpha1_bar_min; // Tolerance to compute the unit normal
+
+    const double alpha1d_max;           // Maximum admitted small-scale volume fraction
+    const double lambda;                // Parameter for bound preserving strategy
+    const double tol_Newton;            // Tolerance Newton method relaxation
+    const std::size_t max_Newton_iters; // Maximum Newton iterations
 
     template<typename Gradient>
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
@@ -136,10 +143,16 @@ namespace samurai {
                     const double mod_grad_alpha1_bar_min_,
                     const bool mass_transfer_,
                     const double kappa_,
-                    const double Hmax_):
+                    const double Hmax_,
+                    const double alpha1d_max_,
+                    const double lambda_,
+                    const double tol_Newton_,
+                    const std::size_t max_Newton_iters_):
     phase1(EOS_phase1), phase2(EOS_phase2),
     mass_transfer(mass_transfer_), kappa(kappa_), Hmax(Hmax_),
-    sigma(sigma_), eps(eps_), mod_grad_alpha1_bar_min(mod_grad_alpha1_bar_min_) {}
+    sigma(sigma_), eps(eps_), mod_grad_alpha1_bar_min(mod_grad_alpha1_bar_min_),
+    alpha1d_max(alpha1d_max_), lambda(lambda_),
+    tol_Newton(tol_Newton_), max_Newton_iters(max_Newton_iters_) {}
 
   // Evaluate the 'continuous flux'
   //
@@ -300,9 +313,7 @@ namespace samurai {
                                                    typename Field::value_type& dalpha1_bar,
                                                    typename Field::value_type& alpha1_bar,
                                                    const Gradient& grad_alpha1_bar,
-                                                   bool& relaxation_applied, const bool mass_transfer_NR,
-                                                   const double tol, const double lambda,
-                                                   const double alpha1d_max) {
+                                                   bool& relaxation_applied, const bool mass_transfer_NR) {
     // Reinitialization of partial masses in case of evanascent volume fraction
     if(alpha1_bar < eps) {
       (*conserved_variables)(M1_INDEX) = alpha1_bar*phase1.get_rho0();
@@ -355,7 +366,7 @@ namespace samurai {
                  - sigma*H;
 
     // Perform the relaxation only where really needed
-    if(!std::isnan(F) && std::abs(F) > tol*std::min(phase1.get_p0(), sigma*H) && std::abs(dalpha1_bar) > tol &&
+    if(!std::isnan(F) && std::abs(F) > tol_Newton*std::min(phase1.get_p0(), sigma*H) && std::abs(dalpha1_bar) > tol_Newton &&
        alpha1_bar > eps && 1.0 - alpha1_bar > eps) {
       relaxation_applied = true;
 
@@ -527,8 +538,6 @@ namespace samurai {
                                              const typename Field::value_type H,
                                              const Gradient& grad_alpha1_bar) {
         // Declare and set relevant parameters
-        const double tol    = 1e-12; // Tolerance of the Newton method
-        const double lambda = 0.9;   // Parameter for bound preserving strategy
         std::size_t Newton_iter = 0;
         bool relaxation_applied = true;
         bool mass_transfer_NR   = mass_transfer; // This value can change during the Newton loop, so we create a copy rather modyfing the original
@@ -543,15 +552,15 @@ namespace samurai {
           Newton_iter++;
 
           this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q), H, dalpha1_bar, alpha1_bar, grad_alpha1_bar,
-                                               relaxation_applied, mass_transfer_NR, tol, lambda);
+                                               relaxation_applied, mass_transfer_NR);
 
           // Stop the mass transfer after a sufficient time of Newton iterations for safety
-          if(mass_transfer_NR && Newton_iter > 30) {
+          if(mass_transfer_NR && Newton_iter > max_Newton_iters/2) {
             mass_transfer_NR = false;
           }
 
           // Newton cycle diverged
-          if(Newton_iter > 60) {
+          if(Newton_iter > max_Newton_iters) {
             std::cout << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }

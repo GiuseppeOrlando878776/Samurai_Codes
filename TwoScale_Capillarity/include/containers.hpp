@@ -29,6 +29,12 @@ struct Simulation_Paramaters {
   bool mass_transfer;
   double Hmax;
   double kappa;
+
+  double alpha1d_max;
+  double lambda;
+  double tol_Newton;
+  double tol_Newton_p_star;
+  std::size_t max_Newton_iters;
 };
 
 // Declare a struct with EOS parameters
