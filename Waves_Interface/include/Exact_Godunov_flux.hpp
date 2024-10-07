@@ -213,7 +213,7 @@ namespace samurai {
       solve_p_star(qL, qR, vel_d_L - vel_d_R, vel_d_L, p0_L, p0_R, p_star);
 
       // Compute u*
-      const auto u_star = (p_star <= p_L) ? vel_d_L + c_L*std::log((p_L - p0_L)/(p_star - p0_L)) : //TODO: Check this logarithm
+      const auto u_star = (p_star <= p_L) ? vel_d_L + c_L*std::log((p_L - p0_L)/(p_star - p0_L)) :
                                             vel_d_L - (p_star - p_L)/std::sqrt(rho_L*(p_star - p0_L));
 
       // Left "connecting state"

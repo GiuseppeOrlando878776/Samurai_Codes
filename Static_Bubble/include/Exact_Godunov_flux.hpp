@@ -62,7 +62,7 @@ namespace samurai {
                                   const double sigma_relax_,
                                   const double eps_,
                                   const double grad_alpha1_bar_min_):
-    Flux<Field>(EOS_phase1, EOS_phase2,sigma_, sigma_relax_, eps_, grad_alpha1_bar_min_) {}
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, sigma_relax_, eps_, grad_alpha1_bar_min_) {}
 
   // Compute small-scale volume fraction for the fan through Newton-Rapson method
   //
@@ -285,7 +285,7 @@ namespace samurai {
       solve_p_star(qL, qR, vel_d_L - vel_d_R, vel_d_L, p0_L, p0_R, p_star);
 
       // Compute u*
-      const auto u_star = (p_star <= p_bar_L) ? vel_d_L + c_L*(1.0 - qL(ALPHA1_D_INDEX))*std::log((p_bar_L - p0_L)/(p_star - p0_L)) : //TODO: Check this logarithm
+      const auto u_star = (p_star <= p_bar_L) ? vel_d_L + c_L*(1.0 - qL(ALPHA1_D_INDEX))*std::log((p_bar_L - p0_L)/(p_star - p0_L)) :
                                                 vel_d_L - std::sqrt(1.0 - qL(ALPHA1_D_INDEX))*(p_star - p_bar_L)/std::sqrt(rho_L*(p_star - p0_L));
 
       // Left "connecting state"

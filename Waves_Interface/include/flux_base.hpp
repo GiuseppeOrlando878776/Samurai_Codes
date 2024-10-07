@@ -168,7 +168,7 @@ namespace samurai {
     FluxValue<cfg> cons = prim;
 
     // Apply conversion only to the mixture density times volume fraction
-    cons(RHO_ALPHA1_INDEX) = (cons(M1_INDEX) + cons(M2_INDEX))*prim(ALPHA1_INDEX);
+    cons(RHO_ALPHA1_INDEX) = (prim(M1_INDEX) + prim(M2_INDEX))*prim(ALPHA1_INDEX);
 
     return cons;
   }
@@ -291,7 +291,7 @@ namespace samurai {
         const double lambda = 0.9;   // Parameter for bound preserving strategy
         std::size_t Newton_iter = 0;
         bool relaxation_applied = true;
-        
+
         typename Field::value_type dalpha1 = std::numeric_limits<typename Field::value_type>::infinity();
         typename Field::value_type alpha1  = q(RHO_ALPHA1_INDEX)/(q(M1_INDEX) + q(M2_INDEX));
         typename Field::value_type rho     = q(M1_INDEX) + q(M2_INDEX);

@@ -216,7 +216,7 @@ namespace samurai {
 
     FluxValue<cfg> cons = prim;
 
-    cons(RHO_ALPHA1_INDEX) = (cons(M1_INDEX) + cons(M2_INDEX))*prim(ALPHA1_INDEX);
+    cons(RHO_ALPHA1_INDEX) = (prim(M1_INDEX) + prim(M2_INDEX))*prim(ALPHA1_INDEX);
 
     return cons;
   }

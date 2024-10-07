@@ -641,7 +641,7 @@ void StaticBubble<dim>::run() {
       conserved_variables_tmp_2.resize();
       conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved;
       conserved_variables_np1.resize();
-      conserved_variables_np1   = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
+      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
       // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
