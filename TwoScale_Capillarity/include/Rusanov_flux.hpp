@@ -19,9 +19,11 @@ namespace samurai {
     RusanovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                 const LinearizedBarotropicEOS<>& EOS_phase2,
                 const double sigma_,
-                const double sigma_relax_,
                 const double eps_,
-                const double mod_grad_alpha1_bar_min_); // Constructor which accepts in inputs the equations of state of the two phases
+                const double mod_grad_alpha1_bar_min_,
+                const bool mass_transfer_,
+                const double kappa_,
+                const double Hmax_); // Constructor which accepts in inputs the equations of state of the two phases
 
     #ifdef ORDER_2
       template<typename Gradient, typename Field_Scalar>
@@ -47,10 +49,10 @@ namespace samurai {
   RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                                   const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double sigma_,
-                                  const double sigma_relax_,
                                   const double eps_,
                                   const double grad_alpha1_bar_min_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, sigma_relax_, eps_, grad_alpha1_bar_min_) {}
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_bar_min_,
+                mass_transfer_, kappa_, Hmax_) {}
 
   // Implementation of a Rusanov flux
   //
@@ -143,8 +145,8 @@ namespace samurai {
                                               FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
                                               #ifdef RELAX_RECONSTRUCTION
-                                                this->relax_reconstruction(qL, H[left]);
-                                                this->relax_reconstruction(qR, H[right]);
+                                                this->relax_reconstruction(qL, H[left], grad_alpha1_bar[left]);
+                                                this->relax_reconstruction(qR, H[right], grad_alpha1_bar[right]);
                                               #endif
                                             #else
                                               // Compute the stencil and extract state

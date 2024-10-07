@@ -19,9 +19,11 @@ namespace samurai {
     GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                 const LinearizedBarotropicEOS<>& EOS_phase2,
                 const double sigma_,
-                const double sigma_relax_,
                 const double eps_,
-                const double mod_grad_alpha1_bar_min_); // Constructor which accepts in inputs the equations of state of the two phases
+                const double mod_grad_alpha1_bar_min_,
+                const bool mass_transfer_,
+                const double kappa_,
+                const double Hmax_); // Constructor which accepts in inputs the equations of state of the two phases
 
     #ifdef ORDER_2
       template<typename Gradient, typename Field_Scalar>
@@ -59,10 +61,13 @@ namespace samurai {
   GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                                   const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double sigma_,
-                                  const double sigma_relax_,
                                   const double eps_,
-                                  const double grad_alpha1_bar_min_):
-    Flux<Field>(EOS_phase1, EOS_phase2,sigma_, sigma_relax_, eps_, grad_alpha1_bar_min_) {}
+                                  const double grad_alpha1_bar_min_,
+                                  const bool mass_transfer_,
+                                  const double kappa_,
+                                  const double Hmax_):
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_bar_min_,
+                mass_transfer_, kappa_, Hmax_) {}
 
   // Compute small-scale volume fraction for the fan through Newton-Rapson method
   //
@@ -285,7 +290,7 @@ namespace samurai {
       solve_p_star(qL, qR, vel_d_L - vel_d_R, vel_d_L, p0_L, p0_R, p_star);
 
       // Compute u*
-      const auto u_star = (p_star <= p_bar_L) ? vel_d_L + c_L*(1.0 - qL(ALPHA1_D_INDEX))*std::log((p_bar_L - p0_L)/(p_star - p0_L)) : //TODO: Check this logarithm
+      const auto u_star = (p_star <= p_bar_L) ? vel_d_L + c_L*(1.0 - qL(ALPHA1_D_INDEX))*std::log((p_bar_L - p0_L)/(p_star - p0_L)) :
                                                 vel_d_L - std::sqrt(1.0 - qL(ALPHA1_D_INDEX))*(p_star - p_bar_L)/std::sqrt(rho_L*(p_star - p0_L));
 
       // Left "connecting state"
@@ -583,8 +588,8 @@ namespace samurai {
                                               FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
                                               #ifdef RELAX_RECONSTRUCTION
-                                                this->relax_reconstruction(qL, H[left]);
-                                                this->relax_reconstruction(qR, H[right]);
+                                                this->relax_reconstruction(qL, H[left], grad_alpha1_bar[left]);
+                                                this->relax_reconstruction(qR, H[right], grad_alpha1_bar[right]);
                                               #endif
                                             #else
                                               // Compute the stencil and extract state

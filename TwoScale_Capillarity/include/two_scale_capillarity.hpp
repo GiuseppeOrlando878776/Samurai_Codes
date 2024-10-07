@@ -35,18 +35,18 @@ using namespace EquationData;
 /** This is the class for the simulation for the static bubble
  */
 template<std::size_t dim>
-class StaticBubble {
+class TwoScaleCapillarity {
 public:
   using Config = samurai::MRConfig<dim, 2, 2, 2>;
 
-  StaticBubble() = default; // Default constructor. This will do nothing
+  TwoScaleCapillarity() = default; // Default constructor. This will do nothing
                             // and basically will never be used
 
-  StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
-               const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-               const Simulation_Paramaters& sim_param,
-               const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
-                                                 // to the grid, to the physics and to the relaxation.
+  TwoScaleCapillarity(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
+                      const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
+                      const Simulation_Paramaters& sim_param,
+                      const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
+                                                        // to the grid, to the physics and to the relaxation.
 
   void run(); // Function which actually executes the temporal loop
 
@@ -74,9 +74,6 @@ private:
 
   std::size_t nfiles; // Number of files desired for output
 
-  double MR_param;
-  unsigned int MR_regularity; // multiresolution parameters
-
   Field conserved_variables; // The variable which stores the conserved variables,
                              // namely the varialbes for which we solve a PDE system
 
@@ -92,17 +89,26 @@ private:
   Field_Vect normal,
              grad_alpha1_bar;
 
+  Field_Scalar alpha1_d,
+               Dt_alpha1_d,
+               CV_alpha1_d,
+               div_vel;
+
+  Field_Vect grad_alpha1_d,
+             vel;
+
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1_bar)>());
   gradient_type gradient;
 
   using divergence_type = decltype(samurai::make_divergence_order2<decltype(normal)>());
   divergence_type divergence;
 
-  const double R; // Bubble radius
   const double sigma; // Surface tension coefficient
 
   const double eps;                     // Tolerance when we want to avoid division by zero
   const double mod_grad_alpha1_bar_min; // Minimum threshold for which not computing anymore the unit normal
+
+  bool mass_transfer; // Choose wheter to apply or not the mass transfer
 
   LinearizedBarotropicEOS<> EOS_phase1,
                             EOS_phase2; // The two variables which take care of the
@@ -112,8 +118,6 @@ private:
   #elifdef GODUNOV_FLUX
     samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
   #endif
-
-  std::ofstream pressure_data;
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); // Auxiliary routine to compute normals and curvature
@@ -128,8 +132,6 @@ private:
   void perform_mesh_adaptation(const std::string& filename); // Perform the mesh adaptation
 
   void apply_relaxation(); // Apply the relaxation
-
-  void execute_postprocess(const double time); // Execute the postprocess
 };
 
 /*---- START WITH THE IMPLEMENTATION OF THE CONSTRUCTOR ---*/
@@ -137,23 +139,24 @@ private:
 // Implement class constructor
 //
 template<std::size_t dim>
-StaticBubble<dim>::StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
+TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                                 const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                                 const Simulation_Paramaters& sim_param,
                                 const EOS_Parameters& eos_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false, false}),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false, true}),
   apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf),
   cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   gradient(samurai::make_gradient_order2<decltype(alpha1_bar)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>()),
-  R(sim_param.R), sigma(sim_param.sigma),
+  sigma(sim_param.sigma),
   eps(sim_param.eps_nan), mod_grad_alpha1_bar_min(sim_param.mod_grad_alpha1_bar_min),
+  mass_transfer(sim_param.mass_transfer),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, eps, mod_grad_alpha1_bar_min)
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax)
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, eps, mod_grad_alpha1_bar_min)
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax)
   #endif
   {
     std::cout << "Initializing variables " << std::endl;
@@ -164,7 +167,7 @@ StaticBubble<dim>::StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>
 // Auxiliary routine to compute normals and curvature
 //
 template<std::size_t dim>
-void StaticBubble<dim>::update_geometry() {
+void TwoScaleCapillarity<dim>::update_geometry() {
   samurai::update_ghost_mr(alpha1_bar);
 
   grad_alpha1_bar = gradient(alpha1_bar);
@@ -190,7 +193,7 @@ void StaticBubble<dim>::update_geometry() {
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void StaticBubble<dim>::init_variables() {
+void TwoScaleCapillarity<dim>::init_variables() {
   // Create conserved and auxiliary fields
   conserved_variables = samurai::make_field<double, EquationData::NVARS>("conserved", mesh);
 
@@ -205,14 +208,21 @@ void StaticBubble<dim>::init_variables() {
   p2              = samurai::make_field<double, 1>("p2", mesh);
   p_bar           = samurai::make_field<double, 1>("p_bar", mesh);
 
+  alpha1_d        = samurai::make_field<double, 1>("alpha1_d", mesh);
+  grad_alpha1_d   = samurai::make_field<double, dim>("grad_alpha1_d", mesh);
+  vel             = samurai::make_field<double, dim>("vel", mesh);
+  div_vel         = samurai::make_field<double, 1>("div_vel", mesh);
+  Dt_alpha1_d     = samurai::make_field<double, 1>("Dt_alpha1_d", mesh);
+  CV_alpha1_d     = samurai::make_field<double, 1>("CV_alpha1_d", mesh);
+
   // Declare some constant parameters associated to the grid and to the
   // initial state
-  const double L     = 0.75;
-  const double x0    = 0.5*L;
-  const double y0    = 0.5*L;
-  const double eps_R = 0.6*R;
+  const double x0    = 1.0;
+  const double y0    = 1.0;
+  const double R     = 0.15;
+  const double eps_R = 0.2*R;
 
-  const double U_0 = 0.0;
+  const double U_0 = 6.66;
   const double U_1 = 0.0;
   const double V   = 0.0;
 
@@ -227,28 +237,61 @@ void StaticBubble<dim>::init_variables() {
 
                            const double r = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
 
-                           const double w = (r >= R - 0.5*eps_R && r <= R + 0.5*eps_R) ?
-                                            0.5*(1.0 + std::tanh(-8.0*((r - R + 0.5*eps_R)/eps_R - 0.5))) :
-                                            ((r < R - 0.5*eps_R) ? 1.0 : 0.0);
+                           const double w = (r >= R && r < R + eps_R) ?
+                                            std::max(std::exp(2.0*(r - R)*(r - R)/(eps_R*eps_R)*((r - R)*(r - R)/(eps_R*eps_R) - 3.0)/
+                                                              (((r - R)*(r - R)/(eps_R*eps_R) - 1.0)*((r - R)*(r - R)/(eps_R*eps_R) - 1.0))), 0.0) :
+                                            ((r < R) ? 1.0 : 0.0);
 
                            alpha1_bar[cell] = w;
+                         });
 
+  // Compute the geometrical quantities
+  update_geometry();
+
+  // Loop over a cell to complete the remaining variables
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
                            // Set small-scale variables
                            conserved_variables[cell][ALPHA1_D_INDEX] = 0.0;
+                           alpha1_d[cell]                            = conserved_variables[cell][ALPHA1_D_INDEX];
                            conserved_variables[cell][SIGMA_D_INDEX]  = 0.0;
                            conserved_variables[cell][M1_D_INDEX]     = conserved_variables[cell][ALPHA1_D_INDEX]*EOS_phase1.get_rho0();
 
-                           // Set mass large-scale phase 1
-                           p1[cell]        = EOS_phase1.get_p0();
-                           const auto rho1 = EOS_phase1.rho_value(p1[cell]);
+                           // Recompute geometric locations to set partial masses
+                           const auto center = cell.center();
+                           const double x    = center[0];
+                           const double y    = center[1];
 
-                           conserved_variables[cell][M1_INDEX] = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho1;
+                           const double r = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
+
+                           // Set mass large-scale phase 1
+                           typename Field::value_type p1;
+                           if(r >= R + eps_R) {
+                             p1 = nan("");
+                           }
+                           else {
+                             p1 = EOS_phase2.get_p0();
+                             if(r >= R && r < R + eps_R) {
+                               p1 += sigma*H[cell];
+                             }
+                             else {
+                               p1 += sigma/R;
+                             }
+                           }
+                           const auto rho1 = EOS_phase1.rho_value(p1);
+
+                           conserved_variables[cell][M1_INDEX] = (!std::isnan(rho1)) ?
+                                                                 alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho1 :
+                                                                 0.0;
 
                            // Set mass phase 2
-                           p2[cell]        = EOS_phase2.get_p0();
-                           const auto rho2 = EOS_phase2.rho_value(p2[cell]);
+                           const auto p2   = (r >= R) ? EOS_phase2.get_p0() : nan("");
+                           const auto rho2 = EOS_phase2.rho_value(p2);
 
-                           conserved_variables[cell][M2_INDEX] = (1.0 - alpha1_bar[cell])*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho2;
+                           conserved_variables[cell][M2_INDEX] = (!std::isnan(rho2)) ?
+                                                                 (1.0 - alpha1_bar[cell])*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho2 :
+                                                                 0.0;
 
                            // Set conserved variable associated to large-scale volume fraction
                            const auto rho = conserved_variables[cell][M1_INDEX]
@@ -261,15 +304,19 @@ void StaticBubble<dim>::init_variables() {
                            conserved_variables[cell][RHO_U_INDEX]     = conserved_variables[cell][M1_INDEX]*U_1 + conserved_variables[cell][M2_INDEX]*U_0;
                            conserved_variables[cell][RHO_U_INDEX + 1] = rho*V;
 
-                           // Set mixture pressure for output
-                           p_bar[cell] = alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell];
+                           vel[cell][0] = conserved_variables[cell][RHO_U_INDEX]/rho;
+                           vel[cell][1] = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
                          });
 
-  // Compute the geometrical quantities
-  update_geometry();
+  // Set useful small-scale related fields
+  grad_alpha1_d = gradient(alpha1_d);
+  div_vel       = divergence(vel);
 
-  // Consider Dirichlet bcs
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+  // Apply bcs
+  const samurai::DirectionVector<dim> left  = {-1, 0};
+  const samurai::DirectionVector<dim> right = {1, 0};
+  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, 0.0, 1.0*EOS_phase2.get_rho0(), 0.0, 0.0, 0.0, 0.0, EOS_phase2.get_rho0()*U_0, 0.0)->on(left);
+  samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
 }
 
 /*---- FOCUS NOW ON THE AUXILIARY FUNCTIONS ---*/
@@ -277,7 +324,7 @@ void StaticBubble<dim>::init_variables() {
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-double StaticBubble<dim>::get_max_lambda() const {
+double TwoScaleCapillarity<dim>::get_max_lambda() const {
   double res = 0.0;
 
   samurai::for_each_cell(mesh,
@@ -314,10 +361,10 @@ double StaticBubble<dim>::get_max_lambda() const {
 // Perform the mesh adaptation strategy.
 //
 template<std::size_t dim>
-void StaticBubble<dim>::perform_mesh_adaptation(const std::string& filename) {
+void TwoScaleCapillarity<dim>::perform_mesh_adaptation(const std::string& filename) {
   samurai::update_ghost_mr(grad_alpha1_bar);
   auto MRadaptation = samurai::make_MRAdapt(grad_alpha1_bar);
-  MRadaptation(MR_param, MR_regularity, conserved_variables);
+  MRadaptation(1e-5, 0, conserved_variables);
 
   // Sanity check (and numerical artefacts to clear data) after mesh adaptation
   alpha1_bar.resize();
@@ -333,7 +380,7 @@ void StaticBubble<dim>::perform_mesh_adaptation(const std::string& filename) {
 // Numerical artefact to avoid small negative values
 //
 template<std::size_t dim>
-void StaticBubble<dim>::clear_data(const std::string& filename, unsigned int flag) {
+void TwoScaleCapillarity<dim>::clear_data(const std::string& filename, unsigned int flag) {
   std::string op;
   if(flag == 0) {
     op = "at the beginning of the relaxation";
@@ -416,14 +463,16 @@ void StaticBubble<dim>::clear_data(const std::string& filename, unsigned int fla
 // Apply the relaxation. This procedure is valid for a generic EOS
 //
 template<std::size_t dim>
-void StaticBubble<dim>::apply_relaxation() {
-  const double tol    = 1e-12; // Tolerance of the Newton method
-  const double lambda = 0.9;   // Parameter for bound preserving strategy
+void TwoScaleCapillarity<dim>::apply_relaxation() {
+  const double tol         = 1e-12; // Tolerance of the Newton method
+  const double lambda      = 0.9;   // Parameter for bound preserving strategy
+  const double alpha1d_max = 0.5;   // Maximum allowed value of the small-scale volume fraction
 
   // Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
   // over each cell would be more logic, but this would lead to issues to call 'update_geometry'
   std::size_t Newton_iter = 0;
   bool relaxation_applied = true;
+  bool mass_transfer_NR   = mass_transfer; // This value can change during the Newton loop, so we create a copy rather modyfing the original
   while(relaxation_applied == true) {
     relaxation_applied = false;
     Newton_iter++;
@@ -434,18 +483,23 @@ void StaticBubble<dim>::apply_relaxation() {
                            {
                              #ifdef RUSANOV_FLUX
                                Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H[cell], dalpha1_bar[cell], alpha1_bar[cell],
-                                                                           relaxation_applied, tol, lambda);
+                                                                           H[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
+                                                                           relaxation_applied, mass_transfer_NR, tol, lambda, alpha1d_max);
                              #elifdef GODUNOV_FLUX
                                Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H[cell], dalpha1_bar[cell], alpha1_bar[cell],
-                                                                           relaxation_applied, tol, lambda);
+                                                                           H[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
+                                                                           relaxation_applied, mass_transfer_NR, tol, lambda, alpha1d_max);
                              #endif
 
                            });
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
     //update_geometry();
+
+    // Stop the mass transfer after a sufficient time of Newton iterations for safety
+    if(mass_transfer_NR && Newton_iter > 30) {
+      mass_transfer_NR = false;
+    }
 
     // Newton cycle diverged
     if(Newton_iter > 60) {
@@ -461,7 +515,7 @@ void StaticBubble<dim>::apply_relaxation() {
 //
 template<std::size_t dim>
 template<class... Variables>
-void StaticBubble<dim>::save(const fs::path& path,
+void TwoScaleCapillarity<dim>::save(const fs::path& path,
                              const std::string& filename,
                              const std::string& suffix,
                              const Variables&... fields) {
@@ -480,61 +534,16 @@ void StaticBubble<dim>::save(const fs::path& path,
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
 }
 
-// Execute postprocessing
-//
-template<std::size_t dim>
-void StaticBubble<dim>::execute_postprocess(const double time) {
-  // Compute pressure fields
-  p1.resize();
-  p2.resize();
-  p_bar.resize();
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                         {
-                           const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1   = (alpha1 > eps) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
-                           p1[cell]          = EOS_phase1.pres_value(rho1);
-
-                           const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
-                           const auto rho2   = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
-                           p2[cell]          = EOS_phase2.pres_value(rho2);
-
-                           p_bar[cell]       = (alpha1 > eps && alpha2 > eps) ?
-                                               alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell] :
-                                               ((alpha1 < eps) ? p2[cell] : p1[cell]);
-                         });
-
-  // Threshold to define internal pressure
-  const double alpha1_int = 0.99;
-
-  // Compute average pressure withint the droplet
-  double p_in_avg = 0.0;
-  double volume   = 0.0;
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                         {
-                           if(alpha1_bar[cell] > alpha1_int) {
-                             p_in_avg += p_bar[cell]*std::pow(cell.length, dim);
-                             volume   += std::pow(cell.length, dim);
-                           }
-                         });
-  p_in_avg /= volume;
-
-  /*--- Save the data ---*/
-  const double p0   = EOS_phase1.get_p0();
-  const double p_eq = p0 + sigma/R;
-  pressure_data << std::fixed << std::setprecision(12) << time << '\t' << p_in_avg - p0 << '\t' << std::abs(p_in_avg - p_eq)/p_eq << std::endl;
-}
 
 /*---- IMPLEMENT THE FUNCTION THAT EFFECTIVELY SOLVES THE PROBLEM ---*/
 
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void StaticBubble<dim>::run() {
+void TwoScaleCapillarity<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
-  std::string filename = "static_bubble";
+  std::string filename = "liquid_column";
   #ifdef RUSANOV_FLUX
     filename += "_Rusanov";
   #elifdef GODUNOV_FLUX
@@ -549,6 +558,11 @@ void StaticBubble<dim>::run() {
   #else
     filename += "_order1";
   #endif
+
+  if(mass_transfer)
+    filename += "_mass_transfer";
+  else
+    filename += "_no_mass_transfer";
 
   const double dt_save = Tf/static_cast<double>(nfiles);
 
@@ -576,13 +590,12 @@ void StaticBubble<dim>::run() {
 
   // Save the initial condition
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, filename, suffix_init, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H, p1, p2, p_bar);
-  pressure_data.open("pressure_data.dat", std::ofstream::out);
-  double t = 0.0;
-  execute_postprocess(t);
+  save(path, filename, suffix_init, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H, p1, p2, p_bar,
+                                    grad_alpha1_d, vel, div_vel);
 
   // Set initial time step
   const double dx = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
+  double t        = 0.0;
   double dt       = std::min(Tf - t, cfl*dx/get_max_lambda());
 
   // Start the loop
@@ -641,7 +654,7 @@ void StaticBubble<dim>::run() {
       conserved_variables_tmp_2.resize();
       conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved;
       conserved_variables_np1.resize();
-      conserved_variables_np1   = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
+      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
       // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
@@ -665,16 +678,66 @@ void StaticBubble<dim>::run() {
     /*--- Compute updated time step ---*/
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
-    /*--- Postprocess data ---*/
-    execute_postprocess(t);
-
     /*--- Save the results ---*/
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
+      // Resize all the fields
+      p1.resize();
+      p2.resize();
+      p_bar.resize();
+      alpha1_d.resize();
+      grad_alpha1_d.resize();
+      vel.resize();
+      div_vel.resize();
+      Dt_alpha1_d.resize();
+      CV_alpha1_d.resize();
+
+      // Compute axuliary variables for saving
+      samurai::for_each_cell(mesh,
+                             [&](const auto& cell)
+                             {
+                               // Compute partial and mxiture pressure
+                               const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
+                               const auto rho1   = (alpha1 > eps) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
+                               p1[cell]          = EOS_phase1.pres_value(rho1);
+
+                               const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
+                               const auto rho2   = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
+                               p2[cell]          = EOS_phase2.pres_value(rho2);
+
+                               p_bar[cell]       = (alpha1 > eps && alpha2 > eps) ?
+                                                   alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell] :
+                                                   ((alpha1 < eps) ? p2[cell] : p1[cell]);
+
+                               // Save small-scale variable
+                               alpha1_d[cell] = conserved_variables[cell][ALPHA1_D_INDEX];
+
+                               // Save velocity field
+                               const auto rho = conserved_variables[cell][M1_INDEX]
+                                              + conserved_variables[cell][M2_INDEX]
+                                              + conserved_variables[cell][M1_D_INDEX];
+                               vel[cell][0]   = conserved_variables[cell][RHO_U_INDEX]/rho;
+                               vel[cell][1]   = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
+                             });
+
+      samurai::update_ghost_mr(alpha1_d);
+      grad_alpha1_d = gradient(alpha1_d);
+
+      samurai::update_ghost_mr(vel);
+      div_vel = divergence(vel);
+
+      samurai::for_each_cell(mesh,
+                             [&](const auto& cell)
+                             {
+                               Dt_alpha1_d[cell] = (conserved_variables[cell][ALPHA1_D_INDEX] - conserved_variables_np1[cell][ALPHA1_D_INDEX])/dt
+                                                 + vel[cell][0]*grad_alpha1_d[cell][0] + vel[cell][1]*grad_alpha1_d[cell][1];
+
+                               CV_alpha1_d[cell] = Dt_alpha1_d[cell] + conserved_variables[cell][ALPHA1_D_INDEX]*div_vel[cell];
+                             });
+
+      // Perform the saving
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, filename, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H, p1, p2, p_bar);
+      save(path, filename, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H, p1, p2, p_bar,
+                                   grad_alpha1_d, vel, div_vel, Dt_alpha1_d, CV_alpha1_d);
     }
   }
-
-  /*--- Close the file with pressure data ---*/
-  pressure_data.close();
 }

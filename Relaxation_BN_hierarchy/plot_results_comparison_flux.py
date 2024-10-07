@@ -21,8 +21,8 @@ def scatter_update(scatter, points):
 
 def line_plot(ax, x_Rusanov_BR, y_Rusanov_BR, x_Rusanov_centered, y_Rusanov_centered, x_HLLC, y_HLLC):
     #Plot results
-    plot_Rusanov_BR       = ax.plot(x_Rusanov_BR, y_Rusanov_BR, 'ro', linewidth=1, markersize=4, alpha=1, markevery=128)[0]
-    plot_Rusanov_centered = ax.plot(x_Rusanov_centered, y_Rusanov_centered, 'gx', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
+    plot_Rusanov_BR       = ax.plot(x_Rusanov_BR, y_Rusanov_BR, 'ro', linewidth=1, markersize=4, alpha=1, markevery=1)[0]
+    #plot_Rusanov_centered = ax.plot(x_Rusanov_centered, y_Rusanov_centered, 'gx', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
     plot_HLLC             = ax.plot(x_HLLC, y_HLLC, 'b-', linewidth=1, markersize=4, alpha=1)[0]
 
     #Read and plot the analytical results
@@ -54,10 +54,13 @@ def line_plot(ax, x_Rusanov_BR, y_Rusanov_BR, x_Rusanov_centered, y_Rusanov_cent
                   ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)', \
                    'Reference results'], fontsize="20", loc="best")
     else:
-        ax.legend([plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC], ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)'], \
+        #ax.legend([plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC], ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)'], \
+        #          fontsize="20", loc="best")
+        ax.legend([plot_Rusanov_BR, plot_HLLC], ['Rusanov + BR', 'HLLC (wave-propagation)'], \
                   fontsize="20", loc="best")
 
-    return plot_Rusanov_BR, plot_Rusanov_centered#, plot_HLLC
+    #return plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC
+    return plot_Rusanov_BR, plot_HLLC
 
 def line_update(lines, x_Rusanov_BR, y_Rusanov_BR, x_Rusanov_centered, y_Rusanov_centered, x_HLLC, y_HLLC):
     lines[1].set_data(x_Rusanov_BR, y_Rusanov_BR)

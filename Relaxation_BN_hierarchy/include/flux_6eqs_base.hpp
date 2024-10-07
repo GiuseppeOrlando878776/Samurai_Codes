@@ -25,6 +25,15 @@ namespace EquationData {
   static constexpr std::size_t ALPHA2_RHO2_E2_INDEX = ALPHA1_RHO1_E1_INDEX + 1;
 
   static constexpr std::size_t NVARS = ALPHA2_RHO2_E2_INDEX + 1;
+
+  /*--- Parameters related to the EOS for the two phases ---*/
+  static constexpr double gamma_1    = 2.35;
+  static constexpr double pi_infty_1 = 1e9;
+  static constexpr double q_infty_1  = -1167e3;
+
+  static constexpr double gamma_2    = 1.43;
+  static constexpr double pi_infty_2 = 0.0;
+  static constexpr double q_infty_2  = 2030e3;
 }
 
 namespace samurai {
