@@ -9,7 +9,7 @@
 // Main function to run the program
 //
 int main(int argc, char* argv[]) {
-  CLI::App app{"Finite volume example for the air)blasted liquid column configuration"};
+  CLI::App app{"Finite volume example for the air-blasted liquid column configuration"};
 
   // Set and declare simulation parameters related to mesh, final time and Courant
   Simulation_Paramaters sim_param;
