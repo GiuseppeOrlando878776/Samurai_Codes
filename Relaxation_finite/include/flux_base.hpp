@@ -6,7 +6,7 @@
 
 #include "eos.hpp"
 
-#define ORDER_2
+//#define ORDER_2
 
 namespace EquationData {
   static constexpr std::size_t dim = 1; /*--- Spatial dimension. It would be ideal to be able to get it

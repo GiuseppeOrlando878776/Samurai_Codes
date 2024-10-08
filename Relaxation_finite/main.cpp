@@ -8,8 +8,7 @@
 
 // Main function to run the program
 //
-int main()
-{
+int main(int argc, char* argv[]) {
   CLI::App app{"Suliciu-type relaxation scheme for the 1D Baer-Nunziato model"};
 
   // Set and declare simulation parameters related to mesh, final time and Courant
