@@ -8,6 +8,7 @@
 #include <samurai/box.hpp>
 #include <samurai/field.hpp>
 #include <samurai/hdf5.hpp>
+#include <numbers>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -31,6 +32,22 @@ namespace fs = std::filesystem;
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
 using namespace EquationData;
+
+// Auxiliary function to compute the regualized Heaviside
+template<typename T = double>
+T CHeaviside(const T x, const T eps) {
+  if(x < -eps) {
+    return 0.0;
+  }
+  else if(x > eps) {
+    return 1.0;
+  }
+
+  const double pi = 4.0*std::atan(1);
+  return 0.5*(1.0 + x/eps + 1.0/pi*std::sin(pi*x/eps));
+
+  //return 0.5 + 0.5*std::tanh(8.0*(x/eps + 0.5));
+}
 
 /** This is the class for the simulation for the two-scale capillarity model
  */
@@ -262,6 +279,8 @@ void TwoScaleCapillarity<dim>::init_variables() {
                                             ((r < R) ? 1.0 : 0.0);
 
                            alpha1_bar[cell] = w;
+
+                           //alpha1_bar[cell] = CHeaviside(R - r, eps_R);
                          });
 
   // Compute the geometrical quantities
@@ -310,6 +329,13 @@ void TwoScaleCapillarity<dim>::init_variables() {
                            conserved_variables[cell][M2_INDEX] = (!std::isnan(rho2)) ?
                                                                  (1.0 - alpha1_bar[cell])*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho2 :
                                                                  0.0;
+
+                           // Set mixture pressure
+                           const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
+                           const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
+                           p_bar[cell] = (alpha1 > eps && alpha2 > eps) ?
+                                         alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell] :
+                                         ((alpha1 < eps) ? p2[cell] : p1[cell]);
 
                            // Set conserved variable associated to large-scale volume fraction
                            const auto rho = conserved_variables[cell][M1_INDEX]

@@ -11,7 +11,7 @@
 #include "barotropic_eos.hpp"
 
 // Preprocessor to define whether order 2 is desired
-#define ORDER_2
+//#define ORDER_2
 
 // Preprocessor to define whether relaxation is desired after reconstruction for order 2
 #ifdef ORDER_2
