@@ -39,10 +39,10 @@ T CHeaviside(const T x, const T eps) {
     return 1.0;
   }
 
-  const double pi = 4.0*std::atan(1);
-  return 0.5*(1.0 + x/eps + 1.0/pi*std::sin(pi*x/eps));
+  /*const double pi = 4.0*std::atan(1);
+  return 0.5*(1.0 + x/eps + 1.0/pi*std::sin(pi*x/eps));*/
 
-  //return std::max(0.5 + 0.5*std::tanh(1.0/eps*x), 0.0);
+  return 0.5 + 0.5*std::tanh(8.0*(x/eps + 0.5));
 }
 
 // Specify the use of this namespace where we just store the indices
