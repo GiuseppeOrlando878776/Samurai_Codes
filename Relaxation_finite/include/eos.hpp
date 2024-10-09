@@ -31,6 +31,12 @@ public:
   virtual T e_value_PT(const T pres, const T temp) const = 0;
 
   virtual T c_value(const T rho, const T pres) const = 0; // Function to compute the speed of sound from density and pressure
+
+  virtual T de_drho_T(const T rho, const T temp) const = 0;
+
+  virtual T de_dT_rho(const T rho, const T temp) const = 0;
+
+  virtual T de_dP_rho(const T rho, const T pres) const = 0;
 };
 
 
@@ -63,6 +69,12 @@ public:
   virtual T e_value_PT(const T pres, const T temp) const override;
 
   virtual T c_value(const T rho, const T pres) const override; // Function to compute the speed of sound from density and pressure
+
+  virtual T de_drho_T(const T rho, const T temp) const override;
+
+  virtual T de_dT_rho(const T rho, const T temp) const override;
+
+  virtual T de_dP_rho(const T rho, const T pres) const override;
 
 private:
   const double gamma;    // Isentropic exponent
@@ -125,5 +137,19 @@ T SG_EOS<T>::c_value(const T rho, const T pres) const {
   return std::sqrt(gamma*(pres + pi_infty)/rho);
 }
 
+template<typename T>
+T SG_EOS<T>::de_drho_T(const T rho, const T temp) const {
+  return -pi_infty/(rho*rho);
+}
+
+template<typename T>
+T SG_EOS<T>::de_dT_rho(const T rho, const T temp) const {
+  return c_v;
+}
+
+template<typename T>
+T SG_EOS<T>::de_dP_rho(const T rho, const T pres) const {
+  return 1.0/((gamma-1.0)*rho);
+}
 
 #endif
