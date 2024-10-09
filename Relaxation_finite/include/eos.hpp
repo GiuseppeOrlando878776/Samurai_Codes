@@ -22,6 +22,12 @@ public:
 
   virtual T e_value(const T rho, const T pres) const = 0; // Function to compute the internal energy from density and pressure
 
+  virtual T temp_value(const T rho, const T e) const = 0;
+
+  virtual T rho_value_PT(const T pres, const T temp) const = 0;
+
+  virtual T e_value_PT(const T pres, const T temp) const = 0;
+
   virtual T c_value(const T rho, const T pres) const = 0; // Function to compute the speed of sound from density and pressure
 };
 
@@ -36,7 +42,7 @@ public:
 
   SG_EOS(const SG_EOS&) = default; // Default copy-constructor
 
-  SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_ = 0.0); // Constructor which accepts as arguments
+  SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_ = 0.0, const double c_v_=1.0); // Constructor which accepts as arguments
                                                                                     // the isentropic exponent and the two parameters
                                                                                     // that characterize the fluid
 
@@ -46,19 +52,26 @@ public:
 
   virtual T e_value(const T rho, const T pres) const override; // Function to compute the internal energy from density and pressure
 
+  virtual T temp_value(const T rho, const T e) const override;
+
+  virtual T rho_value_PT(const T pres, const T temp) const override;
+
+  virtual T e_value_PT(const T pres, const T temp) const override;
+
   virtual T c_value(const T rho, const T pres) const override; // Function to compute the speed of sound from density and pressure
 
 private:
   const double gamma;    // Isentropic exponent
   const double pi_infty; // Pressure at 'infinite'
   const double q_infty;  // Internal energy at 'infinite'
+  const double c_v;
 };
 
 // Implement the constructor
 //
 template<typename T>
-SG_EOS<T>::SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_):
-  EOS<T>(), gamma(gamma_), pi_infty(pi_infty_), q_infty(q_infty_) {}
+SG_EOS<T>::SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_, const double c_v_):
+  EOS<T>(), gamma(gamma_), pi_infty(pi_infty_), q_infty(q_infty_), c_v(c_v_) {}
 
 // Compute the pressure value from the density and the internal energy
 //
@@ -79,6 +92,21 @@ T SG_EOS<T>::rho_value(const T pres, const T e) const {
 template<typename T>
 T SG_EOS<T>::e_value(const T rho, const T pres) const {
   return (pres + gamma*pi_infty)/((gamma - 1.0)*rho) + q_infty;
+}
+
+template<typename T>
+T SG_EOS<T>::temp_value(const T rho, const T e) const {
+  return (e- q_infty - pi_infty/rho)/c_v;
+}
+
+template<typename T>
+T SG_EOS<T>::rho_value_PT(const T pres, const T temp) const {
+  return (pres + pi_infty)/((gamma-1.0)*c_v*temp);
+}
+
+template<typename T>
+T SG_EOS<T>::e_value_PT(const T pres, const T temp) const {
+  return ((pres + gamma*pi_infty)/(pres + pi_infty))*c_v*temp + q_infty;
 }
 
 // Compute the speed of sound from density and pressure
