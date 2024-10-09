@@ -108,15 +108,18 @@ private:
   #endif
 
   #ifdef RELAXATION
-    using Field_Relaxation = samurai::Field<decltype(mesh), double, 3 + dim, false>;
-    static constexpr std::size_t DELTAU_INDEX = 0;
-    static constexpr std::size_t DELTAP_INDEX = DELTAU_INDEX + dim;
-    static constexpr std::size_t DELTAT_INDEX = DELTAP_INDEX + 1;
+    using Matrix_Relaxation = std::array<std::array<typename Field::value_type, 2>, 2>>;
+    using Vector_Relaxation = std::array<typename Field::value_type, 2>;
+    Matrix_Relaxation A_relax; // Matrix associated to the relaxation
+    Vector_Relaxation S_relax; // Vector associated to the source term
 
-    void update_auxiliary_fields_before_relaxation(); // Routine to update auxiliary fields for output and time step update
+    void perform_relaxation(); // Routine to perform the finite-rate relaxation (following Jomée 2023)
 
-    void state_to_deltas(Field_Relaxation& deltas); // Conversion from state to difference of fields for the relaxation
-
+    template<typename State>
+    void compute_coefficients_source_relaxation(const State& q,
+                                                const std::array<typename Field::value_type, dim>& delta_u,
+                                                Matrix_Relaxation& A, Vector_Relaxation& S); // Compute the coefficients
+                                                                                             // and the source term for the relaxation
   #endif
 };
 
@@ -303,12 +306,44 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                          });
 }
 
-/*--- AUXILIARY ROUTINES FOR THE RELAXATION ---*/
+/*--- AUXILIARY ROUTINE FOR THE RELAXATION ---*/
+// TODO: Add runtime paramater to choose whether we want to relax,
+//       add parameter for finite or instantaneous relaxation,
+//       add relaxation rate parameter
+//       complete definitions of delta_u and matrix coefficients
+//       implement from deltas to conserved variables
 #ifdef RELAXATION
-  // Update auxiliary fields after solution of the system before relaxation
+  template<std::size_t dim>
+  template<typename State>
+  void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
+                                                              const std::array<typename Field::value_type, dim>& delta_u,
+                                                              Matrix_Relaxation& A, Vector_Relaxation& S) {
+    const auto a_pp = 0.0;
+    const auto a_pT = 0.0;
+    const auto a_Tp = 0.0;
+    const auto a_TT = 0.0;
+
+    A[0][0] = 1.0 - dt*a_pp;
+    A[0][1] = -dt*apT;
+    A[1][0] = -dt*a_Tp;
+    A[1][1] = 1.0 - dt*a_TT;
+
+    // Set source term
+    typename Field::value_type a_pu;
+    typename Field::value_type a_Tu;
+    S = 0;
+    for(std::size_t d = 0; d < dim; ++d) {
+      a_pu = 0.0;
+      a_Tu = 0.0;
+      S[0] += a_pu*delta_u[d];
+      S[1] += a_Tu*delta_u[d];
+    }
+  }
+
+  // Finite rate relaxation (following Jomée 2023)
   //
   template<std::size_t dim>
-  void BN_Solver<dim>::update_auxiliary_fields_before_relaxation() {
+  void BN_Solver<dim>::perform_relaxation() {
     // Resize fields because of multiresolution
     rho1.resize();
     p1.resize();
@@ -350,24 +385,40 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                                e2 -= 0.5*vel2[cell]*vel2[cell];
                              }
                              p2[cell] = EOS_phase2.pres_value(rho2[cell], e2);
-                           });
-  }
-  // Auxiliary function to perform the conversion from the state
-  // to difference of auxiliary variables before relaxation
-  template<std::size_t dim>
-  void BN_Solver<dim>::state_to_deltas(Field_Relaxation& deltas) {
-    deltas.resize(); // Resize in the case of multiresolution
 
-    samurai::for_each_cell(mesh,
-                           [&](const auto& cell)
-                           {
-                             // Compute the difference state
+                             // Compute initial delta pressure and temperature
+                             auto delta_p = p1[cell] - p2[cell];
+                             auto delta_T = EOS_phase1.temp_value_RhoP(rho1[cell], p1[cell])
+                                          - EOS_phase2.temp_value_RhoP(rho2[cell], p2[cell]);
+
+                             // Compute updated delta_u (we have analytical formula)
+                             std::array<typename Field::value_type, dim> delta_u;
                              for(std::size_t d = 0; d < dim; ++d) {
-                               deltas[cell][DELTAU_INDEX + d] = vel1[cell] - vel2[cell];
+                               delta_u[d] =
                              }
-                             deltas[cell][DELTAP_INDEX] = p1[cell] - p2[cell],
-                             deltas[cell][DELTAT_INDEX] = EOS_phase1.temp_value_RhoP(rho1[cell], p1[cell])
-                                                        - EOS_phase2.temp_value_RhoP(rho2[cell], p2[cell])
+
+                             // Compute matrix relaxation coefficients
+                             compute_coefficients_source_relaxation(conserved_variables[cell], delta_u,
+                                                                    A_relax, S_relax);
+
+                             // Solve the system for the remaining variables
+                             delta_p_tmp = delta_p;
+                             det_A_pT = A_relax[0][0]*A_relax[1][1]
+                                      - A_relax[0][1]*A_relax[1][0];
+                             if(std::abs(det_A_pT) > 1e-10) {
+                               delta_p = 1.0/det_A_pT*(A_relax[1][1]*(delta_p + S_relax[0]) -
+                                                       A_relax[0][1]*(delta_T + S_relax[1]));
+                               delta_T = 1.0/det_A_pT*(-A_relax[1][0]*(delta_p_tmp + S_relax[0]) +
+                                                        A_relax[0][0]*(delta_T + S_relax[1]));
+                             }
+                             else {
+                               std::cerr << "Singular matriw in the relaxation" << std::endl;
+                               exit(1);
+                             }
+                             delta_p = (id - dt*A)^(-1)*(delta_p, delta_T) + a_up*delta_u;
+                             delta_T = (id - dt*A)^(-1)*(delta_p_tmp, delta_T) + a_uT*delta_u;
+
+                             // TODO: Re-update conserved variables
                            });
   }
 #endif
