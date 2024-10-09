@@ -106,8 +106,19 @@ private:
   #ifdef RUSANOV_FLUX
     double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
   #endif
+
+  #ifdef RELAXATION
+    using Field_Relaxation = samurai::Field<decltype(mesh), double, 3 + dim, false>;
+    static constexpr std::size_t DELTAU_INDEX = 0;
+    static constexpr std::size_t DELTAP_INDEX = DELTAU_INDEX + dim;
+    static constexpr std::size_t DELTAT_INDEX = DELTAP_INDEX + 1;
+
+    void state_to_deltas(Field_Relaxation& deltas); // Conversion from state to difference of fields for the relaxation
+
+  #endif
 };
 
+/*--- START WITH CLASS CONSTRUCTOR ---*/
 
 // Implement class constructor
 //
@@ -208,6 +219,8 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
 }
 
+/*--- AUXILIARY ROUTINES ---*/
+
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 #ifdef RUSANOV_FLUX
@@ -231,37 +244,38 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::update_auxiliary_fields() {
+  // Resize fields because of multiresolution
+  rho.resize();
+  p.resize();
+
+  rho1.resize();
+  p1.resize();
+  c1.resize();
+  vel1.resize();
+
+  rho2.resize();
+  p2.resize();
+  c2.resize();
+  vel2.resize();
+
+  // Loop over all cells
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Resize fields because of multiresolution
-                           rho.resize();
-                           p.resize();
-
-                           rho1.resize();
-                           p1.resize();
-                           c1.resize();
-                           vel1.resize();
-
-                           rho2.resize();
-                           p2.resize();
-                           c2.resize();
-                           vel2.resize();
-
                            // Compute the fields
                            rho[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]
                                      + conserved_variables[cell][ALPHA2_RHO2_INDEX];
 
                            rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                         conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              vel1[cell] = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]/
                                           conserved_variables[cell][ALPHA1_RHO1_INDEX];
                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            }
                            auto e1 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
                                      conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              e1 -= 0.5*vel1[cell]*vel1[cell];
                            }
                            p1[cell] = EOS_phase1.pres_value(rho1[cell], e1);
@@ -269,14 +283,14 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                            rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
                                         (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                          for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                          for(std::size_t d = 0; d < dim; ++d) {
                             vel2[cell] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]/
                                          conserved_variables[cell][ALPHA2_RHO2_INDEX];
                             /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            }
                            auto e2 = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
                                      conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              e2 -= 0.5*vel2[cell]*vel2[cell];
                            }
                            p2[cell] = EOS_phase2.pres_value(rho2[cell], e2);
@@ -286,6 +300,28 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                                    + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
                          });
 }
+
+/*--- AUXILIARY ROUTINES FOR THE RELAXATION ---*/
+#ifdef RELAXATION
+  // Auxiliary function to perform the conversion from the state
+  // to difference of auxiliary variables before relaxation
+  template<std::size_t dim>
+  void BN_Solver<dim>::state_to_deltas(Field_Relaxation& deltas) {
+    deltas.resize(); // Resize in the case of multiresolution
+
+    samurai::for_each_cell(mesh,
+                           [&](const auto& cell)
+                           {
+                             // Compute the difference state
+                             for(std::size_t d = 0; d < dim; ++d) {
+                               deltas[cell][DELTAU_INDEX + d] = vel1[cell] - vel2[cell];
+                             }
+                             deltas[cell][DELTAP_INDEX] = p1[cell] - p2[cell],
+                             deltas[cell][DELTAT_INDEX] = EOS_phase1.temp_value_RhoP(rho1[cell], p1[cell])
+                                                        - EOS_phase2.temp_value_RhoP(rho2[cell], p2[cell])
+                           });
+  }
+#endif
 
 // Save desired fields and info
 //
@@ -309,6 +345,8 @@ void BN_Solver<dim>::save(const fs::path& path,
 
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
 }
+
+/*--- EXECUTE THE TEMPORAL LOOP ---*/
 
 // Implement the function that effectively performs the temporal loop
 //

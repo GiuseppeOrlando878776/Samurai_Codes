@@ -253,23 +253,24 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::update_auxiliary_fields() {
+  // Resize fields because of multiresolution
+  rho.resize();
+  p.resize();
+
+  rho1.resize();
+  p1.resize();
+  c1.resize();
+  vel1.resize();
+
+  rho2.resize();
+  p2.resize();
+  c2.resize();
+  vel2.resize();
+
+  // Loop over all cells
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Resize fields because of multiresolution
-                           rho.resize();
-                           p.resize();
-
-                           rho1.resize();
-                           p1.resize();
-                           c1.resize();
-                           vel1.resize();
-
-                           rho2.resize();
-                           p2.resize();
-                           c2.resize();
-                           vel2.resize();
-
                            // Compute the fields
                            rho[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]
                                      + conserved_variables[cell][ALPHA2_RHO2_INDEX];
