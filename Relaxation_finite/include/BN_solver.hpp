@@ -101,7 +101,7 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void init_variables(const Riemann_Parameters& Riemann_param); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
-  void update_auxiliary_fields(); // Routine to update auxilairy fields for output and time step update
+  void update_auxiliary_fields(); // Routine to update auxiliary fields for output and time step update
 
   #ifdef RUSANOV_FLUX
     double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
@@ -112,6 +112,8 @@ private:
     static constexpr std::size_t DELTAU_INDEX = 0;
     static constexpr std::size_t DELTAP_INDEX = DELTAU_INDEX + dim;
     static constexpr std::size_t DELTAT_INDEX = DELTAP_INDEX + 1;
+
+    void update_auxiliary_fields_before_relaxation(); // Routine to update auxiliary fields for output and time step update
 
     void state_to_deltas(Field_Relaxation& deltas); // Conversion from state to difference of fields for the relaxation
 
@@ -283,10 +285,10 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                            rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
                                         (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                          for(std::size_t d = 0; d < dim; ++d) {
-                            vel2[cell] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]/
-                                         conserved_variables[cell][ALPHA2_RHO2_INDEX];
-                            /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           for(std::size_t d = 0; d < dim; ++d) {
+                             vel2[cell] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]/
+                                          conserved_variables[cell][ALPHA2_RHO2_INDEX];
+                             /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            }
                            auto e2 = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
                                      conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -303,6 +305,53 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
 /*--- AUXILIARY ROUTINES FOR THE RELAXATION ---*/
 #ifdef RELAXATION
+  // Update auxiliary fields after solution of the system before relaxation
+  //
+  template<std::size_t dim>
+  void BN_Solver<dim>::update_auxiliary_fields_before_relaxation() {
+    // Resize fields because of multiresolution
+    rho1.resize();
+    p1.resize();
+    vel1.resize();
+
+    rho2.resize();
+    p2.resize();
+    vel2.resize();
+
+    // Loop over all cells
+    samurai::for_each_cell(mesh,
+                           [&](const auto& cell)
+                           {
+                             // Compute the fields
+                             rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                          conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                             for(std::size_t d = 0; d < dim; ++d) {
+                               vel1[cell] = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]/
+                                            conserved_variables[cell][ALPHA1_RHO1_INDEX];
+                               /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                             }
+                             auto e1 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
+                                       conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                             for(std::size_t d = 0; d < dim; ++d) {
+                               e1 -= 0.5*vel1[cell]*vel1[cell];
+                             }
+                             p1[cell] = EOS_phase1.pres_value(rho1[cell], e1);
+
+                             rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                          (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                             for(std::size_t d = 0; d < dim; ++d) {
+                               vel2[cell] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]/
+                                            conserved_variables[cell][ALPHA2_RHO2_INDEX];
+                               /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                             }
+                             auto e2 = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
+                                       conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                             for(std::size_t d = 0; d < dim; ++d) {
+                               e2 -= 0.5*vel2[cell]*vel2[cell];
+                             }
+                             p2[cell] = EOS_phase2.pres_value(rho2[cell], e2);
+                           });
+  }
   // Auxiliary function to perform the conversion from the state
   // to difference of auxiliary variables before relaxation
   template<std::size_t dim>

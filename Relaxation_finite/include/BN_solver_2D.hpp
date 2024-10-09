@@ -107,7 +107,7 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void init_variables(const Riemann_Parameters& Riemann_param); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
-  void update_auxiliary_fields(); // Routine to update auxilairy fields for output and time step update
+  void update_auxiliary_fields(); // Routine to update auxiliary fields for output and time step update
 
   #ifdef RUSANOV_FLUX
     double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
@@ -193,23 +193,23 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            }
 
                            conserved_variables[cell][ALPHA1_RHO1_INDEX] = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*vel1[cell][d];
                            }
                            const auto e1 = EOS_phase1.e_value(rho1[cell], p1[cell]);
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*e1;
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] += conserved_variables[cell][ALPHA1_RHO1_INDEX]*
                                                                                 (0.5*vel1[cell][d]*vel1[cell][d]);
                            }
 
                            conserved_variables[cell][ALPHA2_RHO2_INDEX] = (1.0 - conserved_variables[cell][ALPHA1_INDEX])*rho2[cell];
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*vel2[cell][d];
                            }
                            const auto e2 = EOS_phase2.e_value(rho2[cell], p2[cell]);
                            conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*e2;
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] += conserved_variables[cell][ALPHA2_RHO2_INDEX]*
                                                                                 (0.5*vel2[cell][d]*vel2[cell][d]);
                            }
@@ -277,14 +277,14 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                            rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                         conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              vel1[cell][d] = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]/
                                              conserved_variables[cell][ALPHA1_RHO1_INDEX];
                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            }
                            auto e1 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
                                      conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              e1 -= 0.5*vel1[cell][d]*vel1[cell][d];
                            }
                            p1[cell] = EOS_phase1.pres_value(rho1[cell], e1);
@@ -292,14 +292,14 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                            rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
                                         (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                          for(std::size_t d = 0; d < EquationData::dim; ++d) {
-                            vel2[cell][d] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]/
-                                            conserved_variables[cell][ALPHA2_RHO2_INDEX];
-                            /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           for(std::size_t d = 0; d < dim; ++d) {
+                             vel2[cell][d] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]/
+                                             conserved_variables[cell][ALPHA2_RHO2_INDEX];
+                             /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            }
                            auto e2 = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
                                      conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              e2 -= 0.5*vel2[cell][d]*vel2[cell][d];
                            }
                            p2[cell] = EOS_phase2.pres_value(rho2[cell], e2);

@@ -112,7 +112,7 @@ namespace samurai {
       const auto vel1L_d = qL(ALPHA1_RHO1_U1_INDEX + curr_d)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto E1L     = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       auto e1L           = E1L;
-      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      for(std::size_t d = 0; d < Field::dim; ++d) {
         e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                     (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
@@ -124,7 +124,7 @@ namespace samurai {
       const auto vel1R_d = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto E1R     = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       auto e1R           = E1R;
-      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      for(std::size_t d = 0; d < Field::dim; ++d) {
         e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                     (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
@@ -136,7 +136,7 @@ namespace samurai {
       const auto vel2L_d = qL(ALPHA2_RHO2_U2_INDEX + curr_d)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto E2L     = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       auto e2L           = E2L;
-      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      for(std::size_t d = 0; d < Field::dim; ++d) {
         e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                     (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
@@ -148,7 +148,7 @@ namespace samurai {
       const auto vel2R_d = qR(ALPHA2_RHO2_U2_INDEX + curr_d)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto E2R     = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       auto e2R           = E2R;
-      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      for(std::size_t d = 0; d < Field::dim; ++d) {
         e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                     (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
@@ -268,7 +268,7 @@ namespace samurai {
       F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m/tau1_m*u1_m;
       F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m/tau1_m*u1_m*u1_m + alpha1_m*p1_m;
       const auto u1_star = uI_star;
-      for(std::size_t d = 0; d < EquationData::dim && d != curr_d; ++d) {
+      for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
         F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
                                           - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
         F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
@@ -277,7 +277,7 @@ namespace samurai {
 
       F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m/tau2_m*u2_m;
       F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m/tau2_m*u2_m*u2_m + alpha2_m*p2_m;
-      for(std::size_t d = 0; d < EquationData::dim && d != curr_d; ++d) {
+      for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
         F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
                                           - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
         F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
@@ -334,7 +334,7 @@ namespace samurai {
       const auto vel1L_d = qL(ALPHA1_RHO1_U1_INDEX + curr_d)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto E1L     = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       auto e1L           = E1L;
-      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      for(std::size_t d = 0; d < Field::dim; ++d) {
         e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                     (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
@@ -346,7 +346,7 @@ namespace samurai {
       const auto vel1R_d = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto E1R     = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       auto e1R           = E1R;
-      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      for(std::size_t d = 0; d < Field::dim; ++d) {
         e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                     (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
@@ -358,7 +358,7 @@ namespace samurai {
       const auto vel2L_d = qL(ALPHA2_RHO2_U2_INDEX + curr_d)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto E2L     = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       auto e2L           = E2L;
-      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      for(std::size_t d = 0; d < Field::dim; ++d) {
         e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                     (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
@@ -370,7 +370,7 @@ namespace samurai {
       const auto vel2R_d = qR(ALPHA2_RHO2_U2_INDEX + curr_d)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto E2R     = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       auto e2R           = E2R;
-      for(std::size_t d = 0; d < EquationData::dim; ++d) {
+      for(std::size_t d = 0; d < Field::dim; ++d) {
         e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                     (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
@@ -490,7 +490,7 @@ namespace samurai {
       F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m/tau1_m*u1_m;
       F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m/tau1_m*u1_m*u1_m + alpha1_m*p1_m;
       const auto u1_star = uI_star;
-      for(std::size_t d = 0; d < EquationData::dim && d != curr_d; ++d) {
+      for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
         F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
                                           - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
         F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
@@ -499,7 +499,7 @@ namespace samurai {
 
       F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m/tau2_m*u2_m;
       F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m/tau2_m*u2_m*u2_m + alpha2_m*p2_m;
-      for(std::size_t d = 0; d < EquationData::dim && d != curr_d; ++d) {
+      for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
         F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
                                           - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
         F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
