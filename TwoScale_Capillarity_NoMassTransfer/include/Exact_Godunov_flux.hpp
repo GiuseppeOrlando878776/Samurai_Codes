@@ -23,21 +23,16 @@ namespace samurai {
                 const double mod_grad_alpha1_min_); // Constructor which accepts in inputs the equations of state of the two phases
 
     #ifdef ORDER_2
-      template<typename Gradient, typename Field_Scalar>
-      auto make_two_scale_capillarity(const Gradient& grad_alpha1,
-                                      const Field_Scalar& H); // Compute the flux over all the directions
+      template<typename Field_Scalar>
+      auto make_two_scale_capillarity(const Field_Scalar& H); // Compute the flux over all the directions
     #else
-      template<typename Gradient>
-      auto make_two_scale_capillarity(const Gradient& grad_alpha1); // Compute the flux over all the directions
+      auto make_two_scale_capillarity(); // Compute the flux over all the directions
     #endif
 
   private:
-    template<typename Gradient>
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                const std::size_t curr_d,
-                                                               const Gradient& grad_alpha1L,
-                                                               const Gradient& grad_alpha1R,
                                                                const bool is_discontinuous); // Godunov flux for the along direction curr_d
 
     void solve_p_star(const FluxValue<typename Flux<Field>::cfg>& qL,
@@ -180,12 +175,9 @@ namespace samurai {
   // Implementation of a Godunov flux
   //
   template<class Field>
-  template<typename Gradient>
   FluxValue<typename Flux<Field>::cfg> GodunovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                  const std::size_t curr_d,
-                                                                                 const Gradient& grad_alpha1L,
-                                                                                 const Gradient& grad_alpha1R,
                                                                                  const bool is_discontinuous) {
     // Compute the intermediate state (either shock or rarefaction)
     FluxValue<typename Flux<Field>::cfg> q_star = qL;
@@ -401,45 +393,17 @@ namespace samurai {
     }
 
     // Compute the hyperbolic contribution to the flux
-    FluxValue<typename Flux<Field>::cfg> res = this->evaluate_hyperbolic_operator(q_star, curr_d);
-
-    // Add the contribution due to surface tension
-    const auto mod_grad_alpha1L = std::sqrt(xt::sum(grad_alpha1L*grad_alpha1L)());
-    const auto mod_grad_alpha1R = std::sqrt(xt::sum(grad_alpha1R*grad_alpha1R)());
-
-    if(mod_grad_alpha1L > this->mod_grad_alpha1_min &&
-       mod_grad_alpha1R > this->mod_grad_alpha1_min) {
-      const auto nL = grad_alpha1L/mod_grad_alpha1L;
-      const auto nR = grad_alpha1R/mod_grad_alpha1R;
-
-      if(curr_d == 0) {
-        res(RHO_U_INDEX) += 0.5*this->sigma*((nL(0)*nL(0) - 1.0)*mod_grad_alpha1L +
-                                             (nR(0)*nR(0) - 1.0)*mod_grad_alpha1R);
-        res(RHO_U_INDEX + 1) += 0.5*this->sigma*(nL(0)*nL(1)*mod_grad_alpha1L +
-                                                 nR(0)*nR(1)*mod_grad_alpha1R);
-      }
-
-      if(curr_d == 1) {
-        res(RHO_U_INDEX) += 0.5*this->sigma*(nL(0)*nL(1)*mod_grad_alpha1L +
-                                                     nR(0)*nR(1)*mod_grad_alpha1R);
-        res(RHO_U_INDEX + 1) += 0.5*this->sigma*((nL(1)*nL(1) - 1.0)*mod_grad_alpha1L +
-                                                 (nR(1)*nR(1) - 1.0)*mod_grad_alpha1R);
-      }
-    }
-
-    return res;
+    return this->evaluate_hyperbolic_operator(q_star, curr_d);
   }
 
   // Implement the contribution of the discrete flux for all the directions.
   //
   template<class Field>
   #ifdef ORDER_2
-    template<typename Gradient, typename Field_Scalar>
-    auto GodunovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1,
-                                                        const Field_Scalar& H)
+    template<typename Field_Scalar>
+    auto GodunovFlux<Field>::make_two_scale_capillarity(const Field_Scalar& H)
   #else
-    template<typename Gradient>
-    auto GodunovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1)
+    auto GodunovFlux<Field>::make_two_scale_capillarity()
   #endif
   {
     FluxDefinition<typename Flux<Field>::cfg> Godunov_f;
@@ -502,7 +466,6 @@ namespace samurai {
 
                                             // Compute the numerical flux
                                             return compute_discrete_flux(qL, qR, d,
-                                                                         grad_alpha1[left], grad_alpha1[right],
                                                                          is_discontinuous);
                                           };
     });
