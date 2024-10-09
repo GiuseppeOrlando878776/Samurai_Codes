@@ -24,6 +24,8 @@ public:
 
   virtual T temp_value(const T rho, const T e) const = 0;
 
+  virtual T temp_value_RhoP(const T rho, const T pres) const = 0;
+
   virtual T rho_value_PT(const T pres, const T temp) const = 0;
 
   virtual T e_value_PT(const T pres, const T temp) const = 0;
@@ -53,6 +55,8 @@ public:
   virtual T e_value(const T rho, const T pres) const override; // Function to compute the internal energy from density and pressure
 
   virtual T temp_value(const T rho, const T e) const override;
+
+  virtual T temp_value_RhoP(const T rho, const T pres) const override;
 
   virtual T rho_value_PT(const T pres, const T temp) const override;
 
@@ -97,6 +101,11 @@ T SG_EOS<T>::e_value(const T rho, const T pres) const {
 template<typename T>
 T SG_EOS<T>::temp_value(const T rho, const T e) const {
   return (e- q_infty - pi_infty/rho)/c_v;
+}
+
+template<typename T>
+T SG_EOS<T>::temp_value_RhoP(const T rho, const T pres) const {
+  return (pres + pi_infty)/((gamma-1.0)*rho*c_v);
 }
 
 template<typename T>
