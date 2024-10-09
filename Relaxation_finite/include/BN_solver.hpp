@@ -331,7 +331,7 @@ void BN_Solver<dim>::update_auxiliary_fields() {
     // Set source term
     typename Field::value_type a_pu;
     typename Field::value_type a_Tu;
-    S = 0;
+    S = {};
     for(std::size_t d = 0; d < dim; ++d) {
       a_pu = 0.0;
       a_Tu = 0.0;
