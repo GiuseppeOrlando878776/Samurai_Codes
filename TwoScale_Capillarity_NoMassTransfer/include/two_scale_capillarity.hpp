@@ -55,7 +55,6 @@ public:
 
   template<class... Variables>
   void save(const fs::path& path,
-            const std::string& filename,
             const std::string& suffix,
             const Variables&... fields); // Routine to save the results
 
@@ -111,6 +110,8 @@ private:
     samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; // Auxiliary variable to compute the contribution associated to surface tension
   #endif
 
+  std::string filename; // Auxiliary variable to store the name of output
+
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); // Auxiliary routine to compute normals and curvature
 
@@ -118,10 +119,9 @@ private:
 
   double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
 
-  void clear_data(const std::string& filename,
-                  unsigned int flag = 0); // Numerical artefact to avoid spurious small negative values
+  void clear_data(unsigned int flag = 0); // Numerical artefact to avoid spurious small negative values
 
-  void perform_mesh_adaptation(const std::string& filename); // Perform the mesh adaptation
+  void perform_mesh_adaptation(); // Perform the mesh adaptation
 
   void apply_relaxation(); // Apply the relaxation
 };
@@ -325,14 +325,14 @@ double TwoScaleCapillarity<dim>::get_max_lambda() const {
 // Perform the mesh adaptation strategy.
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::perform_mesh_adaptation(const std::string& filename) {
+void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
   samurai::update_ghost_mr(grad_alpha1);
   auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
   MRadaptation(1e-5, 0, conserved_variables);
 
   // Sanity check (and numerical artefacts to clear data) after mesh adaptation
   alpha1.resize();
-  clear_data(filename, 1);
+  clear_data(1);
 
   // Recompute geoemtrical quantities
   normal.resize();
@@ -344,7 +344,7 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation(const std::string& filena
 // Numerical artefact to avoid small negative values
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::clear_data(const std::string& filename, unsigned int flag) {
+void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
   std::string op;
   if(flag == 0) {
     op = "at the beginning of the relaxation";
@@ -360,7 +360,7 @@ void TwoScaleCapillarity<dim>::clear_data(const std::string& filename, unsigned 
                             if(conserved_variables[cell][RHO_ALPHA1_INDEX] < 0.0) {
                               if(conserved_variables[cell][RHO_ALPHA1_INDEX] < -1e-10) {
                                 std::cerr << " Negative volume fraction " + op << std::endl;
-                                save(fs::current_path(), filename, "_diverged", conserved_variables);
+                                save(fs::current_path(), "_diverged", conserved_variables);
                                 exit(1);
                               }
                               conserved_variables[cell][RHO_ALPHA1_INDEX] = 0.0;
@@ -369,7 +369,7 @@ void TwoScaleCapillarity<dim>::clear_data(const std::string& filename, unsigned 
                             if(conserved_variables[cell][M1_INDEX] < 0.0) {
                               if(conserved_variables[cell][M1_INDEX] < -1e-14) {
                                 std::cerr << "Negative mass for phase 1 " + op << std::endl;
-                                save(fs::current_path(), filename, "_diverged", conserved_variables);
+                                save(fs::current_path(), "_diverged", conserved_variables);
                                 exit(1);
                                }
                                conserved_variables[cell][M1_INDEX] = 0.0;
@@ -378,7 +378,7 @@ void TwoScaleCapillarity<dim>::clear_data(const std::string& filename, unsigned 
                              if(conserved_variables[cell][M2_INDEX] < 0.0) {
                                if(conserved_variables[cell][M2_INDEX] < -1e-14) {
                                  std::cerr << "Negative mass for phase 2 " + op << std::endl;
-                                 save(fs::current_path(), filename, "_diverged", conserved_variables);
+                                 save(fs::current_path(), "_diverged", conserved_variables);
                                  exit(1);
                                }
                                conserved_variables[cell][M2_INDEX] = 0.0;
@@ -427,8 +427,8 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
 
     // Newton cycle diverged
     if(Newton_iter > 60) {
-      std::cout << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
-      save(fs::current_path(), "liquid_column_no_mass_transfer", "_diverged",
+      std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
+      save(fs::current_path(), "_diverged",
            conserved_variables, alpha1, grad_alpha1, normal, H);
       exit(1);
     }
@@ -440,7 +440,6 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
 template<std::size_t dim>
 template<class... Variables>
 void TwoScaleCapillarity<dim>::save(const fs::path& path,
-                                    const std::string& filename,
                                     const std::string& suffix,
                                     const Variables&... fields) {
   auto level_ = samurai::make_field<std::size_t, 1>("level", mesh);
@@ -464,7 +463,7 @@ template<std::size_t dim>
 void TwoScaleCapillarity<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
-  std::string filename = "liquid_column_no_mass_transfer";
+  filename = "liquid_column_no_mass_transfer";
   #ifdef RUSANOV_FLUX
     filename += "_Rusanov";
   #elifdef GODUNOV_FLUX
@@ -507,7 +506,7 @@ void TwoScaleCapillarity<dim>::run() {
 
   // Save the initial condition
   const std::string suffix_init = (nfiles != 1) ? fmt::format("_ite_0") : "";
-  save(path, filename, suffix_init, conserved_variables, alpha1, grad_alpha1, normal, H);
+  save(path, suffix_init, conserved_variables, alpha1, grad_alpha1, normal, H);
 
   // Start the loop
   std::size_t nsave = 0;
@@ -525,7 +524,7 @@ void TwoScaleCapillarity<dim>::run() {
     std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
 
     /*--- Apply mesh adaptation ---*/
-    perform_mesh_adaptation(filename);
+    perform_mesh_adaptation();
 
     /*--- Apply the numerical scheme without relaxation ---*/
     samurai::update_ghost_mr(conserved_variables);
@@ -566,7 +565,7 @@ void TwoScaleCapillarity<dim>::run() {
     #endif
 
     /*-- Clear data to avoid small spurious negative values and recompute geometrical quantities ---*/
-    clear_data(filename);
+    clear_data();
 
     /*--- Apply relaxation ---*/
     if(apply_relax) {
@@ -608,7 +607,7 @@ void TwoScaleCapillarity<dim>::run() {
       #endif
 
       // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
-      clear_data(filename);
+      clear_data();
 
       // Apply the relaxation
       if(apply_relax) {
@@ -630,7 +629,7 @@ void TwoScaleCapillarity<dim>::run() {
     /*--- Save the results ---*/
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, filename, suffix, conserved_variables, alpha1, grad_alpha1, normal, H);
+      save(path, suffix, conserved_variables, alpha1, grad_alpha1, normal, H);
     }
   }
 }
