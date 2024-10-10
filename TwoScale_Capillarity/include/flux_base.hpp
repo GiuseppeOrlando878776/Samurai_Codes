@@ -540,7 +540,7 @@ namespace samurai {
         // Declare and set relevant parameters
         std::size_t Newton_iter = 0;
         bool relaxation_applied = true;
-        bool mass_transfer_NR   = false; // This value can change during the Newton loop, so we create a copy rather modyfing the original
+        bool mass_transfer_NR   = false;
 
         typename Field::value_type dalpha1_bar = std::numeric_limits<typename Field::value_type>::infinity();
         typename Field::value_type alpha1_bar  = q(RHO_ALPHA1_BAR_INDEX)/
