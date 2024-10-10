@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
   sim_param.min_level = 7;
   sim_param.max_level = 7;
 
-  sim_param.Tf = 2.0;
+  sim_param.Tf = 2.5;
   sim_param.Courant = 0.4;
 
   sim_param.nfiles = 10;

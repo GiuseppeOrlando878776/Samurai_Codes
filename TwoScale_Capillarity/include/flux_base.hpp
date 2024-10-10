@@ -112,6 +112,10 @@ namespace samurai {
     FluxValue<cfg> evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
                                                 const std::size_t curr_d); // Evaluate the hyperbolic operator for the state q along direction curr_d
 
+    template<typename Gradient>
+    FluxValue<cfg> evaluate_surface_tension_operator(const Gradient& grad_alpha1_bar,
+                                                     const std::size_t curr_d); // Evaluate the surface tension operator for the state q along direction curr_d
+
     FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; // Conversion from conserved to primitive variables
 
     FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; // Conversion from conserved to primitive variables
@@ -168,20 +172,7 @@ namespace samurai {
     FluxValue<cfg> res = this->evaluate_hyperbolic_operator(q, curr_d);
 
     // Add the contribution due to surface tension
-    const auto mod_grad_alpha1_bar = std::sqrt(xt::sum(grad_alpha1_bar*grad_alpha1_bar)());
-
-    if(mod_grad_alpha1_bar > mod_grad_alpha1_bar_min) {
-      const auto n = grad_alpha1_bar/mod_grad_alpha1_bar;
-
-      if(curr_d == 0) {
-        res(RHO_U_INDEX) += sigma*(n(0)*n(0) - 1.0)*mod_grad_alpha1_bar;
-        res(RHO_U_INDEX + 1) += sigma*n(0)*n(1)*mod_grad_alpha1_bar;
-      }
-      else if(curr_d == 1) {
-        res(RHO_U_INDEX) += sigma*n(0)*n(1)*mod_grad_alpha1_bar;
-        res(RHO_U_INDEX + 1) += sigma*(n(1)*n(1) - 1.0)*mod_grad_alpha1_bar;
-      }
-    }
+    res += this->evaluate_surface_tension_operator(grad_alpha1_bar, curr_d);
 
     return res;
   }
@@ -227,6 +218,45 @@ namespace samurai {
                             ((alpha1 < eps) ? p2 : p1);
 
     res(RHO_U_INDEX + curr_d) += p_bar;
+
+    return res;
+  }
+
+  // Evaluate the surface tension operator
+  //
+  template<class Field>
+  template<typename Gradient>
+  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_surface_tension_operator(const Gradient& grad_alpha1_bar,
+                                                                                      const std::size_t curr_d) {
+    // Sanity check in terms of dimensions
+    assert(curr_d < Field::dim);
+
+    // Initialize the resulting variable
+    FluxValue<cfg> res;
+
+    // Set to zero all the contributions
+    res(M1_INDEX) = 0.0;
+    res(M2_INDEX) = 0.0;
+    res(RHO_ALPHA1_BAR_INDEX) = 0.0;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      res(RHO_U_INDEX + d) = 0.0;
+    }
+
+    // Add the contribution due to surface tension
+    const auto mod_grad_alpha1_bar = std::sqrt(xt::sum(grad_alpha1_bar*grad_alpha1_bar)());
+
+    if(mod_grad_alpha1_bar > mod_grad_alpha1_bar_min) {
+      const auto n = grad_alpha1_bar/mod_grad_alpha1_bar;
+
+      if(curr_d == 0) {
+        res(RHO_U_INDEX) += sigma*(n(0)*n(0) - 1.0)*mod_grad_alpha1_bar;
+        res(RHO_U_INDEX + 1) += sigma*n(0)*n(1)*mod_grad_alpha1_bar;
+      }
+      else if(curr_d == 1) {
+        res(RHO_U_INDEX) += sigma*n(0)*n(1)*mod_grad_alpha1_bar;
+        res(RHO_U_INDEX + 1) += sigma*(n(1)*n(1) - 1.0)*mod_grad_alpha1_bar;
+      }
+    }
 
     return res;
   }

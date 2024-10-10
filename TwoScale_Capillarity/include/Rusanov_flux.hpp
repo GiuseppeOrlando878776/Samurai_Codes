@@ -54,7 +54,7 @@ namespace samurai {
                                   const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double sigma_,
                                   const double eps_,
-                                  const double grad_alpha1_bar_min_,
+                                  const double mod_grad_alpha1_bar_min_,
                                   const bool mass_transfer_,
                                   const double kappa_,
                                   const double Hmax_,
@@ -62,7 +62,7 @@ namespace samurai {
                                   const double lambda_,
                                   const double tol_Newton_,
                                   const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_bar_min_,
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, lambda_, tol_Newton_, max_Newton_iters_) {}
 
@@ -127,7 +127,7 @@ namespace samurai {
     FluxDefinition<typename Flux<Field>::cfg> Rusanov_f;
 
     // Perform the loop over each dimension to compute the flux contribution
-    static_for<0, EquationData::dim>::apply(
+    static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;

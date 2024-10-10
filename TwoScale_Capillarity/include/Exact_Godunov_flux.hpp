@@ -42,12 +42,9 @@ namespace samurai {
   private:
     const double tol_Newton_p_star; // Tolerance of the Newton method to compute p_star
 
-    template<typename Gradient>
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                const std::size_t curr_d,
-                                                               const Gradient& grad_alpha1_barL,
-                                                               const Gradient& grad_alpha1_barR,
                                                                const bool is_discontinuous); // Godunov flux for the along direction curr_d
 
     void solve_alpha1_d_fan(const typename Field::value_type rhs,
@@ -69,7 +66,7 @@ namespace samurai {
                                   const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double sigma_,
                                   const double eps_,
-                                  const double grad_alpha1_bar_min_,
+                                  const double mod_grad_alpha1_bar_min_,
                                   const bool mass_transfer_,
                                   const double kappa_,
                                   const double Hmax_,
@@ -78,7 +75,7 @@ namespace samurai {
                                   const double tol_Newton_,
                                   const std::size_t max_Newton_iters_,
                                   const double tol_Newton_p_star_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_bar_min_,
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, lambda_, tol_Newton_, max_Newton_iters_), tol_Newton_p_star(tol_Newton_p_star_) {}
 
@@ -246,12 +243,9 @@ namespace samurai {
   // Implementation of a Godunov flux
   //
   template<class Field>
-  template<typename Gradient>
   FluxValue<typename Flux<Field>::cfg> GodunovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                  const std::size_t curr_d,
-                                                                                 const Gradient& grad_alpha1_barL,
-                                                                                 const Gradient& grad_alpha1_barR,
                                                                                  const bool is_discontinuous) {
     // Compute the intermediate state (either shock or rarefaction)
     FluxValue<typename Flux<Field>::cfg> q_star = qL;
@@ -521,33 +515,7 @@ namespace samurai {
       }
     }
 
-    // Compute the hyperbolic contribution to the flux
-    FluxValue<typename Flux<Field>::cfg> res = this->evaluate_hyperbolic_operator(q_star, curr_d);
-
-    // Add the contribution due to surface tension
-    const auto mod_grad_alpha1_barL = std::sqrt(xt::sum(grad_alpha1_barL*grad_alpha1_barL)());
-    const auto mod_grad_alpha1_barR = std::sqrt(xt::sum(grad_alpha1_barR*grad_alpha1_barR)());
-
-    if(mod_grad_alpha1_barL > this->mod_grad_alpha1_bar_min &&
-       mod_grad_alpha1_barR > this->mod_grad_alpha1_bar_min) {
-      const auto nL = grad_alpha1_barL/mod_grad_alpha1_barL;
-      const auto nR = grad_alpha1_barR/mod_grad_alpha1_barR;
-
-      if(curr_d == 0) {
-        res(RHO_U_INDEX) += 0.5*this->sigma*((nL(0)*nL(0) - 1.0)*mod_grad_alpha1_barL +
-                                             (nR(0)*nR(0) - 1.0)*mod_grad_alpha1_barR);
-        res(RHO_U_INDEX + 1) += 0.5*this->sigma*(nL(0)*nL(1)*mod_grad_alpha1_barL +
-                                                 nR(0)*nR(1)*mod_grad_alpha1_barR);
-      }
-      else if(curr_d == 1) {
-        res(RHO_U_INDEX) += 0.5*this->sigma*(nL(0)*nL(1)*mod_grad_alpha1_barL +
-                                             nR(0)*nR(1)*mod_grad_alpha1_barR);
-        res(RHO_U_INDEX + 1) += 0.5*this->sigma*((nL(1)*nL(1) - 1.0)*mod_grad_alpha1_barL +
-                                                 (nR(1)*nR(1) - 1.0)*mod_grad_alpha1_barR);
-      }
-    }
-
-    return res;
+    return this->evaluate_hyperbolic_operator(q_star, curr_d);
   }
 
   // Implement the contribution of the discrete flux for all the directions.
@@ -565,7 +533,7 @@ namespace samurai {
     FluxDefinition<typename Flux<Field>::cfg> Godunov_f;
 
     // Perform the loop over each dimension to compute the flux contribution
-    static_for<0, EquationData::dim>::apply(
+    static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;
@@ -622,7 +590,6 @@ namespace samurai {
 
                                             // Compute the numerical flux
                                             return compute_discrete_flux(qL, qR, d,
-                                                                         grad_alpha1_bar[left], grad_alpha1_bar[right],
                                                                          is_discontinuous);
                                           };
     });

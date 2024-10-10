@@ -27,6 +27,7 @@ namespace fs = std::filesystem;
   #include "Rusanov_flux.hpp"
 #elifdef GODUNOV_FLUX
   #include "Exact_Godunov_flux.hpp"
+  #include "SurfaceTension_flux.hpp"
 #endif
 
 // Specify the use of this namespace where we just store the indices
@@ -135,7 +136,8 @@ private:
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
   #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
+    samurai::GodunovFlux<Field>        Godunov_flux;        // Auxiliary variable to compute the flux for the hyperbolic operator
+    samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; // Auxiliary variable to compute the contribution associated to surface tension
   #endif
 
   std::string filename; // Auxiliary variable to store the name of output
@@ -192,6 +194,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   #elifdef GODUNOV_FLUX
     Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
                  sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters, sim_param.tol_Newton_p_star),
+    SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
+                        sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
   #endif
   kappa(sim_param.kappa), alpha1d_max(sim_param.alpha1d_max)
   {
@@ -627,7 +631,7 @@ template<std::size_t dim>
 void TwoScaleCapillarity<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
-  std::string filename = "liquid_column";
+  filename = "liquid_column";
   #ifdef RUSANOV_FLUX
     filename += "_Rusanov";
   #elifdef GODUNOV_FLUX
@@ -666,10 +670,11 @@ void TwoScaleCapillarity<dim>::run() {
     #endif
   #elifdef GODUNOV_FLUX
     #ifdef ORDER_2
-      auto numerical_flux = Godunov_flux.make_two_scale_capillarity(grad_alpha1_bar, H_bar);
+      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity(grad_alpha1_bar, H_bar);
     #else
-      auto numerical_flux = Godunov_flux.make_two_scale_capillarity(grad_alpha1_bar);
+      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity(grad_alpha1_bar);
     #endif
+    auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1_bar);
   #endif
 
   // Save the initial condition
@@ -707,20 +712,45 @@ void TwoScaleCapillarity<dim>::run() {
     /*--- Apply the numerical scheme without relaxation ---*/
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
-    auto flux_conserved = numerical_flux(conserved_variables);
-    #ifdef ORDER_2
-      conserved_variables_tmp.resize();
-      conserved_variables_tmp = conserved_variables - dt*flux_conserved;
-      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+    #ifdef RUSANOV_FLUX
+      auto flux_conserved = numerical_flux(conserved_variables);
+      #ifdef ORDER_2
+        conserved_variables_tmp.resize();
+        conserved_variables_tmp = conserved_variables - dt*flux_conserved;
+        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+      #else
+        conserved_variables_np1.resize();
+        conserved_variables_np1 = conserved_variables - dt*flux_conserved;
+        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      #endif
+      /*-- Clear data to avoid small spurious negative values and recompute geoemtrical quantities ---*/
+      clear_data();
+      update_geometry();
     #else
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = conserved_variables - dt*flux_conserved;
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      auto flux_hyp = numerical_flux_hyp(conserved_variables);
+      #ifdef ORDER_2
+        conserved_variables_tmp.resize();
+        conserved_variables_tmp = conserved_variables - dt*flux_hyp;
+        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+      #else
+        conserved_variables_np1.resize();
+        conserved_variables_np1 = conserved_variables - dt*flux_hyp;
+        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      #endif
+      /*-- Clear data to avoid small spurious negative values and recompute geoemtrical quantities ---*/
+      clear_data();
+      update_geometry();
+      /*--- Consider surface rension contribution ---*/
+      auto flux_st = numerical_flux_st(conserved_variables);
+      #ifdef ORDER_2
+        conserved_variables_tmp_2.resize();
+        conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
+        std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+      #else
+        conserved_variables_np1 = conserved_variables - dt*flux_st;
+        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      #endif
     #endif
-
-    /*-- Clear data to avoid small spurious negative values and recompute geoemtrical quantities ---*/
-    clear_data();
-    update_geometry();
 
     /*--- Apply relaxation ---*/
     if(apply_relax) {
@@ -741,16 +771,30 @@ void TwoScaleCapillarity<dim>::run() {
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
       samurai::update_bc(conserved_variables);
-      flux_conserved = numerical_flux(conserved_variables);
-      conserved_variables_tmp_2.resize();
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved;
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-
-      // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
-      clear_data();
-      update_geometry();
+      #ifdef RUSANOV_FLUX
+        flux_conserved = numerical_flux(conserved_variables);
+        conserved_variables_tmp_2.resize();
+        conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved;
+        conserved_variables_np1.resize();
+        conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
+        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+        // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
+        clear_data();
+        update_geometry();
+      #else
+        flux_hyp = numerical_flux_hyp(conserved_variables);
+        conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
+        std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+        // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
+        clear_data();
+        update_geometry();
+        // Consider surface rension contribution
+        flux_st = numerical_flux_st(conserved_variables);
+        conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
+        conserved_variables_np1.resize();
+        conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
+        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      #endif
 
       // Apply the relaxation
       if(apply_relax) {

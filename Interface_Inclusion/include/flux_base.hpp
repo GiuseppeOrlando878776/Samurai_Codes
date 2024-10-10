@@ -11,7 +11,7 @@
 #include "barotropic_eos.hpp"
 
 // Preprocessor to define whether order 2 is desired
-//#define ORDER_2
+#define ORDER_2
 
 // Preprocessor to define whether relaxation is desired after reconstruction for order 2
 #ifdef ORDER_2
@@ -540,7 +540,7 @@ namespace samurai {
         // Declare and set relevant parameters
         std::size_t Newton_iter = 0;
         bool relaxation_applied = true;
-        bool mass_transfer_NR   = mass_transfer; // This value can change during the Newton loop, so we create a copy rather modyfing the original
+        bool mass_transfer_NR   = false;
 
         typename Field::value_type dalpha1_bar = std::numeric_limits<typename Field::value_type>::infinity();
         typename Field::value_type alpha1_bar  = q(RHO_ALPHA1_BAR_INDEX)/
@@ -553,11 +553,6 @@ namespace samurai {
 
           this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q), H_bar, dalpha1_bar, alpha1_bar, grad_alpha1_bar,
                                                relaxation_applied, mass_transfer_NR);
-
-          // Stop the mass transfer after a sufficient time of Newton iterations for safety
-          if(mass_transfer_NR && Newton_iter > max_Newton_iters/2) {
-            mass_transfer_NR = false;
-          }
 
           // Newton cycle diverged
           if(Newton_iter > max_Newton_iters) {
