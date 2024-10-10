@@ -142,7 +142,7 @@ namespace samurai {
     FluxValue<cfg> res = this->evaluate_hyperbolic_operator(q, curr_d);
 
     // Add the contribution due to surface tension
-    res += this->evaluate_surface_tension_operator(grad_alpha1, curr_d, grad_alpha1);
+    res += this->evaluate_surface_tension_operator(grad_alpha1, curr_d);
 
     return res;
   }

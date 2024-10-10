@@ -565,7 +565,7 @@ void TwoScaleCapillarity<dim>::run() {
       #endif
     #endif
 
-    /*-- Clear data to avoid small spurious negative values and recompute geoemtrical quantities ---*/
+    /*-- Clear data to avoid small spurious negative values and recompute geometrical quantities ---*/
     clear_data(filename);
 
     /*--- Apply relaxation ---*/
@@ -602,6 +602,7 @@ void TwoScaleCapillarity<dim>::run() {
         update_geometry();
         flux_st = numerical_flux_st(conserved_variables);
         conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
+        conserved_variables_np1.resize();
         conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
         std::swap(conserved_variables.array(), conserved_variables_np1.array());
       #endif
