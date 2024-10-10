@@ -32,14 +32,14 @@ namespace fs = std::filesystem;
 // Auxiliary function to compute the regualized Heaviside
 template<typename T = double>
 T CHeaviside(const T x, const T eps) {
-  if(x < -eps) {
+  /*if(x < -eps) {
     return 0.0;
   }
   else if(x > eps) {
     return 1.0;
   }
 
-  /*const double pi = 4.0*std::atan(1);
+  const double pi = 4.0*std::atan(1);
   return 0.5*(1.0 + x/eps + 1.0/pi*std::sin(pi*x/eps));*/
 
   return 0.5 + 0.5*std::tanh(8.0*(x/eps + 0.5));
