@@ -19,15 +19,15 @@ namespace fs = std::filesystem;
 #include "containers.hpp"
 
 // Include the headers with the numerical fluxes
-//#define RUSANOV_FLUX
-#define GODUNOV_FLUX
+#define RUSANOV_FLUX
+//#define GODUNOV_FLUX
 
 #ifdef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
 #elifdef GODUNOV_FLUX
   #include "Exact_Godunov_flux.hpp"
-  #include "SurfaceTension_flux.hpp"
 #endif
+#include "SurfaceTension_flux.hpp"
 
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
@@ -96,7 +96,7 @@ private:
 
   const double sigma; // Surface tension coefficient
 
-  const double eps;                     // Tolerance when we want to avoid division by zero
+  const double eps;                 // Tolerance when we want to avoid division by zero
   const double mod_grad_alpha1_min; // Minimum threshold for which not computing anymore the unit normal
 
   LinearizedBarotropicEOS<> EOS_phase1,
@@ -106,9 +106,9 @@ private:
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
   #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field>        Godunov_flux;        // Auxiliary variable to compute the flux
-    samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; // Auxiliary variable to compute the contribution associated to surface tension
+    samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
   #endif
+  samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; // Auxiliary variable to compute the contribution associated to surface tension
 
   std::string filename; // Auxiliary variable to store the name of output
 
@@ -144,11 +144,11 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min)
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min),
   #elifdef GODUNOV_FLUX
     Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min),
-    SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min)
   #endif
+  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min)
   {
     std::cout << "Initializing variables " << std::endl;
     std::cout << std::endl;
@@ -491,9 +491,9 @@ void TwoScaleCapillarity<dim>::run() {
   // Create the flux variable
   #ifdef RUSANOV_FLUX
     #ifdef ORDER_2
-      auto numerical_flux = Rusanov_flux.make_two_scale_capillarity(grad_alpha1, H);
+      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity(H);
     #else
-      auto numerical_flux = Rusanov_flux.make_two_scale_capillarity(grad_alpha1);
+      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity();
     #endif
   #elifdef GODUNOV_FLUX
     #ifdef ORDER_2
@@ -501,8 +501,8 @@ void TwoScaleCapillarity<dim>::run() {
     #else
       auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
     #endif
-    auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1);
   #endif
+  auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1);
 
   // Save the initial condition
   const std::string suffix_init = (nfiles != 1) ? fmt::format("_ite_0") : "";
@@ -529,39 +529,28 @@ void TwoScaleCapillarity<dim>::run() {
     /*--- Apply the numerical scheme without relaxation ---*/
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
-    #ifdef RUSANOV_FLUX
-      auto flux_conserved = numerical_flux(conserved_variables);
-      #ifdef ORDER_2
-        conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*flux_conserved;
-        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
-      #else
-        conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*flux_conserved;
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
-      #endif
-      update_geometry();
+    // Convective operator
+    auto flux_hyp = numerical_flux_hyp(conserved_variables);
+    #ifdef ORDER_2
+      conserved_variables_tmp.resize();
+      conserved_variables_tmp = conserved_variables - dt*flux_hyp;
+      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
     #else
-      auto flux_hyp = numerical_flux_hyp(conserved_variables);
-      #ifdef ORDER_2
-        conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*flux_hyp;
-        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
-      #else
-        conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*flux_hyp;
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
-      #endif
-      update_geometry();
-      auto flux_st = numerical_flux_st(conserved_variables);
-      #ifdef ORDER_2
-        conserved_variables_tmp_2.resize();
-        conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-        std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
-      #else
-        conserved_variables_np1 = conserved_variables - dt*flux_st;
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
-      #endif
+      conserved_variables_np1.resize();
+      conserved_variables_np1 = conserved_variables - dt*flux_hyp;
+      std::swap(conserved_variables.array(), conserved_variables_np1.array());
+    #endif
+    // Update the geometry to recompute volume fraction gradient
+    update_geometry();
+    // Capillarity contribution
+    auto flux_st = numerical_flux_st(conserved_variables);
+    #ifdef ORDER_2
+      conserved_variables_tmp_2.resize();
+      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+    #else
+      conserved_variables_np1 = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
 
     /*-- Clear data to avoid small spurious negative values and recompute geometrical quantities ---*/
@@ -586,25 +575,18 @@ void TwoScaleCapillarity<dim>::run() {
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
       samurai::update_bc(conserved_variables);
-      #ifdef RUSANOV_FLUX
-        flux_conserved = numerical_flux(conserved_variables);
-        conserved_variables_tmp_2.resize();
-        conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved;
-        conserved_variables_np1.resize();
-        conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
-        update_geometry();
-      #else
-        flux_hyp = numerical_flux_hyp(conserved_variables);
-        conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
-        std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
-        update_geometry();
-        flux_st = numerical_flux_st(conserved_variables);
-        conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-        conserved_variables_np1.resize();
-        conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
-      #endif
+      // Convective operator
+      flux_hyp = numerical_flux_hyp(conserved_variables);
+      conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
+      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+      // Update the geometry to recompute volume fraction gradient
+      update_geometry();
+      // Capillarity contribution
+      flux_st = numerical_flux_st(conserved_variables);
+      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
+      conserved_variables_np1.resize();
+      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
+      std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
       // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
       clear_data();
