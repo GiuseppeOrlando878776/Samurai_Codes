@@ -393,10 +393,10 @@ namespace samurai {
 
     // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
     const auto F = (1.0 - (*conserved_variables)(ALPHA1_D_INDEX))*(p1 - p2)
-                 - sigma*H_bar;
+                 - sigma*H_lim;
 
     // Perform the relaxation only where really needed
-    if(!std::isnan(F) && std::abs(F) > tol_Newton*std::min(phase1.get_p0(), sigma*H_bar) && std::abs(dalpha1_bar) > tol_Newton &&
+    if(!std::isnan(F) && std::abs(F) > tol_Newton*std::min(phase1.get_p0(), sigma*H_lim) && std::abs(dalpha1_bar) > tol_Newton &&
        alpha1_bar > eps && 1.0 - alpha1_bar > eps) {
       relaxation_applied = true;
 
