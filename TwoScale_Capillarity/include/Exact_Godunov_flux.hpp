@@ -35,8 +35,7 @@ namespace samurai {
       auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
                                       const Field_Scalar& H_bar); // Compute the flux over all the directions
     #else
-      template<typename Gradient>
-      auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); // Compute the flux over all the directions
+      auto make_two_scale_capillarity(); // Compute the flux over all the directions
     #endif
 
   private:
@@ -522,8 +521,7 @@ namespace samurai {
     auto GodunovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
                                                         const Field_Scalar& H_bar)
   #else
-    template<typename Gradient>
-    auto GodunovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar)
+    auto GodunovFlux<Field>::make_two_scale_capillarity()
   #endif
   {
     FluxDefinition<typename Flux<Field>::cfg> Godunov_f;

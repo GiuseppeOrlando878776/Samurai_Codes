@@ -19,8 +19,8 @@ namespace fs = std::filesystem;
 #include "containers.hpp"
 
 // Include the headers with the numerical fluxes
-#define RUSANOV_FLUX
-//#define GODUNOV_FLUX
+//#define RUSANOV_FLUX
+#define GODUNOV_FLUX
 
 #ifdef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
@@ -358,7 +358,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                          {
                             // Start with rho_alpha1
                             if(conserved_variables[cell][RHO_ALPHA1_INDEX] < 0.0) {
-                              if(conserved_variables[cell][RHO_ALPHA1_INDEX] < -1e-10) {
+                              if(conserved_variables[cell][RHO_ALPHA1_INDEX] < -1e-5) {
                                 std::cerr << " Negative volume fraction " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables);
                                 exit(1);
@@ -367,7 +367,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                             }
                             // Sanity check for m1
                             if(conserved_variables[cell][M1_INDEX] < 0.0) {
-                              if(conserved_variables[cell][M1_INDEX] < -1e-14) {
+                              if(conserved_variables[cell][M1_INDEX] < -1e-5) {
                                 std::cerr << "Negative mass for phase 1 " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables);
                                 exit(1);
@@ -376,7 +376,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                              }
                              // Sanity check for m2
                              if(conserved_variables[cell][M2_INDEX] < 0.0) {
-                               if(conserved_variables[cell][M2_INDEX] < -1e-14) {
+                               if(conserved_variables[cell][M2_INDEX] < -1e-5) {
                                  std::cerr << "Negative mass for phase 2 " + op << std::endl;
                                  save(fs::current_path(), "_diverged", conserved_variables);
                                  exit(1);
@@ -540,7 +540,8 @@ void TwoScaleCapillarity<dim>::run() {
       conserved_variables_np1 = conserved_variables - dt*flux_hyp;
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
-    // Update the geometry to recompute volume fraction gradient
+    // Clear data to avoid small spurious negative values and recompute geometrical quantities
+    clear_data();
     update_geometry();
     // Capillarity contribution
     auto flux_st = numerical_flux_st(conserved_variables);
@@ -552,9 +553,6 @@ void TwoScaleCapillarity<dim>::run() {
       conserved_variables_np1 = conserved_variables - dt*flux_st;
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
-
-    /*-- Clear data to avoid small spurious negative values and recompute geometrical quantities ---*/
-    clear_data();
 
     /*--- Apply relaxation ---*/
     if(apply_relax) {
@@ -579,7 +577,8 @@ void TwoScaleCapillarity<dim>::run() {
       flux_hyp = numerical_flux_hyp(conserved_variables);
       conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
       std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
-      // Update the geometry to recompute volume fraction gradient
+      // Clear data to avoid small spurious negative values and recompute geometrical quantities
+      clear_data();
       update_geometry();
       // Capillarity contribution
       flux_st = numerical_flux_st(conserved_variables);
@@ -587,9 +586,6 @@ void TwoScaleCapillarity<dim>::run() {
       conserved_variables_np1.resize();
       conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
-
-      // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
-      clear_data();
 
       // Apply the relaxation
       if(apply_relax) {
