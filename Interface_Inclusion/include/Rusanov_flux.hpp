@@ -34,17 +34,14 @@ namespace samurai {
       auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
                                       const Field_Scalar& H_bar); // Compute the flux over all the directions
     #else
-      template<typename Gradient>
-      auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); // Compute the flux over all the directions
+      auto make_two_scale_capillarity(); // Compute the flux over all the directions
     #endif
 
   private:
     template<typename Gradient>
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d,
-                                                               const Gradient& grad_alpha1_barL,
-                                                               const Gradient& grad_alpha1_barR); // Rusanov flux along direction curr_d
+                                                               const std::size_t curr_d); // Rusanov flux along direction curr_d
   };
 
   // Constructor derived from the base class
@@ -54,7 +51,7 @@ namespace samurai {
                                   const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double sigma_,
                                   const double eps_,
-                                  const double grad_alpha1_bar_min_,
+                                  const double mod_grad_alpha1_bar_min_,
                                   const bool mass_transfer_,
                                   const double kappa_,
                                   const double Hmax_,
@@ -62,7 +59,7 @@ namespace samurai {
                                   const double lambda_,
                                   const double tol_Newton_,
                                   const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_bar_min_,
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, lambda_, tol_Newton_, max_Newton_iters_) {}
 
@@ -72,9 +69,7 @@ namespace samurai {
   template<typename Gradient>
   FluxValue<typename Flux<Field>::cfg> RusanovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                                                 const std::size_t curr_d,
-                                                                                 const Gradient& grad_alpha1_barL,
-                                                                                 const Gradient& grad_alpha1_barR) {
+                                                                                 const std::size_t curr_d) {
     // Compute the quantities needed for the maximum eigenvalue estimate for the left state
     const auto rho_L        = qL(M1_INDEX) + qL(M2_INDEX) + qL(M1_D_INDEX);
     const auto vel_d_L      = qL(RHO_U_INDEX + curr_d)/rho_L;
@@ -87,7 +82,6 @@ namespace samurai {
     const auto c_squared_L  = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                             + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
-    const auto r_L          = this->sigma*std::sqrt(xt::sum(grad_alpha1_barL*grad_alpha1_barL)())/(rho_L*c_L*c_L);
 
     // Compute the quantities needed for the maximum eigenvalue estimate for the right state
     const auto rho_R        = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
@@ -101,14 +95,13 @@ namespace samurai {
     const auto c_squared_R  = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                             + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
-    const auto r_R          = this->sigma*std::sqrt(xt::sum(grad_alpha1_barR*grad_alpha1_barR)())/(rho_R*c_R*c_R);
 
     // Compute the estimate of the eigenvalue considering also the surface tension contribution
-    const auto lambda = std::max(std::abs(vel_d_L) + c_L*(1.0 + 0.125*r_L),
-                                 std::abs(vel_d_R) + c_R*(1.0 + 0.125*r_R));
+    const auto lambda = std::max(std::abs(vel_d_L) + c_L,
+                                 std::abs(vel_d_R) + c_R);
 
-    return 0.5*(this->evaluate_continuous_flux(qL, curr_d, grad_alpha1_barL) +
-                this->evaluate_continuous_flux(qR, curr_d, grad_alpha1_barR)) - // centered contribution
+    return 0.5*(this->evaluate_hyperbolic_operator(qL, curr_d) +
+                this->evaluate_hyperbolic_operator(qR, curr_d)) - // centered contribution
            0.5*lambda*(qR - qL); // upwinding contribution
   }
 
@@ -120,14 +113,13 @@ namespace samurai {
     auto RusanovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
                                                         const Field_Scalar& H_bar)
   #else
-    template<typename Gradient>
-    auto RusanovFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar)
+    auto RusanovFlux<Field>::make_two_scale_capillarity()
   #endif
   {
     FluxDefinition<typename Flux<Field>::cfg> Rusanov_f;
 
     // Perform the loop over each dimension to compute the flux contribution
-    static_for<0, EquationData::dim>::apply(
+    static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;
