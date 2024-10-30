@@ -32,8 +32,7 @@ namespace samurai {
   private:
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d,
-                                                               const bool is_discontinuous); // Godunov flux for the along direction curr_d
+                                                               const std::size_t curr_d); // Godunov flux for the along direction curr_d
 
     void solve_p_star(const FluxValue<typename Flux<Field>::cfg>& qL,
                       const FluxValue<typename Flux<Field>::cfg>& qR,
@@ -177,216 +176,213 @@ namespace samurai {
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> GodunovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                                                 const std::size_t curr_d,
-                                                                                 const bool is_discontinuous) {
+                                                                                 const std::size_t curr_d) {
     // Compute the intermediate state (either shock or rarefaction)
     FluxValue<typename Flux<Field>::cfg> q_star = qL;
 
-    if(is_discontinuous) {
-      // Left state useful variables
-      const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
-      const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
-      const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
-      const auto rho1_L      = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
-      const auto alpha2_L    = 1.0 - alpha1_L;
-      const auto rho2_L      = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
-      const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
-                             + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
-      const auto c_L         = std::sqrt(c_squared_L/rho_L);
+    // Left state useful variables
+    const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
+    const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
+    const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
+    const auto rho1_L      = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
+    const auto alpha2_L    = 1.0 - alpha1_L;
+    const auto rho2_L      = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
+    const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
+                           + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
+    const auto c_L         = std::sqrt(c_squared_L/rho_L);
 
-      // Right state useful variables
-      const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
-      const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
-      const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;;
-      const auto rho1_R      = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
-      const auto alpha2_R    = 1.0 - alpha1_R;
-      const auto rho2_R      = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
-      const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
-                             + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
-      const auto c_R         = std::sqrt(c_squared_R/rho_R);
+    // Right state useful variables
+    const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
+    const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
+    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;;
+    const auto rho1_R      = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
+    const auto alpha2_R    = 1.0 - alpha1_R;
+    const auto rho2_R      = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
+    const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
+                           + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
+    const auto c_R         = std::sqrt(c_squared_R/rho_R);
 
-      // Compute p*
-      const auto p_L = (alpha1_L > this->eps && alpha2_L > this->eps) ?
-                        alpha1_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L) :
-                        ((alpha1_L < this->eps) ? this->phase2.pres_value(rho2_L) : this->phase1.pres_value(rho1_L));
-      const auto p_R = (alpha1_R > this->eps && alpha2_R > this->eps) ?
-                        alpha1_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_R)*this->phase2.pres_value(rho2_R) :
-                        ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
+    // Compute p*
+    const auto p_L = (alpha1_L > this->eps && alpha2_L > this->eps) ?
+                     alpha1_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L) :
+                     ((alpha1_L < this->eps) ? this->phase2.pres_value(rho2_L) : this->phase1.pres_value(rho1_L));
+    const auto p_R = (alpha1_R > this->eps && alpha2_R > this->eps) ?
+                     alpha1_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_R)*this->phase2.pres_value(rho2_R) :
+                     ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
 
-      const auto p0_L = p_L - rho_L*c_L*c_L;
-      const auto p0_R = p_R - rho_R*c_R*c_R;
+    const auto p0_L = p_L - rho_L*c_L*c_L;
+    const auto p0_R = p_R - rho_R*c_R*c_R;
 
-      auto p_star = std::max(0.5*(p_L + p_R),
-                             std::max(p0_L, p0_R) + 0.1*std::abs(std::max(p0_L, p0_R)));
-      solve_p_star(qL, qR, vel_d_L - vel_d_R, vel_d_L, p0_L, p0_R, p_star);
+    auto p_star = std::max(0.5*(p_L + p_R),
+                           std::max(p0_L, p0_R) + 0.1*std::abs(std::max(p0_L, p0_R)));
+    solve_p_star(qL, qR, vel_d_L - vel_d_R, vel_d_L, p0_L, p0_R, p_star);
 
-      // Compute u*
-      const auto u_star = (p_star <= p_L) ? vel_d_L + c_L*std::log((p_L - p0_L)/(p_star - p0_L)) :
-                                            vel_d_L - (p_star - p_L)/std::sqrt(rho_L*(p_star - p0_L));
+    // Compute u*
+    const auto u_star = (p_star <= p_L) ? vel_d_L + c_L*std::log((p_L - p0_L)/(p_star - p0_L)) :
+                                          vel_d_L - (p_star - p_L)/std::sqrt(rho_L*(p_star - p0_L));
 
-      // Left "connecting state"
-      if(u_star > 0.0) {
-        // 1-wave left shock
-        if(p_star > p_L) {
-          const auto r = 1.0 + 1.0/((rho_L*c_L*c_L)/(p_star - p_L));
+    // Left "connecting state"
+    if(u_star > 0.0) {
+      // 1-wave left shock
+      if(p_star > p_L) {
+        const auto r = 1.0 + 1.0/((rho_L*c_L*c_L)/(p_star - p_L));
 
-          const auto m1_L_star  = qL(M1_INDEX)*r;
-          const auto m2_L_star  = qL(M2_INDEX)*r;
-          const auto rho_L_star = m1_L_star + m2_L_star;
+        const auto m1_L_star  = qL(M1_INDEX)*r;
+        const auto m2_L_star  = qL(M2_INDEX)*r;
+        const auto rho_L_star = m1_L_star + m2_L_star;
 
-          auto s_L = nan("");
-          if(r > 1) {
-            s_L = u_star + (vel_d_L - u_star)/(1.0 - r);
-          }
-          else if (r == 1) {
-            s_L = u_star + (vel_d_L - u_star)*(-std::numeric_limits<double>::infinity());
-          }
-
-          // If left of left shock, q* = qL, already assigned.
-          // If right of left shock, is the computed state
-          if(!std::isnan(s_L) && s_L < 0.0) {
-            q_star(M1_INDEX)         = m1_L_star;
-            q_star(M2_INDEX)         = m2_L_star;
-            q_star(RHO_ALPHA1_INDEX) = rho_L_star*alpha1_L;
-            if(curr_d == 0) {
-              q_star(RHO_U_INDEX)     = rho_L_star*u_star;
-              q_star(RHO_U_INDEX + 1) = rho_L_star*(qL(RHO_U_INDEX + 1)/rho_L);
-            }
-            else if(curr_d == 1) {
-              q_star(RHO_U_INDEX)     = rho_L_star*(qL(RHO_U_INDEX)/rho_L);
-              q_star(RHO_U_INDEX + 1) = rho_L_star*u_star;
-            }
-          }
+        auto s_L = nan("");
+        if(r > 1) {
+          s_L = u_star + (vel_d_L - u_star)/(1.0 - r);
         }
-        // 3-waves left fan
-        else {
-          // Left of the left fan is qL, already assigned. Now we need to check if we are in
-          // the left fan or at the right of the left fan
-          const auto sH_L = vel_d_L - c_L;
-          const auto sT_L = u_star - c_L;
+        else if (r == 1) {
+          s_L = u_star + (vel_d_L - u_star)*(-std::numeric_limits<double>::infinity());
+        }
 
-          // Compute state in the left fan
-          if(sH_L < 0.0 && sT_L > 0.0) {
-            const auto m1_L_fan  = qL(M1_INDEX)*std::exp((vel_d_L - c_L)/c_L);
-            const auto m2_L_fan  = qL(M2_INDEX)*std::exp((vel_d_L - c_L)/c_L);
-            const auto rho_L_fan = m1_L_fan + m2_L_fan;
-
-            q_star(M1_INDEX)         = m1_L_fan;
-            q_star(M2_INDEX)         = m2_L_fan;
-            q_star(RHO_ALPHA1_INDEX) = rho_L_fan*alpha1_L;
-            if(curr_d == 0) {
-              q_star(RHO_U_INDEX)     = rho_L_fan*c_L;
-              q_star(RHO_U_INDEX + 1) = rho_L_fan*(qL(RHO_U_INDEX + 1)/rho_L);
-            }
-            else if(curr_d == 1) {
-              q_star(RHO_U_INDEX)     = rho_L_fan*(qL(RHO_U_INDEX)/rho_L);
-              q_star(RHO_U_INDEX + 1) = rho_L_fan*c_L;
-            }
+        // If left of left shock, q* = qL, already assigned.
+        // If right of left shock, is the computed state
+        if(!std::isnan(s_L) && s_L < 0.0) {
+          q_star(M1_INDEX)         = m1_L_star;
+          q_star(M2_INDEX)         = m2_L_star;
+          q_star(RHO_ALPHA1_INDEX) = rho_L_star*alpha1_L;
+          if(curr_d == 0) {
+            q_star(RHO_U_INDEX)     = rho_L_star*u_star;
+            q_star(RHO_U_INDEX + 1) = rho_L_star*(qL(RHO_U_INDEX + 1)/rho_L);
           }
-          // Right of the left fan. Compute the state
-          else if(sH_L < 0.0 && sT_L <= 0.0) {
-            const auto m1_L_star  = qL(M1_INDEX)*std::exp((vel_d_L - u_star)/c_L);
-            const auto m2_L_star  = qL(M2_INDEX)*std::exp((vel_d_L - u_star)/c_L);
-            const auto rho_L_star = m1_L_star + m2_L_star;
-
-            q_star(M1_INDEX)         = m1_L_star;
-            q_star(M2_INDEX)         = m2_L_star;
-            q_star(RHO_ALPHA1_INDEX) = rho_L_star*alpha1_L;
-            if(curr_d == 0) {
-              q_star(RHO_U_INDEX)     = rho_L_star*u_star;
-              q_star(RHO_U_INDEX + 1) = rho_L_star*(qL(RHO_U_INDEX + 1)/rho_L);
-            }
-            else if(curr_d == 1) {
-              q_star(RHO_U_INDEX)     = rho_L_star*(qL(RHO_U_INDEX)/rho_L);
-              q_star(RHO_U_INDEX + 1) = rho_L_star*u_star;
-            }
+          else if(curr_d == 1) {
+            q_star(RHO_U_INDEX)     = rho_L_star*(qL(RHO_U_INDEX)/rho_L);
+            q_star(RHO_U_INDEX + 1) = rho_L_star*u_star;
           }
         }
       }
-      // Right "connecting state"
+      // 3-waves left fan
       else {
-        // 1-wave right shock
-        if(p_star > p_R) {
-          const auto r = 1.0 + 1.0/((rho_R*c_R*c_R)/(p_star - p_R));
+        // Left of the left fan is qL, already assigned. Now we need to check if we are in
+        // the left fan or at the right of the left fan
+        const auto sH_L = vel_d_L - c_L;
+        const auto sT_L = u_star - c_L;
 
-          const auto m1_R_star  = qR(M1_INDEX)*r;
-          const auto m2_R_star  = qR(M2_INDEX)*r;
-          const auto rho_R_star = m1_R_star + m2_R_star;
+        // Compute state in the left fan
+        if(sH_L < 0.0 && sT_L > 0.0) {
+          const auto m1_L_fan  = qL(M1_INDEX)*std::exp((vel_d_L - c_L)/c_L);
+          const auto m2_L_fan  = qL(M2_INDEX)*std::exp((vel_d_L - c_L)/c_L);
+          const auto rho_L_fan = m1_L_fan + m2_L_fan;
 
-          auto s_R = nan("");
-          if(r > 1) {
-            s_R = u_star + (vel_d_R - u_star)/(1.0 - r);
+          q_star(M1_INDEX)         = m1_L_fan;
+          q_star(M2_INDEX)         = m2_L_fan;
+          q_star(RHO_ALPHA1_INDEX) = rho_L_fan*alpha1_L;
+          if(curr_d == 0) {
+            q_star(RHO_U_INDEX)     = rho_L_fan*c_L;
+            q_star(RHO_U_INDEX + 1) = rho_L_fan*(qL(RHO_U_INDEX + 1)/rho_L);
           }
-          else if(r == 1) {
-            s_R = u_star + (vel_d_R - u_star)/(-std::numeric_limits<double>::infinity());
-          }
-
-          // If right of right shock, the state is qR
-          if(std::isnan(s_R) || s_R < 0.0) {
-            q_star = qR;
-          }
-          // Left of right shock, compute the state
-          else {
-            q_star(M1_INDEX)         = m1_R_star;
-            q_star(M2_INDEX)         = m2_R_star;
-            q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
-            if(curr_d == 0) {
-              q_star(RHO_U_INDEX)     = rho_R_star*u_star;
-              q_star(RHO_U_INDEX + 1) = rho_R_star*(qR(RHO_U_INDEX + 1)/rho_R);
-            }
-            else if(curr_d == 1) {
-              q_star(RHO_U_INDEX)     = rho_R_star*(qR(RHO_U_INDEX)/rho_R);
-              q_star(RHO_U_INDEX + 1) = rho_R_star*u_star;
-            }
+          else if(curr_d == 1) {
+            q_star(RHO_U_INDEX)     = rho_L_fan*(qL(RHO_U_INDEX)/rho_L);
+            q_star(RHO_U_INDEX + 1) = rho_L_fan*c_L;
           }
         }
-        // 3-waves right fan
+        // Right of the left fan. Compute the state
+        else if(sH_L < 0.0 && sT_L <= 0.0) {
+          const auto m1_L_star  = qL(M1_INDEX)*std::exp((vel_d_L - u_star)/c_L);
+          const auto m2_L_star  = qL(M2_INDEX)*std::exp((vel_d_L - u_star)/c_L);
+          const auto rho_L_star = m1_L_star + m2_L_star;
+
+          q_star(M1_INDEX)         = m1_L_star;
+          q_star(M2_INDEX)         = m2_L_star;
+          q_star(RHO_ALPHA1_INDEX) = rho_L_star*alpha1_L;
+          if(curr_d == 0) {
+            q_star(RHO_U_INDEX)     = rho_L_star*u_star;
+            q_star(RHO_U_INDEX + 1) = rho_L_star*(qL(RHO_U_INDEX + 1)/rho_L);
+          }
+          else if(curr_d == 1) {
+            q_star(RHO_U_INDEX)     = rho_L_star*(qL(RHO_U_INDEX)/rho_L);
+            q_star(RHO_U_INDEX + 1) = rho_L_star*u_star;
+          }
+        }
+      }
+    }
+    // Right "connecting state"
+    else {
+      // 1-wave right shock
+      if(p_star > p_R) {
+        const auto r = 1.0 + 1.0/((rho_R*c_R*c_R)/(p_star - p_R));
+
+        const auto m1_R_star  = qR(M1_INDEX)*r;
+        const auto m2_R_star  = qR(M2_INDEX)*r;
+        const auto rho_R_star = m1_R_star + m2_R_star;
+
+        auto s_R = nan("");
+        if(r > 1) {
+          s_R = u_star + (vel_d_R - u_star)/(1.0 - r);
+        }
+        else if(r == 1) {
+          s_R = u_star + (vel_d_R - u_star)/(-std::numeric_limits<double>::infinity());
+        }
+
+        // If right of right shock, the state is qR
+        if(std::isnan(s_R) || s_R < 0.0) {
+          q_star = qR;
+        }
+        // Left of right shock, compute the state
         else {
-          const auto sH_R = vel_d_R + c_R;
-          auto sT_R       = std::numeric_limits<double>::infinity();
-          if(-(vel_d_R - u_star)/c_R < 100.0) {
-            sT_R = u_star + c_R;
+          q_star(M1_INDEX)         = m1_R_star;
+          q_star(M2_INDEX)         = m2_R_star;
+          q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
+          if(curr_d == 0) {
+            q_star(RHO_U_INDEX)     = rho_R_star*u_star;
+            q_star(RHO_U_INDEX + 1) = rho_R_star*(qR(RHO_U_INDEX + 1)/rho_R);
           }
-
-          // Right of right fan is qR
-          if(sH_R < 0.0) {
-            q_star = qR;
+          else if(curr_d == 1) {
+            q_star(RHO_U_INDEX)     = rho_R_star*(qR(RHO_U_INDEX)/rho_R);
+            q_star(RHO_U_INDEX + 1) = rho_R_star*u_star;
           }
-          // Compute the state in the right fan
-          else if(sH_R >= 0.0 && sT_R < 0.0) {
-            const auto m1_R_fan  = qR(M1_INDEX)*std::exp(-(vel_d_R + c_R)/c_R);
-            const auto m2_R_fan  = qR(M2_INDEX)*std::exp(-(vel_d_R + c_R)/c_R);
-            const auto rho_R_fan = m1_R_fan + m2_R_fan;
+        }
+      }
+      // 3-waves right fan
+      else {
+        const auto sH_R = vel_d_R + c_R;
+        auto sT_R       = std::numeric_limits<double>::infinity();
+        if(-(vel_d_R - u_star)/c_R < 100.0) {
+          sT_R = u_star + c_R;
+        }
 
-            q_star(M1_INDEX)         = m1_R_fan;
-            q_star(M2_INDEX)         = m2_R_fan;
-            q_star(RHO_ALPHA1_INDEX) = rho_R_fan*alpha1_R;
-            if(curr_d == 0) {
-              q_star(RHO_U_INDEX)     = -rho_R_fan*c_R;
-              q_star(RHO_U_INDEX + 1) = rho_R_fan*(qR(RHO_U_INDEX + 1)/rho_R);
-            }
-            else if(curr_d == 1) {
-              q_star(RHO_U_INDEX)     = rho_R_fan*(qR(RHO_U_INDEX)/rho_R);
-              q_star(RHO_U_INDEX + 1) = -rho_R_fan*c_R;
-            }
+        // Right of right fan is qR
+        if(sH_R < 0.0) {
+          q_star = qR;
+        }
+        // Compute the state in the right fan
+        else if(sH_R >= 0.0 && sT_R < 0.0) {
+          const auto m1_R_fan  = qR(M1_INDEX)*std::exp(-(vel_d_R + c_R)/c_R);
+          const auto m2_R_fan  = qR(M2_INDEX)*std::exp(-(vel_d_R + c_R)/c_R);
+          const auto rho_R_fan = m1_R_fan + m2_R_fan;
+
+          q_star(M1_INDEX)         = m1_R_fan;
+          q_star(M2_INDEX)         = m2_R_fan;
+          q_star(RHO_ALPHA1_INDEX) = rho_R_fan*alpha1_R;
+          if(curr_d == 0) {
+            q_star(RHO_U_INDEX)     = -rho_R_fan*c_R;
+            q_star(RHO_U_INDEX + 1) = rho_R_fan*(qR(RHO_U_INDEX + 1)/rho_R);
           }
-          // Compute state at the left of the right fan
-          else {
-            const auto m1_R_star  = qR(M1_INDEX)*std::exp(-(vel_d_R - u_star)/c_R);
-            const auto m2_R_star  = qR(M2_INDEX)*std::exp(-(vel_d_R - u_star)/c_R);
-            const auto rho_R_star = m1_R_star + m2_R_star ;
+          else if(curr_d == 1) {
+            q_star(RHO_U_INDEX)     = rho_R_fan*(qR(RHO_U_INDEX)/rho_R);
+            q_star(RHO_U_INDEX + 1) = -rho_R_fan*c_R;
+          }
+        }
+        // Compute state at the left of the right fan
+        else {
+          const auto m1_R_star  = qR(M1_INDEX)*std::exp(-(vel_d_R - u_star)/c_R);
+          const auto m2_R_star  = qR(M2_INDEX)*std::exp(-(vel_d_R - u_star)/c_R);
+          const auto rho_R_star = m1_R_star + m2_R_star ;
 
-            q_star(M1_INDEX)         = m1_R_star;
-            q_star(M2_INDEX)         = m2_R_star;
-            q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
-            if(curr_d == 0) {
-              q_star(RHO_U_INDEX)     = rho_R_star*u_star;
-              q_star(RHO_U_INDEX + 1) = rho_R_star*(qR(RHO_U_INDEX + 1)/rho_R);
-            }
-            else if(curr_d == 1) {
-              q_star(RHO_U_INDEX)     = rho_R_star*(qR(RHO_U_INDEX)/rho_R);
-              q_star(RHO_U_INDEX + 1) = rho_R_star*u_star;
-            }
+          q_star(M1_INDEX)         = m1_R_star;
+          q_star(M2_INDEX)         = m2_R_star;
+          q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
+          if(curr_d == 0) {
+            q_star(RHO_U_INDEX)     = rho_R_star*u_star;
+            q_star(RHO_U_INDEX + 1) = rho_R_star*(qR(RHO_U_INDEX + 1)/rho_R);
+          }
+          else if(curr_d == 1) {
+            q_star(RHO_U_INDEX)     = rho_R_star*(qR(RHO_U_INDEX)/rho_R);
+            q_star(RHO_U_INDEX + 1) = rho_R_star*u_star;
           }
         }
       }
@@ -451,22 +447,8 @@ namespace samurai {
                                               const FluxValue<typename Flux<Field>::cfg> qR = field[right];
                                             #endif
 
-                                            // Check if we are at a cell with discontinuity in the state. This is not sufficient to say that the
-                                            // flux is equal to the 'continuous' one because of surface tension, which involves gradients,
-                                            // namely a non-local info
-                                            bool is_discontinuous = false;
-                                            for(std::size_t comp = 0; comp < Field::size; ++comp) {
-                                              if(qL(comp) != qR(comp)) {
-                                                is_discontinuous = true;
-                                              }
-
-                                              if(is_discontinuous)
-                                                break;
-                                            }
-
                                             // Compute the numerical flux
-                                            return compute_discrete_flux(qL, qR, d,
-                                                                         is_discontinuous);
+                                            return compute_discrete_flux(qL, qR, d);
                                           };
     });
 

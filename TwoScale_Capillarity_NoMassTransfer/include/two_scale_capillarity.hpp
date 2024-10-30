@@ -326,6 +326,8 @@ double TwoScaleCapillarity<dim>::get_max_lambda() const {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
+  save(fs::current_path(), "_before_mesh_adaptation", conserved_variables);
+
   samurai::update_ghost_mr(grad_alpha1);
   auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
   MRadaptation(1e-5, 0, conserved_variables);
@@ -358,7 +360,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                          {
                             // Start with rho_alpha1
                             if(conserved_variables[cell][RHO_ALPHA1_INDEX] < 0.0) {
-                              if(conserved_variables[cell][RHO_ALPHA1_INDEX] < -1e-5) {
+                              if(conserved_variables[cell][RHO_ALPHA1_INDEX] < -1e-10) {
                                 std::cerr << " Negative volume fraction " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables);
                                 exit(1);
@@ -367,7 +369,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                             }
                             // Sanity check for m1
                             if(conserved_variables[cell][M1_INDEX] < 0.0) {
-                              if(conserved_variables[cell][M1_INDEX] < -1e-5) {
+                              if(conserved_variables[cell][M1_INDEX] < -1e-14) {
                                 std::cerr << "Negative mass for phase 1 " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables);
                                 exit(1);
@@ -376,7 +378,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                              }
                              // Sanity check for m2
                              if(conserved_variables[cell][M2_INDEX] < 0.0) {
-                               if(conserved_variables[cell][M2_INDEX] < -1e-5) {
+                               if(conserved_variables[cell][M2_INDEX] < -1e-14) {
                                  std::cerr << "Negative mass for phase 2 " + op << std::endl;
                                  save(fs::current_path(), "_diverged", conserved_variables);
                                  exit(1);
