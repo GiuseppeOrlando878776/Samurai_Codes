@@ -19,7 +19,14 @@ namespace fs = std::filesystem;
 #include "containers.hpp"
 
 // Include the headers with the numerical fluxes
-#include "Exact_Godunov_flux.hpp"
+//#define RUSANOV_FLUX
+#define GODUNOV_FLUX
+
+#ifdef RUSANOV_FLUX
+  #include "Rusanov_flux.hpp"
+#elifdef GODUNOV_FLUX
+  #include "Exact_Godunov_flux.hpp"
+#endif
 #include "SurfaceTension_flux.hpp"
 
 // Specify the use of this namespace where we just store the indices
@@ -96,7 +103,11 @@ private:
                             EOS_phase2; // The two variables which take care of the
                                         // barotropic EOS to compute the speed of sound
 
-  samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
+  #ifdef RUSANOV_FLUX
+    samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
+  #elifdef GODUNOV_FLUX
+    samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
+  #endif
   samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; // Auxiliary variable to compute the contribution associated to surface tension
 
   std::string filename; // Auxiliary variable to store the name of output
@@ -132,10 +143,14 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   gradient(samurai::make_gradient_order2<decltype(alpha1)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>()),
-  sigma(sim_param.sigma), eps(sim_param.eps_init), mod_grad_alpha1_min(sim_param.mod_grad_alpha1_min),
+  sigma(sim_param.sigma), eps_init(sim_param.eps_init), mod_grad_alpha1_min(sim_param.mod_grad_alpha1_min),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
-  Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_min),
+  #ifdef RUSANOV_FLUX
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_min),
+  #elifdef GODUNOV_FLUX
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_min),
+  #endif
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_min),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
@@ -291,9 +306,9 @@ double TwoScaleCapillarity<dim>::get_max_lambda() const {
                            const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
 
                            // Compute frozen speed of sound
-                           const auto rho1      = (alpha1[cell] > eps) ? conserved_variables[cell][M1_INDEX]/alpha1[cell] : nan("");
+                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1[cell];
                            const auto alpha2    = 1.0 - alpha1[cell];
-                           const auto rho2      = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
+                           const auto rho2      = conserved_variables[cell][M2_INDEX]/alpha2;
                            const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                                                 + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
                            const auto c         = std::sqrt(c_squared/rho);
@@ -314,7 +329,7 @@ double TwoScaleCapillarity<dim>::get_max_lambda() const {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
-  save(fs::current_path(), "_before_mesh_adaptation", conserved_variables);
+  save(fs::current_path(), "_before_mesh_adaptation", conserved_variables, alpha1);
 
   samurai::update_ghost_mr(grad_alpha1);
   auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
@@ -458,7 +473,11 @@ void TwoScaleCapillarity<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
   filename = "liquid_column_no_mass_transfer";
-  filename += "_Godunov";
+  #ifdef RUSANOV_FLUX
+    filename += "_Rusanov";
+  #elifdef GODUNOV_FLUX
+    filename += "_Godunov";
+  #endif
   filename += "_order1";
 
   const double dt_save = Tf/static_cast<double>(nfiles);
@@ -467,7 +486,11 @@ void TwoScaleCapillarity<dim>::run() {
   auto conserved_variables_np1 = samurai::make_field<double, EquationData::NVARS>("conserved_np1", mesh);
 
   // Create the flux variable
-  auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
+  #ifdef RUSANOV_FLUX
+    auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity();
+  #elifdef GODUNOV_FLUX
+    auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
+  #endif
   auto numerical_flux_st  = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1);
 
   // Save the initial condition
