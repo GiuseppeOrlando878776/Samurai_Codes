@@ -22,9 +22,9 @@ public:
 
   virtual T e_value(const T rho, const T pres) const = 0; // Function to compute the internal energy from density and pressure
 
-  virtual T temp_value(const T rho, const T e) const = 0;
+  virtual T T_value(const T rho, const T e) const = 0;
 
-  virtual T temp_value_RhoP(const T rho, const T pres) const = 0;
+  virtual T T_value_RhoP(const T rho, const T pres) const = 0;
 
   virtual T rho_value_PT(const T pres, const T temp) const = 0;
 
@@ -60,9 +60,9 @@ public:
 
   virtual T e_value(const T rho, const T pres) const override; // Function to compute the internal energy from density and pressure
 
-  virtual T temp_value(const T rho, const T e) const override;
+  virtual T T_value(const T rho, const T e) const override;
 
-  virtual T temp_value_RhoP(const T rho, const T pres) const override;
+  virtual T T_value_RhoP(const T rho, const T pres) const override;
 
   virtual T rho_value_PT(const T pres, const T temp) const override;
 
@@ -75,6 +75,14 @@ public:
   virtual T de_dT_rho(const T rho, const T temp) const override;
 
   virtual T de_dP_rho(const T rho, const T pres) const override;
+
+  virtual T de_dp_T(const T pres, const T temp) const override;
+
+  virtual T de_dT_p(const T pres, const T pres) const override;
+
+  virtual T drho_dP_T(const T pres, const T temp) const override;
+
+  virtual T drho_dT_P(const T pres, const T temp) const override;
 
 private:
   const double gamma;    // Isentropic exponent
@@ -111,12 +119,12 @@ T SG_EOS<T>::e_value(const T rho, const T pres) const {
 }
 
 template<typename T>
-T SG_EOS<T>::temp_value(const T rho, const T e) const {
+T SG_EOS<T>::T_value(const T rho, const T e) const {
   return (e- q_infty - pi_infty/rho)/c_v;
 }
 
 template<typename T>
-T SG_EOS<T>::temp_value_RhoP(const T rho, const T pres) const {
+T SG_EOS<T>::T_value_RhoP(const T rho, const T pres) const {
   return (pres + pi_infty)/((gamma-1.0)*rho*c_v);
 }
 
