@@ -82,7 +82,7 @@ namespace samurai {
 
     const double sigma; // Surface tension coefficient
 
-    const double eps;                 // Tolerance of pure phase to set NaNs
+    const double eps;                 // Tolerance of residual phase
     const double mod_grad_alpha1_min; // Tolerance to compute the unit normal
 
     template<typename Gradient>
@@ -172,16 +172,14 @@ namespace samurai {
 
     // Compute and add the contribution due to the pressure
     const auto alpha1 = q(RHO_ALPHA1_INDEX)/rho;
-    const auto rho1   = (alpha1 > eps) ? q(M1_INDEX)/alpha1 : nan("");
+    const auto rho1   = q(M1_INDEX)/alpha1;
     const auto p1     = phase1.pres_value(rho1);
 
     const auto alpha2 = 1.0 - alpha1;
-    const auto rho2   = (alpha2 > eps) ? q(M2_INDEX)/alpha2 : nan("");
+    const auto rho2   = q(M2_INDEX)/alpha2;
     const auto p2     = phase2.pres_value(rho2);
 
-    const auto p      = (alpha1 > eps && alpha2 > eps) ?
-                         alpha1*p1 + (1.0 - alpha1)*p2 :
-                        ((alpha1 < eps) ? p2 : p1);
+    const auto p      = alpha1*p1 + (1.0 - alpha1)*p2;
 
     res(RHO_U_INDEX + curr_d) += p;
 
@@ -307,20 +305,12 @@ namespace samurai {
                                                    typename Field::value_type& alpha1,
                                                    bool& relaxation_applied,
                                                    const double tol, const double lambda) {
-    // Reinitialization of partial masses in case of evanascent volume fraction
-    if(alpha1 < eps) {
-      (*conserved_variables)(M1_INDEX) = alpha1*phase1.get_rho0();
-    }
-    if(1.0 - alpha1 < eps) {
-      (*conserved_variables)(M2_INDEX) = (1.0 - alpha1)*phase2.get_rho0();
-    }
-
     // Update auxiliary values affected by the nonlinear function for which we seek a zero
-    const auto rho1   = (alpha1 > eps) ? (*conserved_variables)(M1_INDEX)/alpha1 : nan("");
+    const auto rho1   = (*conserved_variables)(M1_INDEX)/alpha1;
     const auto p1     = phase1.pres_value(rho1);
 
     const auto alpha2 = 1.0 - alpha1;
-    const auto rho2   = (alpha2 > eps) ? (*conserved_variables)(M2_INDEX)/alpha2 : nan("");
+    const auto rho2   = (*conserved_variables)(M2_INDEX)/alpha2;
     const auto p2     = phase2.pres_value(rho2);
 
     // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
@@ -343,10 +333,10 @@ namespace samurai {
         dalpha1 = std::min(dalpha1, lambda*(1.0 - alpha1));
       }
       else if(dalpha1 < 0.0) {
-        dalpha1 = std::max(dalpha1, -lambda*alpha1);
+        dalpha1 = std::max(dalpha1, -lambda*(alpha1));
       }
 
-      if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0) {
+      if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0 - 0.0) {
         std::cerr << "Bounds exceeding value for large-scale volume fraction inside Newton step " << std::endl;
       }
       else {

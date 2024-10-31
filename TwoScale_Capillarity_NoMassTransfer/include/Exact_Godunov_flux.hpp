@@ -72,28 +72,24 @@ namespace samurai {
     // Left state useful variables
     const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
     const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
-    const auto rho1_L      = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
+    const auto rho1_L      = qL(M1_INDEX)/alpha1_L;
     const auto alpha2_L    = 1.0 - alpha1_L;
-    const auto rho2_L      = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
+    const auto rho2_L      = qL(M2_INDEX)/alpha2_L;
     const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     const auto c_L         = std::sqrt(c_squared_L/rho_L);
-    const auto p_L         = (alpha1_L > this->eps && alpha2_L > this->eps) ?
-                             alpha1_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L) :
-                             ((alpha1_L < this->eps) ? this->phase2.pres_value(rho2_L) : this->phase1.pres_value(rho1_L));
+    const auto p_L         = alpha1_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L);
 
     // Right state useful variables
     const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
     const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
-    const auto rho1_R      = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
+    const auto rho1_R      = qR(M1_INDEX)/alpha1_R;
     const auto alpha2_R    = 1.0 - alpha1_R;
-    const auto rho2_R      = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
+    const auto rho2_R      = qR(M2_INDEX)/alpha2_R;
     const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     const auto c_R         = std::sqrt(c_squared_R/rho_R);
-    const auto p_R         = (alpha1_R > this->eps && alpha2_R > this->eps) ?
-                              alpha1_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_R)*this->phase2.pres_value(rho2_R) :
-                              ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
+    const auto p_R         = alpha1_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_R)*this->phase2.pres_value(rho2_R);
 
     if(p_star <= p0_L || p_L <= p0_L) {
       std::cerr << "Non-admissible value for the pressure at the beginning of the Newton method to compute p* in Godunov solver" << std::endl;
@@ -184,9 +180,9 @@ namespace samurai {
     const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
     const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
     const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
-    const auto rho1_L      = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
+    const auto rho1_L      = qL(M1_INDEX)/alpha1_L;
     const auto alpha2_L    = 1.0 - alpha1_L;
-    const auto rho2_L      = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
+    const auto rho2_L      = qL(M2_INDEX)/alpha2_L;
     const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     const auto c_L         = std::sqrt(c_squared_L/rho_L);
@@ -195,20 +191,16 @@ namespace samurai {
     const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
     const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
     const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
-    const auto rho1_R      = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
+    const auto rho1_R      = qR(M1_INDEX)/alpha1_R;
     const auto alpha2_R    = 1.0 - alpha1_R;
-    const auto rho2_R      = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
+    const auto rho2_R      = qR(M2_INDEX)/alpha2_R;
     const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     const auto c_R         = std::sqrt(c_squared_R/rho_R);
 
     // Compute p*
-    const auto p_L = (alpha1_L > this->eps && alpha2_L > this->eps) ?
-                     alpha1_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L) :
-                     ((alpha1_L < this->eps) ? this->phase2.pres_value(rho2_L) : this->phase1.pres_value(rho1_L));
-    const auto p_R = (alpha1_R > this->eps && alpha2_R > this->eps) ?
-                     alpha1_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_R)*this->phase2.pres_value(rho2_R) :
-                     ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
+    const auto p_L = alpha1_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L);
+    const auto p_R = alpha1_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_R)*this->phase2.pres_value(rho2_R);
 
     const auto p0_L = p_L - rho_L*c_L*c_L;
     const auto p0_R = p_R - rho_R*c_R*c_R;

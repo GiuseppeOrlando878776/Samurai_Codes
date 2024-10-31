@@ -56,9 +56,9 @@ namespace samurai {
     const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
 
     const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;;
-    const auto rho1_L      = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
+    const auto rho1_L      = qL(M1_INDEX)/alpha1_L;
     const auto alpha2_L    = 1.0 - alpha1_L;
-    const auto rho2_L      = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
+    const auto rho2_L      = qL(M2_INDEX)/alpha2_L;
     const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     const auto c_L         = std::sqrt(c_squared_L/rho_L);
@@ -68,9 +68,9 @@ namespace samurai {
     const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
 
     const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;;
-    const auto rho1_R      = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
+    const auto rho1_R      = qR(M1_INDEX)/alpha1_R;
     const auto alpha2_R    = 1.0 - alpha1_R;
-    const auto rho2_R      = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
+    const auto rho2_R      = qR(M2_INDEX)/alpha2_R;
     const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     const auto c_R         = std::sqrt(c_squared_R/rho_R);
