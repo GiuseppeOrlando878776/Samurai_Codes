@@ -19,14 +19,7 @@ namespace fs = std::filesystem;
 #include "containers.hpp"
 
 // Include the headers with the numerical fluxes
-//#define RUSANOV_FLUX
-#define GODUNOV_FLUX
-
-#ifdef RUSANOV_FLUX
-  #include "Rusanov_flux.hpp"
-#elifdef GODUNOV_FLUX
-  #include "Exact_Godunov_flux.hpp"
-#endif
+#include "Exact_Godunov_flux.hpp"
 #include "SurfaceTension_flux.hpp"
 
 // Specify the use of this namespace where we just store the indices
@@ -103,11 +96,7 @@ private:
                             EOS_phase2; // The two variables which take care of the
                                         // barotropic EOS to compute the speed of sound
 
-  #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
-  #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
-  #endif
+  samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
   samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; // Auxiliary variable to compute the contribution associated to surface tension
 
   std::string filename; // Auxiliary variable to store the name of output
@@ -146,11 +135,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   sigma(sim_param.sigma), eps(sim_param.eps_nan), mod_grad_alpha1_min(sim_param.mod_grad_alpha1_min),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
-  #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min),
-  #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min),
-  #endif
+  Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min),
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_min),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
@@ -330,7 +315,7 @@ double TwoScaleCapillarity<dim>::get_max_lambda() const {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
-  save(fs::current_path(), "_before_mesh_adaptation", conserved_variables, alpha1);
+  save(fs::current_path(), "_before_mesh_adaptation", conserved_variables);
 
   samurai::update_ghost_mr(grad_alpha1);
   auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
@@ -352,8 +337,6 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
   alpha1.resize();
   clear_data(1);
 
-  save(fs::current_path(), "_after_mesh_adaption", conserved_variables, alpha1);
-
   // Recompute geoemtrical quantities
   normal.resize();
   H.resize();
@@ -367,7 +350,7 @@ template<std::size_t dim>
 void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
   std::string op;
   if(flag == 0) {
-    op = "after hyperbolic opeator (i.e. at the beginning of the relaxation)";
+    op = "after hyperbolic operator (i.e. at the beginning of the relaxation)";
   }
   else {
     op = "after mesh adptation";
@@ -429,15 +412,9 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
-                             #ifdef RUSANOV_FLUX
-                               Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H[cell], dalpha1[cell], alpha1[cell],
-                                                                           relaxation_applied, tol, lambda);
-                             #elifdef GODUNOV_FLUX
-                               Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H[cell], dalpha1[cell], alpha1[cell],
-                                                                           relaxation_applied, tol, lambda);
-                             #endif
+                             Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                         H[cell], dalpha1[cell], alpha1[cell],
+                                                                         relaxation_applied, tol, lambda);
                            });
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
@@ -482,45 +459,17 @@ void TwoScaleCapillarity<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
   filename = "liquid_column_no_mass_transfer";
-  #ifdef RUSANOV_FLUX
-    filename += "_Rusanov";
-  #elifdef GODUNOV_FLUX
-    filename += "_Godunov";
-  #endif
-
-  #ifdef ORDER_2
-    filename += "_order2";
-    #ifdef RELAX_RECONSTRUCTION
-      filename += "_relaxed_reconstruction";
-    #endif
-  #else
-    filename += "_order1";
-  #endif
+  filename += "_Godunov";
+  filename += "_order1";
 
   const double dt_save = Tf/static_cast<double>(nfiles);
 
   // Auxiliary variables to save updated fields
-  #ifdef ORDER_2
-    auto conserved_variables_tmp   = samurai::make_field<double, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_tmp_2 = samurai::make_field<double, EquationData::NVARS>("conserved_tmp_2", mesh);
-  #endif
   auto conserved_variables_np1 = samurai::make_field<double, EquationData::NVARS>("conserved_np1", mesh);
 
   // Create the flux variable
-  #ifdef RUSANOV_FLUX
-    #ifdef ORDER_2
-      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity(H);
-    #else
-      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity();
-    #endif
-  #elifdef GODUNOV_FLUX
-    #ifdef ORDER_2
-      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity(H);
-    #else
-      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
-    #endif
-  #endif
-  auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1);
+  auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
+  auto numerical_flux_st  = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1);
 
   // Save the initial condition
   const std::string suffix_init = (nfiles != 1) ? fmt::format("_ite_0") : "";
@@ -549,28 +498,16 @@ void TwoScaleCapillarity<dim>::run() {
     samurai::update_bc(conserved_variables);
     // Convective operator
     auto flux_hyp = numerical_flux_hyp(conserved_variables);
-    #ifdef ORDER_2
-      conserved_variables_tmp.resize();
-      conserved_variables_tmp = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
-    #else
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-    #endif
+    conserved_variables_np1.resize();
+    conserved_variables_np1 = conserved_variables - dt*flux_hyp;
+    std::swap(conserved_variables.array(), conserved_variables_np1.array());
     // Clear data to avoid small spurious negative values and recompute geometrical quantities
     clear_data();
     update_geometry();
     // Capillarity contribution
     auto flux_st = numerical_flux_st(conserved_variables);
-    #ifdef ORDER_2
-      conserved_variables_tmp_2.resize();
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
-    #else
-      conserved_variables_np1 = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-    #endif
+    conserved_variables_np1 = conserved_variables - dt*flux_st;
+    std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
     /*--- Apply relaxation ---*/
     if(apply_relax) {
@@ -585,39 +522,6 @@ void TwoScaleCapillarity<dim>::run() {
       apply_relaxation();
       update_geometry();
     }
-
-    /*--- Consider the second stage for the second order ---*/
-    #ifdef ORDER_2
-      // Apply the numerical scheme
-      samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
-      // Convective operator
-      flux_hyp = numerical_flux_hyp(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
-      // Clear data to avoid small spurious negative values and recompute geometrical quantities
-      clear_data();
-      update_geometry();
-      // Capillarity contribution
-      flux_st = numerical_flux_st(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-
-      // Apply the relaxation
-      if(apply_relax) {
-        // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
-        // concerns next time step, rho_alpha1
-        samurai::for_each_cell(mesh,
-                               [&](const auto& cell)
-                               {
-                                 dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
-                               });
-        apply_relaxation();
-        update_geometry();
-      }
-    #endif
 
     /*--- Compute updated time step ---*/
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());

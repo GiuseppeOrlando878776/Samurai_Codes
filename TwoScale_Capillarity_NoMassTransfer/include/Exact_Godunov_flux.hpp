@@ -71,7 +71,7 @@ namespace samurai {
 
     // Left state useful variables
     const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
-    const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;;
+    const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
     const auto rho1_L      = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
     const auto alpha2_L    = 1.0 - alpha1_L;
     const auto rho2_L      = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
@@ -84,7 +84,7 @@ namespace samurai {
 
     // Right state useful variables
     const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
-    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;;
+    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
     const auto rho1_R      = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
     const auto alpha2_R    = 1.0 - alpha1_R;
     const auto rho2_R      = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
@@ -194,7 +194,7 @@ namespace samurai {
     // Right state useful variables
     const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
     const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
-    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;;
+    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
     const auto rho1_R      = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
     const auto alpha2_R    = 1.0 - alpha1_R;
     const auto rho2_R      = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
