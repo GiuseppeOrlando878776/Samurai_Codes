@@ -21,6 +21,8 @@ int main(int argc, char* argv[]) {
 
   sim_param.min_level = 7;
   sim_param.max_level = 7;
+  sim_param.MR_param = 1e-5;
+  sim_param.MR_regularity = 0;
 
   sim_param.Tf = 2.5;
   sim_param.Courant = 0.4;
@@ -62,6 +64,8 @@ int main(int argc, char* argv[]) {
                  "Maximum curvature before activating atomization")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
+  app.add_option("--MR_param", sim_param.MR_param, "Multiresolution parameter")->capture_default_str()->group("AMR parameter");
+  app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
   app.add_option("--alpha1d_max", sim_param.alpha1d_max,
                  "Maximum admitted small-scale volume fraction")->capture_default_str()->group("Numerical parameters");

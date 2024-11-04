@@ -34,22 +34,6 @@ namespace fs = std::filesystem;
 // and, in this case, some parameters related to EOS
 using namespace EquationData;
 
-// Auxiliary function to compute the regualized Heaviside
-template<typename T = double>
-T CHeaviside(const T x, const T eps) {
-  if(x < -eps) {
-    return 0.0;
-  }
-  else if(x > eps) {
-    return 1.0;
-  }
-
-  const double pi = 4.0*std::atan(1);
-  return 0.5*(1.0 + x/eps + 1.0/pi*std::sin(pi*x/eps));
-
-  //return 0.5 + 0.5*std::tanh(8.0*(x/eps + 0.5));
-}
-
 /** This is the class for the simulation for the two-scale capillarity model
  */
 template<std::size_t dim>
@@ -109,10 +93,12 @@ private:
   Field_Scalar alpha1_d,
                Dt_alpha1_d,
                CV_alpha1_d,
-               div_vel;
+               div_vel,
+               alpha1;
 
   Field_Vect grad_alpha1_d,
-             vel;
+             vel,
+             grad_alpha1;
 
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1_bar)>());
   gradient_type gradient;
@@ -142,6 +128,9 @@ private:
 
   std::string filename; // Auxiliary variable to store the name of output
 
+  const double MR_param; // Multiresolution parameter
+  const double MR_regularity; // Multiresolution regularity
+
   // Auxiliary output streams for post-processing
   const double kappa;       // Tolerance when we want to avoid division by zero
   const double alpha1d_max; // Minimum threshold for which not computing anymore the unit normal
@@ -152,13 +141,14 @@ private:
   std::ofstream grad_alpha1_bar_integral;
   std::ofstream Sigma_d_integral;
   std::ofstream grad_alpha1_d_integral;
+  std::ofstream grad_alpha1_tot_integral;
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); // Auxiliary routine to compute normals and curvature
 
   void init_variables(); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
-  double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
+  double get_max_lambda(); // Compute the estimate of the maximum eigenvalue
 
   void clear_data(unsigned int flag = 0); // Numerical artefact to avoid spurious small negative values
 
@@ -197,6 +187,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   #endif
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
                       sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
+  MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   kappa(sim_param.kappa), alpha1d_max(sim_param.alpha1d_max)
   {
     std::cout << "Initializing variables " << std::endl;
@@ -254,6 +245,8 @@ void TwoScaleCapillarity<dim>::init_variables() {
   div_vel         = samurai::make_field<double, 1>("div_vel", mesh);
   Dt_alpha1_d     = samurai::make_field<double, 1>("Dt_alpha1_d", mesh);
   CV_alpha1_d     = samurai::make_field<double, 1>("CV_alpha1_d", mesh);
+  alpha1          = samurai::make_field<double, 1>("alpha1", mesh);
+  grad_alpha1     = samurai::make_field<double, dim>("grad_alpha1", mesh);
 
   // Declare some constant parameters associated to the grid and to the
   // initial state
@@ -283,8 +276,6 @@ void TwoScaleCapillarity<dim>::init_variables() {
                                             ((r < R) ? 1.0 : 0.0);
 
                            alpha1_bar[cell] = w;
-
-                           //alpha1_bar[cell] = CHeaviside(R - r, eps_R);
                          });
 
   // Compute the geometrical quantities
@@ -322,24 +313,20 @@ void TwoScaleCapillarity<dim>::init_variables() {
                            }
                            const auto rho1 = EOS_phase1.rho_value(p1[cell]);
 
-                           conserved_variables[cell][M1_INDEX] = (!std::isnan(rho1)) ?
-                                                                 alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho1 :
-                                                                 0.0;
+                           alpha1[cell] = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
+                           conserved_variables[cell][M1_INDEX] = (!std::isnan(rho1)) ? alpha1[cell]*rho1 : 0.0;
 
                            // Set mass phase 2
                            p2[cell] = (r >= R) ? EOS_phase2.get_p0() : nan("");
                            const auto rho2 = EOS_phase2.rho_value(p2[cell]);
 
-                           conserved_variables[cell][M2_INDEX] = (!std::isnan(rho2)) ?
-                                                                 (1.0 - alpha1_bar[cell])*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho2 :
-                                                                 0.0;
+                           const auto alpha2 = 1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX];
+                           conserved_variables[cell][M2_INDEX] = (!std::isnan(rho2)) ? alpha2*rho2 : 0.0;
 
                            // Set mixture pressure
-                           const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
-                           p_bar[cell] = (alpha1 > eps && alpha2 > eps) ?
+                           p_bar[cell] = (alpha1[cell] > eps && alpha2 > eps) ?
                                          alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell] :
-                                         ((alpha1 < eps) ? p2[cell] : p1[cell]);
+                                         ((alpha1[cell] < eps) ? p2[cell] : p1[cell]);
 
                            // Set conserved variable associated to large-scale volume fraction
                            const auto rho = conserved_variables[cell][M1_INDEX]
@@ -357,8 +344,14 @@ void TwoScaleCapillarity<dim>::init_variables() {
                          });
 
   // Set useful small-scale related fields
+  samurai::update_ghost_mr(alpha1_d);
   grad_alpha1_d = gradient(alpha1_d);
+  samurai::update_ghost_mr(vel);
   div_vel       = divergence(vel);
+
+  // Set axuliary gradient large-scale volume fraction
+  samurai::update_ghost_mr(alpha1);
+  grad_alpha1 = gradient(alpha1);
 
   // Apply bcs
   const samurai::DirectionVector<dim> left  = {-1, 0};
@@ -372,9 +365,10 @@ void TwoScaleCapillarity<dim>::init_variables() {
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-double TwoScaleCapillarity<dim>::get_max_lambda() const {
+double TwoScaleCapillarity<dim>::get_max_lambda() {
   double res = 0.0;
 
+  alpha1.resize();
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -386,9 +380,9 @@ double TwoScaleCapillarity<dim>::get_max_lambda() const {
                            const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
 
                            // Compute frozen speed of sound
-                           const auto alpha1    = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1      = (alpha1 > eps) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
-                           const auto alpha2    = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
+                           alpha1[cell]         = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
+                           const auto rho1      = (alpha1[cell] > eps) ? conserved_variables[cell][M1_INDEX]/alpha1[cell] : nan("");
+                           const auto alpha2    = 1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX];
                            const auto rho2      = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
                            const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                                                 + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
@@ -412,11 +406,27 @@ template<std::size_t dim>
 void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
   samurai::update_ghost_mr(grad_alpha1_bar);
   auto MRadaptation = samurai::make_MRAdapt(grad_alpha1_bar);
-  MRadaptation(1e-5, 0, conserved_variables);
+  try {
+    MRadaptation(MR_param, MR_regularity, conserved_variables);
+  }
+  catch(...) {
+    alpha1.resize();
+    samurai::for_each_cell(mesh,
+                           [&](const auto& cell)
+                           {
+                              alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
+                                                 (conserved_variables[cell][M1_INDEX] +
+                                                  conserved_variables[cell][M2_INDEX] +
+                                                  conserved_variables[cell][M1_D_INDEX]);
+                           });
+    save(fs::current_path(), "_diverged_after_mesh_adaption", conserved_variables, alpha1_bar);
+  }
 
   // Sanity check (and numerical artefacts to clear data) after mesh adaptation
   alpha1_bar.resize();
   clear_data(1);
+
+  save(fs::current_path(), "_after_mesh_adaption", conserved_variables, alpha1_bar);
 
   // Recompute geoemtrical quantities
   normal.resize();
@@ -429,9 +439,20 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
+  // Re-update effective volume fraction
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                            alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
+                                               (conserved_variables[cell][M1_INDEX] +
+                                                conserved_variables[cell][M2_INDEX] +
+                                                conserved_variables[cell][M1_D_INDEX]);
+                         });
   std::string op;
+
+  // Clear data
   if(flag == 0) {
-    op = "at the beginning of the relaxation";
+    op = "after hyperbolic opeator (i.e. at the beginning of the relaxation)";
   }
   else {
     op = "after mesh adptation";
@@ -440,20 +461,11 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Start with rho_alpha1_bar
-                           if(conserved_variables[cell][RHO_ALPHA1_BAR_INDEX] < 0.0) {
-                             if(conserved_variables[cell][RHO_ALPHA1_BAR_INDEX] < -1e-10) {
-                               std::cerr << " Negative large-scale volume fraction " + op << std::endl;
-                               save(fs::current_path(), "_diverged", conserved_variables);
-                               exit(1);
-                             }
-                             conserved_variables[cell][RHO_ALPHA1_BAR_INDEX] = 0.0;
-                           }
                            // Sanity check for m1
                            if(conserved_variables[cell][M1_INDEX] < 0.0) {
                              if(conserved_variables[cell][M1_INDEX] < -1e-14) {
                                std::cerr << "Negative large-scale mass for phase 1 " + op << std::endl;
-                               save(fs::current_path(), "_diverged", conserved_variables);
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][M1_INDEX] = 0.0;
@@ -462,7 +474,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                            if(conserved_variables[cell][M2_INDEX] < 0.0) {
                              if(conserved_variables[cell][M2_INDEX] < -1e-14) {
                                std::cerr << "Negative mass for phase 2 " + op << std::endl;
-                               save(fs::current_path(), "_diverged", conserved_variables);
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][M2_INDEX] = 0.0;
@@ -471,7 +483,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                            if(conserved_variables[cell][M1_D_INDEX] < 0.0) {
                              if(conserved_variables[cell][M1_D_INDEX] < -1e-14) {
                                std::cerr << "Negative small-scale mass for phase 1 " + op << std::endl;
-                               save(fs::current_path(), "_diverged", conserved_variables);
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][M1_D_INDEX] = 0.0;
@@ -479,13 +491,13 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                            // Sanity check for alpha1_d
                            if(conserved_variables[cell][ALPHA1_D_INDEX] > 1.0) {
                              std::cerr << "Exceding value for small-scale volume fraction " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                              exit(1);
                            }
                            if(conserved_variables[cell][ALPHA1_D_INDEX] < 0.0) {
                              if(conserved_variables[cell][ALPHA1_D_INDEX] < -1e-14) {
                                std::cerr << "Negative small-scale volume fraction " + op << std::endl;
-                               save(fs::current_path(), "_diverged", conserved_variables);
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][ALPHA1_D_INDEX] = 0.0;
@@ -494,7 +506,7 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                            if(conserved_variables[cell][SIGMA_D_INDEX] < 0.0) {
                              if(conserved_variables[cell][SIGMA_D_INDEX] < -1e-14) {
                                std::cerr << "Negative small-scale interfacial area" + op << std::endl;
-                               save(fs::current_path(), "_diverged", conserved_variables);
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][SIGMA_D_INDEX] = 0.0;
@@ -503,7 +515,6 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                            const auto rho = conserved_variables[cell][M1_INDEX]
                                           + conserved_variables[cell][M2_INDEX]
                                           + conserved_variables[cell][M1_D_INDEX];
-
                            alpha1_bar[cell] = std::min(std::max(0.0, conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/rho), 1.0);
                         });
 }
@@ -581,21 +592,36 @@ void TwoScaleCapillarity<dim>::save(const fs::path& path,
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
-  // Compute average pressure withint the droplet
+  // Initialize relevant integral quantities
   typename Field::value_type H_lig               = 0.0;
   typename Field::value_type m1_int              = 0.0;
   typename Field::value_type m1_d_int            = 0.0;
   typename Field::value_type grad_alpha1_bar_int = 0.0;
   typename Field::value_type Sigma_d_int         = 0.0;
   typename Field::value_type grad_alpha1_d_int   = 0.0;
+  typename Field::value_type grad_alpha1_tot_int = 0.0;
+
+  samurai::update_ghost_mr(alpha1);
+  grad_alpha1.resize();
+  grad_alpha1 = gradient(alpha1);
+
+  alpha1_d.resize();
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                           // Save small-scale variable
+                           alpha1_d[cell] = conserved_variables[cell][ALPHA1_D_INDEX];
+                         });
+  samurai::update_ghost_mr(alpha1);
+  grad_alpha1_d.resize();
+  grad_alpha1_d = gradient(alpha1_d);
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
                            // Compue H_lig
-                           const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1   = (alpha1 > eps) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
-                           const auto rho1d  = (conserved_variables[cell][ALPHA1_D_INDEX] > eps) ?
+                           const auto rho1  = (alpha1[cell] > eps) ? conserved_variables[cell][M1_INDEX]/alpha1[cell] : nan("");
+                           const auto rho1d = (conserved_variables[cell][ALPHA1_D_INDEX] > eps) ?
                                                conserved_variables[cell][M1_D_INDEX]/conserved_variables[cell][ALPHA1_D_INDEX] :
                                                EOS_phase1.get_rho0();
                            if(3.0/(kappa*rho1d)*rho1 - (1.0 - alpha1_bar[cell])/(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]) > 0.0 &&
@@ -603,15 +629,17 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                               -grad_alpha1_bar[cell][0]*conserved_variables[cell][RHO_U_INDEX]
                               -grad_alpha1_bar[cell][1]*conserved_variables[cell][RHO_U_INDEX + 1] > 0.0 &&
                               conserved_variables[cell][ALPHA1_D_INDEX] < alpha1d_max) {
-                            H_lig = std::max(H_bar[cell], H_lig);
-                          }
+                             H_lig = std::max(H_bar[cell], H_lig);
+                           }
 
-                          // Compute the integral quantities
-                          m1_int += conserved_variables[cell][M1_INDEX]*std::pow(cell.length, dim);
-                          m1_d_int += conserved_variables[cell][M1_D_INDEX]*std::pow(cell.length, dim);
-                          grad_alpha1_bar_int += std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())*std::pow(cell.length, dim);
-                          Sigma_d_int += conserved_variables[cell][SIGMA_D_INDEX]*std::pow(cell.length, dim);
-                          grad_alpha1_d_int += std::sqrt(xt::sum(grad_alpha1_d[cell]*grad_alpha1_d[cell])())*std::pow(cell.length, dim);
+                           // Compute the integral quantities
+                           m1_int += conserved_variables[cell][M1_INDEX]*std::pow(cell.length, dim);
+                           m1_d_int += conserved_variables[cell][M1_D_INDEX]*std::pow(cell.length, dim);
+                           grad_alpha1_bar_int += std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())*std::pow(cell.length, dim);
+                           Sigma_d_int += conserved_variables[cell][SIGMA_D_INDEX]*std::pow(cell.length, dim);
+                           grad_alpha1_d_int += std::sqrt(xt::sum(grad_alpha1_d[cell]*grad_alpha1_d[cell])())*std::pow(cell.length, dim);
+                           grad_alpha1_tot_int += std::sqrt(xt::sum((grad_alpha1[cell] + grad_alpha1_d[cell])*
+                                                                    (grad_alpha1[cell] + grad_alpha1_d[cell]))())*std::pow(cell.length, dim);
                          });
 
   /*--- Save the data ---*/
@@ -621,6 +649,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
   grad_alpha1_bar_integral << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_bar_int << std::endl;
   Sigma_d_integral         << std::fixed << std::setprecision(12) << time << '\t' << Sigma_d_int         << std::endl;
   grad_alpha1_d_integral   << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_d_int   << std::endl;
+  grad_alpha1_tot_integral << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_tot_int << std::endl;
 }
 
 /*---- IMPLEMENT THE FUNCTION THAT EFFECTIVELY SOLVES THE PROBLEM ---*/
@@ -680,13 +709,14 @@ void TwoScaleCapillarity<dim>::run() {
   // Save the initial condition
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, suffix_init, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar,
-                          grad_alpha1_d, vel, div_vel);
+                          grad_alpha1_d, vel, div_vel, alpha1, grad_alpha1);
   Hlig.open("Hlig.dat", std::ofstream::out);
   m1_integral.open("m1_integral.dat", std::ofstream::out);
   m1_d_integral.open("m1_d_integral.dat", std::ofstream::out);
   grad_alpha1_bar_integral.open("grad_alpha1_bar_integral.dat", std::ofstream::out);
   Sigma_d_integral.open("Sigma_d_integral.dat", std::ofstream::out);
   grad_alpha1_d_integral.open("grad_alpha1_d_integral.dat", std::ofstream::out);
+  grad_alpha1_tot_integral.open("grad_alpha1_tot_integral.dat", std::ofstream::out);
   double t = 0.0;
   execute_postprocess(t);
 
@@ -796,8 +826,6 @@ void TwoScaleCapillarity<dim>::run() {
       p1.resize();
       p2.resize();
       p_bar.resize();
-      alpha1_d.resize();
-      grad_alpha1_d.resize();
       vel.resize();
       div_vel.resize();
       Dt_alpha1_d.resize();
@@ -808,20 +836,16 @@ void TwoScaleCapillarity<dim>::run() {
                              [&](const auto& cell)
                              {
                                // Compute partial and mxiture pressure
-                               const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                               const auto rho1   = (alpha1 > eps) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
+                               const auto rho1   = (alpha1[cell] > eps) ? conserved_variables[cell][M1_INDEX]/alpha1[cell] : nan("");
                                p1[cell]          = EOS_phase1.pres_value(rho1);
 
-                               const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
+                               const auto alpha2 = 1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX];
                                const auto rho2   = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
                                p2[cell]          = EOS_phase2.pres_value(rho2);
 
-                               p_bar[cell]       = (alpha1 > eps && alpha2 > eps) ?
+                               p_bar[cell]       = (alpha1[cell] > eps && alpha2 > eps) ?
                                                    alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell] :
-                                                   ((alpha1 < eps) ? p2[cell] : p1[cell]);
-
-                               // Save small-scale variable
-                               alpha1_d[cell] = conserved_variables[cell][ALPHA1_D_INDEX];
+                                                   ((alpha1[cell] < eps) ? p2[cell] : p1[cell]);
 
                                // Save velocity field
                                const auto rho = conserved_variables[cell][M1_INDEX]
@@ -830,9 +854,6 @@ void TwoScaleCapillarity<dim>::run() {
                                vel[cell][0]   = conserved_variables[cell][RHO_U_INDEX]/rho;
                                vel[cell][1]   = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
                              });
-
-      samurai::update_ghost_mr(alpha1_d);
-      grad_alpha1_d = gradient(alpha1_d);
 
       samurai::update_ghost_mr(vel);
       div_vel = divergence(vel);
@@ -849,7 +870,7 @@ void TwoScaleCapillarity<dim>::run() {
       // Perform the saving
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar,
-                         grad_alpha1_d, vel, div_vel, Dt_alpha1_d, CV_alpha1_d);
+                         grad_alpha1_d, vel, div_vel, Dt_alpha1_d, CV_alpha1_d, alpha1, grad_alpha1);
     }
   }
 
