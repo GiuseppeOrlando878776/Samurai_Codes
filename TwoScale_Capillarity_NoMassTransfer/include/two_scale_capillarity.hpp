@@ -343,8 +343,8 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
                            {
                               alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
                                              (conserved_variables[cell][M1_INDEX] + conserved_variables[cell][M2_INDEX]);
-                            });
-    save(fs::current_path(), "_diverged_after_mesh_adaption", conserved_variables, alpha1);
+                           });
+    save(fs::current_path(), "_diverged_during_mesh_adaption", conserved_variables, alpha1);
   }
 
   // Sanity check after mesh adaptation
@@ -364,6 +364,15 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
+  // Re-update volume fraction
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                            alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                           (conserved_variables[cell][M1_INDEX] + conserved_variables[cell][M2_INDEX]);
+                         });
+
+  // Check data
   std::string op;
   if(flag == 0) {
     op = "after hyperbolic operator (i.e. at the beginning of the relaxation)";
@@ -371,13 +380,6 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
   else {
     op = "after mesh adptation";
   }
-
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                         {
-                            alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
-                                           (conserved_variables[cell][M1_INDEX] + conserved_variables[cell][M2_INDEX]);
-                          });
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)

@@ -23,7 +23,7 @@ struct Simulation_Paramaters {
   std::size_t nfiles;
 
   bool apply_relaxation;
-  double eps_nan;
+  double eps_residual;
   double mod_grad_alpha1_bar_min;
 
   bool mass_transfer;

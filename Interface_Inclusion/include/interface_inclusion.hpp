@@ -165,7 +165,7 @@ InterfaceInclusion<dim>::InterfaceInclusion(const xt::xtensor_fixed<double, xt::
   gradient(samurai::make_gradient_order2<decltype(alpha1_bar)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>()),
   sigma(sim_param.sigma),
-  eps(sim_param.eps_nan), mod_grad_alpha1_bar_min(sim_param.mod_grad_alpha1_bar_min),
+  eps(sim_param.eps_residual), mod_grad_alpha1_bar_min(sim_param.mod_grad_alpha1_bar_min),
   mass_transfer(sim_param.mass_transfer), max_Newton_iters(sim_param.max_Newton_iters),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
@@ -233,13 +233,13 @@ void InterfaceInclusion<dim>::init_variables() {
   // Declare some constant parameters associated to the grid and to the
   // initial state
   const double x0 = 0.7;
-  const double y0 = 0.7;
+  const double y0 = 0.5;
   const double R  = 0.15;
 
   const double x_shock   = 0.3;
   const double dx        = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
   const double eps_shock = 3.0*dx;
-  const double eps_R     = 0.02*R;
+  const double eps_R     = 0.2*R;
 
   // Initialize some fields to define the bubble with a loop over all cells
   samurai::for_each_cell(mesh,
@@ -364,7 +364,7 @@ template<std::size_t dim>
 void InterfaceInclusion<dim>::clear_data(unsigned int flag) {
   std::string op;
   if(flag == 0) {
-    op = "at the beginning of the relaxation";
+    op = "after hyperbolic opeator (i.e. at the beginning of the relaxation)";
   }
   else {
     op = "after mesh adptation";

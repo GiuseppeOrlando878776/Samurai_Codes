@@ -141,6 +141,7 @@ private:
   std::ofstream grad_alpha1_bar_integral;
   std::ofstream Sigma_d_integral;
   std::ofstream grad_alpha1_d_integral;
+  std::ofstream grad_alpha1_integral;
   std::ofstream grad_alpha1_tot_integral;
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
@@ -419,7 +420,7 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
                                                   conserved_variables[cell][M2_INDEX] +
                                                   conserved_variables[cell][M1_D_INDEX]);
                            });
-    save(fs::current_path(), "_diverged_after_mesh_adaption", conserved_variables, alpha1_bar);
+    save(fs::current_path(), "_diverged_during_mesh_adaption", conserved_variables, alpha1_bar);
   }
 
   // Sanity check (and numerical artefacts to clear data) after mesh adaptation
@@ -599,6 +600,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
   typename Field::value_type grad_alpha1_bar_int = 0.0;
   typename Field::value_type Sigma_d_int         = 0.0;
   typename Field::value_type grad_alpha1_d_int   = 0.0;
+  typename Field::value_type grad_alpha1_int     = 0.0;
   typename Field::value_type grad_alpha1_tot_int = 0.0;
 
   samurai::update_ghost_mr(alpha1);
@@ -638,6 +640,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                            grad_alpha1_bar_int += std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())*std::pow(cell.length, dim);
                            Sigma_d_int += conserved_variables[cell][SIGMA_D_INDEX]*std::pow(cell.length, dim);
                            grad_alpha1_d_int += std::sqrt(xt::sum(grad_alpha1_d[cell]*grad_alpha1_d[cell])())*std::pow(cell.length, dim);
+                           grad_alpha1_int += std::sqrt(xt::sum(grad_alpha1[cell]*grad_alpha1[cell])())*std::pow(cell.length, dim);
                            grad_alpha1_tot_int += std::sqrt(xt::sum((grad_alpha1[cell] + grad_alpha1_d[cell])*
                                                                     (grad_alpha1[cell] + grad_alpha1_d[cell]))())*std::pow(cell.length, dim);
                          });
@@ -649,6 +652,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
   grad_alpha1_bar_integral << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_bar_int << std::endl;
   Sigma_d_integral         << std::fixed << std::setprecision(12) << time << '\t' << Sigma_d_int         << std::endl;
   grad_alpha1_d_integral   << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_d_int   << std::endl;
+  grad_alpha1_integral     << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_int     << std::endl;
   grad_alpha1_tot_integral << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_tot_int << std::endl;
 }
 
@@ -716,6 +720,7 @@ void TwoScaleCapillarity<dim>::run() {
   grad_alpha1_bar_integral.open("grad_alpha1_bar_integral.dat", std::ofstream::out);
   Sigma_d_integral.open("Sigma_d_integral.dat", std::ofstream::out);
   grad_alpha1_d_integral.open("grad_alpha1_d_integral.dat", std::ofstream::out);
+  grad_alpha1_integral.open("grad_alpha1_integral.dat", std::ofstream::out);
   grad_alpha1_tot_integral.open("grad_alpha1_tot_integral.dat", std::ofstream::out);
   double t = 0.0;
   execute_postprocess(t);

@@ -162,7 +162,7 @@ namespace samurai {
                               ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
 
     if(p_star <= p0_L || p_bar_L <= p0_L) {
-      std::cerr << "Non-admissible value for the pressure at the beginning of the Newton moethod to compute p* in Godunov solver" << std::endl;
+      std::cerr << "Non-admissible value for the pressure at the beginning of the Newton method to compute p* in Godunov solver" << std::endl;
       exit(1);
     }
 
@@ -208,7 +208,7 @@ namespace samurai {
       dp_star = std::max(dp_star, this->lambda*(std::max(p0_L, p0_R) - p_star));
 
       if(p_star + dp_star <= p0_L) {
-        std::cerr << "Non-admissible value for the pressure in the Newton moethod to compute p* in Godunov solver" << std::endl;
+        std::cerr << "Non-admissible value for the pressure in the Newton method to compute p* in Godunov solver" << std::endl;
         exit(1);
       }
       else {
