@@ -85,7 +85,7 @@ namespace samurai {
     typename Field::value_type dalpha1_d = std::numeric_limits<typename Field::value_type>::infinity();
 
     const auto alpha1_d_0 = alpha1_d;
-    auto F_alpha1_d       = 1.0/(1.0 - alpha1_d) + std::log((alpha1_d/alpha1_d_0)*((1.0 - alpha1_d_0)/(1.0 - alpha1_d)));
+    auto F_alpha1_d       = 1.0/(1.0 - alpha1_d);
 
     // Loop of Newton method
     std::size_t Newton_iter = 0;

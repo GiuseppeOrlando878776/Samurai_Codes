@@ -19,13 +19,13 @@ namespace fs = std::filesystem;
 #include "containers.hpp"
 
 // Include the headers with the numerical fluxes
-//#define RUSANOV_FLUX
-#define GODUNOV_FLUX
+#define RUSANOV_FLUX
+//#define GODUNOV_FLUX
 
 #ifdef RUSANOV_FLUX
-  #include "Rusanov_flux.hpp"
+  #include "Rusanov_flux_verbose.hpp"
 #elifdef GODUNOV_FLUX
-  #include "Exact_Godunov_flux.hpp"
+  #include "Exact_Godunov_flux_verbose.hpp"
 #endif
 #include "SurfaceTension_flux.hpp"
 
@@ -96,7 +96,7 @@ private:
 
   const double sigma; // Surface tension coefficient
 
-  const double eps_init;            // 'Initial' residual volume fraction phase
+  const double eps_residual;        // Residual volume fraction phase
   const double mod_grad_alpha1_min; // Minimum threshold for which not computing anymore the unit normal
 
   LinearizedBarotropicEOS<> EOS_phase1,
@@ -143,18 +143,17 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   gradient(samurai::make_gradient_order2<decltype(alpha1)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>()),
-  sigma(sim_param.sigma), eps_init(sim_param.eps_init), mod_grad_alpha1_min(sim_param.mod_grad_alpha1_min),
+  sigma(sim_param.sigma), eps_residual(sim_param.eps_residual), mod_grad_alpha1_min(sim_param.mod_grad_alpha1_min),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_min),
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps_residual, mod_grad_alpha1_min),
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_min),
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps_residual, mod_grad_alpha1_min),
   #endif
-  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_min),
+  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, eps_residual, mod_grad_alpha1_min),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
-    assert(eps_init >= eps_residual);
     std::cout << "Initializing variables " << std::endl;
     std::cout << std::endl;
     init_variables();
@@ -227,7 +226,7 @@ void TwoScaleCapillarity<dim>::init_variables() {
                                                               (((r - R)*(r - R)/(eps_R*eps_R) - 1.0)*((r - R)*(r - R)/(eps_R*eps_R) - 1.0))), 0.0) :
                                             ((r < R) ? 1.0 : 0.0);
 
-                           alpha1[cell] = std::min(std::max(eps_init, w), 1.0 - eps_init);
+                           alpha1[cell] = std::min(std::max(eps_residual, w), 1.0 - eps_residual);
                          });
 
   // Compute the geometrical quantities
@@ -282,9 +281,9 @@ void TwoScaleCapillarity<dim>::init_variables() {
   // Apply bcs
   const samurai::DirectionVector<dim> left  = {-1, 0};
   const samurai::DirectionVector<dim> right = {1, 0};
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, eps_init*EOS_phase1.get_rho0(), (1.0 - eps_init)*EOS_phase2.get_rho0(),
-                                                               eps_init*(eps_init*EOS_phase1.get_rho0() + (1.0 - eps_init)*EOS_phase2.get_rho0()),
-                                                               (eps_init*EOS_phase1.get_rho0() + (1.0 - eps_init)*EOS_phase2.get_rho0())*U_0, 0.0)->on(left);
+  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, eps_residual*EOS_phase1.get_rho0(), (1.0 - eps_residual)*EOS_phase2.get_rho0(),
+                                                               eps_residual*(eps_residual*EOS_phase1.get_rho0() + (1.0 - eps_residual)*EOS_phase2.get_rho0()),
+                                                               (eps_residual*EOS_phase1.get_rho0() + (1.0 - eps_residual)*EOS_phase2.get_rho0())*U_0, 0.0)->on(left);
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
 }
 
@@ -344,12 +343,14 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
                               alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
                                              (conserved_variables[cell][M1_INDEX] + conserved_variables[cell][M2_INDEX]);
                             });
-    save(fs::current_path(), "_diverged_after_mesh_adaption", conserved_variables, alpha1);
+    save(fs::current_path(), "_diverged_during_mesh_adaption", conserved_variables, alpha1);
   }
 
   // Sanity check after mesh adaptation
   alpha1.resize();
   check_data(1);
+
+  save(fs::current_path(), "_after_mesh_adaptation", conserved_variables, alpha1);
 
   // Recompute geoemtrical quantities
   normal.resize();
@@ -426,9 +427,15 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
-                             Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                         H[cell], dalpha1[cell], alpha1[cell],
-                                                                         relaxation_applied, tol, lambda);
+                             #ifdef RUSANOV_FLUX
+                               Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                           H[cell], dalpha1[cell], alpha1[cell],
+                                                                           relaxation_applied, tol, lambda);
+                             #else
+                               Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                           H[cell], dalpha1[cell], alpha1[cell],
+                                                                           relaxation_applied, tol, lambda);
+                             #endif
                            });
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
@@ -516,9 +523,9 @@ void TwoScaleCapillarity<dim>::run() {
     perform_mesh_adaptation();
 
     /*--- Apply the numerical scheme without relaxation ---*/
+    // Convective operator
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
-    // Convective operator
     auto flux_hyp = numerical_flux_hyp(conserved_variables);
     conserved_variables_np1.resize();
     conserved_variables_np1 = conserved_variables - dt*flux_hyp;
@@ -527,6 +534,8 @@ void TwoScaleCapillarity<dim>::run() {
     check_data();
     update_geometry();
     // Capillarity contribution
+    //samurai::update_ghost_mr(conserved_variables);
+    //samurai::update_bc(conserved_variables);
     auto flux_st = numerical_flux_st(conserved_variables);
     conserved_variables_np1 = conserved_variables - dt*flux_st;
     std::swap(conserved_variables.array(), conserved_variables_np1.array());

@@ -745,9 +745,9 @@ void TwoScaleCapillarity<dim>::run() {
     perform_mesh_adaptation();
 
     /*--- Apply the numerical scheme without relaxation ---*/
+    // Convective operator
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
-    // Convective operator
     auto flux_hyp = numerical_flux_hyp(conserved_variables);
     #ifdef ORDER_2
       conserved_variables_tmp.resize();
@@ -762,6 +762,8 @@ void TwoScaleCapillarity<dim>::run() {
     clear_data();
     update_geometry();
     // Capillarity contribution
+    samurai::update_ghost_mr(conserved_variables);
+    samurai::update_bc(conserved_variables);
     auto flux_st = numerical_flux_st(conserved_variables);
     #ifdef ORDER_2
       conserved_variables_tmp_2.resize();
@@ -789,9 +791,9 @@ void TwoScaleCapillarity<dim>::run() {
     /*--- Consider the second stage for the second order ---*/
     #ifdef ORDER_2
       // Apply the numerical scheme
+      // Convective operator
       samurai::update_ghost_mr(conserved_variables);
       samurai::update_bc(conserved_variables);
-      // Convective operator
       flux_hyp = numerical_flux_hyp(conserved_variables);
       conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
       std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
@@ -799,6 +801,8 @@ void TwoScaleCapillarity<dim>::run() {
       clear_data();
       update_geometry();
       // Capillarity contribution
+      samurai::update_ghost_mr(conserved_variables);
+      samurai::update_bc(conserved_variables);
       flux_st = numerical_flux_st(conserved_variables);
       conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
       conserved_variables_np1.resize();

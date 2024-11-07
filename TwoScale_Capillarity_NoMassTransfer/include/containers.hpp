@@ -25,7 +25,6 @@ struct Simulation_Paramaters {
   std::size_t nfiles;
 
   bool apply_relaxation;
-  double eps_init;
   double eps_residual;
   double mod_grad_alpha1_min;
 };

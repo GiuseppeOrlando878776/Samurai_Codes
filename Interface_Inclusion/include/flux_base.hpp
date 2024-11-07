@@ -96,7 +96,7 @@ namespace samurai {
     const double Hmax; // Maximume curvature before atomization
 
     const double sigma;                   // Surfaace tension parameter
-    const double eps;                     // Tolerance of pure phase to set NaNs
+    const double eps;                     // Tolerance of residual phase
     const double mod_grad_alpha1_bar_min; // Tolerance to compute the unit normal
 
     const double alpha1d_max;           // Maximum admitted small-scale volume fraction
@@ -206,16 +206,14 @@ namespace samurai {
     // Compute and add the contribution due to the pressure
     const auto alpha1_bar = q(RHO_ALPHA1_BAR_INDEX)/rho;
     const auto alpha1     = alpha1_bar*(1.0 - q(ALPHA1_D_INDEX));
-    const auto rho1       = (alpha1 > eps) ? q(M1_INDEX)/alpha1 : nan("");
+    const auto rho1       = q(M1_INDEX)/alpha1;
     const auto p1         = phase1.pres_value(rho1);
 
     const auto alpha2     = 1.0 - alpha1 - q(ALPHA1_D_INDEX);
-    const auto rho2       = (alpha2 > eps) ? q(M2_INDEX)/alpha2 : nan("");
+    const auto rho2       = q(M2_INDEX)/alpha2;
     const auto p2         = phase2.pres_value(rho2);
 
-    const auto p_bar      = (alpha1 > eps && alpha2 > eps) ?
-                            alpha1_bar*p1 + (1.0 - alpha1_bar)*p2 :
-                            ((alpha1 < eps) ? p2 : p1);
+    const auto p_bar      = alpha1_bar*p1 + (1.0 - alpha1_bar)*p2;
 
     res(RHO_U_INDEX + curr_d) += p_bar;
 
@@ -344,25 +342,17 @@ namespace samurai {
                                                    typename Field::value_type& alpha1_bar,
                                                    const Gradient& grad_alpha1_bar,
                                                    bool& relaxation_applied, const bool mass_transfer_NR) {
-    // Reinitialization of partial masses in case of evanascent volume fraction
-    if(alpha1_bar < eps) {
-      (*conserved_variables)(M1_INDEX) = alpha1_bar*phase1.get_rho0();
-    }
-    if(1.0 - alpha1_bar < eps) {
-      (*conserved_variables)(M2_INDEX) = (1.0 - alpha1_bar)*phase2.get_rho0();
-    }
-
     const auto rho = (*conserved_variables)(M1_INDEX)
                    + (*conserved_variables)(M2_INDEX)
                    + (*conserved_variables)(M1_D_INDEX);
 
     // Update auxiliary values affected by the nonlinear function for which we seek a zero
     const auto alpha1 = alpha1_bar*(1.0 - (*conserved_variables)(ALPHA1_D_INDEX));
-    const auto rho1   = (alpha1 > eps) ? (*conserved_variables)(M1_INDEX)/alpha1 : nan("");
+    const auto rho1   = (*conserved_variables)(M1_INDEX)/alpha1;
     const auto p1     = phase1.pres_value(rho1);
 
     const auto alpha2 = 1.0 - alpha1 - (*conserved_variables)(ALPHA1_D_INDEX);
-    const auto rho2   = (alpha2 > eps) ? (*conserved_variables)(M2_INDEX)/alpha2 : nan("");
+    const auto rho2   = (*conserved_variables)(M2_INDEX)/alpha2;
     const auto p2     = phase2.pres_value(rho2);
 
     const auto rho1d  = ((*conserved_variables)(M1_D_INDEX) > eps && (*conserved_variables)(ALPHA1_D_INDEX) > eps) ?

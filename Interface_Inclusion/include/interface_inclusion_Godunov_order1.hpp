@@ -20,14 +20,7 @@ namespace fs = std::filesystem;
 #include "containers.hpp"
 
 // Include the headers with the numerical fluxes
-//#define RUSANOV_FLUX
-#define GODUNOV_FLUX
-
-#ifdef RUSANOV_FLUX
-  #include "Rusanov_flux.hpp"
-#elifdef GODUNOV_FLUX
-  #include "Exact_Godunov_flux.hpp"
-#endif
+#include "Exact_Godunov_flux.hpp"
 #include "SurfaceTension_flux.hpp"
 
 // Specify the use of this namespace where we just store the indices
@@ -126,11 +119,7 @@ private:
                             EOS_phase2; // The two variables which take care of the
                                         // barotropic EOS to compute the speed of sound
 
-  #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
-  #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
-  #endif
+  samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
   samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; // Auxiliary variable to compute the contribution associated to surface tension
 
   std::string filename; // Auxiliary variable to store the name of output
@@ -168,13 +157,8 @@ InterfaceInclusion<dim>::InterfaceInclusion(const xt::xtensor_fixed<double, xt::
   mass_transfer(sim_param.mass_transfer), max_Newton_iters(sim_param.max_Newton_iters),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
-  #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
-                 sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
-  #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
-                 sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters, sim_param.tol_Newton_p_star),
-  #endif
+  Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
+               sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters, sim_param.tol_Newton_p_star),
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, sim_param.eps_residual, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
                       sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters)
   {
@@ -466,16 +450,9 @@ void InterfaceInclusion<dim>::apply_relaxation() {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
-                             #ifdef RUSANOV_FLUX
-                               Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                           relaxation_applied, mass_transfer_NR);
-                             #elifdef GODUNOV_FLUX
-                               Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                           relaxation_applied, mass_transfer_NR);
-                             #endif
-
+                             Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                         H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
+                                                                         relaxation_applied, mass_transfer_NR);
                            });
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
@@ -527,20 +504,8 @@ void InterfaceInclusion<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
   filename = "interface_inclusion";
-  #ifdef RUSANOV_FLUX
-    filename += "_Rusanov";
-  #elifdef GODUNOV_FLUX
-    filename += "_Godunov";
-  #endif
-
-  #ifdef ORDER_2
-    filename += "_order2";
-    #ifdef RELAX_RECONSTRUCTION
-      filename += "_relaxed_reconstruction";
-    #endif
-  #else
-    filename += "_order1";
-  #endif
+  filename += "_Godunov";
+  filename += "_order1";
 
   if(mass_transfer)
     filename += "_mass_transfer";
@@ -548,26 +513,10 @@ void InterfaceInclusion<dim>::run() {
   const double dt_save = Tf/static_cast<double>(nfiles);
 
   // Auxiliary variables to save updated fields
-  #ifdef ORDER_2
-    auto conserved_variables_tmp   = samurai::make_field<double, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_tmp_2 = samurai::make_field<double, EquationData::NVARS>("conserved_tmp_2", mesh);
-  #endif
   auto conserved_variables_np1 = samurai::make_field<double, EquationData::NVARS>("conserved_np1", mesh);
 
   // Create the flux variable
-  #ifdef RUSANOV_FLUX
-    #ifdef ORDER_2
-      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity(grad_alpha1_bar, H_bar);
-    #else
-      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity();
-    #endif
-  #elifdef GODUNOV_FLUX
-    #ifdef ORDER_2
-      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity(grad_alpha1_bar, H_bar);
-    #else
-      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
-    #endif
-  #endif
+  auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
   auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1_bar);
 
   // Save the initial condition
@@ -599,15 +548,9 @@ void InterfaceInclusion<dim>::run() {
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
     auto flux_hyp = numerical_flux_hyp(conserved_variables);
-    #ifdef ORDER_2
-      conserved_variables_tmp.resize();
-      conserved_variables_tmp = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
-    #else
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-    #endif
+    conserved_variables_np1.resize();
+    conserved_variables_np1 = conserved_variables - dt*flux_hyp;
+    std::swap(conserved_variables.array(), conserved_variables_np1.array());
     // Check if spurious negative values arise and update the geometry
     check_data();
     update_geometry();
@@ -615,14 +558,8 @@ void InterfaceInclusion<dim>::run() {
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
     auto flux_st = numerical_flux_st(conserved_variables);
-    #ifdef ORDER_2
-      conserved_variables_tmp_2.resize();
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
-    #else
-      conserved_variables_np1 = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-    #endif
+    conserved_variables_np1 = conserved_variables - dt*flux_st;
+    std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
     /*--- Apply relaxation ---*/
     if(apply_relax) {
@@ -637,41 +574,6 @@ void InterfaceInclusion<dim>::run() {
       apply_relaxation();
       update_geometry();
     }
-
-    /*--- Consider the second stage for the second order ---*/
-    #ifdef ORDER_2
-      // Apply the numerical scheme
-      // Convective operator
-      samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
-      flux_hyp = numerical_flux_hyp(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
-      // Check if spurious negative values arise and update the geometry
-      check_data();
-      update_geometry();
-      // Capillarity contribution
-      samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
-      flux_st = numerical_flux_st(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-
-      // Apply the relaxation
-      if(apply_relax) {
-        // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
-        // concerns next time step, rho_alpha1
-        samurai::for_each_cell(mesh,
-                               [&](const auto& cell)
-                               {
-                                 dalpha1_bar[cell] = std::numeric_limits<typename Field::value_type>::infinity();
-                               });
-        apply_relaxation();
-        update_geometry();
-      }
-    #endif
 
     /*--- Compute updated time step ---*/
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());

@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
   sim_param.sigma = 0.0;
 
   sim_param.apply_relaxation = true;
-  sim_param.eps_residual = 1e-8;
+  sim_param.eps_residual = 1e-7;
   sim_param.mod_grad_alpha1_bar_min = 0.0;
 
   sim_param.mass_transfer = false;
