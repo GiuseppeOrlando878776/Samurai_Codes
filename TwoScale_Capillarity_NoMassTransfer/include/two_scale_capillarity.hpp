@@ -99,9 +99,9 @@ private:
   const double eps_residual         // Residual volume fraction phase
   const double mod_grad_alpha1_min; // Minimum threshold for which not computing anymore the unit normal
 
-  LinearizedBarotropicEOS<> EOS_phase1,
-                            EOS_phase2; // The two variables which take care of the
-                                        // barotropic EOS to compute the speed of sound
+  LinearizedBarotropicEOS<typename Field::value_type> EOS_phase1,
+                                                      EOS_phase2; // The two variables which take care of the
+                                                                  // barotropic EOS to compute the speed of sound
 
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux

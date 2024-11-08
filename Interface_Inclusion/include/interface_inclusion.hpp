@@ -122,9 +122,9 @@ private:
 
   std::size_t max_Newton_iters; // Maximum number of Newton iterations
 
-  LinearizedBarotropicEOS<> EOS_phase1,
-                            EOS_phase2; // The two variables which take care of the
-                                        // barotropic EOS to compute the speed of sound
+  LinearizedBarotropicEOS<typename Field::value_type> EOS_phase1,
+                                                      EOS_phase2; // The two variables which take care of the
+                                                                  // barotropic EOS to compute the speed of sound
 
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux

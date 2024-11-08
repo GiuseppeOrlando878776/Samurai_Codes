@@ -4,7 +4,6 @@
 //
 #include <samurai/algorithm/update.hpp>
 #include <samurai/mr/mesh.hpp>
-#include <samurai/bc.hpp>
 #include <samurai/box.hpp>
 #include <samurai/field.hpp>
 #include <samurai/hdf5.hpp>
@@ -18,6 +17,9 @@ namespace fs = std::filesystem;
 
 // Add header with auxiliary structs
 #include "containers.hpp"
+
+// Add user implemented boundary condition
+#include "user_bc.hpp"
 
 // Include the headers with the numerical fluxes
 //#define RUSANOV_FLUX
@@ -115,9 +117,9 @@ private:
 
   std::size_t max_Newton_iters; // Maximum number of Newton iterations
 
-  LinearizedBarotropicEOS<> EOS_phase1,
-                            EOS_phase2; // The two variables which take care of the
-                                        // barotropic EOS to compute the speed of sound
+  LinearizedBarotropicEOS<typename Field::value_type> EOS_phase1,
+                                                      EOS_phase2; // The two variables which take care of the
+                                                                  // barotropic EOS to compute the speed of sound
 
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
@@ -350,14 +352,15 @@ void TwoScaleCapillarity<dim>::init_variables() {
   samurai::update_ghost_mr(vel);
   div_vel       = divergence(vel);
 
-  // Set axuliary gradient large-scale volume fraction
+  // Set auxiliary gradient large-scale volume fraction
   samurai::update_ghost_mr(alpha1);
   grad_alpha1 = gradient(alpha1);
 
   // Apply bcs
   const samurai::DirectionVector<dim> left  = {-1, 0};
   const samurai::DirectionVector<dim> right = {1, 0};
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, 0.0, 1.0*EOS_phase2.get_rho0(), 0.0, 0.0, 0.0, 0.0, EOS_phase2.get_rho0()*U_0, 0.0)->on(left);
+  samurai::make_bc<Default>(conserved_variables,
+                            Inlet(conserved_variables, U_0, 0.0, 1.0, 0.0, EOS_phase1.get_rho0(), 0.0, eps))->on(left);
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
 }
 

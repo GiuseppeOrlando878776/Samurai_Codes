@@ -428,14 +428,17 @@ namespace samurai {
           q_star(M1_INDEX)         = m1_R_star;
           if(q_star(M1_INDEX) < 0.0) {
             std::cerr << "Negative mass phase 1 left of right fan:" << qR(M1_INDEX) << std::endl;
+            exit(1);
           }
           q_star(M2_INDEX)         = m2_R_star;
           if(q_star(M2_INDEX) < 0.0) {
             std::cerr << "Negative mass phase 2 left of right fan:" << qR(M2_INDEX) << std::endl;
+            exit(1);
           }
           q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
           if(q_star(RHO_ALPHA1_INDEX) < 0.0) {
             std::cerr << "Negative volume fraction phase 1 left of right fan:" << qR(RHO_ALPHA1_INDEX) << std::endl;
+            exit(1);
           }
           if(curr_d == 0) {
             q_star(RHO_U_INDEX)     = rho_R_star*u_star;
