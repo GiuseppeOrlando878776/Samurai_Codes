@@ -113,6 +113,9 @@ private:
     Matrix_Relaxation A_relax; // Matrix associated to the relaxation
     Vector_Relaxation S_relax; // Vector associated to the source term
 
+    Matrix_Relaxation Jac_update;     // Matrix associated to the Jacobian of the Newton method to update consered variables
+    Matrix_Relaxation inv_Jac_update; // Inverse of the Jacobian of the Newton method to update consered variables
+
     void perform_relaxation(); // Routine to perform the finite-rate relaxation (following Jomée 2023)
 
     template<typename State>
@@ -318,7 +321,7 @@ void BN_Solver<dim>::update_auxiliary_fields() {
   void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
                                                               const std::array<typename Field::value_type, dim>& delta_u,
                                                               Matrix_Relaxation& A, Vector_Relaxation& S) {
-    /*--- Compute auxiliary variables ---*/
+    // Compute auxiliary variables for phase 1
     const auto rho1 = q[ALPHA1_RHO1_INDEX]/q[ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     std::array<typename Field::value_type, dim> vel1;
     for(std::size_t d = 0; d < dim; ++d) {
@@ -336,6 +339,7 @@ void BN_Solver<dim>::update_auxiliary_fields() {
     const auto cv1 = EOS_phase1.de_dT_rho(rho1, T1);
     const auto Gamma1 = EOS_phase1.de_drho_T(rho1, T1);
 
+    // Compute auxiliary variables for phase 2
     const auto rho2 = q[ALPHA2_RHO2_INDEX]/(1.0 - q[ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     std::array<typename Field::value_type, dim> vel2;
     for(std::size_t d = 0; d < dim; ++d) {
@@ -353,8 +357,9 @@ void BN_Solver<dim>::update_auxiliary_fields() {
     const auto cv2 = EOS_phase2.de_dT_rho(rho2, T2);
     const auto Gamma2 = EOS_phase2.de_drho_T(rho2, T2);
 
-    const auto pI_relax = p2; /*--- TODO: Possibly change, this is not forcely the same of the convective operator ---*/
+    const auto pI_relax = p2; /*--- TODO: Possibly change, this is not necessarily the same of the convective operator ---*/
 
+    // Compute the coefficients
     const auto a_pp = -(1.0/eps_p)*(rho1*c1*c1/q[ALPHA1_INDEX] +
                                     rho2*c2*c2/(1.0 - q[ALPHA1_INDEX]) +
                                     (pI_relax - p1)/(q[ALPHA1_RHO1_INDEX]*kappa1) +
@@ -432,45 +437,44 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                              }
                              p2[cell] = EOS_phase2.pres_value(rho2[cell], e2);
 
-                             // Compute initial delta pressure and temperature
-                             auto delta_p = p1[cell] - p2[cell];
-                             auto delta_T = EOS_phase1.T_value_RhoP(rho1[cell], p1[cell])
-                                          - EOS_phase2.T_value_RhoP(rho2[cell], p2[cell]);
-
                              // Compute updated delta_u (we have analytical formula)
                              std::array<typename Field::value_type, dim> delta_u;
                              const typename Field::value_type rho = conserved_variables[cell][ALPHA1_RHO1_INDEX]
                                                                   + conserved_variables[cell][ALPHA2_RHO2_INDEX];
                              const typename Field::value_type Y1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho;
-                             const typename Field::value_type Y2 = conserved_variables[cell][ALPHA2_RHO2_INDEX]/rho;
                              for(std::size_t d = 0; d < dim; ++d) {
-                               delta_u[d] = (vel1[cell][d] - vel2[cell][d])*std::exp(-dt/tau_u*(1.0/(Y1*Y2)))
+                               delta_u[d] = (vel1[cell][d] - vel2[cell][d])*std::exp(-dt/tau_u*(1.0/(Y1*(1.0 - Y1))));
                                // TODO: Check expression of relaxation source term for the momentum and if we want substeps
                              }
 
                              // Compute matrix relaxation coefficients
-                             /*delta_p = (id - dt*A)^(-1)*(delta_p, delta_T) + a_pu*delta_u;
-                             delta_T = (id - dt*A)^(-1)*(delta_p_tmp, delta_T) + a_Tu*delta_u;*/
                              compute_coefficients_source_relaxation(conserved_variables[cell], delta_u,
                                                                     A_relax, S_relax);
 
                              // Solve the system for the remaining variables
-                             delta_p_tmp = delta_p;
-                             det_A_pT = A_relax[0][0]*A_relax[1][1]
-                                      - A_relax[0][1]*A_relax[1][0];
+                             /*delta_p = (id - dt*A)^(-1)*(delta_p0, delta_T0) + a_pu*delta_u;
+                             delta_T = (id - dt*A)^(-1)*(delta_p0, delta_T0) + a_Tu*delta_u;*/
+                             typename Field::value_type delta_p,
+                                                        delta_T;
+                             const auto delta_p0 = p1[cell] - p2[cell];
+                             const auto delta_T0 = EOS_phase1.T_value_RhoP(rho1[cell], p1[cell])
+                                                 - EOS_phase2.T_value_RhoP(rho2[cell], p2[cell]);
+                             const auto det_A_pT = A_relax[0][0]*A_relax[1][1]
+                                                 - A_relax[0][1]*A_relax[1][0];
                              if(std::abs(det_A_pT) > 1e-10) {
-                               delta_p = 1.0/det_A_pT*(A_relax[1][1]*(delta_p + S_relax[0]) -
-                                                       A_relax[0][1]*(delta_T + S_relax[1]));
-                               delta_T = 1.0/det_A_pT*(-A_relax[1][0]*(delta_p_tmp + S_relax[0]) +
-                                                        A_relax[0][0]*(delta_T + S_relax[1]));
+                               delta_p = 1.0/det_A_pT*(A_relax[1][1]*(delta_p0 + S_relax[0]) -
+                                                       A_relax[0][1]*(delta_T0 + S_relax[1]));
+                               delta_T = 1.0/det_A_pT*(-A_relax[1][0]*(delta_p0 + S_relax[0]) +
+                                                        A_relax[0][0]*(delta_T0 + S_relax[1])); /*--- TODO: Check contribution of source terms ---*/
                              }
                              else {
                                std::cerr << "Singular matrix in the relaxation" << std::endl;
                                exit(1);
                              }
 
-                             // TODO: Re-update conserved variables
-                             typename Field::value_type norm2_um = 0.0;
+                             // Re-update conserved variables
+                             /*--- Compute useful velocity norms ---*/
+                             typename Field::value_type norm2_um   = 0.0;
                              typename Field::value_type norm2_vel1 = 0.0;
                              typename Field::value_type norm2_vel2 = 0.0;
                              for(std::size_t d = 0; d < dim; ++d) {
@@ -485,9 +489,12 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                                conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*vel2[cell][d];
                                norm2_vel2 += vel2[cell][d]*vel2[cell][d];
                              }
-
+                             /*--- Newton method loop ---*/
                              auto T1 = EOS_phase1.T_value(rho1[cell], p1[cell]);
+                             const auto rhoe = (conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]);
+                                             - 0.5*rho*norm2_um;
                              for(unsigned int iter = 0; iter < 50; ++iter) {
+                               // Compute Jacobian matrix
                                Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                                    (EOS_phase1.rho_value_PT(p1[cell], T1)*EOS_phase1.rho_value_PT(p1[cell], T1))*
                                                    EOS_phase1.drho_dp_T(p1[cell], T1)
@@ -507,16 +514,36 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                                Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*EOS_phase1.de_dT_p(p1[cell], T1) +
                                                   conserved_variables[cell][ALPHA2_RHO2_INDEX]*EOS_phase2.de_dT_p(p1[cell] - delta_p, T1 - delta_T);
 
+                               // Evaluate the functions for which we are looking for the zeros
                                const auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/EOS_phase1.rho_value_PT(p1[cell], T1)
                                              + conserved_variables[cell][ALPHA2_RHO2_INDEX]/EOS_phase2.rho_value_PT(p1[cell] - delta_p, T1 - delta_T)
                                              - 1.0;
                                const auto f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*EOS_phase1.e_value_PT(p1[cell], T1)
                                              + conserved_variables[cell][ALPHA2_RHO2_INDEX]*EOS_phase2.e_value_PT(p1[cell] - delta_p, T1 - delta_T)
-                                             - (conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] + conserved_variables[cell][ALPHA1_RHO1_E1_INDEX])
-                                             + 0.5*rho*norm2_um;
-                               p1[cell] -= inv_Jac_update[0][0]*f1 + inv_Jac_update[0][1]*f2
-                               T1 -= inv_Jac_update[1][0]*f1 + inv_Jac_update[1][1]*f2
+                                             - rhoe;
+                               if(std::abs(f1) > 1e-8 && std::abs(f2) > 1e-8) {
+                                 // Apply the Newton method
+                                 const auto det_Jac = Jac_update[0][0]*Jac_update[1][1]
+                                                    - Jac_update[0][1]*Jac_update[1][0];
+                                 if(std::abs(det_Jac) > 1e-10) {
+                                   const auto dp1 = (1.0/det_Jac)*(Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
+                                   const auto dT1 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[1][1]*f2);
+                                   p1[cell] -= dp1;
+                                   T1 -= (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[1][1]*f2);
+
+                                   if(std::abs(dp1) < 1e-8 && std::abs(T1) < 1e-8) {
+                                     break;
+                                   }
+                                 }
+                                 else {
+                                   break;
+                                 }
+                               }
+                               else {
+                                 break;
+                               } /*--- TODO: Modify break placement (not sure working in this way) ---*:
                              }
+                             /*--- Once pressure and temeprature have been update, finalize the update ---*/
                              e1 = EOS_phase1.e_value_PT(p1[cell], T1);
                              conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*(e1 + 0.5*norm2_vel1);
                              rho1[cell] = EOS_phase1.rho_value_PT(p1[cell], T1);
@@ -526,8 +553,6 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                              e2 = EOS_phase2.e_value_PT(p2[cell], T1 - delta_T);
                              conserved_variables[cell][ALPHA1_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*(e2 + 0.5*norm2_vel2);
                              rho2[cell] = EOS_phase2.rho_value_PT(p2[cell], T1 - delta_T);
-
-
                            });
   }
 #endif
