@@ -462,10 +462,10 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                              const auto det_A_pT = A_relax[0][0]*A_relax[1][1]
                                                  - A_relax[0][1]*A_relax[1][0];
                              if(std::abs(det_A_pT) > 1e-10) {
-                               delta_p = 1.0/det_A_pT*(A_relax[1][1]*(delta_p0 + S_relax[0]) -
-                                                       A_relax[0][1]*(delta_T0 + S_relax[1]));
-                               delta_T = 1.0/det_A_pT*(-A_relax[1][0]*(delta_p0 + S_relax[0]) +
-                                                        A_relax[0][0]*(delta_T0 + S_relax[1])); /*--- TODO: Check contribution of source terms ---*/
+                               delta_p = 1.0/det_A_pT*(A_relax[1][1]*(delta_p0 + dt*S_relax[0]) -
+                                                       A_relax[0][1]*(delta_T0 + dt*S_relax[1]));
+                               delta_T = 1.0/det_A_pT*(-A_relax[1][0]*(delta_p0 + dt*S_relax[0]) +
+                                                        A_relax[0][0]*(delta_T0 + dt*S_relax[1])); /*--- TODO: Check contribution of source terms ---*/
                              }
                              else {
                                std::cerr << "Singular matrix in the relaxation" << std::endl;
@@ -474,9 +474,10 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                              // Re-update conserved variables
                              /*--- Compute useful velocity norms ---*/
-                             typename Field::value_type norm2_um   = 0.0;
-                             typename Field::value_type norm2_vel1 = 0.0;
-                             typename Field::value_type norm2_vel2 = 0.0;
+                             typename Field::value_type norm2_um     = 0.0;
+                             typename Field::value_type norm2_vel1   = 0.0;
+                             typename Field::value_type norm2_vel2   = 0.0;
+                             typename Field::value_type norm2_deltau = 0.0;
                              for(std::size_t d = 0; d < dim; ++d) {
                                const auto um_d = Y1*vel1[cell][d] + (1.0 - Y1)*vel2[cell][d];
                                norm2_um += um_d*um_d;
@@ -488,11 +489,13 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                                vel2[cell][d] = um_d - Y1*delta_u[d];
                                conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*vel2[cell][d];
                                norm2_vel2 += vel2[cell][d]*vel2[cell][d];
+
+                               norm2_deltau += delta_u[d]*delta_u[d];
                              }
                              /*--- Newton method loop ---*/
                              auto T1 = EOS_phase1.T_value(rho1[cell], p1[cell]);
                              const auto rhoe = (conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]);
-                                             - 0.5*rho*norm2_um;
+                                             - 0.5*rho*(norm2_um + Y1*(1.0 - Y1)*norm2_deltau);
                              for(unsigned int iter = 0; iter < 50; ++iter) {
                                // Compute Jacobian matrix
                                Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
