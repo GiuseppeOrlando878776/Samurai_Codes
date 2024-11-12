@@ -7,6 +7,8 @@
 
 #include "flux_base.hpp"
 
+//#define VERBOSE_FLUX
+
 namespace samurai {
   using namespace EquationData;
 
@@ -51,6 +53,29 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> RusanovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                  const std::size_t curr_d) {
+    // Verify if left and right state are coherent
+    #ifdef VERBOSE_FLUX
+      if(qL(M1_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(qL(M1_INDEX))));
+      }
+      if(qL(M2_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(qL(M2_INDEX))));
+      }
+      if(qL(RHO_ALPHA1_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(qL(RHO_ALPHA1_INDEX))));
+      }
+
+      if(qR(M1_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass phase 1 right state: " + std::to_string(qR(M1_INDEX))));
+      }
+      if(qR(M2_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(qR(M2_INDEX))));
+      }
+      if(qR(RHO_ALPHA1_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(qL(RHO_ALPHA1_INDEX))));
+      }
+    #endif
+
     // Compute the quantities needed for the maximum eigenvalue estimate for the left state
     const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
     const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
@@ -61,7 +86,15 @@ namespace samurai {
     const auto rho2_L      = qL(M2_INDEX)/alpha2_L;
     const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
-    const auto c_L         = std::sqrt(c_squared_L/rho_L);
+    #ifdef VERBOSE_FLUX
+      if(rho_L < 0.0) {
+        throw std::runtime_error(std::string("Negative density left state: " + std::to_string(rho_L)));
+      }
+      if(c_squared_L/rho_L < 0.0) {
+        throw std::runtime_error(std::string("Negative square speed of sound left state: " + std::to_string(c_squared_L/rho_L)));
+      }
+    #endif
+    const auto c_L = std::sqrt(c_squared_L/rho_L);
 
     // Compute the quantities needed for the maximum eigenvalue estimate for the right state
     const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
@@ -73,7 +106,15 @@ namespace samurai {
     const auto rho2_R      = qR(M2_INDEX)/alpha2_R;
     const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
-    const auto c_R         = std::sqrt(c_squared_R/rho_R);
+    #ifdef VERBOSE_FLUX
+      if(rho_R < 0.0) {
+        throw std::runtime_error(std::string("Negative density right state: " + std::to_string(rho_R)));
+      }
+      if(c_squared_R/rho_R < 0.0) {
+        throw std::runtime_error(std::string("Negative square speed of sound right state: " + std::to_string(c_squared_R/rho_R)));
+      }
+    #endif
+    const auto c_R = std::sqrt(c_squared_R/rho_R);
 
     // Compute the estimate of the eigenvalue considering also the surface tension contribution
     const auto lambda = std::max(std::abs(vel_d_L) + c_L,

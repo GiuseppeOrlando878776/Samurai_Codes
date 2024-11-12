@@ -336,8 +336,9 @@ namespace samurai {
         dalpha1 = std::max(dalpha1, -lambda*(alpha1));
       }
 
-      if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0 - 0.0) {
+      if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0) {
         std::cerr << "Bounds exceeding value for large-scale volume fraction inside Newton step " << std::endl;
+        exit(1);
       }
       else {
         alpha1 += dalpha1;
