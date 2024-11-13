@@ -102,8 +102,7 @@ namespace samurai {
                                       std::min(dalpha1_d, this->lambda*(1.0 - alpha1_d));
 
       if(alpha1_d + dalpha1_d < 0.0 || alpha1_d + dalpha1_d > 1.0) {
-        std::cerr << "Bounds exceeding value for small-scale volume fraction in the Newton method at fan" << std::endl;
-        exit(1);
+        throw std::runtime_error("Bounds exceeding value for small-scale volume fraction in the Newton method at fan");
       }
       else {
         alpha1_d += dalpha1_d;
@@ -111,8 +110,7 @@ namespace samurai {
 
       // Newton cycle diverged
       if(Newton_iter == this->max_Newton_iters) {
-        std::cout << "Netwon method not converged to compute small-scale volume fraction in the fan" << std::endl;
-        exit(1);
+        throw std::runtime_error("Netwon method not converged to compute small-scale volume fraction in the fan");
       }
 
       // Update function for which we seek the zero
@@ -279,8 +277,8 @@ namespace samurai {
                           alpha1_bar_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->phase2.pres_value(rho2_R) :
                          ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
 
-    const auto p0_L = p_bar_L - rho_L*c_L*c_L;
-    const auto p0_R = p_bar_R - rho_R*c_R*c_R;
+    const auto p0_L = p_bar_L - c_squared_L;
+    const auto p0_R = p_bar_R - c_squared_R;
 
     auto p_star = std::max(0.5*(p_bar_L + p_bar_R),
                            std::max(p0_L, p0_R) + 0.1*std::abs(std::max(p0_L, p0_R)));
@@ -295,7 +293,7 @@ namespace samurai {
       // 1-wave left shock
       if(p_star > p_bar_L) {
         const auto r = 1.0 + (1.0 - qL(ALPHA1_D_INDEX))/
-                             (qL(ALPHA1_D_INDEX) + (rho_L*c_L*c_L*(1.0 - qL(ALPHA1_D_INDEX)))/(p_star - p_bar_L));
+                             (qL(ALPHA1_D_INDEX) + (c_squared_L*(1.0 - qL(ALPHA1_D_INDEX)))/(p_star - p_bar_L));
 
         const auto m1_L_star       = qL(M1_INDEX)*r;
         const auto m2_L_star       = qL(M2_INDEX)*r;
@@ -400,7 +398,7 @@ namespace samurai {
       // 1-wave right shock
       if(p_star > p_bar_R) {
         const auto r = 1.0 + (1.0 - qR(ALPHA1_D_INDEX))/
-                             (qR(ALPHA1_D_INDEX) + (rho_R*c_R*c_R*(1.0 - qR(ALPHA1_D_INDEX)))/(p_star - p_bar_R));
+                             (qR(ALPHA1_D_INDEX) + (c_squared_R*(1.0 - qR(ALPHA1_D_INDEX)))/(p_star - p_bar_R));
 
         const auto m1_R_star       = qR(M1_INDEX)*r;
         const auto m2_R_star       = qR(M2_INDEX)*r;
@@ -510,6 +508,7 @@ namespace samurai {
       }
     }
 
+    // Compute the hyperbolic contribution to the flux
     return this->evaluate_hyperbolic_operator(q_star, curr_d);
   }
 

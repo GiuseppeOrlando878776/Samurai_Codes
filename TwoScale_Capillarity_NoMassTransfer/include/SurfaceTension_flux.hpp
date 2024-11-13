@@ -19,7 +19,6 @@ namespace samurai {
     SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                        const LinearizedBarotropicEOS<>& EOS_phase2,
                        const double sigma_,
-                       const double eps_,
                        const double mod_grad_alpha1_min_); // Constructor which accepts in inputs the equations of state of the two phases
 
     template<typename Gradient>
@@ -38,9 +37,8 @@ namespace samurai {
   SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                                                 const LinearizedBarotropicEOS<>& EOS_phase2,
                                                 const double sigma_,
-                                                const double eps_,
                                                 const double grad_alpha1_min_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_min_) {}
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, grad_alpha1_min_) {}
 
   // Implementation of the surface tension contribution
   //

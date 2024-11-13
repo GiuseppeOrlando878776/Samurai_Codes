@@ -67,8 +67,8 @@ private:
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
 
   using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::Field<decltype(mesh), double, 1, false>;
-  using Field_Vect   = samurai::Field<decltype(mesh), double, dim, false>;
+  using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
+  using Field_Vect   = samurai::Field<decltype(mesh), typename Field::value_type, dim, false>;
 
   bool apply_relax; // Choose whether to apply or not the relaxation
 
@@ -168,9 +168,9 @@ private:
 //
 template<std::size_t dim>
 TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
-                                const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                                const Simulation_Paramaters& sim_param,
-                                const EOS_Parameters& eos_param):
+                                              const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
+                                              const Simulation_Paramaters& sim_param,
+                                              const EOS_Parameters& eos_param):
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false, true}),
   apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf),
   cfl(sim_param.Courant), nfiles(sim_param.nfiles),
@@ -229,27 +229,27 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::init_variables() {
   // Create conserved and auxiliary fields
-  conserved_variables = samurai::make_field<double, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  alpha1_bar      = samurai::make_field<double, 1>("alpha1_bar", mesh);
-  grad_alpha1_bar = samurai::make_field<double, dim>("grad_alpha1_bar", mesh);
-  normal          = samurai::make_field<double, dim>("normal", mesh);
-  H_bar           = samurai::make_field<double, 1>("H_bar", mesh);
+  alpha1_bar      = samurai::make_field<typename Field::value_type, 1>("alpha1_bar", mesh);
+  grad_alpha1_bar = samurai::make_field<typename Field::value_type, dim>("grad_alpha1_bar", mesh);
+  normal          = samurai::make_field<typename Field::value_type, dim>("normal", mesh);
+  H_bar           = samurai::make_field<typename Field::value_type, 1>("H_bar", mesh);
 
-  dalpha1_bar     = samurai::make_field<double, 1>("dalpha1_bar", mesh);
+  dalpha1_bar     = samurai::make_field<typename Field::value_type, 1>("dalpha1_bar", mesh);
 
-  p1              = samurai::make_field<double, 1>("p1", mesh);
-  p2              = samurai::make_field<double, 1>("p2", mesh);
-  p_bar           = samurai::make_field<double, 1>("p_bar", mesh);
+  p1              = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
+  p2              = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
+  p_bar           = samurai::make_field<typename Field::value_type, 1>("p_bar", mesh);
 
-  alpha1_d        = samurai::make_field<double, 1>("alpha1_d", mesh);
-  grad_alpha1_d   = samurai::make_field<double, dim>("grad_alpha1_d", mesh);
-  vel             = samurai::make_field<double, dim>("vel", mesh);
-  div_vel         = samurai::make_field<double, 1>("div_vel", mesh);
-  Dt_alpha1_d     = samurai::make_field<double, 1>("Dt_alpha1_d", mesh);
-  CV_alpha1_d     = samurai::make_field<double, 1>("CV_alpha1_d", mesh);
-  alpha1          = samurai::make_field<double, 1>("alpha1", mesh);
-  grad_alpha1     = samurai::make_field<double, dim>("grad_alpha1", mesh);
+  alpha1_d        = samurai::make_field<typename Field::value_type, 1>("alpha1_d", mesh);
+  grad_alpha1_d   = samurai::make_field<typename Field::value_type, dim>("grad_alpha1_d", mesh);
+  vel             = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
+  div_vel         = samurai::make_field<typename Field::value_type, 1>("div_vel", mesh);
+  Dt_alpha1_d     = samurai::make_field<typename Field::value_type, 1>("Dt_alpha1_d", mesh);
+  CV_alpha1_d     = samurai::make_field<typename Field::value_type, 1>("CV_alpha1_d", mesh);
+  alpha1          = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
+  grad_alpha1     = samurai::make_field<typename Field::value_type, dim>("grad_alpha1", mesh);
 
   // Declare some constant parameters associated to the grid and to the
   // initial state
@@ -339,7 +339,8 @@ void TwoScaleCapillarity<dim>::init_variables() {
                            conserved_variables[cell][RHO_ALPHA1_BAR_INDEX] = rho*alpha1_bar[cell];
 
                            // Set momentum
-                           conserved_variables[cell][RHO_U_INDEX]     = conserved_variables[cell][M1_INDEX]*U_1 + conserved_variables[cell][M2_INDEX]*U_0;
+                           conserved_variables[cell][RHO_U_INDEX]     = conserved_variables[cell][M1_INDEX]*U_1
+                                                                      + conserved_variables[cell][M2_INDEX]*U_0;
                            conserved_variables[cell][RHO_U_INDEX + 1] = rho*V;
 
                            vel[cell][0] = conserved_variables[cell][RHO_U_INDEX]/rho;
@@ -349,6 +350,7 @@ void TwoScaleCapillarity<dim>::init_variables() {
   // Set useful small-scale related fields
   samurai::update_ghost_mr(alpha1_d);
   grad_alpha1_d = gradient(alpha1_d);
+
   samurai::update_ghost_mr(vel);
   div_vel       = divergence(vel);
 
@@ -452,9 +454,9 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                                                 conserved_variables[cell][M2_INDEX] +
                                                 conserved_variables[cell][M1_D_INDEX]);
                          });
-  std::string op;
 
   // Clear data
+  std::string op;
   if(flag == 0) {
     op = "after hyperbolic opeator (i.e. at the beginning of the relaxation)";
   }
@@ -540,15 +542,23 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
-                             #ifdef RUSANOV_FLUX
-                               Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                           relaxation_applied, mass_transfer_NR);
-                             #elifdef GODUNOV_FLUX
-                               Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                           relaxation_applied, mass_transfer_NR);
-                             #endif
+                             try {
+                               #ifdef RUSANOV_FLUX
+                                 Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                             H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
+                                                                             relaxation_applied, mass_transfer_NR);
+                               #elifdef GODUNOV_FLUX
+                                 Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                             H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
+                                                                             relaxation_applied, mass_transfer_NR);
+                               #endif
+                             }
+                             catch(std::exception& e) {
+                               std::cerr << e.what() << std::endl;
+                               save(fs::current_path(), "_diverged",
+                                    conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar);
+                               exit(1);
+                             }
 
                            });
 
@@ -692,10 +702,10 @@ void TwoScaleCapillarity<dim>::run() {
 
   // Auxiliary variables to save updated fields
   #ifdef ORDER_2
-    auto conserved_variables_tmp   = samurai::make_field<double, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_tmp_2 = samurai::make_field<double, EquationData::NVARS>("conserved_tmp_2", mesh);
+    auto conserved_variables_tmp   = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_tmp_2 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp_2", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_field<double, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
   // Create the flux variable
   #ifdef RUSANOV_FLUX
@@ -751,16 +761,23 @@ void TwoScaleCapillarity<dim>::run() {
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
-    auto flux_hyp = numerical_flux_hyp(conserved_variables);
-    #ifdef ORDER_2
-      conserved_variables_tmp.resize();
-      conserved_variables_tmp = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
-    #else
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-    #endif
+    try {
+      auto flux_hyp = numerical_flux_hyp(conserved_variables);
+      #ifdef ORDER_2
+        conserved_variables_tmp.resize();
+        conserved_variables_tmp = conserved_variables - dt*flux_hyp;
+        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+      #else
+        conserved_variables_np1.resize();
+        conserved_variables_np1 = conserved_variables - dt*flux_hyp;
+        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      #endif
+    }
+    catch(std::exception& e) {
+      std::cerr << e.what() << std::endl;
+      save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+      exit(1);
+    }
     // Update the geometry to recompute volume fraction gradient
     clear_data();
     update_geometry();
@@ -797,9 +814,16 @@ void TwoScaleCapillarity<dim>::run() {
       // Convective operator
       samurai::update_ghost_mr(conserved_variables);
       samurai::update_bc(conserved_variables);
-      flux_hyp = numerical_flux_hyp(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+      try {
+        auto flux_hyp = numerical_flux_hyp(conserved_variables);
+        conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
+        std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+      }
+      catch(std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+        exit(1);
+      }
       // Clear data to avoid small spurious negative values and recompute geometrical quantities
       clear_data();
       update_geometry();

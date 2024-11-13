@@ -11,7 +11,7 @@
 #include "barotropic_eos.hpp"
 
 // Preprocessor to define whether order 2 is desired
-#define ORDER_2
+//#define ORDER_2
 
 // Preprocessor to define whether relaxation is desired after reconstruction for order 2
 #ifdef ORDER_2
@@ -63,8 +63,8 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const LinearizedBarotropicEOS<>& EOS_phase1,
-         const LinearizedBarotropicEOS<>& EOS_phase2,
+    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
          const double sigma_,
          const double eps_,
          const double mod_grad_alpha1_bar_min_,
@@ -88,8 +88,8 @@ namespace samurai {
                                                                                                 // for MUSCL reconstruction)
 
   protected:
-    const LinearizedBarotropicEOS<>& phase1;
-    const LinearizedBarotropicEOS<>& phase2;
+    const LinearizedBarotropicEOS<typename Field::value_type>& phase1;
+    const LinearizedBarotropicEOS<typename Field::value_type>& phase2;
 
     const bool mass_transfer; // Set whether to perform or not mass transfer
     const double kappa; // Size of disperse phase particles
@@ -140,8 +140,8 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                    const LinearizedBarotropicEOS<>& EOS_phase2,
+  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+                    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                     const double sigma_,
                     const double eps_,
                     const double mod_grad_alpha1_bar_min_,
@@ -303,7 +303,7 @@ namespace samurai {
       primR_recon = primR;
 
       // Perform the reconstruction.
-      const double beta = 1.0; // MINMOD limiter
+      const double beta = 1.0; /*--- MINMOD limiter ---*/
       for(std::size_t comp = 0; comp < Field::size; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
@@ -414,8 +414,7 @@ namespace samurai {
         /*--- Bound preserving condition for m1 ---*/
         dtau_ov_epsilon = lambda*(alpha1*(1.0 - alpha1_bar))/(sigma*dH);
         if(dtau_ov_epsilon < 0.0) {
-          std::cerr << "Negative time step found after relaxation of mass of large-scale phase 1" << std::endl;
-          exit(1);
+          throw std::runtime_error("Negative time step found after relaxation of mass of large-scale phase 1");
         }
 
         /*--- Bound preserving for the velocity ---*/
@@ -427,7 +426,7 @@ namespace samurai {
           auto dtau_ov_epsilon_tmp = mom_dot_vel/(Hmax*dH*fac*sigma*sigma);
           dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
           if(dtau_ov_epsilon < 0.0) {
-            std::cerr << "Negative time step found after relaxation of velocity" << std::endl;
+            throw std::runtime_error("Negative time step found after relaxation of velocity");
             exit(1);
           }
         }
@@ -443,8 +442,7 @@ namespace samurai {
           dtau_ov_epsilon     = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
         }
         if(dtau_ov_epsilon < 0.0) {
-          std::cerr << "Negative time step found after relaxation of small-scale volume fraction" << std::endl;
-          exit(1);
+          throw std::runtime_error("Negative time step found after relaxation of small-scale volume fraction");
         }
       }
 
@@ -481,7 +479,7 @@ namespace samurai {
       }
       dtau_ov_epsilon = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
       if(dtau_ov_epsilon < 0.0) {
-        std::cerr << "Negative time step found after relaxation of large-scale volume fraction" << std::endl;
+        throw std::runtime_error("Negative time step found after relaxation of large-scale volume fraction");
         exit(1);
       }
 
@@ -501,24 +499,22 @@ namespace samurai {
         dalpha1_bar                = (num_dalpha1_bar/den_dalpha1_bar)*(F - dm1*R);
 
         if(dm1 > 0.0) {
-          std::cerr << "Negative sign of mass transfer inside Newton step" << std::endl;
-          exit(1);
+          throw std::runtime_error("Negative sign of mass transfer inside Newton step");
         }
         else {
           (*conserved_variables)(M1_INDEX) += dm1;
           if((*conserved_variables)(M1_INDEX) < 0.0) {
-            std::cerr << "Negative mass of large-scale phase 1 inside Newton step" << std::endl;
+            throw std::runtime_error("Negative mass of large-scale phase 1 inside Newton step");
           }
 
           (*conserved_variables)(M1_D_INDEX) -= dm1;
           if((*conserved_variables)(M1_D_INDEX) < 0.0) {
-            std::cerr << "Negative mass of small-scale phase 1 inside Newton step" << std::endl;
+            throw std::runtime_error("Negative mass of small-scale phase 1 inside Newton step");
           }
         }
 
         if((*conserved_variables)(ALPHA1_D_INDEX) - dm1/rho1d > 1.0) {
-          std::cerr << "Exceeding value for small-scale volume fraction inside Newton step " << std::endl;
-          exit(1);
+          throw std::runtime_error("Exceeding value for small-scale volume fraction inside Newton step");
         }
         else {
           (*conserved_variables)(ALPHA1_D_INDEX) -= dm1/rho1d;
@@ -528,7 +524,7 @@ namespace samurai {
       }
 
       if(alpha1_bar + dalpha1_bar < 0.0 || alpha1_bar + dalpha1_bar > 1.0) {
-        std::cerr << "Bounds exceeding value for large-scale volume fraction inside Newton step " << std::endl;
+        throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step");
       }
       else {
         alpha1_bar += dalpha1_bar;
@@ -581,12 +577,13 @@ namespace samurai {
           relaxation_applied = false;
           Newton_iter++;
 
-          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q), H_bar, dalpha1_bar, alpha1_bar, grad_alpha1_bar,
+          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
+                                               H_bar, dalpha1_bar, alpha1_bar, grad_alpha1_bar,
                                                relaxation_applied, mass_transfer_NR);
 
           // Newton cycle diverged
           if(Newton_iter > max_Newton_iters) {
-            std::cout << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
+            std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }
         }

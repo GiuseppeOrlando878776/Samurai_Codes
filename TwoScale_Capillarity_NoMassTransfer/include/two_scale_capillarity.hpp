@@ -29,7 +29,7 @@ namespace fs = std::filesystem;
 #endif
 #include "SurfaceTension_flux.hpp"
 
-// Define post-processing to check whether controll data or not
+// Define preprocessor to check whether to control data or not
 //#define VERBOSE
 
 // Specify the use of this namespace where we just store the indices
@@ -69,8 +69,8 @@ private:
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
 
   using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::Field<decltype(mesh), double, 1, false>;
-  using Field_Vect   = samurai::Field<decltype(mesh), double, dim, false>;
+  using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
+  using Field_Vect   = samurai::Field<decltype(mesh), typename Field::value_type, dim, false>;
 
   bool apply_relax; // Choose whether to apply or not the relaxation
 
@@ -150,11 +150,11 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps_residual, mod_grad_alpha1_min),
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min),
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps_residual, mod_grad_alpha1_min),
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min),
   #endif
-  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, eps_residual, mod_grad_alpha1_min),
+  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
     std::cout << "Initializing variables " << std::endl;
@@ -193,14 +193,14 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::init_variables() {
   // Create conserved and auxiliary fields
-  conserved_variables = samurai::make_field<double, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  alpha1      = samurai::make_field<double, 1>("alpha1", mesh);
-  grad_alpha1 = samurai::make_field<double, dim>("grad_alpha1", mesh);
-  normal      = samurai::make_field<double, dim>("normal", mesh);
-  H           = samurai::make_field<double, 1>("H", mesh);
+  alpha1      = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
+  grad_alpha1 = samurai::make_field<typename Field::value_type, dim>("grad_alpha1", mesh);
+  normal      = samurai::make_field<typename Field::value_type, dim>("normal", mesh);
+  H           = samurai::make_field<typename Field::value_type, 1>("H", mesh);
 
-  dalpha1     = samurai::make_field<double, 1>("dalpha1", mesh);
+  dalpha1     = samurai::make_field<typename Field::value_type, 1>("dalpha1", mesh);
 
   // Declare some constant parameters associated to the grid and to the
   // initial state
@@ -311,9 +311,8 @@ double TwoScaleCapillarity<dim>::get_max_lambda() const {
                            const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
 
                            // Compute frozen speed of sound
-                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1[cell];
-                           const auto alpha2    = 1.0 - alpha1[cell];
-                           const auto rho2      = conserved_variables[cell][M2_INDEX]/alpha2;
+                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto rho2      = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
                            const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                                                 + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
                            const auto c         = std::sqrt(c_squared/rho);
@@ -511,10 +510,10 @@ void TwoScaleCapillarity<dim>::run() {
 
   // Auxiliary variables to save updated fields
   #ifdef ORDER_2
-    auto conserved_variables_tmp   = samurai::make_field<double, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_tmp_2 = samurai::make_field<double, EquationData::NVARS>("conserved_tmp_2", mesh);
+    auto conserved_variables_tmp   = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_tmp_2 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp_2", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_field<double, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
   // Create the flux variable
   #ifdef RUSANOV_FLUX

@@ -21,7 +21,6 @@ namespace samurai {
     RusanovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                 const LinearizedBarotropicEOS<>& EOS_phase2,
                 const double sigma_,
-                const double eps_,
                 const double mod_grad_alpha1_min_); // Constructor which accepts in inputs the equations of state of the two phases
 
     #ifdef ORDER_2
@@ -43,9 +42,8 @@ namespace samurai {
   RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                                   const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double sigma_,
-                                  const double eps_,
                                   const double grad_alpha1_min_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, grad_alpha1_min_) {}
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, grad_alpha1_min_) {}
 
   // Implementation of a Rusanov flux
   //
@@ -80,10 +78,9 @@ namespace samurai {
     const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
     const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
 
-    const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;;
-    const auto rho1_L      = qL(M1_INDEX)/alpha1_L;
-    const auto alpha2_L    = 1.0 - alpha1_L;
-    const auto rho2_L      = qL(M2_INDEX)/alpha2_L;
+    const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
+    const auto rho1_L      = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L      = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     #ifdef VERBOSE_FLUX
@@ -101,9 +98,8 @@ namespace samurai {
     const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
 
     const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;;
-    const auto rho1_R      = qR(M1_INDEX)/alpha1_R;
-    const auto alpha2_R    = 1.0 - alpha1_R;
-    const auto rho2_R      = qR(M2_INDEX)/alpha2_R;
+    const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R      = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     #ifdef VERBOSE_FLUX

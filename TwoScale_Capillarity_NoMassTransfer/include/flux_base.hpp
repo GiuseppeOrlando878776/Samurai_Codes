@@ -59,10 +59,9 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const LinearizedBarotropicEOS<>& EOS_phase1,
-         const LinearizedBarotropicEOS<>& EOS_phase2,
+    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
          const double sigma_,
-         const double eps_,
          const double mod_grad_alpha1_min_); // Constructor which accepts in inputs the equations of state of the two phases
 
     template<typename State>
@@ -77,12 +76,11 @@ namespace samurai {
                                                                                               // for MUSCL reconstruction)
 
   protected:
-    const LinearizedBarotropicEOS<>& phase1;
-    const LinearizedBarotropicEOS<>& phase2;
+    const LinearizedBarotropicEOS<typename Field::value_type>& phase1;
+    const LinearizedBarotropicEOS<typename Field::value_type>& phase2;
 
     const double sigma; // Surface tension coefficient
 
-    const double eps;                 // Tolerance of residual phase
     const double mod_grad_alpha1_min; // Tolerance to compute the unit normal
 
     template<typename Gradient>
@@ -120,13 +118,12 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                    const LinearizedBarotropicEOS<>& EOS_phase2,
+  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+                    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                     const double sigma_,
-                    const double eps_,
                     const double mod_grad_alpha1_min_):
     phase1(EOS_phase1), phase2(EOS_phase2),
-    sigma(sigma_), eps(eps_), mod_grad_alpha1_min(mod_grad_alpha1_min_) {}
+    sigma(sigma_), mod_grad_alpha1_min(mod_grad_alpha1_min_) {}
 
   // Evaluate the 'continuous flux'
   //
@@ -172,11 +169,10 @@ namespace samurai {
 
     // Compute and add the contribution due to the pressure
     const auto alpha1 = q(RHO_ALPHA1_INDEX)/rho;
-    const auto rho1   = q(M1_INDEX)/alpha1;
+    const auto rho1   = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1     = phase1.pres_value(rho1);
 
-    const auto alpha2 = 1.0 - alpha1;
-    const auto rho2   = q(M2_INDEX)/alpha2;
+    const auto rho2   = q(M2_INDEX)/(1.0 - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p2     = phase2.pres_value(rho2);
 
     const auto p      = alpha1*p1 + (1.0 - alpha1)*p2;
@@ -264,7 +260,7 @@ namespace samurai {
       primR_recon = primR;
 
       // Perform the reconstruction. TODO: Modify to be coherent with multiresolution
-      const double beta = 1.0; // MINMOD limiter
+      const double beta = 1.0; /*--- MINMOD limiter ---*/
       for(std::size_t comp = 0; comp < Field::size; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
@@ -306,19 +302,17 @@ namespace samurai {
                                                    bool& relaxation_applied,
                                                    const double tol, const double lambda) {
     // Update auxiliary values affected by the nonlinear function for which we seek a zero
-    const auto rho1   = (*conserved_variables)(M1_INDEX)/alpha1;
-    const auto p1     = phase1.pres_value(rho1);
+    const auto rho1 = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto p1   = phase1.pres_value(rho1);
 
-    const auto alpha2 = 1.0 - alpha1;
-    const auto rho2   = (*conserved_variables)(M2_INDEX)/alpha2;
-    const auto p2     = phase2.pres_value(rho2);
+    const auto rho2 = (*conserved_variables)(M2_INDEX)/(1.0 - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto p2   = phase2.pres_value(rho2);
 
     // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
     const auto F = p1 - p2 - sigma*H;
 
     // Perform the relaxation only where really needed
-    if(!std::isnan(F) && std::abs(F) > tol*std::min(phase1.get_p0(), sigma*H) && std::abs(dalpha1) > tol &&
-       alpha1 > eps && 1.0 - alpha1 > eps) {
+    if(!std::isnan(F) && std::abs(F) > tol*std::min(phase1.get_p0(), sigma*H) && std::abs(dalpha1) > tol) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
@@ -373,11 +367,12 @@ namespace samurai {
           relaxation_applied = false;
           Newton_iter++;
 
-          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q), H, dalpha1, alpha1, relaxation_applied, tol, lambda);
+          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
+                                               H, dalpha1, alpha1, relaxation_applied, tol, lambda);
 
           // Newton cycle diverged
           if(Newton_iter > 60) {
-            std::cout << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
+            std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }
         }

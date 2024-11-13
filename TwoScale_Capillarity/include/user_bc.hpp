@@ -15,15 +15,19 @@ using namespace EquationData;
 //
 template<class Field>
 struct Default: public samurai::Bc<Field> {
+  //INIT_BC(Default, Flux<Field>::stencil_size)
   INIT_BC(Default, 2)
 
   inline stencil_t get_stencil(constant_stencil_size_t) const override {
+    //return samurai::line_stencil_from<Field::dim, 0, 4>(-1);
     return samurai::line_stencil_from<Field::dim, 0, 2>(0);
   }
 
   inline apply_function_t get_apply_function(constant_stencil_size_t, const direction_t&) const override {
     return [](Field& U, const stencil_cells_t& cells, const value_t& value) {
-      U[cells[1]] = value;
+      U[cells[1]] = value; //in case of stencil_size = 2
+      //U[cells[2]] = value;
+      //U[cells[3]] = value;
     };
   }
 };
@@ -40,7 +44,7 @@ auto Inlet(const Field& Q,
            const typename Field::value_type Sigma_d_D,
            const double eps) {
   return[&Q, ux_D, uy_D, alpha1_bar_D, alpha1_d_D, rho1_d_D, Sigma_d_D, eps]
-  (const auto& normal, const auto& cell_in, const auto& /*coord*/)
+  (const auto& /*normal*/, const auto& cell_in, const auto& /*coord*/)
   {
     // Compute phasic pressures form the internal state
     const auto alpha1_bar = Q[cell_in](RHO_ALPHA1_BAR_INDEX)/
@@ -52,7 +56,7 @@ auto Inlet(const Field& Q,
     const auto rho2       = (alpha2 > eps) ? Q[cell_in](M2_INDEX)/alpha2 : nan("");
 
     // Compute the corresponding ghost state
-    std::array<typename Field::value_type, Field::size> Q_ghost;
+    xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::size>> Q_ghost;
     const auto alpha1_D      = alpha1_bar_D*(1.0 - alpha1_d_D);
     const auto alpha2_D      = 1.0 - alpha1_D - alpha1_d_D;
     Q_ghost[M1_INDEX]        = (!std::isnan(rho1)) ? alpha1_D*rho1 : 0.0;
