@@ -25,15 +25,6 @@ namespace EquationData {
   static constexpr std::size_t ALPHA2_RHO2_E2_INDEX = ALPHA1_RHO1_E1_INDEX + 1;
 
   static constexpr std::size_t NVARS = ALPHA2_RHO2_E2_INDEX + 1;
-
-  /*--- Parameters related to the EOS for the two phases ---*/
-  static constexpr double gamma_1    = 2.35;
-  static constexpr double pi_infty_1 = 1e9;
-  static constexpr double q_infty_1  = -1167e3;
-
-  static constexpr double gamma_2    = 1.43;
-  static constexpr double pi_infty_2 = 0.0;
-  static constexpr double q_infty_2  = 2030e3;
 }
 
 namespace samurai {
@@ -58,11 +49,12 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+    Flux(const EOS<typename Field::value_type>& EOS_phase1,
+         const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
 
   protected:
-    const EOS<>& phase1; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
-    const EOS<>& phase2; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
+    const EOS<typename Field::value_type>& phase1; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
+    const EOS<typename Field::value_type>& phase2; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
 
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d); // Evaluate the 'continuous' flux for the state q
                                                                                                 // along direction curr_d
@@ -84,7 +76,8 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2):
+  Flux<Field>::Flux(const EOS<typename Field::value_type>& EOS_phase1,
+                    const EOS<typename Field::value_type>& EOS_phase2):
     phase1(EOS_phase1), phase2(EOS_phase2) {}
 
   // Evaluate the 'continuous flux' along direction 'curr_d'
@@ -122,8 +115,7 @@ namespace samurai {
     res(ALPHA1_RHO1_E1_INDEX) += alpha1*p1*vel_d;
 
     // Compute density and pressure of phase 2
-    const auto alpha2 = 1.0 - alpha1;
-    const auto rho2   = q(ALPHA2_RHO2_INDEX)/alpha2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2   = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2           = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < EquationData::dim; ++d) {
       e2 -= 0.5*(q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
@@ -133,10 +125,10 @@ namespace samurai {
     // Compute the flux for the equations "associated" to phase 2
     res(ALPHA2_RHO2_INDEX) *= vel_d;
     res(ALPHA2_RHO2_E2_INDEX) *= vel_d;
-    res(ALPHA2_RHO2_E2_INDEX) += alpha2*p2*vel_d;
+    res(ALPHA2_RHO2_E2_INDEX) += (1.0 - alpha1)*p2*vel_d;
 
     // Add the mixture pressure contribution to the momentum equation
-    res(RHO_U_INDEX + curr_d) += (alpha1*p1 + alpha2*p2);
+    res(RHO_U_INDEX + curr_d) += (alpha1*p1 + (1.0 - alpha1)*p2);
 
     return res;
   }
@@ -180,7 +172,7 @@ namespace samurai {
       primR_recon = primR;
 
       // Perform the reconstruction
-      const double beta = 1.0; // MINMOD limiter
+      const double beta = 1.0; /*--- MINMOD limiter ---*/
       for(std::size_t comp = 0; comp < Field::size; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),

@@ -18,7 +18,8 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    RusanovFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+    RusanovFlux(const EOS<typename Field::value_type>& EOS_phase1,
+                const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
 
     auto make_flux(); // Compute the flux over all cells
 
@@ -31,7 +32,8 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  RusanovFlux<Field>::RusanovFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2):
+  RusanovFlux<Field>::RusanovFlux(const EOS<typename Field::value_type>& EOS_phase1,
+                                  const EOS<typename Field::value_type>& EOS_phase2):
     Flux<Field>(EOS_phase1, EOS_phase2) {}
 
   // Implementation of a Rusanov flux

@@ -18,7 +18,8 @@ namespace samurai {
   template<class Field>
   class HLLCFlux_Conservative: public Flux<Field> {
   public:
-    HLLCFlux_Conservative(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+    HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1,
+                          const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
 
     auto make_flux(); // Compute the flux over all cells
 
@@ -36,7 +37,8 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  HLLCFlux_Conservative<Field>::HLLCFlux_Conservative(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2):
+  HLLCFlux_Conservative<Field>::HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1,
+                                                      const EOS<typename Field::value_type>& EOS_phase2):
     Flux<Field>(EOS_phase1, EOS_phase2) {}
 
   // Implement the auxliary routine that computes the middle state
@@ -75,10 +77,8 @@ namespace samurai {
     q_star(ALPHA2_RHO2_INDEX) = q(ALPHA2_RHO2_INDEX)*((S - vel_d)/(S - S_star));
     q_star(RHO_U_INDEX + curr_d) = rho*((S - vel_d)/(S - S_star))*S_star;
     if(EquationData::dim > 1) {
-      for(std::size_t d = 0; d < dim; ++d) {
-        if(d != curr_d) {
-          q_star(RHO_U_INDEX + d) = rho*((S - vel_d)/(S - S_star))*(q(RHO_U_INDEX + d)/rho);
-        }
+      for(std::size_t d = 0; d < dim && d != curr_d; ++d) {
+        q_star(RHO_U_INDEX + d) = rho*((S - vel_d)/(S - S_star))*(q(RHO_U_INDEX + d)/rho);
       }
     }
     q_star(ALPHA1_RHO1_E1_INDEX) = q(ALPHA1_RHO1_INDEX)*((S - vel_d)/(S - S_star))*
