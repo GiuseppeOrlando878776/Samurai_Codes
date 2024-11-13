@@ -16,9 +16,8 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    RusanovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                const LinearizedBarotropicEOS<>& EOS_phase2,
-                const double eps_); // Constructor which accepts in inputs the equations of state of the two phases
+    RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
 
     auto make_flux(); // Compute the flux along all the directions
 
@@ -32,8 +31,8 @@ namespace samurai {
   //
   template<class Field>
   RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                                  const LinearizedBarotropicEOS<>& EOS_phase2,
-                                  const double eps_): Flux<Field>(EOS_phase1, EOS_phase2, eps_) {}
+                                  const LinearizedBarotropicEOS<>& EOS_phase2):
+    Flux<Field>(EOS_phase1, EOS_phase2) {}
 
   // Implementation of a Rusanov flux
   //
@@ -46,9 +45,8 @@ namespace samurai {
     const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
 
     const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
-    const auto rho1_L      = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
-    const auto alpha2_L    = 1.0 - alpha1_L;
-    const auto rho2_L      = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
+    const auto rho1_L      = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L      = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     const auto c_L         = std::sqrt(c_squared_L/rho_L);
@@ -58,9 +56,8 @@ namespace samurai {
     const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
 
     const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
-    const auto rho1_R      = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
-    const auto alpha2_R    = 1.0 - alpha1_R;
-    const auto rho2_R      = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
+    const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R      = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     const auto c_R         = std::sqrt(c_squared_R/rho_R);

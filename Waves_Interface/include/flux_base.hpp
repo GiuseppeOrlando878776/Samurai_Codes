@@ -59,9 +59,8 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const LinearizedBarotropicEOS<>& EOS_phase1,
-         const LinearizedBarotropicEOS<>& EOS_phase2,
-         const double eps_); // Constructor which accepts in inputs the equations of state of the two phases
+    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
 
     template<typename State>
     void perform_Newton_step_relaxation(std::unique_ptr<State> conserved_variables,
@@ -73,10 +72,8 @@ namespace samurai {
                                                                                               // for MUSCL reconstruction)
 
   protected:
-    const LinearizedBarotropicEOS<>& phase1;
-    const LinearizedBarotropicEOS<>& phase2;
-
-    const double eps; // Tolerance of pure phase to set NaNs
+    const LinearizedBarotropicEOS<typename Field::value_type>& phase1;
+    const LinearizedBarotropicEOS<typename Field::value_type>& phase2;
 
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
                                             const std::size_t curr_d); // Evaluate the 'continuous' flux for the state q along direction curr_d
@@ -102,9 +99,9 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                    const LinearizedBarotropicEOS<>& EOS_phase2,
-                    const double eps_): phase1(EOS_phase1), phase2(EOS_phase2), eps(eps_) {}
+  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+                    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2):
+    phase1(EOS_phase1), phase2(EOS_phase2) {}
 
   // Evaluate the 'continuous flux'
   //
@@ -131,16 +128,12 @@ namespace samurai {
 
     // Compute and add the contribution due to the pressure
     const auto alpha1 = q(RHO_ALPHA1_INDEX)/rho;
-    const auto rho1   = (alpha1 > eps) ? q(M1_INDEX)/alpha1 : nan("");
+    const auto rho1   = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1     = phase1.pres_value(rho1);
 
-    const auto alpha2 = 1.0 - alpha1;
-    const auto rho2   = (alpha2 > eps) ? q(M2_INDEX)/alpha2 : nan("");
-    const auto p2     = phase2.pres_value(rho2);
+    const auto p2     = phase2.pres_value(q(M2_INDEX)/(1.0 - alpha1)); /*--- TODO: Add a check in case of zero volume fraction ---*/
 
-    const auto p      = (alpha1 > eps && alpha2 > eps) ?
-                        alpha1*p1 + alpha2*p2 :
-                        ((alpha1 < eps) ? p2 : p1);
+    const auto p      = alpha1*p1 + (1.0 - alpha1)*p2;
 
     res(RHO_U_INDEX + curr_d) += p;
 
@@ -188,7 +181,7 @@ namespace samurai {
       primR_recon = primR;
 
       // Perform the reconstruction.
-      const double beta = 1.0; // MINMOD limiter
+      const double beta = 1.0; /*--- MINMOD limiter ---*/
       for(std::size_t comp = 0; comp < Field::size; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
@@ -227,39 +220,30 @@ namespace samurai {
                                                    typename Field::value_type& dalpha1, typename Field::value_type& alpha1,
                                                    typename Field::value_type& rho, bool& relaxation_applied,
                                                    const double tol, const double lambda) {
-    // Reinitialization of partial masses in case of evanascent volume fraction
-    if(alpha1 < eps) {
-      (*conserved_variables)(M1_INDEX) = alpha1*phase1.get_rho0();
-    }
-    if(1.0 - alpha1 < eps) {
-      (*conserved_variables)(M2_INDEX) = (1.0 - alpha1)*phase2.get_rho0();
-    }
-
     // Update auxiliary values affected by the nonlinear function for which we seek a zero
-    const auto rho1   = (alpha1 > eps) ? (*conserved_variables)(M1_INDEX)/alpha1 : nan("");
-    const auto p1     = phase1.pres_value(rho1);
+    const auto rho1 = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto p1   = phase1.pres_value(rho1);
 
-    const auto alpha2 = 1.0 - alpha1;
-    const auto rho2   = (alpha2 > eps) ? (*conserved_variables)(M2_INDEX)/alpha2 : nan("");
-    const auto p2     = phase2.pres_value(rho2);
+    const auto rho2 = (*conserved_variables)(M2_INDEX)/(1.0 - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto p2   = phase2.pres_value(rho2);
 
     // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
     const auto F = p1 - p2;
 
     // Perform the relaxation only where really needed
-    if(!std::isnan(F) && std::abs(F) > tol*phase1.get_p0() && std::abs(dalpha1) > tol && alpha1 > eps && alpha2 > eps) {
+    if(!std::isnan(F) && std::abs(F) > tol*phase1.get_p0() && std::abs(dalpha1) > tol) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t volume fraction recalling that for a barotropic EOS dp/drho = c^2
       const auto dF_dalpha1 = -(*conserved_variables)(M1_INDEX)/(alpha1*alpha1)*
                                phase1.c_value(rho1)*phase1.c_value(rho1)
-                              -(*conserved_variables)(M2_INDEX)/(alpha2*alpha2)*
+                              -(*conserved_variables)(M2_INDEX)/((1.0 - alpha1)*(1.0 - alpha1))*
                                phase2.c_value(rho2)*phase2.c_value(rho2);
 
       // Compute the volume fraction update with a bound-preserving strategy
       dalpha1 = -F/dF_dalpha1;
       if(dalpha1 > 0.0) {
-        dalpha1 = std::min(dalpha1, lambda*alpha2);
+        dalpha1 = std::min(dalpha1, lambda*(1.0 - alpha1));
       }
       else if(dalpha1 < 0.0) {
         dalpha1 = std::max(dalpha1, -lambda*alpha1);
@@ -268,6 +252,7 @@ namespace samurai {
       if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0) {
         // We should never arrive here thakns to the bound-preserving strategy. Added only for the sake fo safety
         std::cerr << "Bounds exceeding value for the volume fraction inside Newton step " << std::endl;
+        exit(1);
       }
       else {
         alpha1 += dalpha1;
@@ -275,8 +260,6 @@ namespace samurai {
     }
 
     // Update the vector of conserved variables
-    rho = (*conserved_variables)(M1_INDEX)
-        + (*conserved_variables)(M2_INDEX);
     (*conserved_variables)(RHO_ALPHA1_INDEX) = rho*alpha1;
   }
 
@@ -287,8 +270,8 @@ namespace samurai {
       template<class Field>
       void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q) {
         // Declare and set relevant parameters
-        const double tol    = 1e-12; // Tolerance of the Newton method
-        const double lambda = 0.9;   // Parameter for bound preserving strategy
+        const double tol    = 1e-12; /*--- Tolerance of the Newton method ---*/
+        const double lambda = 0.9;   /*--- Parameter for bound preserving strategy ---*/
         std::size_t Newton_iter = 0;
         bool relaxation_applied = true;
 
