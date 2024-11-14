@@ -29,6 +29,9 @@ namespace fs = std::filesystem;
 
 #include "containers.hpp"
 
+// Define preprocessor to check whether to control data or not
+#define VERBOSE
+
 #define assertm(exp, msg) assert(((void)msg, exp))
 
 // Specify the use of this namespace where we just store the indices
@@ -110,6 +113,8 @@ private:
   void update_auxiliary_fields(); // Routine to update auxiliary fields for output and time step update
 
   double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
+
+  void check_data(unsigned int flag = 0); // Auxiliary routine to check if small negative values are present
 };
 
 // Implement class constructor
@@ -198,10 +203,55 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 //
 template<std::size_t dim>
 void Euler_MR<dim>::perform_mesh_adaptation() {
+  save(fs::current_path(), "_before_mesh_adaptation",
+       conserved_variables, vel, p, c);
+
   samurai::update_ghost_mr(c);
   auto MRadaptation = samurai::make_MRAdapt(c);
   MRadaptation(MR_param, MR_regularity, conserved_variables);
+
+  #ifdef VERBOSE
+    check_data(1);
+  #endif
 }
+
+// Auxiliary routine to check if negative values arise
+//
+#ifdef VERBOSE
+template<std::size_t dim>
+void Euler_MR<dim>::check_data(unsigned int flag) {
+  // Recompute data so as to save the whole state in case of diverging solution
+  update_auxiliary_fields();
+
+  // Check data
+  std::string op;
+  if(flag == 0) {
+    op = "after hyperbolic operator";
+  }
+  else {
+    op = "after mesh adaptation";
+  }
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                           // Sanity check for the density
+                           if(conserved_variables[cell][RHO_INDEX] < 0.0) {
+                             std::cerr << "Negative density " + op << std::endl;
+                             save(fs::current_path(), "_diverged",
+                                  conserved_variables, vel, p, c);
+                             exit(1);
+                           }
+
+                           // Sanity check for the pressure
+                           if(p[cell] < 0.0) {
+                             std::cerr << "Negative pressure " + op << std::endl;
+                             save(fs::current_path(), "_diverged",
+                                  conserved_variables, vel, p, c);
+                             exit(1);
+                           }
+                         });
+}
+#endif
 
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
@@ -231,9 +281,7 @@ void Euler_MR<dim>::update_auxiliary_fields() {
                          {
                            vel[cell] = conserved_variables[cell][RHOU_INDEX]/conserved_variables[cell][RHO_INDEX];
                            auto e = conserved_variables[cell][RHOE_INDEX]/conserved_variables[cell][RHO_INDEX];
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
-                             e -= 0.5*vel[cell]*vel[cell];
-                           }
+                           e -= 0.5*vel[cell]*vel[cell];
                            p[cell] = Euler_EOS.pres_value(conserved_variables[cell][RHO_INDEX], e);
                            c[cell] = Euler_EOS.c_value(conserved_variables[cell][RHO_INDEX], p[cell]);
                          });
@@ -318,15 +366,26 @@ void Euler_MR<dim>::run() {
     // Apply the numerical scheme
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
-    auto Cons_Flux = Discrete_flux(conserved_variables);
-    #ifdef ORDER_2
-      conserved_variables_tmp.resize();
-      conserved_variables_tmp = conserved_variables - dt*Cons_Flux;
-      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
-    #else
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = conserved_variables - dt*Cons_Flux;
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
+    try {
+      auto Cons_Flux = Discrete_flux(conserved_variables);
+      #ifdef ORDER_2
+        conserved_variables_tmp.resize();
+        conserved_variables_tmp = conserved_variables - dt*Cons_Flux;
+        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+      #else
+        conserved_variables_np1.resize();
+        conserved_variables_np1 = conserved_variables - dt*Cons_Flux;
+        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      #endif
+    }
+    catch(std::exception& e) {
+      std::cerr << e.what() << std::endl;
+      save(fs::current_path(), "_diverged",
+           conserved_variables, vel, p, c);
+      exit(1);
+    }
+    #ifdef VERBOSE
+      check_data();
     #endif
 
     // Consider the second stage for the second order
@@ -334,14 +393,27 @@ void Euler_MR<dim>::run() {
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
       samurai::update_bc(conserved_variables);
-      Cons_Flux = Discrete_flux(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux;
-      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      try {
+        auto Cons_Flux = Discrete_flux(conserved_variables);
+        conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux;
+        conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
+        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      }
+      catch(std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        save(fs::current_path(), "_diverged",
+             conserved_variables, vel, p, c);
+        exit(1);
+      }
+      #ifdef VERBOSE
+        check_data();
+      #endif
     #endif
 
     // Compute updated time step
-    update_auxiliary_fields();
+    #if !defined VERBOSE
+      update_auxiliary_fields();
+    #endif
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
     // Save the results

@@ -7,6 +7,8 @@
 
 #include "flux_base.hpp"
 
+#define VERBOSE_FLUX
+
 namespace samurai {
   using namespace EquationData;
 
@@ -47,6 +49,15 @@ namespace samurai {
     const auto pL = this->Euler_EOS.pres_value(qL(RHO_INDEX), eL);
     const auto cL = this->Euler_EOS.c_value(qL(RHO_INDEX), pL);
 
+    #ifdef VERBOSE_FLUX
+      if(qL(RHO_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative density left state: " + std::to_string(qL(RHO_INDEX))));
+      }
+      if(pL < 0.0) {
+        throw std::runtime_error(std::string("Negative pressure left state: " + std::to_string(pL)));
+      }
+    #endif
+
     // Right state
     const auto velR_d = qR(RHOU_INDEX + curr_d)/qR(RHO_INDEX);
     auto eR = qR(RHOE_INDEX)/qR(RHO_INDEX);
@@ -55,6 +66,15 @@ namespace samurai {
     }
     const auto pR = this->Euler_EOS.pres_value(qR(RHO_INDEX), eR);
     const auto cR = this->Euler_EOS.c_value(qR(RHO_INDEX), pR);
+
+    #ifdef VERBOSE_FLUX
+      if(qR(RHO_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative density right state: " + std::to_string(qR(RHO_INDEX))));
+      }
+      if(pR < 0.0) {
+        throw std::runtime_error(std::string("Negative pressure right state: " + std::to_string(pR)));
+      }
+    #endif
 
     // Compute Rusanov flux
     const auto lambda = std::max(std::abs(velL_d) + cL, std::abs(velR_d) + cR);

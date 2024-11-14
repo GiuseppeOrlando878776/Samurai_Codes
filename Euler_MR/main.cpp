@@ -17,12 +17,12 @@ int main(int argc, char* argv[]) {
   sim_param.xL = 0.0;
   sim_param.xR = 1.0;
 
-  sim_param.min_level = 10;
+  sim_param.min_level = 7;
   sim_param.max_level = 10;
-  sim_param.MR_param = 1e-5;
+  sim_param.MR_param = 1e-2;
   sim_param.MR_regularity = 0;
 
-  sim_param.Tf = 0.2;
+  sim_param.Tf = 0.15;
   sim_param.Courant = 0.45;
   sim_param.nfiles = 10;
 
@@ -56,12 +56,12 @@ int main(int argc, char* argv[]) {
   Riemann_param.xd = 0.5;
 
   Riemann_param.rhoL = 1.0;
-  Riemann_param.pL   = 1.0;
-  Riemann_param.uL   = 0.0;
+  Riemann_param.pL   = 0.4;
+  Riemann_param.uL   = -2.0;
 
-  Riemann_param.rhoR = 0.125;
-  Riemann_param.pR   = 0.1;
-  Riemann_param.uR   = 0.0;
+  Riemann_param.rhoR = 1.0;
+  Riemann_param.pR   = 0.4;
+  Riemann_param.uR   = 2.0;
 
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
   app.add_option("--rhoL", Riemann_param.rhoL, "Initial density at left")->capture_default_str()->group("Initial conditions");
