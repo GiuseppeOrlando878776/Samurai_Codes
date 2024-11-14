@@ -12,6 +12,9 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
+// Add header file for the multiresolution
+#include <samurai/mr/adapt.hpp>
+
 #define HLL_FLUX
 //#define HLLC_FLUX
 //#define RUSANOV_FLUX
@@ -89,6 +92,9 @@ private:
 
   std::string filename; // Auxiliary variable to store the name of output
 
+  const double MR_param; // Multiresolution parameter
+  const double MR_regularity; // Multiresolution regularity
+
   /*--- Now we declare a bunch of fields which depend from the state,
         but it is useful to have it for the output ---*/
   Field_Scalar p,
@@ -98,6 +104,8 @@ private:
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void init_variables(const Riemann_Parameters& Riemann_param); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+
+  void perform_mesh_adaptation(); // Perform the mesh adaptation
 
   void update_auxiliary_fields(); // Routine to update auxiliary fields for output and time step update
 
@@ -115,7 +123,8 @@ Euler_MR<dim>::Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   Euler_EOS(eos_param.gamma, eos_param.pi_infty, eos_param.q_infty),
-  numerical_flux(Euler_EOS)
+  numerical_flux(Euler_EOS),
+  MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
     std::cout << "Initializing variables" << std::endl;
     std::cout << std::endl;
@@ -185,6 +194,15 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                           rhoR, rhoR*velR, rhoR*(Euler_EOS.e_value(rhoR, pR) + 0.5*velR*velR))->on(right);
 }
 
+// Perform the mesh adaptation strategy.
+//
+template<std::size_t dim>
+void Euler_MR<dim>::perform_mesh_adaptation() {
+  samurai::update_ghost_mr(c);
+  auto MRadaptation = samurai::make_MRAdapt(c);
+  MRadaptation(MR_param, MR_regularity, conserved_variables);
+}
+
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
@@ -204,6 +222,10 @@ double Euler_MR<dim>::get_max_lambda() const {
 //
 template<std::size_t dim>
 void Euler_MR<dim>::update_auxiliary_fields() {
+  vel.resize();
+  p.resize();
+  c.resize();
+
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -290,14 +312,19 @@ void Euler_MR<dim>::run() {
 
     std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
 
+    // Apply mesh adaptation
+    perform_mesh_adaptation();
+
     // Apply the numerical scheme
     samurai::update_ghost_mr(conserved_variables);
     samurai::update_bc(conserved_variables);
     auto Cons_Flux = Discrete_flux(conserved_variables);
     #ifdef ORDER_2
+      conserved_variables_tmp.resize();
       conserved_variables_tmp = conserved_variables - dt*Cons_Flux;
       std::swap(conserved_variables.array(), conserved_variables_tmp.array());
     #else
+      conserved_variables_np1.resize();
       conserved_variables_np1 = conserved_variables - dt*Cons_Flux;
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
