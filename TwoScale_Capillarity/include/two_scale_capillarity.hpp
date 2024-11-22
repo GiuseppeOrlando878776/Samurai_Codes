@@ -362,7 +362,7 @@ void TwoScaleCapillarity<dim>::init_variables() {
   const samurai::DirectionVector<dim> left  = {-1, 0};
   const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<Default>(conserved_variables,
-                            Inlet(conserved_variables, U_0, 0.0, 1.0, 0.0, EOS_phase1.get_rho0(), 0.0, eps))->on(left);
+                            Inlet(conserved_variables, U_0, 0.0, 1.0, 0.0, EOS_phase1.get_rho0(), 0.0, 1e-10))->on(left);
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
 }
 
@@ -782,7 +782,9 @@ void TwoScaleCapillarity<dim>::run() {
     clear_data();
     update_geometry();
     // Capillarity contribution
+    std::cout << "I'm here before updating ghost mr for surface tension contribution" << std::endl;
     samurai::update_ghost_mr(conserved_variables);
+    std::cout << "I'm here after updating ghost mr for surface tension contribution" << std::endl;
     samurai::update_bc(conserved_variables);
     auto flux_st = numerical_flux_st(conserved_variables);
     #ifdef ORDER_2
