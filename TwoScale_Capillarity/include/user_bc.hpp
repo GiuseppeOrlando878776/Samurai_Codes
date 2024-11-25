@@ -15,19 +15,18 @@ using namespace EquationData;
 //
 template<class Field>
 struct Default: public samurai::Bc<Field> {
-  //INIT_BC(Default, Flux<Field>::stencil_size)
-  INIT_BC(Default, 2)
+  INIT_BC(Default, samurai::Flux<Field>::stencil_size)
 
   inline stencil_t get_stencil(constant_stencil_size_t) const override {
-    //return samurai::line_stencil_from<Field::dim, 0, 4>(-1);
-    return samurai::line_stencil_from<Field::dim, 0, 2>(0);
+    return samurai::line_stencil_from<Field::dim, 0, samurai::Flux<Field>::stencil_size>(-1);
+    //return samurai::line_stencil_from<Field::dim, 0, samurai::Flux<Field>::stencil_size>(0);
   }
 
   inline apply_function_t get_apply_function(constant_stencil_size_t, const direction_t&) const override {
     return [](Field& U, const stencil_cells_t& cells, const value_t& value) {
-      U[cells[1]] = value; //in case of stencil_size = 2
-      //U[cells[2]] = value;
-      //U[cells[3]] = value;
+      //U[cells[1]] = value; //in case of stencil_size = 2
+      U[cells[2]] = value; //in case of stencil_size = 4
+      U[cells[3]] = value; //in case of stencil_size = 4
     };
   }
 };
@@ -57,15 +56,16 @@ auto Inlet(const Field& Q,
 
     // Compute the corresponding ghost state
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::size>> Q_ghost;
-    const auto alpha1_D      = alpha1_bar_D*(1.0 - alpha1_d_D);
-    const auto alpha2_D      = 1.0 - alpha1_D - alpha1_d_D;
-    Q_ghost[M1_INDEX]        = (!std::isnan(rho1)) ? alpha1_D*rho1 : 0.0;
-    Q_ghost[M2_INDEX]        = (!std::isnan(rho2)) ? alpha2_D*rho2 : 0.0;
-    Q_ghost[M1_D_INDEX]      = alpha1_d_D*rho1_d_D;
-    Q_ghost[ALPHA1_D_INDEX]  = alpha1_d_D;
-    Q_ghost[SIGMA_D_INDEX]   = Sigma_d_D;
-    Q_ghost[RHO_U_INDEX]     = (Q_ghost[M1_INDEX] + Q_ghost[M2_INDEX] + Q_ghost[M1_D_INDEX])*ux_D;
-    Q_ghost[RHO_U_INDEX + 1] = (Q_ghost[M1_INDEX] + Q_ghost[M2_INDEX] + Q_ghost[M1_D_INDEX])*uy_D;
+    const auto alpha1_D           = alpha1_bar_D*(1.0 - alpha1_d_D);
+    const auto alpha2_D           = 1.0 - alpha1_D - alpha1_d_D;
+    Q_ghost[M1_INDEX]             = (!std::isnan(rho1)) ? alpha1_D*rho1 : 0.0;
+    Q_ghost[M2_INDEX]             = (!std::isnan(rho2)) ? alpha2_D*rho2 : 0.0;
+    Q_ghost[M1_D_INDEX]           = alpha1_d_D*rho1_d_D;
+    Q_ghost[ALPHA1_D_INDEX]       = alpha1_d_D;
+    Q_ghost[SIGMA_D_INDEX]        = Sigma_d_D;
+    Q_ghost[RHO_ALPHA1_BAR_INDEX] = (Q_ghost[M1_INDEX] + Q_ghost[M2_INDEX] + Q_ghost[M1_D_INDEX])*alpha1_bar_D;
+    Q_ghost[RHO_U_INDEX]          = (Q_ghost[M1_INDEX] + Q_ghost[M2_INDEX] + Q_ghost[M1_D_INDEX])*ux_D;
+    Q_ghost[RHO_U_INDEX + 1]      = (Q_ghost[M1_INDEX] + Q_ghost[M2_INDEX] + Q_ghost[M1_D_INDEX])*uy_D;
 
     return Q_ghost;
   };

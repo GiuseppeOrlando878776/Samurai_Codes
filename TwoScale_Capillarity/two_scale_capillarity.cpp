@@ -19,8 +19,8 @@ int main(int argc, char* argv[]) {
   sim_param.yL = 0.0;
   sim_param.yR = 2.0;
 
-  sim_param.min_level = 7;
-  sim_param.max_level = 7;
+  sim_param.min_level = 8;
+  sim_param.max_level = 8;
   sim_param.MR_param = 1e-5;
   sim_param.MR_regularity = 0;
 
