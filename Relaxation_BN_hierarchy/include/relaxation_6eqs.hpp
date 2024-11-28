@@ -12,8 +12,8 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
-#define HLLC_FLUX
-//#define HLLC_NON_CONS_FLUX
+//#define HLLC_FLUX
+#define HLLC_NON_CONS_FLUX
 //#define RUSANOV_FLUX
 
 #define RELAX_POLYNOM
@@ -723,7 +723,9 @@ void Relaxation<dim>::run() {
 
   /*--- Save mesh size ---*/
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
-  const double dx = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
+  const double dx = mesh.cell_length(mesh.max_level());
+  std::cout << "Number of elements = " << mesh[mesh_id_t::cells].nb_cells() << std::endl;
+  std::cout << std::endl;
 
   /*--- Start the loop ---*/
   std::size_t nsave = 0;

@@ -21,9 +21,12 @@ def scatter_update(scatter, points):
 
 def line_plot(ax, x_Rusanov_BR, y_Rusanov_BR, x_Rusanov_centered, y_Rusanov_centered, x_HLLC, y_HLLC):
     #Plot results
-    plot_Rusanov_BR       = ax.plot(x_Rusanov_BR, y_Rusanov_BR, 'ro', linewidth=1, markersize=4, alpha=1, markevery=1)[0]
-    #plot_Rusanov_centered = ax.plot(x_Rusanov_centered, y_Rusanov_centered, 'gx', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
+    plot_Rusanov_BR       = ax.plot(x_Rusanov_BR, y_Rusanov_BR, 'ro', linewidth=1, markersize=4, alpha=1, markevery=768)[0]
+    plot_Rusanov_centered = ax.plot(x_Rusanov_centered, y_Rusanov_centered, 'gx', linewidth=1, markersize=4, alpha=1, markevery=512)[0]
     plot_HLLC             = ax.plot(x_HLLC, y_HLLC, 'b-', linewidth=1, markersize=4, alpha=1)[0]
+
+    ax.tick_params(axis='x', labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
 
     #Read and plot the analytical results
     if args.analytical is not None:
@@ -54,13 +57,10 @@ def line_plot(ax, x_Rusanov_BR, y_Rusanov_BR, x_Rusanov_centered, y_Rusanov_cent
                   ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)', \
                    'Reference results'], fontsize="20", loc="best")
     else:
-        #ax.legend([plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC], ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)'], \
-        #          fontsize="20", loc="best")
-        ax.legend([plot_Rusanov_BR, plot_HLLC], ['Rusanov + BR', 'HLLC (wave-propagation)'], \
+        ax.legend([plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC], ['Rusanov + BR', 'Rusanov + Crouzet et al.', 'HLLC (wave-propagation)'], \
                   fontsize="20", loc="best")
 
-    #return plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC
-    return plot_Rusanov_BR, plot_HLLC
+    return plot_Rusanov_BR, plot_Rusanov_centered, plot_HLLC
 
 def line_update(lines, x_Rusanov_BR, y_Rusanov_BR, x_Rusanov_centered, y_Rusanov_centered, x_HLLC, y_HLLC):
     lines[1].set_data(x_Rusanov_BR, y_Rusanov_BR)
@@ -85,7 +85,7 @@ class Plot:
             for i, f in enumerate(args.field):
                 ax = plt.subplot(1, len(args.field), i + 1)
                 self.plot(ax, mesh_Rusanov_BR, mesh_Rusanov_centered, mesh_HLLC, f)
-                ax.set_title(f)
+                ax.set_title(f,fontsize=20)
 
     def plot(self, ax, mesh_Rusanov_BR, mesh_Rusanov_centered=None, mesh_HLLC=None, field=None, init=True):
         points_Rusanov_BR       = mesh_Rusanov_BR['points']
