@@ -7,7 +7,7 @@
 
 #include "flux_6eqs_base.hpp"
 
-//#define ONLY_CONSERVATIVE
+#define APPLY_NON_CONS_VOLUME_FRACTION
 
 namespace samurai {
   using namespace EquationData;
@@ -96,18 +96,8 @@ namespace samurai {
 
     const auto lambda = std::max(std::abs(velL_d) + cL, std::abs(velR_d) + cR); // TODO: Compute lambda considering only conservative part
 
-    #ifdef ONLY_CONSERVATIVE
-      auto qL_mod = qL;
-      auto qR_mod = qR;
-      qL_mod(ALPHA1_INDEX) = 0.0;
-      qR_mod(ALPHA1_INDEX) = 0.0;
-
-      return 0.5*(this->evaluate_continuous_flux(qL, curr_d) + this->evaluate_continuous_flux(qR, curr_d)) - // centered contribution
-             0.5*lambda*(qR_mod - qL_mod);
-    #else
-      return 0.5*(this->evaluate_continuous_flux(qL, curr_d) + this->evaluate_continuous_flux(qR, curr_d)) - // centered contribution
-             0.5*lambda*(qR - qL); // upwinding contribution
-    #endif
+    return 0.5*(this->evaluate_continuous_flux(qL, curr_d) + this->evaluate_continuous_flux(qR, curr_d)) - // centered contribution
+           0.5*lambda*(qR - qL); // upwinding contribution
   }
 
   // Implement the contribution of the discrete flux for all the dimensions.

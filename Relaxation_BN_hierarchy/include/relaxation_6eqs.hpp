@@ -12,8 +12,8 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
-//#define HLLC_FLUX
-#define HLLC_NON_CONS_FLUX
+#define HLLC_FLUX
+//#define HLLC_NON_CONS_FLUX
 //#define RUSANOV_FLUX
 
 #define RELAX_POLYNOM

@@ -9,7 +9,6 @@
 
 #define BR
 //#define CENTERED
-//#define MEAN_CENTERED
 
 namespace samurai {
   using namespace EquationData;
@@ -106,10 +105,15 @@ namespace samurai {
 
     // Build the non conservative flux (a lot of approximations to be checked here)
     #ifdef BR
-      F_minus(ALPHA1_INDEX) = (0.5*(velL*alpha1L + velR*alpha1R) -
-                               0.5*(velL + velR)*alpha1L);
-      F_plus(ALPHA1_INDEX)  = (0.5*(velL*alpha1L + velR*alpha1R) -
-                               0.5*(velL + velR)*alpha1R);
+      #ifdef APPLY_NON_CONS_VOLUME_FRACTION
+        F_minus(ALPHA1_INDEX) = (0.5*(velL*alpha1L + velR*alpha1R) -
+                                 0.5*(velL + velR)*alpha1L);
+        F_plus(ALPHA1_INDEX)  = (0.5*(velL*alpha1L + velR*alpha1R) -
+                                 0.5*(velL + velR)*alpha1R);
+      #else
+        F_minus(ALPHA1_INDEX) = 0.0;
+        F_plus(ALPHA1_INDEX)  = 0.0;
+      #endif
 
       F_minus(ALPHA1_RHO1_E1_INDEX) = -(0.5*(velL*Y2L*alpha1L*p1L + velR*Y2R*alpha1R*p1R) -
                                         0.5*(velL*Y2L + velR*Y2R)*alpha1L*p1L)
@@ -120,38 +124,29 @@ namespace samurai {
                                       +(0.5*(velL*Y1L*(1.0 - alpha1L)*p2L + velR*Y1R*(1.0 - alpha1R)*p2R) -
                                         0.5*(velL*Y1L + velR*Y1R)*(1.0 - alpha1R)*p2R);
     #elifdef CENTERED
-      F_minus(ALPHA1_INDEX) = velL*(0.5*(alpha1L + alpha1R));
-      F_plus(ALPHA1_INDEX)  = velR*(0.5*(alpha1L + alpha1R));
+      #ifdef APPLY_NON_CONS_VOLUME_FRACTION
+        F_minus(ALPHA1_INDEX) = velL*(0.5*(alpha1L + alpha1R));
+        F_plus(ALPHA1_INDEX)  = velR*(0.5*(alpha1L + alpha1R));
+      #else
+        F_minus(ALPHA1_INDEX) = 0.0;
+        F_plus(ALPHA1_INDEX)  = 0.0;
+      #endif
 
       F_minus(ALPHA1_RHO1_E1_INDEX) = -velL*(Y2L*(0.5*(alpha1L*p1L + alpha1R*p1R)) -
                                              Y1L*(0.5*((1.0 - alpha1L)*p2L + (1.0 - alpha1R)*p2R)));
       F_plus(ALPHA1_RHO1_E1_INDEX) = -velR*(Y2R*(0.5*(alpha1L*p1L + alpha1R*p1R)) -
                                             Y1R*(0.5*((1.0 - alpha1L)*p2L + (1.0 - alpha1R)*p2R)));
-    #elifdef MEAN_CENTERED
-      F_minus(ALPHA1_INDEX) = velL*(alpha1R - alpha1L);
-      F_plus(ALPHA1_INDEX)  = 0.0;
-
+    #else
+      #ifdef APPLY_NON_CONS_VOLUME_FRACTION
+        F_minus(ALPHA1_INDEX) = velL*(alpha1R - alpha1L);
+        F_plus(ALPHA1_INDEX)  = 0.0;
+      #else
+        F_minus(ALPHA1_INDEX) = 0.0;
+        F_plus(ALPHA1_INDEX)  = 0.0;
+      #endif
       F_minus(ALPHA1_RHO1_E1_INDEX) = -velL*(Y2L*(alpha1R*p1R - alpha1L*p1L) -
                                              Y1L*((1.0 - alpha1R)*p2R - (1.0 -alpha1L)*p2L));
       F_plus(ALPHA1_RHO1_E1_INDEX)  = 0.0;
-    #else
-      const auto vel_est = 0.5*(velL + velR);
-      if(vel_est < 0.0) {
-        F_minus(ALPHA1_INDEX) = vel_est*(alpha1R - alpha1L);
-        F_plus(ALPHA1_INDEX) = 0.0;
-
-        F_minus(ALPHA1_RHO1_E1_INDEX) = vel_est*((-0.5*(Y2L + Y2R))*(alpha1R*p1R - alpha1L*p1L) +
-                                                 (0.5*(Y1L + Y1R))*((1.0 - alpha1R)*p2R - (1.0 - alpha1L)*p2L));
-        F_plus(ALPHA1_RHO1_E1_INDEX) = 0.0;
-      }
-      else {
-        F_plus(ALPHA1_INDEX) = -vel_est*(alpha1R - alpha1L);
-        F_minus(ALPHA1_INDEX) = 0.0;
-
-        F_plus(ALPHA1_RHO1_E1_INDEX) = -vel_est*((-0.5*(Y2L + Y2R))*(alpha1R*p1R - alpha1L*p1L) +
-                                                 (0.5*(Y1L + Y1R))*((1.0 - alpha1R)*p2R - (1.0 - alpha1L)*p2L));
-        F_minus(ALPHA1_RHO1_E1_INDEX) = 0.0;
-      }
     #endif
     F_minus(ALPHA2_RHO2_E2_INDEX) = -F_minus(ALPHA1_RHO1_E1_INDEX);
     F_plus(ALPHA2_RHO2_E2_INDEX)  = -F_plus(ALPHA1_RHO1_E1_INDEX);
