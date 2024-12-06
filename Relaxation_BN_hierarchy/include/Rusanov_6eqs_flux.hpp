@@ -90,11 +90,11 @@ namespace samurai {
     const auto p2R = this->phase2.pres_value(rho2R, e2R);
     const auto c2R = this->phase2.c_value(rho2R, p2R);
 
-    /*--- Compute frozen speed of sound left state ---*/
+    // Compute frozen speed of sound right state
     const auto Y1R = qR(ALPHA1_RHO1_INDEX)/rhoR;
     const auto cR  = std::sqrt(Y1R*c1R*c1R + (1.0 - Y1R)*c2R*c2R);
 
-    const auto lambda = std::max(std::abs(velL_d) + cL, std::abs(velR_d) + cR); // TODO: Compute lambda considering only conservative part
+    const auto lambda = std::max(std::abs(velL_d) + cL, std::abs(velR_d) + cR); /*--- TODO: Compute lambda considering only conservative part ---*/
 
     return 0.5*(this->evaluate_continuous_flux(qL, curr_d) + this->evaluate_continuous_flux(qR, curr_d)) - // centered contribution
            0.5*lambda*(qR - qL); // upwinding contribution

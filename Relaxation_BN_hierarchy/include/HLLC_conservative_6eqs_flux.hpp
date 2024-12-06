@@ -159,11 +159,11 @@ namespace samurai {
     const auto s_star = (pR - pL + rhoL*velL_d*(sL - velL_d) - rhoR*velR_d*(sR - velR_d))/
                         (rhoL*(sL - velL_d) - rhoR*(sR - velR_d));
 
-    /*--- Compute intermediate states ---*/
+    // Compute intermediate states
     auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
     auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
 
-    /*--- Compute the flux ---*/
+    // Compute the flux
     if(sL >= 0.0) {
       F_minus = this->evaluate_continuous_flux(qL, curr_d);
     }
@@ -178,7 +178,7 @@ namespace samurai {
     }
     F_plus = F_minus;
 
-    /*--- Consider contribution of volume fraction ---*/
+    // Consider contribution of volume fraction
     if(s_star < 0.0) {
       F_minus(ALPHA1_INDEX) = s_star*(alpha1R - alpha1L);
       F_plus(ALPHA1_INDEX)  = 0.0;

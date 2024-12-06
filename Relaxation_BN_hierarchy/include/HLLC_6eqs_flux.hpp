@@ -163,7 +163,7 @@ namespace samurai {
     const auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
     const auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
 
-    /*--- Compute the fluctuations (wave propagation formalism) ---*/
+    // Compute the fluctuations (wave propagation formalism)
     if(sL >= 0.0) {
       for(std::size_t idx = 0; idx < Field::size; ++idx) {
         H_minus(idx) = 0.0;
@@ -192,7 +192,7 @@ namespace samurai {
   auto HLLCFlux<Field>::make_flux() {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
-    // Perform the loop over each dimension to compute the flux contribution
+    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, EquationData::dim>::apply(
       [&](auto integral_constant_d)
       {

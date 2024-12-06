@@ -178,7 +178,7 @@ namespace samurai {
   auto NonConservativeFlux<Field>::make_flux() {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
-    // Perform the loop over each dimension to compute the flux contribution
+    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, EquationData::dim>::apply(
       [&](auto integral_constant_d)
       {
