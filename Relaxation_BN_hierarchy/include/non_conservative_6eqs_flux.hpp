@@ -7,7 +7,8 @@
 
 #include "flux_6eqs_base.hpp"
 
-#define BR
+#define BR_ORLANDO
+//#define BR_TUMOLO
 //#define CENTERED
 
 namespace samurai {
@@ -104,7 +105,7 @@ namespace samurai {
     const auto p2R = this->phase2.pres_value(rho2R, e2R);
 
     // Build the non conservative flux (a lot of approximations to be checked here)
-    #ifdef BR
+    #ifdef BR_ORLANDO
       #ifdef APPLY_NON_CONS_VOLUME_FRACTION
         F_minus(ALPHA1_INDEX) = (0.5*(velL*alpha1L + velR*alpha1R) -
                                  0.5*(velL + velR)*alpha1L);
@@ -122,6 +123,25 @@ namespace samurai {
       F_plus(ALPHA1_RHO1_E1_INDEX)  = -(0.5*(velL*Y2L*alpha1L*p1L + velR*Y2R*alpha1R*p1R) -
                                         0.5*(velL*Y2L + velR*Y2R)*alpha1R*p1R)
                                       +(0.5*(velL*Y1L*(1.0 - alpha1L)*p2L + velR*Y1R*(1.0 - alpha1R)*p2R) -
+                                        0.5*(velL*Y1L + velR*Y1R)*(1.0 - alpha1R)*p2R);
+    #elifdef BR_TUMOLO
+      #ifdef APPLY_NON_CONS_VOLUME_FRACTION
+        F_minus(ALPHA1_INDEX) = (0.25*(velL + velR)*(alpha1L + alpha1R) -
+                                 0.5*(velL + velR)*alpha1L);
+        F_plus(ALPHA1_INDEX)  = (0.25*(velL + velR)*(alpha1L + alpha1R) -
+                                 0.5*(velL + velR)*alpha1R);
+      #else
+        F_minus(ALPHA1_INDEX) = 0.0;
+        F_plus(ALPHA1_INDEX)  = 0.0;
+      #endif
+
+      F_minus(ALPHA1_RHO1_E1_INDEX) = -(0.25*(velL*Y2L + velR*Y2R)*(alpha1L*p1L + alpha1R*p1R) -
+                                        0.5*(velL*Y2L + velR*Y2R)*alpha1L*p1L)
+                                      +(0.25*(velL*Y1L + velR*Y1R)*((1.0 - alpha1L)*p2L + (1.0 - alpha1R)*p2R) -
+                                        0.5*(velL*Y1L + velR*Y1R)*(1.0 - alpha1L)*p2L);
+      F_plus(ALPHA1_RHO1_E1_INDEX)  = -(0.25*(velL*Y2L + velR*Y2R)*(alpha1L*p1L + alpha1R*p1R) -
+                                        0.5*(velL*Y2L + velR*Y2R)*alpha1R*p1R)
+                                      +(0.25*(velL*Y1L + velR*Y1R)*((1.0 - alpha1L)*p2L + (1.0 - alpha1R)*p2R) -
                                         0.5*(velL*Y1L + velR*Y1R)*(1.0 - alpha1R)*p2R);
     #elifdef CENTERED
       #ifdef APPLY_NON_CONS_VOLUME_FRACTION
