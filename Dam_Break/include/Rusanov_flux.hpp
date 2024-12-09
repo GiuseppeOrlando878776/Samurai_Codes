@@ -30,8 +30,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>>& EOS_phase1,
-                                  const LinearizedBarotropicEOS<typename Field::value_type>>& EOS_phase2):
+  RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2):
     Flux<Field>(EOS_phase1, EOS_phase2) {}
 
   // Implementation of a Rusanov flux

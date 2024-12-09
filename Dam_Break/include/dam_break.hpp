@@ -16,37 +16,36 @@ namespace fs = std::filesystem;
 // Add header file for the multiresolution
 #include <samurai/mr/adapt.hpp>
 
+// Add header for PETSC
+#include <samurai/petsc.hpp>
+
 // Add header with auxiliary structs
 #include "containers.hpp"
 
+// Add user implemented boundary condition
+#include "user_bc.hpp"
+
 // Include the headers with the numerical fluxes
 //#define RUSANOV_FLUX
+//#define HLL_FLUX
+//#define HLLC_FLUX
 #define GODUNOV_FLUX
 
 #ifdef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
+#elifdef HLL_FLUX
+  #include "HLL_flux.hpp"
+#elifdef HLLC_FLUX
+  #include "HLLC_flux.hpp"
 #elifdef GODUNOV_FLUX
   #include "Exact_Godunov_flux.hpp"
 #endif
 
 // Define preprocessor to check whether to control data or not
-//#define VERBOSE
+#define VERBOSE
 
-// Auxiliary function to compute the regualized Heaviside
-template<typename T = double>
-T CHeaviside(const T x, const T eps) {
-  /*if(x < -eps) {
-    return 0.0;
-  }
-  else if(x > eps) {
-    return 1.0;
-  }
-
-  const double pi = 4.0*std::atan(1);
-  return 0.5*(1.0 + x/eps + 1.0/pi*std::sin(pi*x/eps));*/
-
-  return 0.5 + 0.5*std::tanh(8.0*(x/eps + 0.5));
-}
+// Define preprocessor to choose whether gravity has to be tretaed implicitly or not
+//#define GRAVITY_IMPLICIT
 
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
@@ -56,18 +55,18 @@ using namespace EquationData;
  *  for the waves-interface interaction
  **/
 template<std::size_t dim>
-class WaveInterface {
+class DamBreak {
 public:
   using Config = samurai::MRConfig<dim, 2, 2, 2>;
 
-  WaveInterface() = default; // Default constructor. This will do nothing
-                             // and basically will never be used
+  DamBreak() = default; // Default constructor. This will do nothing
+                        // and basically will never be used
 
-  WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
-                const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                const Simulation_Paramaters& sim_param,
-                const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
-                                                  // to the grid and to the physics.
+  DamBreak(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
+           const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
+           const Simulation_Paramaters& sim_param,
+           const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
+                                             // to the grid and to the physics.
 
   void run(); // Function which actually executes the temporal loop
 
@@ -77,11 +76,10 @@ public:
             const Variables&... fields); // Routine to save the results
 
 private:
-  /*--- Now we declare some relevant variables ---*/
+  // Now we declare some relevant variables
   const samurai::Box<double, dim> box;
 
   samurai::MRMesh<Config> mesh; // Variable to store the mesh
-  using mesh_id_t = typename decltype(mesh)::mesh_id_t;
 
   using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
   using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
@@ -91,6 +89,9 @@ private:
 
   double Tf;  // Final time of the simulation
   double cfl; // Courant number of the simulation so as to compute the time step
+
+  double L0; // Initial length dam
+  double H0; // Initial height dam
 
   std::size_t nfiles; // Number of files desired for output
 
@@ -106,13 +107,17 @@ private:
                p,
                rho;
 
-  Field_Vect   u;
+  Field_Vect   vel;
 
   LinearizedBarotropicEOS<typename Field::value_type> EOS_phase1,
                                                       EOS_phase2; // The two variables which take care of the
                                                                   // barotropic EOS to compute the speed of sound
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
+  #elifdef HLL_FLUX
+    samurai::HLLFlux<Field> HLL_flux; // Auxiliary variable to compute the flux
+  #elifdef HLLC_FLUX
+    samurai::HLLCFlux<Field> HLLC_flux; // Auxiliary variable to compute the flux
   #elifdef GODUNOV_FLUX
     samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
   #endif
@@ -122,8 +127,8 @@ private:
   const double MR_param; // Multiresolution parameter
   const double MR_regularity; // Multiresolution regularity
 
-  /*--- Now, it's time to declare some member functions that we will employ ---*/
-  void init_variables(const double eps_interface_over_dx); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+  // Now, it's time to declare some member functions that we will employ
+  void init_variables(); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
   double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
 
@@ -141,17 +146,22 @@ private:
 // Implement class constructor
 //
 template<std::size_t dim>
-WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
+DamBreak<dim>::DamBreak(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                                   const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                                   const Simulation_Paramaters& sim_param,
                                   const EOS_Parameters& eos_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
-  apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf), cfl(sim_param.Courant),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false, false}),
+  apply_relax(sim_param.apply_relaxation),
+  Tf(sim_param.Tf), cfl(sim_param.Courant), L0(sim_param.L0), H0(sim_param.H0),
   nfiles(sim_param.nfiles),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
     Rusanov_flux(EOS_phase1, EOS_phase2),
+  #elifdef HLL_FLUX
+    HLL_flux(EOS_phase1, EOS_phase2),
+  #elifdef HLLC_FLUX
+    HLLC_flux(EOS_phase1, EOS_phase2),
   #elifdef GODUNOV_FLUX
     Godunov_flux(EOS_phase1, EOS_phase2),
   #endif
@@ -159,13 +169,13 @@ WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim
   {
     std::cout << "Initializing variables " << std::endl;
     std::cout << std::endl;
-    init_variables(sim_param.eps_interface_over_dx);
+    init_variables();
   }
 
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
+void DamBreak<dim>::init_variables() {
   // Create conserved and auxiliary fields
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
@@ -178,15 +188,7 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
   p       = samurai::make_field<typename Field::value_type, 1>("p", mesh);
   rho     = samurai::make_field<typename Field::value_type, 1>("rho", mesh);
 
-  u       = samurai::make_field<typename Field::value_type, dim>("u", mesh);
-
-  // Declare some constant parameters associated to the grid and to the
-  // initial state
-  const double x_shock       = 0.3;
-  const double x_interface   = 0.7;
-  const double dx            = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
-  const double eps_interface = eps_interface_over_dx*dx;
-  const double eps_shock     = 3.0*dx;
+  vel     = samurai::make_field<typename Field::value_type, dim>("u", mesh);
 
   // Initialize some fields to define the bubble with a loop over all cells
   samurai::for_each_cell(mesh,
@@ -194,24 +196,23 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
                          {
                            const auto center = cell.center();
                            const double x    = center[0];
+                           const double y    = center[1];
 
                            // Set volume fraction
-                           alpha1[cell] = 1e-7 + (1.0 - 2e-7)*CHeaviside(x_interface - x, eps_interface)
-                                               + (0.999999997719987 - 1.0 + 1e-7)*CHeaviside(x_shock - x , eps_shock);
+                           if(x < L0 && y < H0) {
+                             alpha1[cell] = 1.0 - 1e-6;
+                           }
+                           else {
+                             alpha1[cell] = 1e-6;
+                           }
 
                            // Set mass phase 1
-                           const typename Field::value_type rho1 = 1000.0
-                                                                 + (1001.857557720546 - 1000.0)*CHeaviside(x_shock - x, eps_shock);
-                           p1[cell] = EOS_phase1.pres_value(rho1);
-
-                           conserved_variables[cell][M1_INDEX] = alpha1[cell]*rho1;
+                           p1[cell] = EOS_phase1.get_p0();
+                           conserved_variables[cell][M1_INDEX] = alpha1[cell]*EOS_phase1.rho_value(p1[cell]);
 
                            // Set mass phase 2
-                           const typename Field::value_type rho2 = 1.0
-                                                                 + (43.77807526718601 - 1.0)*CHeaviside(x_shock - x, eps_shock);
-                           p2[cell] = EOS_phase2.pres_value(rho2);
-
-                           conserved_variables[cell][M2_INDEX] = (1.0 - alpha1[cell])*rho2;
+                           p2[cell] = EOS_phase2.get_p0();
+                           conserved_variables[cell][M2_INDEX] = (1.0 - alpha1[cell])*EOS_phase2.rho_value(p2[cell]);
 
                            // Set conserved variable associated to volume fraction
                            rho[cell] = conserved_variables[cell][M1_INDEX]
@@ -220,16 +221,19 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
                            conserved_variables[cell][RHO_ALPHA1_INDEX] = rho[cell]*alpha1[cell];
 
                            // Set momentum
-                           u[cell] = 3.0281722661268375*CHeaviside(x_shock - x, eps_shock);
-                           conserved_variables[cell][RHO_U_INDEX] = rho[cell]*u[cell];
+                           vel[cell][0] = 0.0;
+                           conserved_variables[cell][RHO_U_INDEX] = rho[cell]*vel[cell][0];
+
+                           vel[cell][1] = 0.0;
+                           conserved_variables[cell][RHO_U_INDEX + 1] = rho[cell]*vel[cell][1];
 
                            // Set mixture pressure for output
                            p[cell] = alpha1[cell]*p1[cell]
                                    + (1.0 - alpha1[cell])*p2[cell];
                          });
 
-  // Consider Neumann bcs
-  samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0);
+  // Consider non-reflecting bcs
+  samurai::make_bc<Default>(conserved_variables, NonReflecting(conserved_variables));
 }
 
 /*---- FOCUS NOW ON THE AUXILIARY FUNCTIONS ---*/
@@ -237,14 +241,15 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-double WaveInterface<dim>::get_max_lambda() const {
+double DamBreak<dim>::get_max_lambda() const {
   double res = 0.0;
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Compute the velocity
-                           const auto vel = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
+                           // Compute the velocity along both horizontal and vertical direction
+                           const auto vel_x = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
+                           const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho[cell];
 
                            // Compute frozen speed of sound
                            const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
@@ -254,7 +259,9 @@ double WaveInterface<dim>::get_max_lambda() const {
                            const auto c         = std::sqrt(c_squared/rho[cell]);
 
                            // Update eigenvalue estimate
-                           res = std::max(std::abs(vel) + c, res);
+                           res = std::max(std::max(std::abs(vel_x) + c,
+                                                   std::abs(vel_y) + c),
+                                          res);
                          });
 
   return res;
@@ -263,7 +270,7 @@ double WaveInterface<dim>::get_max_lambda() const {
 // Perform the mesh adaptation strategy.
 //
 template<std::size_t dim>
-void WaveInterface<dim>::perform_mesh_adaptation() {
+void DamBreak<dim>::perform_mesh_adaptation() {
   samurai::update_ghost_mr(alpha1);
   auto MRadaptation = samurai::make_MRAdapt(alpha1);
   MRadaptation(MR_param, MR_regularity, conserved_variables);
@@ -278,7 +285,7 @@ void WaveInterface<dim>::perform_mesh_adaptation() {
 //
 #ifdef VERBOSE
 template<std::size_t dim>
-void WaveInterface<dim>::check_data(unsigned int flag) {
+void DamBreak<dim>::check_data(unsigned int flag) {
   std::string op;
   if(flag == 0) {
     op = "at the beginning of the relaxation";
@@ -315,7 +322,7 @@ void WaveInterface<dim>::check_data(unsigned int flag) {
 // Apply the relaxation. This procedure is valid for a generic EOS
 //
 template<std::size_t dim>
-void WaveInterface<dim>::apply_relaxation() {
+void DamBreak<dim>::apply_relaxation() {
   const double tol    = 1e-12; // Tolerance of the Newton method
   const double lambda = 0.9;   // Parameter for bound preserving strategy
 
@@ -333,6 +340,12 @@ void WaveInterface<dim>::apply_relaxation() {
                              #ifdef RUSANOV_FLUX
                                Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                            dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
+                             #elifdef HLL_FLUX
+                              HLL_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                      dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
+                             #elifdef HLLC_FLUX
+                              HLLC_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                       dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
                              #elifdef GODUNOV_FLUX
                                Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                            dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
@@ -354,7 +367,7 @@ void WaveInterface<dim>::apply_relaxation() {
 //
 template<std::size_t dim>
 template<class... Variables>
-void WaveInterface<dim>::save(const fs::path& path,
+void DamBreak<dim>::save(const fs::path& path,
                               const std::string& suffix,
                               const Variables&... fields) {
   auto level_ = samurai::make_field<std::size_t, 1>("level", mesh);
@@ -377,12 +390,16 @@ void WaveInterface<dim>::save(const fs::path& path,
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void WaveInterface<dim>::run() {
+void DamBreak<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
-  filename = "waves_interface";
+  filename = "dam_break";
   #ifdef RUSANOV_FLUX
     filename += "_Rusanov";
+  #elifdef HLL_FLUX
+    filename += "_HLL";
+  #elifdef HLLC_FLUX
+    filename += "_HLLC";
   #elifdef GODUNOV_FLUX
     filename += "_Godunov";
   #endif
@@ -408,19 +425,47 @@ void WaveInterface<dim>::run() {
   // Create the flux variable
   #ifdef RUSANOV_FLUX
     auto numerical_flux = Rusanov_flux.make_flux();
+  #elifdef HLL_FLUX
+    auto numerical_flux = HLL_flux.make_flux();
+  #elifdef HLLC_FLUX
+    auto numerical_flux = HLLC_flux.make_flux();
   #elifdef GODUNOV_FLUX
     auto numerical_flux = Godunov_flux.make_flux();
   #endif
 
+  // Create the gravity term
+  #ifdef GRAVITY_IMPLICIT
+    auto id = samurai::make_identity<decltype(conserved_variables)>(); // Identity matrix for the purpose of implicitation
+  #endif
+  using cfg = samurai::LocalCellSchemeConfig<samurai::SchemeType::LinearHomogeneous,
+                                             Field::size,
+                                             decltype(conserved_variables)>;
+  auto gravity = samurai::make_cell_based_scheme<cfg>();
+  gravity.coefficients_func() = [](double)
+                                {
+                                  samurai::StencilCoeffs<cfg> coeffs;
+
+                                  coeffs[0].fill(0.0);
+
+                                  coeffs[0](RHO_U_INDEX + 1, M1_INDEX) = -9.81;
+                                  coeffs[0](RHO_U_INDEX + 1, M2_INDEX) = -9.81;
+
+                                  return coeffs;
+                                };
+
   // Save the initial condition
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables, alpha1, rho, p1, p2, p, u);
+  save(path, suffix_init, conserved_variables, alpha1, rho, p1, p2, p, vel);
 
   // Start the loop
+  const double dx = mesh.cell_length(mesh.max_level());
+  using mesh_id_t = typename decltype(mesh)::mesh_id_t;
+  std::cout << "Number of elements = " << mesh[mesh_id_t::cells].nb_cells() << std::endl;
+  std::cout << std::endl;
+
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   double t          = 0.0;
-  const double dx   = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
   double dt         = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
     t += dt;
@@ -436,16 +481,27 @@ void WaveInterface<dim>::run() {
 
     /*--- Apply the numerical scheme without relaxation ---*/
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_bc(conserved_variables);
     try {
       auto flux_conserved = numerical_flux(conserved_variables);
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*flux_conserved;
+        #ifdef GRAVITY_IMPLICIT
+          auto implicit_operator = id - dt*gravity;
+          auto rhs = conserved_variables - dt*flux_conserved;
+          samurai::petsc::solve(implicit_operator, conserved_variables_tmp, rhs);
+        #else
+          conserved_variables_tmp = conserved_variables - dt*flux_conserved + dt*gravity(conserved_variables);
+        #endif
         std::swap(conserved_variables.array(), conserved_variables_tmp.array());
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*flux_conserved;
+        #ifdef GRAVITY_IMPLICIT
+          auto implicit_operator = id - dt*gravity;
+          auto rhs = conserved_variables - dt*flux_conserved;
+          samurai::petsc::solve(implicit_operator, conserved_variables_np1, rhs);
+        #else
+          conserved_variables_np1 = conserved_variables - dt*flux_conserved + dt*gravity(conserved_variables);
+        #endif
         std::swap(conserved_variables.array(), conserved_variables_np1.array());
       #endif
     }
@@ -480,11 +536,16 @@ void WaveInterface<dim>::run() {
     #ifdef ORDER_2
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
       try {
         auto flux_conserved = numerical_flux(conserved_variables);
         conserved_variables_tmp_2.resize();
-        conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved;
+        #ifdef GRAVITY_IMPLICIT
+          auto implicit_operator = id - dt*gravity;
+          auto rhs = conserved_variables - dt*flux_conserved;
+          samurai::petsc::solve(implicit_operator, conserved_variables_tmp_2, rhs);
+        #else
+          conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved + dt*gravity(conserved_variables);
+        #endif
         conserved_variables_np1.resize();
         conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
         std::swap(conserved_variables.array(), conserved_variables_np1.array());
@@ -547,11 +608,13 @@ void WaveInterface<dim>::run() {
                                        + (1.0 - alpha1[cell])*p2[cell];
 
                                // Compute velocity field
-                               u.resize();
-                               u[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
+                               vel.resize();
+                               for(std::size_t d = 0; d < dim; ++d) {
+                                 vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho[cell];
+                               }
                              });
 
-      save(path, suffix, conserved_variables, alpha1, rho, p1, p2, p, u);
+      save(path, suffix, conserved_variables, alpha1, rho, p1, p2, p, vel);
     }
   }
 }

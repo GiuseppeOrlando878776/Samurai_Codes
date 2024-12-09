@@ -72,9 +72,9 @@ namespace samurai {
     // Compute middle state
     FluxValue<typename Flux<Field>::cfg> q_star;
 
-    q_star(ALPHA1_INDEX)      = alpha1;
-    q_star(ALPHA1_RHO1_INDEX) = q(ALPHA1_RHO1_INDEX)*((S - vel_d)/(S - S_star));
-    q_star(ALPHA2_RHO2_INDEX) = q(ALPHA2_RHO2_INDEX)*((S - vel_d)/(S - S_star));
+    q_star(ALPHA1_INDEX)         = alpha1;
+    q_star(ALPHA1_RHO1_INDEX)    = q(ALPHA1_RHO1_INDEX)*((S - vel_d)/(S - S_star));
+    q_star(ALPHA2_RHO2_INDEX)    = q(ALPHA2_RHO2_INDEX)*((S - vel_d)/(S - S_star));
     q_star(RHO_U_INDEX + curr_d) = rho*((S - vel_d)/(S - S_star))*S_star;
     if(EquationData::dim > 1) {
       for(std::size_t d = 0; d < dim && d != curr_d; ++d) {
