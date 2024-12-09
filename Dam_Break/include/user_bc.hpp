@@ -35,14 +35,18 @@ struct Default: public samurai::Bc<Field> {
 //
 template<class Field>
 auto NonReflecting(const Field& Q) {
-  return [&Q](const auto& /*normal*/, const auto& cell_in, const auto& /*coord*/) {
+  return [&Q](const auto& normal, const auto& cell_in, const auto& /*coord*/) {
     // Compute the corresponding ghost state
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::size>> Q_ghost;
     Q_ghost[M1_INDEX]         = Q[cell_in](M1_INDEX);
     Q_ghost[M2_INDEX]         = Q[cell_in](M2_INDEX);
     Q_ghost[RHO_ALPHA1_INDEX] = Q[cell_in](RHO_ALPHA1_INDEX);
-    Q_ghost[RHO_U_INDEX]      = Q[cell_in](RHO_U_INDEX);
-    Q_ghost[RHO_U_INDEX + 1]  = Q[cell_in](RHO_U_INDEX + 1);
+
+    const auto rhou_dot_n = Q[cell_in](RHO_U_INDEX)*normal[0]
+                          + Q[cell_in](RHO_U_INDEX + 1)*normal[1];
+
+    Q_ghost[RHO_U_INDEX]     = Q[cell_in](RHO_U_INDEX) - 2.0*rhou_dot_n*normal[0];
+    Q_ghost[RHO_U_INDEX + 1] = Q[cell_in](RHO_U_INDEX + 1) - 2.0*rhou_dot_n*normal[1];
 
     return Q_ghost;
   };

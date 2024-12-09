@@ -45,7 +45,7 @@ namespace fs = std::filesystem;
 #define VERBOSE
 
 // Define preprocessor to choose whether gravity has to be tretaed implicitly or not
-//#define GRAVITY_IMPLICIT
+#define GRAVITY_IMPLICIT
 
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
@@ -107,7 +107,11 @@ private:
                p,
                rho;
 
-  Field_Vect   vel;
+  Field_Vect   vel,
+               grad_alpha1;
+
+  using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1)>());
+  gradient_type gradient;
 
   LinearizedBarotropicEOS<typename Field::value_type> EOS_phase1,
                                                       EOS_phase2; // The two variables which take care of the
@@ -154,6 +158,7 @@ DamBreak<dim>::DamBreak(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
   apply_relax(sim_param.apply_relaxation),
   Tf(sim_param.Tf), cfl(sim_param.Courant), L0(sim_param.L0), H0(sim_param.H0),
   nfiles(sim_param.nfiles),
+  gradient(samurai::make_gradient_order2<decltype(alpha1)>()),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
@@ -180,6 +185,8 @@ void DamBreak<dim>::init_variables() {
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
   alpha1  = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
+
+  grad_alpha1 = samurai::make_field<typename Field::value_type, dim>("grad_alpha1", mesh);
 
   dalpha1 = samurai::make_field<typename Field::value_type, 1>("dalpha1", mesh);
 
@@ -248,15 +255,21 @@ double DamBreak<dim>::get_max_lambda() const {
                          [&](const auto& cell)
                          {
                            // Compute the velocity along both horizontal and vertical direction
-                           const auto vel_x = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
-                           const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho[cell];
+                           const auto rho_    = conserved_variables[cell][M1_INDEX]
+                                              + conserved_variables[cell][M2_INDEX];
+                           const auto alpha1_ = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho_;
+
+                           const auto vel_x = conserved_variables[cell][RHO_U_INDEX]/rho_;
+                           const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho_;
 
                            // Compute frozen speed of sound
-                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           const auto rho2      = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1_;
+                           /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto rho2      = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1_);
+                           /*--- TODO: Add a check in case of zero volume fraction ---*/
                            const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                                                 + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
-                           const auto c         = std::sqrt(c_squared/rho[cell]);
+                           const auto c         = std::sqrt(c_squared/rho_);
 
                            // Update eigenvalue estimate
                            res = std::max(std::max(std::abs(vel_x) + c,
@@ -271,8 +284,19 @@ double DamBreak<dim>::get_max_lambda() const {
 //
 template<std::size_t dim>
 void DamBreak<dim>::perform_mesh_adaptation() {
+  alpha1.resize();
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                           alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                          (conserved_variables[cell][M1_INDEX] +
+                                           conserved_variables[cell][M2_INDEX]);
+                         });
   samurai::update_ghost_mr(alpha1);
-  auto MRadaptation = samurai::make_MRAdapt(alpha1);
+  grad_alpha1.resize();
+  grad_alpha1 = gradient(alpha1);
+
+  auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
   MRadaptation(MR_param, MR_regularity, conserved_variables);
 
   // Sanity check after mesh adaptation
@@ -297,22 +321,36 @@ void DamBreak<dim>::check_data(unsigned int flag) {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                            // Start with rho_alpha1
+                            // Start with the volume fraction
+                            alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                           (conserved_variables[cell][M1_INDEX] +
+                                            conserved_variables[cell][M2_INDEX]);
+                            if(alpha1[cell] < 0.0) {
+                              std::cerr << "Negative volume fraction for phase 1 " + op << std::endl;
+                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                              exit(1);
+                            }
+                            else if(alpha1[cell] > 1.0) {
+                              std::cerr << "Exceeding volume fraction for phase 1 " + op << std::endl;
+                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                              //exit(1);
+                            }
+                            // Focus now on rho_alpha1
                             if(conserved_variables[cell][RHO_ALPHA1_INDEX] < 0.0) {
                               std::cerr << " Negative volume fraction " + op << std::endl;
-                              save(fs::current_path(), "_diverged", conserved_variables);
+                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                               exit(1);
                             }
                             // Sanity check for m1
                             if(conserved_variables[cell][M1_INDEX] < 0.0) {
                               std::cerr << "Negative mass for phase 1 " + op << std::endl;
-                              save(fs::current_path(), "_diverged", conserved_variables);
+                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                               exit(1);
                             }
                             // Sanity check for m2
                             if(conserved_variables[cell][M2_INDEX] < 0.0) {
                               std::cerr << "Negative mass for phase 2 " + op << std::endl;
-                              save(fs::current_path(), "_diverged", conserved_variables);
+                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                               exit(1);
                             }
                           });
@@ -337,19 +375,25 @@ void DamBreak<dim>::apply_relaxation() {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
-                             #ifdef RUSANOV_FLUX
-                               Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
-                             #elifdef HLL_FLUX
-                              HLL_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                      dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
-                             #elifdef HLLC_FLUX
-                              HLLC_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                       dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
-                             #elifdef GODUNOV_FLUX
-                               Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
-                             #endif
+                             try {
+                               #ifdef RUSANOV_FLUX
+                                 Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                             dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
+                               #elifdef HLL_FLUX
+                                 HLL_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                         dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
+                               #elifdef HLLC_FLUX
+                                 HLLC_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                          dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
+                               #elifdef GODUNOV_FLUX
+                                 Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                             dalpha1[cell], alpha1[cell], rho[cell], relaxation_applied, tol, lambda);
+                               #endif
+                             }
+                             catch(std::exception& e) {
+                               std::cerr << e.what() << std::endl;
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                             }
 
                            });
 
@@ -519,7 +563,6 @@ void DamBreak<dim>::run() {
       // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
       // concerns next time step, rho_alpha1
       dalpha1.resize();
-      alpha1.resize();
       rho.resize();
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
@@ -583,6 +626,11 @@ void DamBreak<dim>::run() {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
 
       // Compute auxliary fields for the output
+      rho.resize();
+      p1.resize();
+      p2.resize();
+      p.resize();
+      vel.resize();
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
@@ -595,20 +643,18 @@ void DamBreak<dim>::run() {
                                }
 
                                // Compute pressure fields
-                               p1.resize();
-                               const auto rho1 = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                               const auto rho1 = conserved_variables[cell][M1_INDEX]/alpha1[cell];
+                               /*--- TODO: Add a check in case of zero volume fraction ---*/
                                p1[cell] = EOS_phase1.pres_value(rho1);
 
-                               p2.resize();
-                               const auto rho2 = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
+                               const auto rho2 = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]);
+                               /*--- TODO: Add a check in case of zero volume fraction ---*/
                                p2[cell] = EOS_phase2.pres_value(rho2);
 
-                               p.resize();
                                p[cell] = alpha1[cell]*p1[cell]
                                        + (1.0 - alpha1[cell])*p2[cell];
 
                                // Compute velocity field
-                               vel.resize();
                                for(std::size_t d = 0; d < dim; ++d) {
                                  vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho[cell];
                                }

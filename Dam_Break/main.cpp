@@ -28,9 +28,9 @@ int main(int argc, char* argv[]) {
   sim_param.L0 = 0.6;
   sim_param.H0 = 0.3;
 
-  sim_param.min_level = 8;
-  sim_param.max_level = 8;
-  sim_param.MR_param = 1e-5;
+  sim_param.min_level = 7;
+  sim_param.max_level = 7;
+  sim_param.MR_param = 1e-3;
   sim_param.MR_regularity = 0;
 
   sim_param.Tf = 0.6;
@@ -63,11 +63,11 @@ int main(int argc, char* argv[]) {
 
   eos_param.p0_phase1   = 1e5;
   eos_param.rho0_phase1 = 1e3;
-  eos_param.c0_phase1   = 1.5e3;
+  eos_param.c0_phase1   = 15.0;
 
   eos_param.p0_phase2   = 1e5;
   eos_param.rho0_phase2 = 1.0;
-  eos_param.c0_phase2   = 3.4e2;
+  eos_param.c0_phase2   = 3.4;
 
   app.add_option("--p0_phase1", eos_param.p0_phase1, "p0_phase1")->capture_default_str()->group("EOS parameters");
   app.add_option("--rho0_phase1", eos_param.p0_phase1, "rho0_phase1")->capture_default_str()->group("EOS parameters");

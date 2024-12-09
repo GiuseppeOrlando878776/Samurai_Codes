@@ -251,8 +251,7 @@ namespace samurai {
 
       if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0) {
         // We should never arrive here thakns to the bound-preserving strategy. Added only for the sake fo safety
-        std::cerr << "Bounds exceeding value for the volume fraction inside Newton step " << std::endl;
-        exit(1);
+        throw std::runtime_error("Bounds exceeding value for the volume fraction inside Newton step");
       }
       else {
         alpha1 += dalpha1;

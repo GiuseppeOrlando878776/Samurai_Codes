@@ -81,7 +81,6 @@ private:
   const samurai::Box<double, dim> box;
 
   samurai::MRMesh<Config> mesh; // Variable to store the mesh
-  using mesh_id_t = typename decltype(mesh)::mesh_id_t;
 
   using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
   using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
@@ -184,7 +183,7 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
   // initial state
   const double x_shock       = 0.3;
   const double x_interface   = 0.7;
-  const double dx            = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
+  const double dx            = mesh.cell_length(mesh.max_level());
   const double eps_interface = eps_interface_over_dx*dx;
   const double eps_shock     = 3.0*dx;
 
@@ -244,14 +243,20 @@ double WaveInterface<dim>::get_max_lambda() const {
                          [&](const auto& cell)
                          {
                            // Compute the velocity
-                           const auto vel = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
+                           const auto rho_    = conserved_variables[cell][M1_INDEX]
+                                              + conserved_variables[cell][M2_INDEX];
+                           const auto alpha1_ = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho_;
+
+                           const auto vel = conserved_variables[cell][RHO_U_INDEX]/rho_;
 
                            // Compute frozen speed of sound
-                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           const auto rho2      = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1_;
+                           /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto rho2      = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1_);
+                           /*--- TODO: Add a check in case of zero volume fraction ---*/
                            const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                                                 + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
-                           const auto c         = std::sqrt(c_squared/rho[cell]);
+                           const auto c         = std::sqrt(c_squared/rho_);
 
                            // Update eigenvalue estimate
                            res = std::max(std::abs(vel) + c, res);
@@ -417,10 +422,14 @@ void WaveInterface<dim>::run() {
   save(path, suffix_init, conserved_variables, alpha1, rho, p1, p2, p, u);
 
   // Start the loop
+  const double dx = mesh.cell_length(mesh.max_level());
+  using mesh_id_t = typename decltype(mesh)::mesh_id_t;
+  std::cout << "Number of elements = " << mesh[mesh_id_t::cells].nb_cells() << std::endl;
+  std::cout << std::endl;
+
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   double t          = 0.0;
-  const double dx   = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
   double dt         = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
     t += dt;
@@ -436,7 +445,6 @@ void WaveInterface<dim>::run() {
 
     /*--- Apply the numerical scheme without relaxation ---*/
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_bc(conserved_variables);
     try {
       auto flux_conserved = numerical_flux(conserved_variables);
       #ifdef ORDER_2
@@ -480,7 +488,6 @@ void WaveInterface<dim>::run() {
     #ifdef ORDER_2
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
       try {
         auto flux_conserved = numerical_flux(conserved_variables);
         conserved_variables_tmp_2.resize();
@@ -522,6 +529,12 @@ void WaveInterface<dim>::run() {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
 
       // Compute auxliary fields for the output
+      rho.resize();
+      alpha1.resize();
+      p1.resize();
+      p2.resize();
+      p.resize();
+      u.resize();
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
@@ -534,20 +547,18 @@ void WaveInterface<dim>::run() {
                                }
 
                                // Compute pressure fields
-                               p1.resize();
-                               const auto rho1 = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                               const auto rho1 = conserved_variables[cell][M1_INDEX]/alpha1[cell];
+                               /*--- TODO: Add a check in case of zero volume fraction ---*/
                                p1[cell] = EOS_phase1.pres_value(rho1);
 
-                               p2.resize();
-                               const auto rho2 = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
+                               const auto rho2 = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]);
+                               /*--- TODO: Add a check in case of zero volume fraction ---*/
                                p2[cell] = EOS_phase2.pres_value(rho2);
 
-                               p.resize();
                                p[cell] = alpha1[cell]*p1[cell]
                                        + (1.0 - alpha1[cell])*p2[cell];
 
                                // Compute velocity field
-                               u.resize();
                                u[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
                              });
 
