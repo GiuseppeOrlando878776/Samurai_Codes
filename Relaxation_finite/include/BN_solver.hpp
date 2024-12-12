@@ -313,8 +313,6 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 // TODO: Add runtime paramater to choose whether we want to relax,
 //       add parameter for finite or instantaneous relaxation,
 //       add relaxation rate parameter
-//       complete definitions of delta_u and matrix coefficients
-//       implement from deltas to conserved variables
 #ifdef RELAXATION
   template<std::size_t dim>
   template<typename State>
@@ -433,12 +431,11 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                              // Compute updated delta_u (we have analytical formula)
                              std::array<typename Field::value_type, dim> delta_u;
-                             /*--- NOTE: We use an arry only to be ready for the multi-dimensional version ---*/
+                             /*--- NOTE: We use an array only to be ready for the multi-dimensional version ---*/
                              const typename Field::value_type rho = conserved_variables[cell][ALPHA1_RHO1_INDEX]
                                                                   + conserved_variables[cell][ALPHA2_RHO2_INDEX];
                              const typename Field::value_type Y1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho;
                              delta_u[0] = (vel1[cell] - vel2[cell])*std::exp(-dt/tau_u*(1.0/(Y1*(1.0 - Y1))));
-                             /*--- TODO: Check expression of relaxation source term for the momentum and if we want substeps ---*/
 
                              // Compute matrix relaxation coefficients
                              compute_coefficients_source_relaxation(conserved_variables[cell], delta_u,
@@ -484,7 +481,7 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                                // Compute Jacobian matrix
                                Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                                    (EOS_phase1.rho_value_PT(p1[cell], T1)*EOS_phase1.rho_value_PT(p1[cell], T1))*
-                                                   EOS_phase1.drho_dp_T(p1[cell], T1)
+                                                   EOS_phase1.drho_dP_T(p1[cell], T1)
                                                   -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
                                                    (EOS_phase2.rho_value_PT(p1[cell] - delta_p, T1 - delta_T)*
                                                     EOS_phase2.rho_value_PT(p1[cell] - delta_p, T1 - delta_T))*
@@ -496,10 +493,10 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                                                    (EOS_phase2.rho_value_PT(p1[cell] - delta_p, T1 - delta_T)*
                                                     EOS_phase2.rho_value_PT(p1[cell] - delta_p, T1 - delta_T))*
                                                    EOS_phase2.drho_dT_P(T1 - delta_T, p1[cell] - delta_p);
-                               Jac_update[1][0] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*EOS_phase1.de_dp_T(p1[cell], T1) +
-                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*EOS_phase2.de_dp_T(p1[cell] - delta_p, T1 - delta_T);
-                               Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*EOS_phase1.de_dT_p(T1, p1[cell]) +
-                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*EOS_phase2.de_dT_p(T1 - delta_T, p1[cell] - delta_p,);
+                               Jac_update[1][0] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*EOS_phase1.de_dP_T(p1[cell], T1) +
+                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*EOS_phase2.de_dP_T(p1[cell] - delta_p, T1 - delta_T);
+                               Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*EOS_phase1.de_dT_P(T1, p1[cell]) +
+                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*EOS_phase2.de_dT_P(T1 - delta_T, p1[cell] - delta_p,);
 
                                // Evaluate the functions for which we are looking for the zeros
                                const auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/EOS_phase1.rho_value_PT(p1[cell], T1)
