@@ -32,6 +32,22 @@ namespace fs = std::filesystem;
 // Define preprocessor to check whether to control data or not
 #define VERBOSE
 
+// Auxiliary function to compute the regualized Heaviside
+template<typename T = double>
+T CHeaviside(const T x, const T eps) {
+  if(x < -eps) {
+    return 0.0;
+  }
+  else if(x > eps) {
+    return 1.0;
+  }
+
+  const double pi = 4.0*std::atan(1);
+  return 0.5*(1.0 + x/eps + 1.0/pi*std::sin(pi*x/eps));
+
+  //return 0.5 + 0.5*std::tanh(8.0*(x/eps + 0.5));
+}
+
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
 using namespace EquationData;
@@ -109,7 +125,7 @@ private:
   const double MR_regularity; // Multiresolution regularity
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
-  void init_variables(); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+  void init_variables(const double eps_interface_over_dx); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
   double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
 
@@ -145,13 +161,13 @@ WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim
   {
     std::cout << "Initializing variables " << std::endl;
     std::cout << std::endl;
-    init_variables();
+    init_variables(sim_param.eps_interface_over_dx);
   }
 
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void WaveInterface<dim>::init_variables() {
+void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
   // Create conserved and auxiliary fields
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
@@ -167,7 +183,13 @@ void WaveInterface<dim>::init_variables() {
   c_frozen   = samurai::make_field<typename Field::value_type, 1>("c_frozen", mesh);
   c_Wood     = samurai::make_field<typename Field::value_type, 1>("c_Wood", mesh);
 
-  u        = samurai::make_field<typename Field::value_type, dim>("u", mesh);
+  u          = samurai::make_field<typename Field::value_type, dim>("u", mesh);
+
+  // Declare some constant parameters associated to the grid and to the
+  // initial state
+  const double x_interface   = 0.7;
+  const double dx            = mesh.cell_length(mesh.max_level());
+  const double eps_interface = eps_interface_over_dx*dx;
 
   // Initialize some fields to define the bubble with a loop over all cells
   samurai::for_each_cell(mesh,
@@ -177,12 +199,8 @@ void WaveInterface<dim>::init_variables() {
                            const double x    = center[0];
 
                            // Set volume fraction
-                           if(x < 0.7) {
-                             alpha1[cell] = 1.0 - 1e-10;
-                           }
-                           else {
-                             alpha1[cell] = 1.0 - 1e-4;
-                           }
+                           alpha1[cell] = (1.0 - 1e-10)
+                                        + (1e-10 - 1e-4)*CHeaviside(x - x_interface, eps_interface);
 
                            // Set mass phase 1
                            if(x >= 0.45 && x <= 0.55) {

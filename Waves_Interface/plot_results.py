@@ -22,12 +22,16 @@ def scatter_update(scatter, points):
 
 def line_plot(ax, x, y):
     #Plot results
-    plot = ax.plot(x, y, 'k-', linewidth=1, markersize=4, alpha=0.5)[0]
+    plot     = ax.plot(x, y, 'k-', linewidth=2, markersize=4, alpha=0.5)[0]
+    plot_int = ax.axvline(x=0.7, color='b', linewidth=2, linestyle='--')
+    plt.text(0.7,2e5,'Interface',fontsize=20)
     #ax.set_yscale('log')
     #ax.set_yticks([1e5, 2e5, 5e5, 1e6, 2e6, 5e6], labels=['1e5', '2e5', '5e5', '1e6', '2e6', '5e6'])
     #ax.get_yaxis().set_major_formatter(ticker.ScalarFormatter())
     #plt.ylim(100000.0,110000.0)
     #plt.xlim(0.698,0.712)
+    ax.tick_params(axis='both', which='major', labelsize=20)
+    ax.tick_params(axis='both', which='minor', labelsize=20)
 
     return plot
 
@@ -50,7 +54,7 @@ class Plot:
             for i, f in enumerate(args.field):
                 ax = plt.subplot(1, len(args.field), i + 1)
                 self.plot(ax, mesh, f)
-                ax.set_title(f)
+                ax.set_title(f,fontsize=20)
 
 
     def plot(self, ax, mesh, field=None, init=True):

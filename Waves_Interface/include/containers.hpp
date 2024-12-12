@@ -24,6 +24,8 @@ struct Simulation_Paramaters {
   std::size_t nfiles;
 
   bool apply_relaxation;
+
+  double eps_interface_over_dx;
 };
 
 // Declare a struct with EOS parameters
