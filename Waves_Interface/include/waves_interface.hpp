@@ -30,23 +30,7 @@ namespace fs = std::filesystem;
 #endif
 
 // Define preprocessor to check whether to control data or not
-//#define VERBOSE
-
-// Auxiliary function to compute the regualized Heaviside
-template<typename T = double>
-T CHeaviside(const T x, const T eps) {
-  /*if(x < -eps) {
-    return 0.0;
-  }
-  else if(x > eps) {
-    return 1.0;
-  }
-
-  const double pi = 4.0*std::atan(1);
-  return 0.5*(1.0 + x/eps + 1.0/pi*std::sin(pi*x/eps));*/
-
-  return 0.5 + 0.5*std::tanh(8.0*(x/eps + 0.5));
-}
+#define VERBOSE
 
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
@@ -103,7 +87,10 @@ private:
                p1,
                p2,
                p,
-               rho;
+               p_minus_p0,
+               rho,
+               c_frozen,
+               c_Wood;
 
   Field_Vect   u;
 
@@ -122,7 +109,7 @@ private:
   const double MR_regularity; // Multiresolution regularity
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
-  void init_variables(const double eps_interface_over_dx); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+  void init_variables(); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
   double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
 
@@ -144,7 +131,7 @@ WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim
                                   const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                                   const Simulation_Paramaters& sim_param,
                                   const EOS_Parameters& eos_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {true}),
   apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf), cfl(sim_param.Courant),
   nfiles(sim_param.nfiles),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
@@ -158,34 +145,29 @@ WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim
   {
     std::cout << "Initializing variables " << std::endl;
     std::cout << std::endl;
-    init_variables(sim_param.eps_interface_over_dx);
+    init_variables();
   }
 
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
+void WaveInterface<dim>::init_variables() {
   // Create conserved and auxiliary fields
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  alpha1  = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
+  alpha1   = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
 
-  dalpha1 = samurai::make_field<typename Field::value_type, 1>("dalpha1", mesh);
+  dalpha1  = samurai::make_field<typename Field::value_type, 1>("dalpha1", mesh);
 
-  p1      = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
-  p2      = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
-  p       = samurai::make_field<typename Field::value_type, 1>("p", mesh);
-  rho     = samurai::make_field<typename Field::value_type, 1>("rho", mesh);
+  p1         = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
+  p2         = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
+  p          = samurai::make_field<typename Field::value_type, 1>("p", mesh);
+  p_minus_p0 = samurai::make_field<typename Field::value_type, 1>("p_minus_p0", mesh);
+  rho        = samurai::make_field<typename Field::value_type, 1>("rho", mesh);
+  c_frozen   = samurai::make_field<typename Field::value_type, 1>("c_frozen", mesh);
+  c_Wood     = samurai::make_field<typename Field::value_type, 1>("c_Wood", mesh);
 
-  u       = samurai::make_field<typename Field::value_type, dim>("u", mesh);
-
-  // Declare some constant parameters associated to the grid and to the
-  // initial state
-  const double x_shock       = 0.3;
-  const double x_interface   = 0.7;
-  const double dx            = mesh.cell_length(mesh.max_level());
-  const double eps_interface = eps_interface_over_dx*dx;
-  const double eps_shock     = 3.0*dx;
+  u        = samurai::make_field<typename Field::value_type, dim>("u", mesh);
 
   // Initialize some fields to define the bubble with a loop over all cells
   samurai::for_each_cell(mesh,
@@ -195,21 +177,26 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
                            const double x    = center[0];
 
                            // Set volume fraction
-                           alpha1[cell] = 1e-7 + (1.0 - 2e-7)*CHeaviside(x_interface - x, eps_interface)
-                                               + (0.999999997719987 - 1.0 + 1e-7)*CHeaviside(x_shock - x , eps_shock);
+                           if(x < 0.7) {
+                             alpha1[cell] = 1.0 - 1e-10;
+                           }
+                           else {
+                             alpha1[cell] = 1.0 - 1e-4;
+                           }
 
                            // Set mass phase 1
-                           const typename Field::value_type rho1 = 1000.0
-                                                                 + (1001.857557720546 - 1000.0)*CHeaviside(x_shock - x, eps_shock);
-                           p1[cell] = EOS_phase1.pres_value(rho1);
-
+                           if(x >= 0.45 && x <= 0.55) {
+                             p1[cell] = 1e5 + std::sin((2.0*4.0*std::atan(1)*(x - 0.5))/0.1);
+                           }
+                           else {
+                             p1[cell] = 1e5;
+                           }
+                           const auto rho1 = EOS_phase1.rho_value(p1[cell]);
                            conserved_variables[cell][M1_INDEX] = alpha1[cell]*rho1;
 
                            // Set mass phase 2
-                           const typename Field::value_type rho2 = 1.0
-                                                                 + (43.77807526718601 - 1.0)*CHeaviside(x_shock - x, eps_shock);
-                           p2[cell] = EOS_phase2.pres_value(rho2);
-
+                           p2[cell] = p1[cell];
+                           const auto rho2 = EOS_phase2.rho_value(p2[cell]);
                            conserved_variables[cell][M2_INDEX] = (1.0 - alpha1[cell])*rho2;
 
                            // Set conserved variable associated to volume fraction
@@ -219,12 +206,25 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
                            conserved_variables[cell][RHO_ALPHA1_INDEX] = rho[cell]*alpha1[cell];
 
                            // Set momentum
-                           u[cell] = 3.0281722661268375*CHeaviside(x_shock - x, eps_shock);
+                           u[cell] = 0.0;
                            conserved_variables[cell][RHO_U_INDEX] = rho[cell]*u[cell];
 
                            // Set mixture pressure for output
                            p[cell] = alpha1[cell]*p1[cell]
                                    + (1.0 - alpha1[cell])*p2[cell];
+
+                           p_minus_p0[cell] = p[cell] - 1e5;
+
+                           // Compute frozen speed of sound for output
+                           c_frozen[cell] = std::sqrt((conserved_variables[cell][M1_INDEX]*
+                                                       EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1) +
+                                                       conserved_variables[cell][M2_INDEX]*
+                                                       EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2))/rho[cell]);
+
+                           // Compute Wood speed of sound
+                           c_Wood[cell]  = std::sqrt(1.0/(rho[cell]*
+                                                          (alpha1[cell]/(rho1*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)) +
+                                                          (1.0 - alpha1[cell])/(rho2*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2)))));
                          });
 
   // Consider Neumann bcs
@@ -254,8 +254,10 @@ double WaveInterface<dim>::get_max_lambda() const {
                            /*--- TODO: Add a check in case of zero volume fraction ---*/
                            const auto rho2      = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1_);
                            /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
-                                                + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
+                           const auto c_squared = conserved_variables[cell][M1_INDEX]*
+                                                  EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
+                                                + conserved_variables[cell][M2_INDEX]*
+                                                  EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
                            const auto c         = std::sqrt(c_squared/rho_);
 
                            // Update eigenvalue estimate
@@ -419,7 +421,7 @@ void WaveInterface<dim>::run() {
 
   // Save the initial condition
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables, alpha1, rho, p1, p2, p, u);
+  save(path, suffix_init, conserved_variables, alpha1, rho, p1, p2, p, p_minus_p0, u, c_frozen, c_Wood);
 
   // Start the loop
   const double dx = mesh.cell_length(mesh.max_level());
@@ -535,6 +537,8 @@ void WaveInterface<dim>::run() {
       p2.resize();
       p.resize();
       u.resize();
+      c_frozen.resize();
+      c_Wood.resize();
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
@@ -558,11 +562,24 @@ void WaveInterface<dim>::run() {
                                p[cell] = alpha1[cell]*p1[cell]
                                        + (1.0 - alpha1[cell])*p2[cell];
 
+                               p_minus_p0[cell] = p[cell] - 1e5;
+
                                // Compute velocity field
                                u[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
+
+                               // Compute frozen speed of sound
+                               c_frozen[cell] = std::sqrt((conserved_variables[cell][M1_INDEX]*
+                                                           EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1) +
+                                                           conserved_variables[cell][M2_INDEX]*
+                                                           EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2))/rho[cell]);
+
+                               // Compute Wood speed of sound
+                               c_Wood[cell] = std::sqrt(1.0/(rho[cell]*
+                                                             (alpha1[cell]/(rho1*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)) +
+                                                             (1.0 - alpha1[cell])/(rho2*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2)))));
                              });
 
-      save(path, suffix, conserved_variables, alpha1, rho, p1, p2, p, u);
+      save(path, suffix, conserved_variables, alpha1, rho, p1, p2, p, p_minus_p0, u, c_frozen, c_Wood);
     }
   }
 }

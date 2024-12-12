@@ -19,24 +19,21 @@ int main(int argc, char* argv[]) {
 
   sim_param.min_level = 10;
   sim_param.max_level = 10;
-  sim_param.MR_param = 1e-5;
+  sim_param.MR_param = 1e-3;
   sim_param.MR_regularity = 0;
 
-  sim_param.Tf = 6e-4;
+  sim_param.Tf = 2.8e-4;
   sim_param.Courant = 0.4;
 
   sim_param.nfiles = 10;
 
   sim_param.apply_relaxation = true;
-  sim_param.eps_interface_over_dx = 3.0;
 
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Simulation_Paramaters");
-  app.add_option("--eps_interface_over_dx", sim_param.eps_interface_over_dx,
-                 "Interface thickness with respcet to Delta x")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--MR_param", sim_param.MR_param, "Multiresolution parameter")->capture_default_str()->group("AMR parameter");
@@ -51,10 +48,10 @@ int main(int argc, char* argv[]) {
 
   eos_param.p0_phase1   = 1e5;
   eos_param.rho0_phase1 = 1e3;
-  eos_param.c0_phase1   = 1631.617602258568427706;
+  eos_param.c0_phase1   = 1500.0;
 
   eos_param.p0_phase2   = 1e5;
-  eos_param.rho0_phase2 = 1.0;
+  eos_param.rho0_phase2 = 1.2;
   eos_param.c0_phase2   = 340.0;
 
   app.add_option("--p0_phase1", eos_param.p0_phase1, "p0_phase1")->capture_default_str()->group("EOS parameters");
