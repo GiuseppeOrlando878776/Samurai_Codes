@@ -42,8 +42,8 @@ namespace samurai {
       e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                   (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres1L  = this->phase1.pres_value(rho1L, e1L);
-    const auto c1L     = this->phase1.c_value(rho1L, pres1L);
+    const auto pres1L  = this->phase1.pres_value_Rhoe(rho1L, e1L);
+    const auto c1L     = this->phase1.c_value_RhoP(rho1L, pres1L);
 
     // Left state phase 2
     const auto vel2L_d = qL(ALPHA2_RHO2_U2_INDEX + curr_d)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -53,8 +53,8 @@ namespace samurai {
       e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                   (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres2L  = this->phase2.pres_value(rho2L, e2L);
-    const auto c2L     = this->phase2.c_value(rho2L, pres2L);
+    const auto pres2L  = this->phase2.pres_value_Rhoe(rho2L, e2L);
+    const auto c2L     = this->phase2.c_value_RhoP(rho2L, pres2L);
 
     // Right state phase 1
     const auto vel1R_d = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -64,8 +64,8 @@ namespace samurai {
       e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                   (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres1R  = this->phase1.pres_value(rho1R, e1R);
-    const auto c1R     = this->phase1.c_value(rho1R, pres1R);
+    const auto pres1R  = this->phase1.pres_value_Rhoe(rho1R, e1R);
+    const auto c1R     = this->phase1.c_value_RhoP(rho1R, pres1R);
 
     // Right state phase 2
     const auto vel2R_d = qR(ALPHA2_RHO2_U2_INDEX + curr_d)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -75,10 +75,10 @@ namespace samurai {
       e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                   (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres2R  = this->phase2.pres_value(rho2R, e2R);
-    const auto c2R     = this->phase2.c_value(rho2R, pres2R);
+    const auto pres2R  = this->phase2.pres_value_Rhoe(rho2R, e2R);
+    const auto c2R     = this->phase2.c_value_RhoP(rho2R, pres2R);
 
-    /*--- Compute the flux ---*/
+    // Compute the flux
     const auto lambda = std::max(std::max(std::abs(vel1L_d) + c1L, std::abs(vel1R_d) + c1R),
                                  std::max(std::abs(vel2L_d) + c2L, std::abs(vel2R_d) + c2R));
 

@@ -53,11 +53,12 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+    Flux(const EOS<typename Field::value_type>& EOS_phase1,
+         const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
 
   protected:
-    const EOS<>& phase1; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
-    const EOS<>& phase2; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
+    const EOS<typename Field::value_type>& phase1; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
+    const EOS<typename Field::value_type>& phase2; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
 
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d); // Evaluate the 'continuous' flux for the state q
                                                                                                 // along direction curr_d
@@ -79,19 +80,20 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2):
+  Flux<Field>::Flux(const EOS<typename Field::value_type>& EOS_phase1,
+                    const EOS<typename Field::value_type>& EOS_phase2):
     phase1(EOS_phase1), phase2(EOS_phase2) {}
 
   // Evaluate the 'continuous flux' along direction 'curr_d'
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d) {
-    /*--- Sanity check in terms of dimensions ---*/
+    // Sanity check in terms of dimensions
     assert(curr_d < EquationData::dim);
 
     FluxValue<cfg> res = q;
 
-    /*--- Compute density, velocity (along the dimension) and internal energy of phase 1 ---*/
+    // Compute density, velocity (along the dimension) and internal energy of phase 1
     const auto alpha1 = q(ALPHA1_INDEX);
     const auto rho1   = q(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1           = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -99,10 +101,10 @@ namespace samurai {
       e1 -= 0.5*((q(ALPHA1_RHO1_U1_INDEX + d)/q(ALPHA1_RHO1_INDEX))*
                  (q(ALPHA1_RHO1_U1_INDEX + d)/q(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres1  = this->phase1.pres_value(rho1, e1);
+    const auto pres1  = this->phase1.pres_value_Rhoe(rho1, e1);
     const auto vel1_d = q(ALPHA1_RHO1_U1_INDEX + curr_d)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-    /*--- Compute the flux for the equations "associated" to phase 1 ---*/
+    // Compute the flux for the equations "associated" to phase 1
     res(ALPHA1_INDEX) = 0.0;
     res(ALPHA1_RHO1_INDEX) *= vel1_d;
     for(std::size_t d = 0; d < EquationData::dim; ++d) {
@@ -112,7 +114,7 @@ namespace samurai {
     res(ALPHA1_RHO1_E1_INDEX) *= vel1_d;
     res(ALPHA1_RHO1_E1_INDEX) += alpha1*pres1*vel1_d;
 
-    /*--- Compute density, velocity (along the dimension) and internal energy of phase 2 ---*/
+    // Compute density, velocity (along the dimension) and internal energy of phase 2
     const auto alpha2 = 1.0 - alpha1;
     const auto rho2   = q(ALPHA2_RHO2_INDEX)/alpha2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2           = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -120,10 +122,10 @@ namespace samurai {
       e2 -= 0.5*((q(ALPHA2_RHO2_U2_INDEX + d)/q(ALPHA2_RHO2_INDEX))*
                  (q(ALPHA2_RHO2_U2_INDEX + d)/q(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres2  = this->phase2.pres_value(rho2, e2);
+    const auto pres2  = this->phase2.pres_value_Rhoe(rho2, e2);
     const auto vel2_d = q(ALPHA2_RHO2_U2_INDEX + curr_d)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-    /*--- Compute the flux for the equations "associated" to phase 2 ---*/
+    // Compute the flux for the equations "associated" to phase 2
     res(ALPHA2_RHO2_INDEX) *= vel2_d;
     for(std::size_t d = 0; d < EquationData::dim; ++d) {
       res(ALPHA2_RHO2_U2_INDEX + d) *= vel2_d;
@@ -156,7 +158,7 @@ namespace samurai {
       for(std::size_t d = 0; d < EquationData::dim; ++d) {
         e1 -= 0.5*(prim(U1_INDEX + d)*prim(U1_INDEX + d)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      prim(P1_INDEX) = phase1.pres_value(prim(RHO1_INDEX), e1);
+      prim(P1_INDEX) = phase1.pres_value_Rhoe(prim(RHO1_INDEX), e1);
 
       // Proceed with phase 2
       prim(RHO2_INDEX) = cons(ALPHA2_RHO2_INDEX)/(1.0 - cons(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -168,7 +170,7 @@ namespace samurai {
       for(std::size_t d = 0; d < EquationData::dim; ++d) {
         e2 -= 0.5*(prim(U2_INDEX + d)*prim(U2_INDEX + d));
       }
-      prim(P2_INDEX) = phase2.pres_value(prim(RHO2_INDEX), e2);
+      prim(P2_INDEX) = phase2.pres_value_Rhoe(prim(RHO2_INDEX), e2);
 
       // Return computed primitive variables
       return prim;
@@ -188,7 +190,7 @@ namespace samurai {
         cons(ALPHA1_RHO1_U1_INDEX + d) = cons(ALPHA1_RHO1_INDEX)*prim(U1_INDEX + d);
       }
       /*--- Compute internal energy ---*/
-      auto E1 = phase1.e_value(prim(RHO1_INDEX), prim(P1_INDEX));
+      auto E1 = phase1.e_value_RhoP(prim(RHO1_INDEX), prim(P1_INDEX));
       for(std::size_t d = 0; d < EquationData::dim; ++d) {
         E1 += 0.5*(prim(U1_INDEX + d)*prim(U1_INDEX + d));
       }
@@ -200,7 +202,7 @@ namespace samurai {
         cons(ALPHA2_RHO2_U2_INDEX + d) = cons(ALPHA2_RHO2_INDEX)*prim(U2_INDEX + d);
       }
       /*--- Compute internal energy ---*/
-      auto E2 = phase2.e_value(prim(RHO2_INDEX), prim(P2_INDEX));
+      auto E2 = phase2.e_value_RhoP(prim(RHO2_INDEX), prim(P2_INDEX));
       for(std::size_t d = 0; d < EquationData::dim; ++d) {
         E2 += 0.5*(prim(U2_INDEX + d)*prim(U2_INDEX + d));
       }
@@ -223,8 +225,8 @@ namespace samurai {
       primL_recon = primL;
       primR_recon = primR;
 
-      // Perform the reconstruction. TODO: Modify to be coherent with multiresolution
-      const double beta = 1.0; // MINMOD limiter
+      // Perform the reconstruction.
+      const double beta = 1.0; /*--- MINMOD limiter ---*/
       for(std::size_t comp = 0; comp < Field::size; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),

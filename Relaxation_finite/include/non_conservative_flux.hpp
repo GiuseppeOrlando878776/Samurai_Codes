@@ -55,7 +55,7 @@ namespace samurai {
       e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                   (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pIL   = this->phase2.pres_value(rho2L, e2L);
+    const auto pIL   = this->phase2.pres_value_Rhoe(rho2L, e2L);
 
     // Interfacial velocity and interfacial pressure computed from right state
     const auto velIR = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -65,7 +65,7 @@ namespace samurai {
       e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                   (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pIR   = this->phase2.pres_value(rho2R, e2R);
+    const auto pIR   = this->phase2.pres_value_Rhoe(rho2R, e2R);
 
     /*--- Build the non conservative flux ---*/
     #ifdef BR
@@ -92,32 +92,6 @@ namespace samurai {
 
       F_minus(ALPHA1_RHO1_E1_INDEX) = -velIL*pIL*(0.5*(qL(ALPHA1_INDEX) + qR(ALPHA1_INDEX)));
       F_plus(ALPHA1_RHO1_E1_INDEX)  = -velIR*pIR*(0.5*(qL(ALPHA1_INDEX) + qR(ALPHA1_INDEX)));
-    #else
-      const auto vel_est = 0.5*(velIL + velIR);
-      if(vel_est < 0.0) {
-        F_minus(ALPHA1_INDEX) = vel_est*(qR(ALPHA1_INDEX) - qL(ALPHA1_INDEX));
-        F_plus(ALPHA1_INDEX)  = 0.0;
-
-        F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = -(0.5*(pIL + pIR))*
-                                                  (qR(ALPHA1_INDEX) - qL(ALPHA1_INDEX));
-        F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) = 0.0;
-
-        F_minus(ALPHA1_RHO1_E1_INDEX) = -(0.5*(velIL*pIL + velIR*pIR))*
-                                         (qR(ALPHA1_INDEX) - qL(ALPHA1_INDEX));
-        F_plus(ALPHA1_RHO1_E1_INDEX)  = 0.0;
-      }
-      else {
-        F_plus(ALPHA1_INDEX) = -vel_est*(qR(ALPHA1_INDEX) - qL(ALPHA1_INDEX));
-        F_minus(ALPHA1_INDEX) = 0.0;
-
-        F_plus(ALPHA1_RHO1_U1_INDEX + curr_d)  = (0.5*(pIL + pIR))*
-                                                 (qR(ALPHA1_INDEX) - qL(ALPHA1_INDEX));
-        F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = 0.0;
-
-        F_plus(ALPHA1_RHO1_E1_INDEX)  = (0.5*(velIL*pIL + velIR*pIR))*
-                                        (qR(ALPHA1_INDEX) - qL(ALPHA1_INDEX));
-        F_minus(ALPHA1_RHO1_E1_INDEX) = 0.0;
-      }
     #endif
 
     F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = -F_minus(ALPHA1_RHO1_U1_INDEX + curr_d);

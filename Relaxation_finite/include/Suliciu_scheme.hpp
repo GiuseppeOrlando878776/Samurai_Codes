@@ -116,7 +116,7 @@ namespace samurai {
         e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                     (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p1L = this->phase1.pres_value(rho1L, e1L);
+      const auto p1L = this->phase1.pres_value_Rhoe(rho1L, e1L);
 
       // Compute the relevant variables from right state for phase 1
       const auto alpha1R = qR(ALPHA1_INDEX);
@@ -128,7 +128,7 @@ namespace samurai {
         e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                     (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p1R = this->phase1.pres_value(rho1R, e1R);
+      const auto p1R = this->phase1.pres_value_Rhoe(rho1R, e1R);
 
       // Compute the relevant variables from left state for phase 2
       const auto alpha2L = 1.0 - alpha1L;
@@ -140,7 +140,7 @@ namespace samurai {
         e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                     (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p2L = this->phase2.pres_value(rho2L, e2L);
+      const auto p2L = this->phase2.pres_value_Rhoe(rho2L, e2L);
 
       // Compute the relevant variables from right state for phase 2
       const auto alpha2R = 1.0 - alpha1R;
@@ -152,11 +152,13 @@ namespace samurai {
         e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                     (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p2R = this->phase2.pres_value(rho2R, e2R);
+      const auto p2R = this->phase2.pres_value_Rhoe(rho2R, e2R);
 
       // Compute first rhs of relaxation related parameters (Whitham's approach)
-      auto a1 = std::max(this->phase1.c_value(rho1L, p1L)*rho1L, this->phase1.c_value(rho1R, p1R)*rho1R);
-      auto a2 = std::max(this->phase2.c_value(rho2L, p2L)*rho2L, this->phase2.c_value(rho2R, p2R)*rho2R);
+      auto a1 = std::max(this->phase1.c_value_RhoP(rho1L, p1L)*rho1L,
+                         this->phase1.c_value_RhoP(rho1R, p1R)*rho1R);
+      auto a2 = std::max(this->phase2.c_value_RhoP(rho2L, p2L)*rho2L,
+                         this->phase2.c_value_RhoP(rho2R, p2R)*rho2R);
 
       /*--- Compute the transport step solving a non-linear equation with the Newton method ---*/
 
@@ -338,7 +340,7 @@ namespace samurai {
         e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                     (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p1L = this->phase1.pres_value(rho1L, e1L);
+      const auto p1L = this->phase1.pres_value_Rhoe(rho1L, e1L);
 
       // Compute the relevant variables from right state for phase 1
       const auto alpha1R = qR(ALPHA1_INDEX);
@@ -350,7 +352,7 @@ namespace samurai {
         e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                     (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p1R = this->phase1.pres_value(rho1R, e1R);
+      const auto p1R = this->phase1.pres_value_Rhoe(rho1R, e1R);
 
       // Compute the relevant variables from left state for phase 2
       const auto alpha2L = 1.0 - alpha1L;
@@ -362,7 +364,7 @@ namespace samurai {
         e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                     (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p2L = this->phase2.pres_value(rho2L, e2L);
+      const auto p2L = this->phase2.pres_value_Rhoe(rho2L, e2L);
 
       // Compute the relevant variables from right state for phase 2
       const auto alpha2R = 1.0 - alpha1R;
@@ -374,11 +376,13 @@ namespace samurai {
         e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                     (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p2R = this->phase2.pres_value(rho2R, e2R);
+      const auto p2R = this->phase2.pres_value_Rhoe(rho2R, e2R);
 
       // Compute first rhs of relaxation related parameters (Whitham's approach)
-      auto a1 = std::max(this->phase1.c_value(rho1L, p1L)*rho1L, this->phase1.c_value(rho1R, p1R)*rho1R);
-      auto a2 = std::max(this->phase2.c_value(rho2L, p2L)*rho2L, this->phase2.c_value(rho2R, p2R)*rho2R);
+      auto a1 = std::max(this->phase1.c_value_RhoP(rho1L, p1L)*rho1L,
+                         this->phase1.c_value_RhoP(rho1R, p1R)*rho1R);
+      auto a2 = std::max(this->phase2.c_value_RhoP(rho2L, p2L)*rho2L,
+                         this->phase2.c_value_RhoP(rho2R, p2R)*rho2R);
 
       /*--- Compute the transport step solving a non-linear equation with the Newton method ---*/
 
