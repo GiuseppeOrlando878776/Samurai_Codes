@@ -46,7 +46,7 @@ public:
 
   Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
              const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-             const Simulation_Paramaters& sim_param,
+             const Simulation_Parameters& sim_param,
              const EOS_Parameters& eos_param,
              const Riemann_Parameters& Riemann_param); // Class constrcutor with the arguments related
                                                        // to the grid, to the physics and to the relaxation
@@ -139,7 +139,7 @@ private:
 template<std::size_t dim>
 Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                             const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                            const Simulation_Paramaters& sim_param,
+                            const Simulation_Parameters& sim_param,
                             const EOS_Parameters& eos_param,
                             const Riemann_Parameters& Riemann_param):
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
@@ -342,7 +342,7 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation_linearization() {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Compute the pressure equilibirum with the linearization method (Pelanti)
+                           // Compute the pressure equilibrium with the linearization method (Pelanti)
                            const auto a = 1.0 + EOS_phase2.get_gamma()*conserved_variables[cell][ALPHA1_INDEX]
                                         + EOS_phase1.get_gamma()*(1.0 - conserved_variables[cell][ALPHA1_INDEX]);
                            const auto Z1 = rho1[cell]*c1[cell]*c1[cell];

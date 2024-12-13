@@ -7,7 +7,7 @@
 
 // Declare a struct with the simulation parameters
 // (domain, levels, final time, and Courant number)
-struct Simulation_Paramaters {
+struct Simulation_Parameters {
   double xL;
   double xR;
   double yL;

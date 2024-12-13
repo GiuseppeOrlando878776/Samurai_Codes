@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
   CLI::App app{"Solver for 6-equation mixture-energy-consistent two-phase model"};
 
   // Set and declare simulation parameters related to mesh, final time and Courant
-  Simulation_Paramaters sim_param;
+  Simulation_Parameters sim_param;
 
   sim_param.xL = 0.0;
   sim_param.xR = 1.0;

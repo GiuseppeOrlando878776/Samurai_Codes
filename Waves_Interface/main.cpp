@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
   CLI::App app{"Finite volume example for the waves-interface interaction"};
 
   // Set and declare simulation parameters related to mesh, final time and Courant
-  Simulation_Paramaters sim_param;
+  Simulation_Parameters sim_param;
 
   sim_param.xL = 0.0;
   sim_param.xR = 1.0;
@@ -35,9 +35,9 @@ int main(int argc, char* argv[]) {
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Simulation_Paramaters");
+  app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Simulation parameters");
   app.add_option("--eps_interface_over_dx", sim_param.eps_interface_over_dx,
-                 "Interface thickness with respcet to Delta x")->capture_default_str()->group("Simulation_Paramaters");
+                 "Interface thickness with respcet to Delta x")->capture_default_str()->group("Simulation parameters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--MR_param", sim_param.MR_param, "Multiresolution parameter")->capture_default_str()->group("AMR parameter");

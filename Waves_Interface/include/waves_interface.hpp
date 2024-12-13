@@ -65,7 +65,7 @@ public:
 
   WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                 const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                const Simulation_Paramaters& sim_param,
+                const Simulation_Parameters& sim_param,
                 const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
                                                   // to the grid and to the physics.
 
@@ -145,7 +145,7 @@ private:
 template<std::size_t dim>
 WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                                   const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                                  const Simulation_Paramaters& sim_param,
+                                  const Simulation_Parameters& sim_param,
                                   const EOS_Parameters& eos_param):
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {true}),
   apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf), cfl(sim_param.Courant),
@@ -199,8 +199,7 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
                            const double x    = center[0];
 
                            // Set volume fraction
-                           alpha1[cell] = (1.0 - 1e-10)
-                                        + (1e-10 - 1e-4)*CHeaviside(x - x_interface, eps_interface);
+                           alpha1[cell] = (1.0 - 1e-7) - (1.0 - 2e-7)*CHeaviside(x - x_interface, eps_interface);
 
                            // Set mass phase 1
                            if(x >= 0.45 && x <= 0.55) {
