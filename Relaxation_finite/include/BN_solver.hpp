@@ -506,7 +506,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                                                              vel1[cell];
                            typename Field::value_type norm2_vel1 = vel1[cell]*vel1[cell];
 
-                           vel2[cell] = um_d + Y1_0*delta_u;
+                           vel2[cell] = um_d - Y1_0*delta_u;
                            conserved_variables[cell][ALPHA2_RHO2_U2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*
                                                                              vel2[cell];
                            typename Field::value_type norm2_vel2 = vel2[cell]*vel2[cell];
@@ -865,7 +865,7 @@ void BN_Solver<dim>::run() {
       update_auxiliary_fields();
 
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, filename, suffix, 
+      save(path, filename, suffix,
            conserved_variables, rho, p,
            vel1, rho1, p1, c1, T1,
            vel2, rho2, p2, c2, T2, alpha2);
