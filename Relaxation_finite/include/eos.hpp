@@ -95,6 +95,14 @@ public:
 
   virtual T drho_dT_P(const T temp, const T pres) const override; // Function to compute the derivative of the density w.r.t. temperature (fixed pressure)
 
+  inline double get_gamma() const; // Return the isentropic exponent
+
+  inline double get_pi_infty() const; // Return the pressure at 'infinite'
+
+  inline double get_q_infty() const; // Return the internal energy at 'infinite'
+
+  inline double get_cv() const; // Return the specific heat at constant volume
+
 private:
   const double gamma;    // Isentropic exponent
   const double pi_infty; // Pressure at 'infinite'
@@ -222,6 +230,34 @@ T SG_EOS<T>::drho_dP_T(const T pres, const T temp) const {
 template<typename T>
 T SG_EOS<T>::drho_dT_P(const T temp, const T pres) const {
   return -(pres + pi_infty)/((gamma - 1.0)*c_v*temp*temp);
+}
+
+// Return the isentropic exponent
+//
+template<typename T>
+inline double SG_EOS<T>::get_gamma() const {
+  return gamma;
+}
+
+// Return the pressure at 'infinite'
+//
+template<typename T>
+inline double SG_EOS<T>::get_pi_infty() const {
+  return pi_infty;
+}
+
+// Return the internal energu at 'infinite'
+//
+template<typename T>
+inline double SG_EOS<T>::get_q_infty() const {
+  return q_infty;
+}
+
+// Return the specific heat at constant volume
+//
+template<typename T>
+inline double SG_EOS<T>::get_cv() const {
+  return c_v;
 }
 
 #endif
