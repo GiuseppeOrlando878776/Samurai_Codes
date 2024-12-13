@@ -419,8 +419,8 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
   typename Field::value_type chi2 = 1.0 - chi1;
   const auto rho_0 = q[ALPHA1_RHO1_INDEX] + q[ALPHA2_RHO2_INDEX];
   const auto Y1_loc  = q[ALPHA1_RHO1_INDEX]/rho_0;
-  const auto a_tilde_pu = 1.0/eps_u*(chi1*Y1_loc/kappa1 - chi2*(1.0 - Y1_loc)/kappa2);
-  const auto a_tilde_Tu = 1.0/eps_u*(chi1*Y1_loc/cv1 - chi2*(1.0 - Y1_loc)/cv2);
+  const auto a_tilde_pu = 1.0/eps_u*(chi1/(kappa1*Y1_loc) - chi2/(kappa2*(1.0 - Y1_loc)));
+  const auto a_tilde_Tu = 1.0/eps_u*(chi1/(cv1*Y1_loc) - chi2/(cv2*(1.0 - Y1_loc)));
   S[0] = a_tilde_pu*(delta_u*delta_u);
   S[1] = a_tilde_Tu*(delta_u*delta_u);
 }
