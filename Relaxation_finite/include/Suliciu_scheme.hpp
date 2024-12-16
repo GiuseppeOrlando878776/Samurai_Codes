@@ -586,7 +586,9 @@ namespace samurai {
                                                 FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
                                                 FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                                compute_discrete_flux(qL, qR, field[left](ALPHA1_INDEX), field[right](ALPHA1_INDEX), d, F_minus, F_plus, c);
+                                                compute_discrete_flux(qL, qR,
+                                                                      field[left](ALPHA1_INDEX), field[right](ALPHA1_INDEX),
+                                                                      d, F_minus, F_plus, c);
                                               #else
                                                 // Compute the stencil and extract state
                                                 const auto& left  = cells[0];
