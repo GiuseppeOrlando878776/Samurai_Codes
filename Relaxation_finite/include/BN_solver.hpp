@@ -433,7 +433,6 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           std::cout << "Starting relaxation cell " << cell << std::endl;
                            // Compute the fields
                            rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                         conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -472,12 +471,6 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                            const auto delta_p0 = p1[cell] - p2[cell];
                            T1[cell] = EOS_phase1.T_value_RhoP(rho1[cell], p1[cell]);
                            T2[cell] = EOS_phase2.T_value_RhoP(rho2[cell], p2[cell]);
-                           std::cout << "vel1 before relaxation = " << vel1[cell] << std::endl;
-                           std::cout << "vel2 before relaxation = " << vel2[cell] << std::endl;
-                           std::cout << "p1 before relaxation = "   << p1[cell] << std::endl;
-                           std::cout << "p2 before relaxation = "   << p2[cell] << std::endl;
-                           std::cout << "T1 before relaxation = "   << T1[cell] << std::endl;
-                           std::cout << "T2 before relaxation = "   << T2[cell] << std::endl;
                            const auto delta_T0 = T1[cell] - T2[cell];
                            const auto det_A_pT = A_relax[0][0]*A_relax[1][1]
                                                - A_relax[0][1]*A_relax[1][0];
@@ -491,8 +484,6 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                              std::cerr << "Singular matrix in the relaxation" << std::endl;
                              exit(1);
                            }
-                           std::cout << "computed delta_p = " << delta_p << std::endl;
-                           std::cout << "computed delta_T = " << delta_T << std::endl;
 
                            // Re-update conserved variables
                            /*--- Compute useful velocity norms ---*/
@@ -516,10 +507,6 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                            const auto rhoe_0 = (conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] +
                                                 conserved_variables[cell][ALPHA2_RHO2_E2_INDEX])
                                              - 0.5*rho_0*(norm2_um + Y1_0*(1.0 - Y1_0)*norm2_deltau);
-                           std::cout << "p1 at the beginning of Newton (p2 + delta_p) = " << p2[cell] + delta_p << std::endl;
-                           std::cout << "p2 at the beginning of Newton (p2) = " << p2[cell] << std::endl;
-                           std::cout << "p1 at the beginning of Newton (p1) = " << p1[cell] << std::endl;
-                           std::cout << "p2 at the beginning of Newton (p1 - delta_p) = " << p1[cell] - delta_p << std::endl;
                            for(unsigned int iter = 0; iter < 50; ++iter) {
                              // Compute Jacobian matrix
                              Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
@@ -567,8 +554,6 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                  const auto dT2 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
                                  p2[cell] -= dp2;
                                  T2[cell] -= dT2;
-                                 std::cout << "p1 after iteration " << iter << " of Newton = " << p2[cell] + delta_p << std::endl;
-                                 std::cout << "p2 after iteration " << iter << " of Newton = " << p2[cell] << std::endl;
 
                                  if(std::abs(dp2) < 1e-8 && std::abs(dT2) < 1e-8) {
                                    break;
@@ -588,17 +573,10 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
 
                            p1[cell] = p2[cell] + delta_p;
                            T1[cell] = T2[cell] + delta_T;
-                           std::cout << "vel1 after relaxation = " << vel1[cell] << std::endl;
-                           std::cout << "vel2 after relaxation = " << vel2[cell] << std::endl;
-                           std::cout << "p1 after relaxation = "   << p1[cell] << std::endl;
-                           std::cout << "p2 after relaxation = "   << p2[cell] << std::endl;
-                           std::cout << "T1 after relaxation = "   << T1[cell] << std::endl;
-                           std::cout << "T2 after relaxation = "   << T2[cell] << std::endl;
                            e1 = EOS_phase1.e_value_PT(p1[cell], T1[cell]);
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
                                                                              (e1 + 0.5*norm2_vel1);
                            rho1[cell] = EOS_phase1.rho_value_PT(p1[cell], T1[cell]);
-                           std::cout << "Relaxation terminated cell " << cell << std::endl;
                          });
 }
 
@@ -609,8 +587,6 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           std::cout << "Starting relaxation cell " << cell << std::endl;
-
                            /*--- First focus on the velocity relaxation ---*/
                            // Compute mixture density and (specific) total energy for the updates
                            const auto rho_0 = conserved_variables[cell][ALPHA1_RHO1_INDEX]
@@ -630,9 +606,6 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
                            vel2[cell] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX]/
                                         conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                           std::cout << "vel1 before relaxation = " << vel1[cell] << std::endl;
-                           std::cout << "vel2 before relaxation = " << vel2[cell] << std::endl;
-
                            // Update the momentum (and the kinetic energy of phase 1)
                            const auto vel_star = (conserved_variables[cell][ALPHA1_RHO1_U1_INDEX] +
                                                   conserved_variables[cell][ALPHA2_RHO2_U2_INDEX])/rho_0;
@@ -642,9 +615,6 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
 
                            conserved_variables[cell][ALPHA2_RHO2_U2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*
                                                                              vel_star;
-
-                           std::cout << "vel1 after relaxation = " << vel_star << std::endl;
-                           std::cout << "vel2 after relaxation = " << vel_star << std::endl;
 
                            // Update total energy of the two phases
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = 0.5*conserved_variables[cell][ALPHA1_RHO1_INDEX]*
@@ -685,11 +655,6 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
 
                            c2[cell] = EOS_phase2.c_value_RhoP(rho2[cell], p2[cell]);
 
-                           std::cout << "p1 before relaxation = " << p1[cell] << std::endl;
-                           std::cout << "p2 before relaxation = " << p2[cell] << std::endl;
-                           std::cout << "T1 before relaxation = " << EOS_phase1.T_value_RhoP(rho1[cell], p1[cell]) << std::endl;
-                           std::cout << "T2 before relaxation = " << EOS_phase2.T_value_RhoP(rho2[cell], p2[cell]) << std::endl;
-
                            // Compute the pressure equilibrium with the linearization method (Pelanti)
                            const auto a    = 1.0 + EOS_phase2.get_gamma()*conserved_variables[cell][ALPHA1_INDEX]
                                            + EOS_phase1.get_gamma()*(1.0 - conserved_variables[cell][ALPHA1_INDEX]);
@@ -709,15 +674,6 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
 
                            auto p_star     = (-b + std::sqrt(b*b - 4.0*a*d))/(2.0*a);
 
-                           std::cout << "p1 after relaxation = " << p_star << std::endl;
-                           std::cout << "p2 after relaxation = " << p_star << std::endl;
-                           std::cout << "T1 after relaxation = " << EOS_phase1.T_value_RhoP(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                                                                            conserved_variables[cell][ALPHA1_INDEX],
-                                                                                            p_star) << std::endl;
-                           std::cout << "T2 after relaxation = " << EOS_phase2.T_value_RhoP(conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                                                                            (1.0 - conserved_variables[cell][ALPHA1_INDEX]),
-                                                                                            p_star) << std::endl;
-
                            // Update the volume fraction using the computed pressure
                            conserved_variables[cell][ALPHA1_INDEX] *= ((EOS_phase1.get_gamma() - 1.0)*p_star + 2*p1[cell] + C1)/
                                                                       ((EOS_phase1.get_gamma() + 1.0)*p_star + C1);
@@ -731,8 +687,6 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*E1;
 
                            conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = rhoE_0 - conserved_variables[cell][ALPHA1_RHO1_E1_INDEX];
-
-                           std::cout << "Relaxation terminated cell " << cell << std::endl;
                          });
 }
 
