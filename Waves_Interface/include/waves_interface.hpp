@@ -147,7 +147,7 @@ WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim
                                   const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                                   const Simulation_Parameters& sim_param,
                                   const EOS_Parameters& eos_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {true}),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{true}}),
   apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf), cfl(sim_param.Courant),
   nfiles(sim_param.nfiles),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),

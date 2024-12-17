@@ -143,7 +143,7 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
                             const Simulation_Paramaters& sim_param,
                             const EOS_Parameters& eos_param,
                             const Riemann_Parameters& Riemann_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false}),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false}}),
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   apply_pressure_relax(sim_param.apply_pressure_relax),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1),
