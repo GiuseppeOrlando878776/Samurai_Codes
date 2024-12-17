@@ -22,6 +22,9 @@ struct Simulation_Parameters {
   double eps_u;
   double eps_p;
   double eps_T;
+
+  bool relax_pressure;
+  bool relax_temperature;
 };
 
 // Declare a struct with EOS parameters

@@ -33,6 +33,9 @@ int main(int argc, char* argv[]) {
   sim_param.eps_p = 1e-7;
   sim_param.eps_T = 1e-5;
 
+  sim_param.relax_pressure    = false;
+  sim_param.relax_temperature = false;
+
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
@@ -49,6 +52,10 @@ int main(int argc, char* argv[]) {
   app.add_option("--eps_u", sim_param.eps_u, "Finite rate parameter for the velocity")->capture_default_str()->group("Simulation parameters");
   app.add_option("--eps_p", sim_param.eps_p, "Finite rate parameter for the pressure")->capture_default_str()->group("Simulation parameters");
   app.add_option("--eps_T", sim_param.eps_T, "Finite rate parameter for the temperature")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--relax_pressure", sim_param.relax_pressure,
+                 "If instantaneous relaxation, relax the pressure")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--relax_temperature", sim_param.relax_temperature,
+                 "If instantaneous relaxation, relax the temperature (this can occur only with pressure)")->capture_default_str()->group("Simulation parameters");
 
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
