@@ -278,8 +278,8 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            delta_vel[cell]  = vel1[cell] - vel2[cell];
 
                            // Initialize the pressure reference for the relaxation
-                           p_ref[cell] = std::abs(conserved_variables[cell][ALPHA1_RHO1_INDEX]*c1[cell]*c1[cell] +
-                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*c2[cell]*c2[cell] -
+                           p_ref[cell] = std::abs(alpha2[cell]*rho1[cell]*c1[cell]*c1[cell] +
+                                                  conserved_variables[cell][ALPHA1_INDEX]*rho2[cell]*c2[cell]*c2[cell] -
                                                   alpha2[cell]*(p1[cell] - p2[cell])/(rho1[cell]*EOS_phase1.de_dP_rho(p1[cell], rho1[cell])));
 
                            // Save pressure difference (only one cell is present)
@@ -450,7 +450,7 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q, cons
               substituting uI \cdot grad\alpha iwe det d\alpha/dt... ---*/
 
   // Compute the coefficients
-  const auto p_relax_coeff = q[ALPHA1_INDEX]*(1.0 - q[ALPHA1_INDEX])/(tau_p*p_ref_loc);
+  const auto p_relax_coeff = (q[ALPHA1_INDEX]*(1.0 - q[ALPHA1_INDEX]))/(tau_p*p_ref_loc);
   const auto T_relax_coeff = (q[ALPHA1_RHO1_INDEX]*cv1*q[ALPHA2_RHO2_INDEX]*cv2)/
                              (tau_T*(q[ALPHA1_RHO1_INDEX]*cv1 + q[ALPHA2_RHO2_INDEX]*cv2));
   const auto a_pp = -p_relax_coeff*(rho1_loc*c1_loc*c1_loc/q[ALPHA1_INDEX] +
@@ -985,10 +985,10 @@ void BN_Solver<dim>::run() {
 
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - 0.0*dt*Relaxation_Flux;
+        conserved_variables_tmp = conserved_variables - dt*Relaxation_Flux;
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - 0.0*dt*Relaxation_Flux;
+        conserved_variables_np1 = conserved_variables - dt*Relaxation_Flux;
       #endif
     #elifdef RUSANOV_FLUX
       auto Cons_Flux    = Rusanov_flux(conserved_variables);
@@ -1000,10 +1000,10 @@ void BN_Solver<dim>::run() {
 
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - 0.0*dt*Cons_Flux - 0.0*dt*NonCons_Flux;
+        conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - 0.0*dt*Cons_Flux - 0.0*dt*NonCons_Flux;
+        conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #endif
     #endif
 
@@ -1041,12 +1041,12 @@ void BN_Solver<dim>::run() {
         c = 0.0;
         Relaxation_Flux = Suliciu_flux(conserved_variables);
 
-        conserved_variables_tmp_2 = conserved_variables - 0.0*dt*Relaxation_Flux;
+        conserved_variables_tmp_2 = conserved_variables - dt*Relaxation_Flux;
       #elifdef RUSANOV_FLUX
         Cons_Flux    = Rusanov_flux(conserved_variables);
         NonCons_Flux = NonConservative_flux(conserved_variables);
 
-        conserved_variables_tmp_2 = conserved_variables - 0.0*dt*Cons_Flux - 0.0*dt*NonCons_Flux;
+        conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #endif
       conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
