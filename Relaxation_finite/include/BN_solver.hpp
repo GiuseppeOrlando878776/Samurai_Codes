@@ -53,6 +53,8 @@ public:
             const Variables&... fields); // Routine to save the results
 
 private:
+  std::ofstream deltas;
+
   /*--- Now we declare some relevant variables ---*/
   const samurai::Box<double, dim> box;
 
@@ -64,16 +66,16 @@ private:
 
   double Tf;  // Final time of the simulation
   double cfl; // Courant number of the simulation so as to compute the time step
-  double dt;  // Time-step (modified according to CFL)
+  double dt;  // Time-step (in general modified according to CFL)
 
   std::size_t nfiles; // Number of files desired for output
 
   bool apply_relaxation; // Set whether to apply or not the pressure relaxation
 
   bool apply_finite_rate_relaxation; // Set if finite rate relaxation is desired
-  double eps_u; // Relaxation parameter for the velocity
-  double eps_p; // Relaxation parameter for the pressure
-  double eps_T; // Relaxation parameter for the temperature
+  double tau_u; // Relaxation parameter for the velocity
+  double tau_p; // Relaxation parameter for the pressure
+  double tau_T; // Relaxation parameter for the temperature
 
   bool relax_pressure; // If instantaneous relaxation, choose whether to relax the pressure
   bool relax_temperature; // If instantaneous relaxation, choose whether to relax the temperature (only possible with pressure)
@@ -107,10 +109,18 @@ private:
                c2,
                alpha2,
                T1,
-               T2;
+               T2,
+               delta_pres,
+               delta_temp,
+               delta_vel;
+
+  Field_Scalar p_ref; // Auxiliary field for the pressure relaxation
 
   Field_Vect vel1,
              vel2;
+
+  const double MR_param; // Multiresolution parameter
+  const double MR_regularity; // Multiresolution regularity
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void init_variables(const Riemann_Parameters& Riemann_param); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
@@ -138,7 +148,7 @@ private:
   void perform_instantaneous_relaxation(); // Routine to perform instantaneous relaxation (velocity and pressure-temperature)
 
   template<typename State>
-  void compute_coefficients_source_relaxation(const State& q,
+  void compute_coefficients_source_relaxation(const State& q, const typename Field::value_type,
                                               Matrix_Relaxation& A, Vector_Relaxation& S); // Compute the coefficients
                                                                                              // and the source term for the relaxation
 };
@@ -153,14 +163,16 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
                           const Simulation_Parameters& sim_param,
                           const EOS_Parameters& eos_param,
                           const Riemann_Parameters& Riemann_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false}}),
-  Tf(sim_param.Tf), cfl(sim_param.Courant), dt(), nfiles(sim_param.nfiles),
+  deltas("deltas.dat", std::ofstream::out),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{true}}),
+  Tf(sim_param.Tf), cfl(sim_param.Courant), dt(sim_param.dt), nfiles(sim_param.nfiles),
   apply_relaxation(sim_param.apply_relaxation),
   apply_finite_rate_relaxation(sim_param.apply_finite_rate_relaxation),
-  eps_u(sim_param.eps_u), eps_p(sim_param.eps_p), eps_T(sim_param.eps_T),
+  tau_u(sim_param.tau_u), tau_p(sim_param.tau_p), tau_T(sim_param.tau_T),
   relax_pressure(sim_param.relax_pressure),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.cv_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.cv_2),
+  MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   #ifdef SULICIU_RELAXATION
     numerical_flux(EOS_phase1, EOS_phase2)
   #elifdef RUSANOV_FLUX
@@ -196,6 +208,12 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   T1     = samurai::make_field<typename Field::value_type, 1>("T1", mesh);
   T2     = samurai::make_field<typename Field::value_type, 1>("T2", mesh);
 
+  p_ref  = samurai::make_field<typename Field::value_type, 1>("p_ref", mesh);
+
+  delta_pres = samurai::make_field<typename Field::value_type, 1>("delta_pres", mesh);
+  delta_temp = samurai::make_field<typename Field::value_type, 1>("delta_temp", mesh);
+  delta_vel  = samurai::make_field<typename Field::value_type, 1>("delta_vel", mesh);
+
   // Initialize the fields with a loop over all cells
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -206,31 +224,35 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            if(x <= Riemann_param.xd) {
                              conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1L;
 
-                             rho1[cell] = Riemann_param.rho1L;
-                             vel1[cell] = Riemann_param.u1L;
                              p1[cell]   = Riemann_param.p1L;
+                             vel1[cell] = Riemann_param.u1L;
+                             T1[cell]   = Riemann_param.T1L;
 
-                             rho2[cell] = Riemann_param.rho2L;
-                             vel2[cell] = Riemann_param.u2L;
                              p2[cell]   = Riemann_param.p2L;
+                             vel2[cell] = Riemann_param.u2L;
+                             T2[cell]   = Riemann_param.T2L;
                            }
                            else {
                              conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1R;
 
-                             rho1[cell] = Riemann_param.rho1R;
-                             vel1[cell] = Riemann_param.u1R;
                              p1[cell]   = Riemann_param.p1R;
+                             vel1[cell] = Riemann_param.u1R;
+                             T1[cell]   = Riemann_param.T1R;
 
-                             rho2[cell] = Riemann_param.rho2R;
-                             vel2[cell] = Riemann_param.u2R;
                              p2[cell]   = Riemann_param.p2R;
+                             vel2[cell] = Riemann_param.u2R;
+                             T2[cell]   = Riemann_param.T2R;
                            }
+
+                           rho1[cell] = EOS_phase1.rho_value_PT(p1[cell], T1[cell]);
 
                            conserved_variables[cell][ALPHA1_RHO1_INDEX]    = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];
                            conserved_variables[cell][ALPHA1_RHO1_U1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*vel1[cell];
                            const auto e1 = EOS_phase1.e_value_RhoP(rho1[cell], p1[cell]);
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
                                                                              (e1 + 0.5*vel1[cell]*vel1[cell]);
+
+                           rho2[cell] = EOS_phase2.rho_value_PT(p2[cell], T2[cell]);
 
                            conserved_variables[cell][ALPHA2_RHO2_INDEX]    = (1.0 - conserved_variables[cell][ALPHA1_INDEX])*rho2[cell];
                            conserved_variables[cell][ALPHA2_RHO2_U2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*vel2[cell];
@@ -239,10 +261,8 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                                                              (e2 + 0.5*vel2[cell]*vel2[cell]);
 
                            c1[cell] = EOS_phase1.c_value_RhoP(rho1[cell], p1[cell]);
-                           T1[cell] = EOS_phase1.T_value_RhoP(rho1[cell], p1[cell]);
 
                            c2[cell] = EOS_phase2.c_value_RhoP(rho2[cell], p2[cell]);
-                           T2[cell] = EOS_phase2.T_value_RhoP(rho2[cell], p2[cell]);
 
                            alpha2[cell] = 1.0 - conserved_variables[cell][ALPHA1_INDEX];
 
@@ -251,34 +271,25 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 
                            p[cell] = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
                                    + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
-                         });
 
-  const xt::xtensor_fixed<int, xt::xshape<1>> left{-1};
-  const xt::xtensor_fixed<int, xt::xshape<1>> right{1};
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
-                                          Riemann_param.alpha1L,
-                                          Riemann_param.alpha1L*Riemann_param.rho1L,
-                                          Riemann_param.alpha1L*Riemann_param.rho1L*Riemann_param.u1L,
-                                          Riemann_param.alpha1L*Riemann_param.rho1L*
-                                          (EOS_phase1.e_value_RhoP(Riemann_param.rho1L, Riemann_param.p1L) +
-                                           0.5*Riemann_param.u1L*Riemann_param.u1L),
-                                          (1.0 - Riemann_param.alpha1L)*Riemann_param.rho2L,
-                                          (1.0 - Riemann_param.alpha1L)*Riemann_param.rho2L*Riemann_param.u2L,
-                                          (1.0 - Riemann_param.alpha1L)*Riemann_param.rho2L*
-                                          (EOS_phase2.e_value_RhoP(Riemann_param.rho2L, Riemann_param.p2L) +
-                                           0.5*Riemann_param.u2L*Riemann_param.u2L))->on(left);
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
-                                          Riemann_param.alpha1R,
-                                          Riemann_param.alpha1R*Riemann_param.rho1R,
-                                          Riemann_param.alpha1R*Riemann_param.rho1R*Riemann_param.u1R,
-                                          Riemann_param.alpha1R*Riemann_param.rho1R*
-                                          (EOS_phase1.e_value_RhoP(Riemann_param.rho1R, Riemann_param.p1R) +
-                                           0.5*Riemann_param.u1R*Riemann_param.u1R),
-                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R,
-                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R*Riemann_param.u2R,
-                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R*
-                                          (EOS_phase2.e_value_RhoP(Riemann_param.rho2R, Riemann_param.p2R) +
-                                           0.5*Riemann_param.u2R*Riemann_param.u2R))->on(right);
+                           // Save deltas
+                           delta_pres[cell] = p1[cell] - p2[cell];
+                           delta_temp[cell] = T1[cell] - T2[cell];
+                           delta_vel[cell]  = vel1[cell] - vel2[cell];
+
+                           // Initialize the pressure reference for the relaxation
+                           p_ref[cell] = std::abs(conserved_variables[cell][ALPHA1_RHO1_INDEX]*c1[cell]*c1[cell] +
+                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*c2[cell]*c2[cell] -
+                                                  alpha2[cell]*(p1[cell] - p2[cell])/(rho1[cell]*EOS_phase1.de_dP_rho(p1[cell], rho1[cell])));
+
+                           // Save pressure difference (only one cell is present)
+                           deltas << std::setprecision(10) << delta_pres[cell]
+                                                           << '\t'
+                                                           << delta_temp[cell]
+                                                           << '\t'
+                                                           << delta_vel[cell]
+                                                           << std::endl;
+                         });
 }
 
 /*--- AUXILIARY ROUTINES ---*/
@@ -324,6 +335,10 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
   alpha2.resize();
 
+  delta_pres.resize();
+  delta_temp.resize();
+  delta_vel.resize();
+
   // Loop over all cells
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -358,6 +373,19 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                            p[cell]       = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
                                          + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
+
+                           // Save deltas
+                           delta_pres[cell] = p1[cell] - p2[cell];
+                           delta_temp[cell] = T1[cell] - T2[cell];
+                           delta_vel[cell]  = vel1[cell] - vel2[cell];
+
+                           // Save pressure difference (only one cell is present)
+                           deltas << std::setprecision(10) << delta_pres[cell]
+                                                           << '\t'
+                                                           << delta_temp[cell]
+                                                           << '\t'
+                                                           << delta_vel[cell]
+                                                           << std::endl;
                          });
 }
 
@@ -387,7 +415,7 @@ void BN_Solver<dim>::save(const fs::path& path,
 /*--- AUXILIARY ROUTINE FOR THE RELAXATION ---*/
 template<std::size_t dim>
 template<typename State>
-void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
+void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q, const typename Field::value_type p_ref_loc,
                                                             Matrix_Relaxation& A, Vector_Relaxation& S) {
   // Compute auxiliary variables for phase 1
   const auto rho1_loc = q[ALPHA1_RHO1_INDEX]/q[ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -422,16 +450,20 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
               substituting uI \cdot grad\alpha iwe det d\alpha/dt... ---*/
 
   // Compute the coefficients
-  const auto a_pp = -(1.0/eps_p)*(rho1_loc*c1_loc*c1_loc/q[ALPHA1_INDEX] +
-                                  rho2_loc*c2_loc*c2_loc/(1.0 - q[ALPHA1_INDEX]) +
-                                  ((chi - 1.0)/(q[ALPHA1_RHO1_INDEX]*kappa1) +
-                                   chi/(q[ALPHA2_RHO2_INDEX]*kappa2))*(p1_loc - p2_loc)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-  const auto a_pT = -(1.0/eps_T)*(1.0/(q[ALPHA1_RHO1_INDEX]*kappa1) +
-                                  1.0/(q[ALPHA2_RHO2_INDEX]*kappa2)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-  const auto a_Tp = -(1.0/eps_p)*((pI_relax - rho1_loc*rho1_loc*Gamma1)/(q[ALPHA1_RHO1_INDEX]*cv1) +
-                                  (pI_relax - rho2_loc*rho2_loc*Gamma2)/(q[ALPHA2_RHO2_INDEX]*cv2));
-  const auto a_TT = -(1.0/eps_T)*(1.0/(q[ALPHA1_RHO1_INDEX]*cv1) +
-                                  1.0/(q[ALPHA2_RHO2_INDEX]*cv2)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+  const auto p_relax_coeff = q[ALPHA1_INDEX]*(1.0 - q[ALPHA1_INDEX])/(tau_p*p_ref_loc);
+  const auto T_relax_coeff = (q[ALPHA1_RHO1_INDEX]*cv1*q[ALPHA2_RHO2_INDEX]*cv2)/
+                             (tau_T*(q[ALPHA1_RHO1_INDEX]*cv1 + q[ALPHA2_RHO2_INDEX]*cv2));
+  const auto a_pp = -p_relax_coeff*(rho1_loc*c1_loc*c1_loc/q[ALPHA1_INDEX] +
+                                    rho2_loc*c2_loc*c2_loc/(1.0 - q[ALPHA1_INDEX]) +
+                                    ((chi - 1.0)/(q[ALPHA1_RHO1_INDEX]*kappa1) +
+                                     chi/(q[ALPHA2_RHO2_INDEX]*kappa2))*
+                                    (p1_loc - p2_loc)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+  const auto a_pT = -T_relax_coeff*(1.0/(q[ALPHA1_RHO1_INDEX]*kappa1) +
+                                    1.0/(q[ALPHA2_RHO2_INDEX]*kappa2)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+  const auto a_Tp = -p_relax_coeff*((pI_relax - rho1_loc*rho1_loc*Gamma1)/(q[ALPHA1_RHO1_INDEX]*cv1) +
+                                    (pI_relax - rho2_loc*rho2_loc*Gamma2)/(q[ALPHA2_RHO2_INDEX]*cv2));
+  const auto a_TT = -T_relax_coeff*(1.0/(q[ALPHA1_RHO1_INDEX]*cv1) +
+                                    1.0/(q[ALPHA2_RHO2_INDEX]*cv2)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
   A[0][0] = 1.0 - dt*a_pp;
   A[0][1] = -dt*a_pT;
@@ -441,8 +473,8 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
   // Set source term
   const auto rho_0      = q[ALPHA1_RHO1_INDEX] + q[ALPHA2_RHO2_INDEX];
   const auto Y1_0       = q[ALPHA1_RHO1_INDEX]/rho_0;
-  const auto a_tilde_pu = -1.0/eps_u*((beta - 1.0)/(kappa1*rho_0*Y1_0) + beta/(kappa2*rho_0*(1.0 - Y1_0)));
-  const auto a_tilde_Tu = -1.0/eps_u*((beta - 1.0)/(cv1*rho_0*Y1_0) + beta/(cv2*rho_0*(1.0 - Y1_0)));
+  const auto a_tilde_pu = -1.0/tau_u*((beta - 1.0)/(kappa1*(1.0 - Y1_0)) + beta/(kappa2*rho_0*Y1_0));
+  const auto a_tilde_Tu = -1.0/tau_u*((beta - 1.0)/(cv1*(1.0 - Y1_0)) + beta/(cv2*Y1_0));
   S[0] = a_tilde_pu*((vel1_loc - vel2_loc)*(vel1_loc - vel2_loc));
   S[1] = a_tilde_Tu*((vel1_loc - vel2_loc)*(vel1_loc - vel2_loc));
 }
@@ -490,12 +522,10 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                            const auto rho_0 = conserved_variables[cell][ALPHA1_RHO1_INDEX]
                                             + conserved_variables[cell][ALPHA2_RHO2_INDEX];
                            const auto Y1_0  = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho_0;
-                           delta_u = (vel1[cell] - vel2[cell])*std::exp(-dt/eps_u*
-                                                                         (1.0/conserved_variables[cell][ALPHA1_RHO1_INDEX] +
-                                                                          1.0/conserved_variables[cell][ALPHA2_RHO2_INDEX]));
+                           delta_u          = (vel1[cell] - vel2[cell])*std::exp(-dt/tau_u);
 
                            // Compute matrix relaxation coefficients
-                           compute_coefficients_source_relaxation(conserved_variables[cell],
+                           compute_coefficients_source_relaxation(conserved_variables[cell], p_ref[cell],
                                                                   A_relax, S_relax);
 
                            // Solve the system for the remaining variables
@@ -924,7 +954,8 @@ void BN_Solver<dim>::run() {
   save(path, filename, suffix_init,
        conserved_variables, rho, p,
        vel1, rho1, p1, c1, T1,
-       vel2, rho2, p2, c2, T2, alpha2);
+       vel2, rho2, p2, c2, T2, alpha2,
+       delta_pres, delta_temp, delta_vel);
 
   /*--- Set mesh size ---*/
   const double dx = mesh.cell_length(mesh.max_level());
@@ -937,14 +968,15 @@ void BN_Solver<dim>::run() {
     // Apply mesh adaptation
     samurai::update_ghost_mr(conserved_variables);
     auto MRadaptation = samurai::make_MRAdapt(conserved_variables);
-    MRadaptation(1e-2, 1);
+    MRadaptation(MR_param, MR_regularity);
 
     // Apply the numerical scheme
     samurai::update_ghost_mr(conserved_variables);
     #ifdef SULICIU_RELAXATION
       c = 0.0;
       auto Relaxation_Flux = Suliciu_flux(conserved_variables);
-      dt = std::min(Tf - t, cfl*dx/c);
+      //dt = std::min(Tf - t, cfl*dx/c);
+      dt = std::min(Tf - t, dt);
       t += dt;
       std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
 
@@ -955,13 +987,15 @@ void BN_Solver<dim>::run() {
         conserved_variables_np1.resize();
         conserved_variables_np1 = conserved_variables - dt*Relaxation_Flux;
       #endif
+      update_auxiliary_fields();
     #elifdef RUSANOV_FLUX
       auto Cons_Flux    = Rusanov_flux(conserved_variables);
       auto NonCons_Flux = NonConservative_flux(conserved_variables);
       if(nt > 0 && !(t >= static_cast<double>(nsave + 1)*dt_save || t == Tf)) {
         update_auxiliary_fields();
       }
-      dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+      //dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+      dt = std::min(Tf - t, dt);
       t += dt;
       std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
 
@@ -1047,7 +1081,8 @@ void BN_Solver<dim>::run() {
       save(path, filename, suffix,
            conserved_variables, rho, p,
            vel1, rho1, p1, c1, T1,
-           vel2, rho2, p2, c2, T2, alpha2);
+           vel2, rho2, p2, c2, T2, alpha2,
+           delta_pres, delta_temp, delta_vel);
     }
   }
 }

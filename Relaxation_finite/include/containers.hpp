@@ -10,18 +10,21 @@ struct Simulation_Parameters {
   double yR;
   std::size_t min_level;
   std::size_t max_level;
+  double MR_param;
+  double MR_regularity;
 
   double Tf;
   double Courant;
+  double dt;
 
   std::size_t nfiles;
 
   bool apply_relaxation;
 
   bool apply_finite_rate_relaxation;
-  double eps_u;
-  double eps_p;
-  double eps_T;
+  double tau_u;
+  double tau_p;
+  double tau_T;
 
   bool relax_pressure;
   bool relax_temperature;
@@ -47,20 +50,24 @@ struct Riemann_Parameters {
   double alpha1L;
   double rho1L;
   double p1L;
+  double T1L;
   double u1L;
   double v1L;
   double rho2L;
   double p2L;
+  double T2L;
   double u2L;
   double v2L;
 
   double alpha1R;
   double rho1R;
   double p1R;
+  double T1R;
   double u1R;
   double v1R;
   double rho2R;
   double p2R;
+  double T2R;
   double u2R;
   double v2R;
 };
