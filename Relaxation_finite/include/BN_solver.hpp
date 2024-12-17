@@ -125,7 +125,7 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void init_variables(const Riemann_Parameters& Riemann_param); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
 
-  void update_auxiliary_fields(); // Routine to update auxiliary fields for output and time step update
+  void update_auxiliary_fields(const double time); // Routine to update auxiliary fields for output and time step update
 
   #ifdef RUSANOV_FLUX
     double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
@@ -172,13 +172,13 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
   relax_pressure(sim_param.relax_pressure),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.cv_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.cv_2),
-  MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   #ifdef SULICIU_RELAXATION
-    numerical_flux(EOS_phase1, EOS_phase2)
+    numerical_flux(EOS_phase1, EOS_phase2),
   #elifdef RUSANOV_FLUX
     numerical_flux_cons(EOS_phase1, EOS_phase2),
-    numerical_flux_non_cons(EOS_phase1, EOS_phase2)
+    numerical_flux_non_cons(EOS_phase1, EOS_phase2),
   #endif
+  MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
     init_variables(Riemann_param);
   }
@@ -283,12 +283,12 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                                   alpha2[cell]*(p1[cell] - p2[cell])/(rho1[cell]*EOS_phase1.de_dP_rho(p1[cell], rho1[cell])));
 
                            // Save pressure difference (only one cell is present)
-                           deltas << std::setprecision(10) << delta_pres[cell]
-                                                           << '\t'
-                                                           << delta_temp[cell]
-                                                           << '\t'
-                                                           << delta_vel[cell]
-                                                           << std::endl;
+                           deltas << std::setprecision(10)
+                                  << std::setw(20) << std::left << 0.0
+                                  << std::setw(20) << std::left << delta_pres[cell]
+                                  << std::setw(20) << std::left << delta_temp[cell]
+                                  << std::setw(20) << std::left << delta_vel[cell]
+                                  << std::endl;
                          });
 }
 
@@ -316,7 +316,7 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 // Update auxiliary fields after solution of the system
 //
 template<std::size_t dim>
-void BN_Solver<dim>::update_auxiliary_fields() {
+void BN_Solver<dim>::update_auxiliary_fields(const double time) {
   // Resize fields because of multiresolution
   rho.resize();
   p.resize();
@@ -380,12 +380,12 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                            delta_vel[cell]  = vel1[cell] - vel2[cell];
 
                            // Save pressure difference (only one cell is present)
-                           deltas << std::setprecision(10) << delta_pres[cell]
-                                                           << '\t'
-                                                           << delta_temp[cell]
-                                                           << '\t'
-                                                           << delta_vel[cell]
-                                                           << std::endl;
+                           deltas << std::setprecision(10)
+                                  << std::setw(20) << std::left << time
+                                  << std::setw(20) << std::left << delta_pres[cell]
+                                  << std::setw(20) << std::left << delta_temp[cell]
+                                  << std::setw(20) << std::left << delta_vel[cell]
+                                  << std::endl;
                          });
 }
 
@@ -627,19 +627,22 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                break;
                              }
                            }
+
                            /*--- Once pressure and temperature have been update, finalize the update ---*/
-                           e2 = EOS_phase2.e_value_PT(p2[cell], T2[cell]);
-                           conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                                             (e2 + 0.5*norm2_vel2);
-                           rho2[cell] = EOS_phase2.rho_value_PT(p2[cell], T2[cell]);
-                           conserved_variables[cell][ALPHA1_INDEX] = 1.0 - conserved_variables[cell][ALPHA2_RHO2_INDEX]/rho2[cell];
+                           const auto rhoE_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]
+                                             + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
 
                            p1[cell] = p2[cell] + delta_p;
                            T1[cell] = T2[cell] + delta_T;
                            e1 = EOS_phase1.e_value_PT(p1[cell], T1[cell]);
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
                                                                              (e1 + 0.5*norm2_vel1);
+
                            rho1[cell] = EOS_phase1.rho_value_PT(p1[cell], T1[cell]);
+                           conserved_variables[cell][ALPHA1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho1[cell];
+
+                           conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = rhoE_0
+                                                                           - conserved_variables[cell][ALPHA1_RHO1_E1_INDEX];
                          });
 }
 
@@ -982,18 +985,14 @@ void BN_Solver<dim>::run() {
 
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*Relaxation_Flux;
+        conserved_variables_tmp = conserved_variables - 0.0*dt*Relaxation_Flux;
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*Relaxation_Flux;
+        conserved_variables_np1 = conserved_variables - 0.0*dt*Relaxation_Flux;
       #endif
-      update_auxiliary_fields();
     #elifdef RUSANOV_FLUX
       auto Cons_Flux    = Rusanov_flux(conserved_variables);
       auto NonCons_Flux = NonConservative_flux(conserved_variables);
-      if(nt > 0 && !(t >= static_cast<double>(nsave + 1)*dt_save || t == Tf)) {
-        update_auxiliary_fields();
-      }
       //dt = std::min(Tf - t, cfl*dx/get_max_lambda());
       dt = std::min(Tf - t, dt);
       t += dt;
@@ -1001,10 +1000,10 @@ void BN_Solver<dim>::run() {
 
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
+        conserved_variables_tmp = conserved_variables - 0.0*dt*Cons_Flux - 0.0*dt*NonCons_Flux;
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
+        conserved_variables_np1 = conserved_variables - 0.0*dt*Cons_Flux - 0.0*dt*NonCons_Flux;
       #endif
     #endif
 
@@ -1042,12 +1041,12 @@ void BN_Solver<dim>::run() {
         c = 0.0;
         Relaxation_Flux = Suliciu_flux(conserved_variables);
 
-        conserved_variables_tmp_2 = conserved_variables - dt*Relaxation_Flux;
+        conserved_variables_tmp_2 = conserved_variables - 0.0*dt*Relaxation_Flux;
       #elifdef RUSANOV_FLUX
         Cons_Flux    = Rusanov_flux(conserved_variables);
         NonCons_Flux = NonConservative_flux(conserved_variables);
 
-        conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
+        conserved_variables_tmp_2 = conserved_variables - 0.0*dt*Cons_Flux - 0.0*dt*NonCons_Flux;
       #endif
       conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
@@ -1074,9 +1073,8 @@ void BN_Solver<dim>::run() {
     #endif
 
     // Save the results
+    update_auxiliary_fields(t);
     if(t >= static_cast<double>(nsave + 1)*dt_save || t == Tf) {
-      update_auxiliary_fields();
-
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, filename, suffix,
            conserved_variables, rho, p,
