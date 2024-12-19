@@ -45,7 +45,7 @@ namespace fs = std::filesystem;
 #define VERBOSE
 
 // Define preprocessor to choose whether gravity has to be tretaed implicitly or not
-#define GRAVITY_IMPLICIT
+//#define GRAVITY_IMPLICIT
 
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
@@ -57,7 +57,7 @@ using namespace EquationData;
 template<std::size_t dim>
 class DamBreak {
 public:
-  using Config = samurai::MRConfig<dim, 2, 2, 2>;
+  using Config = samurai::MRConfig<dim, 2, 2, 0>;
 
   DamBreak() = default; // Default constructor. This will do nothing
                         // and basically will never be used
@@ -92,6 +92,7 @@ private:
 
   double L0; // Initial length dam
   double H0; // Initial height dam
+  double W0; // Initial weigth dam
 
   std::size_t nfiles; // Number of files desired for output
 
@@ -151,12 +152,13 @@ private:
 //
 template<std::size_t dim>
 DamBreak<dim>::DamBreak(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
-                                  const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                                  const Simulation_Paramaters& sim_param,
-                                  const EOS_Parameters& eos_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false, false}),
+                        const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
+                        const Simulation_Paramaters& sim_param,
+                        const EOS_Parameters& eos_param):
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false, false, false}}),
   apply_relax(sim_param.apply_relaxation),
-  Tf(sim_param.Tf), cfl(sim_param.Courant), L0(sim_param.L0), H0(sim_param.H0),
+  Tf(sim_param.Tf), cfl(sim_param.Courant),
+  L0(sim_param.L0), H0(sim_param.H0), W0(sim_param.W0),
   nfiles(sim_param.nfiles),
   gradient(samurai::make_gradient_order2<decltype(alpha1)>()),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
@@ -204,9 +206,10 @@ void DamBreak<dim>::init_variables() {
                            const auto center = cell.center();
                            const double x    = center[0];
                            const double y    = center[1];
+                           const double z    = center[2];
 
                            // Set volume fraction
-                           if(x < L0 && y < H0) {
+                           if(x < L0 && y < H0 && z < W0) {
                              alpha1[cell] = 1.0 - 1e-6;
                            }
                            else {
@@ -228,11 +231,10 @@ void DamBreak<dim>::init_variables() {
                            conserved_variables[cell][RHO_ALPHA1_INDEX] = rho[cell]*alpha1[cell];
 
                            // Set momentum
-                           vel[cell][0] = 0.0;
-                           conserved_variables[cell][RHO_U_INDEX] = rho[cell]*vel[cell][0];
-
-                           vel[cell][1] = 0.0;
-                           conserved_variables[cell][RHO_U_INDEX + 1] = rho[cell]*vel[cell][1];
+                           for(std::size_t d = 0; d < Field::dim; ++ d) {
+                             vel[cell][d] = 0.0;
+                             conserved_variables[cell][RHO_U_INDEX + d] = rho[cell]*vel[cell][d];
+                           }
 
                            // Set mixture pressure for output
                            p[cell] = alpha1[cell]*p1[cell]
@@ -261,6 +263,7 @@ double DamBreak<dim>::get_max_lambda() const {
 
                            const auto vel_x = conserved_variables[cell][RHO_U_INDEX]/rho_;
                            const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho_;
+                           const auto vel_z = conserved_variables[cell][RHO_U_INDEX + 2]/rho_;
 
                            // Compute frozen speed of sound
                            const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1_;
@@ -272,8 +275,9 @@ double DamBreak<dim>::get_max_lambda() const {
                            const auto c         = std::sqrt(c_squared/rho_);
 
                            // Update eigenvalue estimate
-                           res = std::max(std::max(std::abs(vel_x) + c,
-                                                   std::abs(vel_y) + c),
+                           res = std::max(std::max(std::max(std::abs(vel_x) + c,
+                                                            std::abs(vel_y) + c),
+                                                   std::abs(vel_z) + c),
                                           res);
                          });
 
@@ -303,6 +307,9 @@ void DamBreak<dim>::perform_mesh_adaptation() {
   #ifdef VERBOSE
     check_data(1);
   #endif
+
+  save(fs::current_path(), "_after_mesh_adaptation",
+       conserved_variables, alpha1);
 }
 
 // Numerical artefact to avoid small negative values

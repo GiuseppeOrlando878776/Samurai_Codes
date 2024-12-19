@@ -21,16 +21,19 @@ int main(int argc, char* argv[]) {
   Simulation_Paramaters sim_param;
 
   sim_param.xL = 0.0;
-  sim_param.xR = 1.6;
+  sim_param.xR = 1.0;
   sim_param.yL = 0.0;
-  sim_param.yR = 0.8;
+  sim_param.yR = 1.0;
+  sim_param.zL = 0.0;
+  sim_param.zR = 1.0;
 
-  sim_param.L0 = 0.6;
-  sim_param.H0 = 0.3;
+  sim_param.L0 = 0.4;
+  sim_param.H0 = 0.8;
+  sim_param.W0 = 0.4;
 
-  sim_param.min_level = 7;
-  sim_param.max_level = 7;
-  sim_param.MR_param = 1e-3;
+  sim_param.min_level = 4;
+  sim_param.max_level = 4;
+  sim_param.MR_param = 1e-1;
   sim_param.MR_regularity = 0;
 
   sim_param.Tf = 0.6;
@@ -46,8 +49,11 @@ int main(int argc, char* argv[]) {
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--yL", sim_param.yL, "y Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--yR", sim_param.yR, "y Right-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--zL", sim_param.zL, "z Left-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--zR", sim_param.zR, "z Right-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--L0", sim_param.L0, "Dam initial length")->capture_default_str()->group("Simulation parameters");
   app.add_option("--H0", sim_param.H0, "Dam initial height")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--W0", sim_param.W0, "Dam initial width")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
@@ -55,8 +61,8 @@ int main(int argc, char* argv[]) {
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL, sim_param.yL};
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR, sim_param.yR};
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL, sim_param.yL, sim_param.zL};
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR, sim_param.yR, sim_param.zR};
 
   // Set and declare simulation parameters related to EOS
   EOS_Parameters eos_param;

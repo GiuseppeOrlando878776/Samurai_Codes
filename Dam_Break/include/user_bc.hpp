@@ -42,11 +42,14 @@ auto NonReflecting(const Field& Q) {
     Q_ghost[M2_INDEX]         = Q[cell_in](M2_INDEX);
     Q_ghost[RHO_ALPHA1_INDEX] = Q[cell_in](RHO_ALPHA1_INDEX);
 
-    const auto rhou_dot_n = Q[cell_in](RHO_U_INDEX)*normal[0]
-                          + Q[cell_in](RHO_U_INDEX + 1)*normal[1];
+    typename Field::value_type rhou_dot_n = 0.0;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      rhou_dot_n += Q[cell_in](RHO_U_INDEX + d)*normal[d];
+    }
 
-    Q_ghost[RHO_U_INDEX]     = Q[cell_in](RHO_U_INDEX) - 2.0*rhou_dot_n*normal[0];
-    Q_ghost[RHO_U_INDEX + 1] = Q[cell_in](RHO_U_INDEX + 1) - 2.0*rhou_dot_n*normal[1];
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      Q_ghost[RHO_U_INDEX + d] = Q[cell_in](RHO_U_INDEX + d) - 2.0*rhou_dot_n*normal[d];
+    }
 
     return Q_ghost;
   };

@@ -12,9 +12,12 @@ struct Simulation_Paramaters {
   double xR;
   double yL;
   double yR;
+  double zL;
+  double zR;
   double L0;
   double H0;
-  
+  double W0;
+
   std::size_t min_level;
   std::size_t max_level;
   double MR_param;
