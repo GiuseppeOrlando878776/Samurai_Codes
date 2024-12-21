@@ -45,7 +45,7 @@ namespace fs = std::filesystem;
 #define VERBOSE
 
 // Define preprocessor to choose whether gravity has to be tretaed implicitly or not
-//#define GRAVITY_IMPLICIT
+#define GRAVITY_IMPLICIT
 
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
@@ -155,7 +155,7 @@ DamBreak<dim>::DamBreak(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
                         const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                         const Simulation_Paramaters& sim_param,
                         const EOS_Parameters& eos_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false, false, false}}),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false, false, false}),
   apply_relax(sim_param.apply_relaxation),
   Tf(sim_param.Tf), cfl(sim_param.Courant),
   L0(sim_param.L0), H0(sim_param.H0), W0(sim_param.W0),
