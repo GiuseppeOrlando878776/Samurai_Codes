@@ -41,7 +41,7 @@ using namespace EquationData;
 template<std::size_t dim>
 class TwoScaleCapillarity {
 public:
-  using Config = samurai::MRConfig<dim, 2, 2, 2>;
+  using Config = samurai::MRConfig<dim, 2, 2, 0>;
 
   TwoScaleCapillarity() = default; // Default constructor. This will do nothing
                             // and basically will never be used
@@ -352,7 +352,7 @@ void TwoScaleCapillarity<dim>::init_variables() {
   grad_alpha1_d = gradient(alpha1_d);
 
   samurai::update_ghost_mr(vel);
-  div_vel       = divergence(vel);
+  div_vel = divergence(vel);
 
   // Set auxiliary gradient large-scale volume fraction
   samurai::update_ghost_mr(alpha1);
@@ -898,7 +898,8 @@ void TwoScaleCapillarity<dim>::run() {
                                Dt_alpha1_d[cell] = (conserved_variables[cell][ALPHA1_D_INDEX] - conserved_variables_np1[cell][ALPHA1_D_INDEX])/dt
                                                  + vel[cell][0]*grad_alpha1_d[cell][0] + vel[cell][1]*grad_alpha1_d[cell][1];
 
-                               CV_alpha1_d[cell] = Dt_alpha1_d[cell] + conserved_variables[cell][ALPHA1_D_INDEX]*div_vel[cell];
+                               CV_alpha1_d[cell] = Dt_alpha1_d[cell]
+                                                 + conserved_variables[cell][ALPHA1_D_INDEX]*div_vel[cell];
                              });
 
       // Perform the saving

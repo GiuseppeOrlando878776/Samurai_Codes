@@ -11,7 +11,7 @@
 #include "barotropic_eos.hpp"
 
 // Preprocessor to define whether order 2 is desired
-//#define ORDER_2
+#define ORDER_2
 
 // Preprocessor to define whether relaxation is desired after reconstruction for order 2
 #ifdef ORDER_2
@@ -327,7 +327,7 @@ namespace samurai {
         dalpha1 = std::min(dalpha1, lambda*(1.0 - alpha1));
       }
       else if(dalpha1 < 0.0) {
-        dalpha1 = std::max(dalpha1, -lambda*(alpha1));
+        dalpha1 = std::max(dalpha1, -lambda*alpha1);
       }
 
       if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0) {

@@ -226,9 +226,10 @@ namespace samurai {
           q_star(M2_INDEX)             = m2_L_star;
           q_star(RHO_ALPHA1_INDEX)     = rho_L_star*alpha1_L;
           q_star(RHO_U_INDEX + curr_d) = rho_L_star*u_star;
-          for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-            q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
-            q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
+            }
           }
         }
       }
@@ -249,9 +250,10 @@ namespace samurai {
           q_star(M2_INDEX)             = m2_L_fan;
           q_star(RHO_ALPHA1_INDEX)     = rho_L_fan*alpha1_L;
           q_star(RHO_U_INDEX + curr_d) = rho_L_fan*c_L;
-          for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-            q_star(RHO_U_INDEX + d) = rho_L_fan*(qL(RHO_U_INDEX + d)/rho_L);
-            q_star(RHO_U_INDEX + d) = rho_L_fan*(qL(RHO_U_INDEX + d)/rho_L);
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_fan*(qL(RHO_U_INDEX + d)/rho_L);
+            }
           }
         }
         // Right of the left fan. Compute the state
@@ -264,9 +266,10 @@ namespace samurai {
           q_star(M2_INDEX)             = m2_L_star;
           q_star(RHO_ALPHA1_INDEX)     = rho_L_star*alpha1_L;
           q_star(RHO_U_INDEX + curr_d) = rho_L_star*u_star;
-          for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-            q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
-            q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
+            }
           }
         }
       }
@@ -299,9 +302,10 @@ namespace samurai {
           q_star(M2_INDEX)             = m2_R_star;
           q_star(RHO_ALPHA1_INDEX)     = rho_R_star*alpha1_R;
           q_star(RHO_U_INDEX + curr_d) = rho_R_star*u_star;
-          for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-            q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
-            q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
+            }
           }
         }
       }
@@ -327,9 +331,10 @@ namespace samurai {
           q_star(M2_INDEX)             = m2_R_fan;
           q_star(RHO_ALPHA1_INDEX)     = rho_R_fan*alpha1_R;
           q_star(RHO_U_INDEX + curr_d) = -rho_R_fan*c_R;
-          for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-            q_star(RHO_U_INDEX + d) = rho_R_fan*(qR(RHO_U_INDEX + d)/rho_R);
-            q_star(RHO_U_INDEX + d) = rho_R_fan*(qR(RHO_U_INDEX + d)/rho_R);
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_fan*(qR(RHO_U_INDEX + d)/rho_R);
+            }
           }
         }
         // Compute state at the left of the right fan
@@ -342,9 +347,10 @@ namespace samurai {
           q_star(M2_INDEX)             = m2_R_star;
           q_star(RHO_ALPHA1_INDEX)     = rho_R_star*alpha1_R;
           q_star(RHO_U_INDEX + curr_d) = rho_R_star*u_star;
-          for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-            q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
-            q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
+            }
           }
         }
       }

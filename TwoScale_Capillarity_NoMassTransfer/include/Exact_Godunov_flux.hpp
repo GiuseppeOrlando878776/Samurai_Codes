@@ -270,16 +270,14 @@ namespace samurai {
         // If left of left shock, q* = qL, already assigned.
         // If right of left shock, is the computed state
         if(!std::isnan(s_L) && s_L < 0.0) {
-          q_star(M1_INDEX)         = m1_L_star;
-          q_star(M2_INDEX)         = m2_L_star;
-          q_star(RHO_ALPHA1_INDEX) = rho_L_star*alpha1_L;
-          if(curr_d == 0) {
-            q_star(RHO_U_INDEX)     = rho_L_star*u_star;
-            q_star(RHO_U_INDEX + 1) = rho_L_star*(qL(RHO_U_INDEX + 1)/rho_L);
-          }
-          else if(curr_d == 1) {
-            q_star(RHO_U_INDEX)     = rho_L_star*(qL(RHO_U_INDEX)/rho_L);
-            q_star(RHO_U_INDEX + 1) = rho_L_star*u_star;
+          q_star(M1_INDEX)             = m1_L_star;
+          q_star(M2_INDEX)             = m2_L_star;
+          q_star(RHO_ALPHA1_INDEX)     = rho_L_star*alpha1_L;
+          q_star(RHO_U_INDEX + curr_d) = rho_L_star*u_star;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
+            }
           }
         }
       }
@@ -296,16 +294,14 @@ namespace samurai {
           const auto m2_L_fan  = qL(M2_INDEX)*std::exp((vel_d_L - c_L)/c_L);
           const auto rho_L_fan = m1_L_fan + m2_L_fan;
 
-          q_star(M1_INDEX)         = m1_L_fan;
-          q_star(M2_INDEX)         = m2_L_fan;
-          q_star(RHO_ALPHA1_INDEX) = rho_L_fan*alpha1_L;
-          if(curr_d == 0) {
-            q_star(RHO_U_INDEX)     = rho_L_fan*c_L;
-            q_star(RHO_U_INDEX + 1) = rho_L_fan*(qL(RHO_U_INDEX + 1)/rho_L);
-          }
-          else if(curr_d == 1) {
-            q_star(RHO_U_INDEX)     = rho_L_fan*(qL(RHO_U_INDEX)/rho_L);
-            q_star(RHO_U_INDEX + 1) = rho_L_fan*c_L;
+          q_star(M1_INDEX)             = m1_L_fan;
+          q_star(M2_INDEX)             = m2_L_fan;
+          q_star(RHO_ALPHA1_INDEX)     = rho_L_fan*alpha1_L;
+          q_star(RHO_U_INDEX + curr_d) = rho_L_fan*c_L;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_fan*(qL(RHO_U_INDEX + d)/rho_L);
+            }
           }
         }
         // Right of the left fan. Compute the state
@@ -314,16 +310,14 @@ namespace samurai {
           const auto m2_L_star  = qL(M2_INDEX)*std::exp((vel_d_L - u_star)/c_L);
           const auto rho_L_star = m1_L_star + m2_L_star;
 
-          q_star(M1_INDEX)         = m1_L_star;
-          q_star(M2_INDEX)         = m2_L_star;
-          q_star(RHO_ALPHA1_INDEX) = rho_L_star*alpha1_L;
-          if(curr_d == 0) {
-            q_star(RHO_U_INDEX)     = rho_L_star*u_star;
-            q_star(RHO_U_INDEX + 1) = rho_L_star*(qL(RHO_U_INDEX + 1)/rho_L);
-          }
-          else if(curr_d == 1) {
-            q_star(RHO_U_INDEX)     = rho_L_star*(qL(RHO_U_INDEX)/rho_L);
-            q_star(RHO_U_INDEX + 1) = rho_L_star*u_star;
+          q_star(M1_INDEX)             = m1_L_star;
+          q_star(M2_INDEX)             = m2_L_star;
+          q_star(RHO_ALPHA1_INDEX)     = rho_L_star*alpha1_L;
+          q_star(RHO_U_INDEX + curr_d) = rho_L_star*u_star;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
+            }
           }
         }
       }
@@ -352,16 +346,14 @@ namespace samurai {
         }
         // Left of right shock, compute the state
         else {
-          q_star(M1_INDEX)         = m1_R_star;
-          q_star(M2_INDEX)         = m2_R_star;
-          q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
-          if(curr_d == 0) {
-            q_star(RHO_U_INDEX)     = rho_R_star*u_star;
-            q_star(RHO_U_INDEX + 1) = rho_R_star*(qR(RHO_U_INDEX + 1)/rho_R);
-          }
-          else if(curr_d == 1) {
-            q_star(RHO_U_INDEX)     = rho_R_star*(qR(RHO_U_INDEX)/rho_R);
-            q_star(RHO_U_INDEX + 1) = rho_R_star*u_star;
+          q_star(M1_INDEX)             = m1_R_star;
+          q_star(M2_INDEX)             = m2_R_star;
+          q_star(RHO_ALPHA1_INDEX)     = rho_R_star*alpha1_R;
+          q_star(RHO_U_INDEX + curr_d) = rho_R_star*u_star;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
+            }
           }
         }
       }
@@ -383,16 +375,14 @@ namespace samurai {
           const auto m2_R_fan  = qR(M2_INDEX)*std::exp(-(vel_d_R + c_R)/c_R);
           const auto rho_R_fan = m1_R_fan + m2_R_fan;
 
-          q_star(M1_INDEX)         = m1_R_fan;
-          q_star(M2_INDEX)         = m2_R_fan;
-          q_star(RHO_ALPHA1_INDEX) = rho_R_fan*alpha1_R;
-          if(curr_d == 0) {
-            q_star(RHO_U_INDEX)     = -rho_R_fan*c_R;
-            q_star(RHO_U_INDEX + 1) = rho_R_fan*(qR(RHO_U_INDEX + 1)/rho_R);
-          }
-          else if(curr_d == 1) {
-            q_star(RHO_U_INDEX)     = rho_R_fan*(qR(RHO_U_INDEX)/rho_R);
-            q_star(RHO_U_INDEX + 1) = -rho_R_fan*c_R;
+          q_star(M1_INDEX)             = m1_R_fan;
+          q_star(M2_INDEX)             = m2_R_fan;
+          q_star(RHO_ALPHA1_INDEX)     = rho_R_fan*alpha1_R;
+          q_star(RHO_U_INDEX + curr_d) = -rho_R_fan*c_R;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_fan*(qR(RHO_U_INDEX + d)/rho_R);
+            }
           }
         }
         // Compute state at the left of the right fan
@@ -401,16 +391,14 @@ namespace samurai {
           const auto m2_R_star  = qR(M2_INDEX)*std::exp(-(vel_d_R - u_star)/c_R);
           const auto rho_R_star = m1_R_star + m2_R_star ;
 
-          q_star(M1_INDEX)         = m1_R_star;
-          q_star(M2_INDEX)         = m2_R_star;
-          q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
-          if(curr_d == 0) {
-            q_star(RHO_U_INDEX)     = rho_R_star*u_star;
-            q_star(RHO_U_INDEX + 1) = rho_R_star*(qR(RHO_U_INDEX + 1)/rho_R);
-          }
-          else if(curr_d == 1) {
-            q_star(RHO_U_INDEX)     = rho_R_star*(qR(RHO_U_INDEX)/rho_R);
-            q_star(RHO_U_INDEX + 1) = rho_R_star*u_star;
+          q_star(M1_INDEX)             = m1_R_star;
+          q_star(M2_INDEX)             = m2_R_star;
+          q_star(RHO_ALPHA1_INDEX)     = rho_R_star*alpha1_R;
+          q_star(RHO_U_INDEX + curr_d) = rho_R_star*u_star;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
+            }
           }
         }
       }

@@ -4,7 +4,7 @@
 //
 #include <CLI/CLI.hpp>
 
-#include "include/two_scale_capillarity_order1.hpp"
+#include "include/two_scale_capillarity.hpp"
 
 // Main function to run the program
 //
@@ -20,20 +20,20 @@ int main(int argc, char* argv[]) {
   sim_param.yL = 0.0;
   sim_param.yR = 2.0;
 
-  sim_param.min_level = 7;
-  sim_param.max_level = 7;
-  sim_param.MR_param = 1e-5;
+  sim_param.min_level     = 8;
+  sim_param.max_level     = 8;
+  sim_param.MR_param      = 1e-1;
   sim_param.MR_regularity = 0;
 
-  sim_param.Tf = 2.5;
+  sim_param.Tf      = 2.5;
   sim_param.Courant = 0.4;
 
   sim_param.nfiles = 10;
 
   sim_param.sigma = 1e-2;
 
-  sim_param.apply_relaxation = true;
-  sim_param.eps_residual = 1e-8;
+  sim_param.apply_relaxation    = true;
+  sim_param.eps_residual        = 1e-8;
   sim_param.mod_grad_alpha1_min = 0.0;
 
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
@@ -52,9 +52,6 @@ int main(int argc, char* argv[]) {
   app.add_option("--MR_param", sim_param.MR_param, "Multiresolution parameter")->capture_default_str()->group("AMR parameter");
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
-
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL, sim_param.yL};
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR, sim_param.yR};
 
   // Set and declare simulation parameters related to EOS
   EOS_Parameters eos_param;
@@ -76,6 +73,8 @@ int main(int argc, char* argv[]) {
 
   // Create the instance of the class to perform the simulation
   CLI11_PARSE(app, argc, argv);
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL, sim_param.yL};
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR, sim_param.yR};
   auto TwoScaleCapillarity_Sim = TwoScaleCapillarity(min_corner, max_corner,
                                                      sim_param, eos_param);
 

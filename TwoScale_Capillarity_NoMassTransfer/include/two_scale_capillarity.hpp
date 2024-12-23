@@ -18,6 +18,9 @@ namespace fs = std::filesystem;
 // Add header with auxiliary structs
 #include "containers.hpp"
 
+// Add user implemented boundary condition
+#include "user_bc.hpp"
+
 // Include the headers with the numerical fluxes
 //#define RUSANOV_FLUX
 #define GODUNOV_FLUX
@@ -30,7 +33,7 @@ namespace fs = std::filesystem;
 #include "SurfaceTension_flux.hpp"
 
 // Define preprocessor to check whether to control data or not
-//#define VERBOSE
+#define VERBOSE
 
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
@@ -42,7 +45,7 @@ using namespace EquationData;
 template<std::size_t dim>
 class TwoScaleCapillarity {
 public:
-  using Config = samurai::MRConfig<dim, 2, 2, 2>;
+  using Config = samurai::MRConfig<dim, 2, 2, 0>;
 
   TwoScaleCapillarity() = default; // Default constructor. This will do nothing
                                    // and basically will never be used
@@ -285,11 +288,8 @@ void TwoScaleCapillarity<dim>::init_variables() {
   // Apply bcs
   const samurai::DirectionVector<dim> left  = {-1, 0};
   const samurai::DirectionVector<dim> right = {1, 0};
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, eps_residual*EOS_phase1.get_rho0(), (1.0 - eps_residual)*EOS_phase2.get_rho0(),
-                                                               eps_residual*(eps_residual*EOS_phase1.get_rho0() +
-                                                               (1.0 - eps_residual)*EOS_phase2.get_rho0()),
-                                                               (eps_residual*EOS_phase1.get_rho0() +
-                                                               (1.0 - eps_residual)*EOS_phase2.get_rho0())*U_0, 0.0)->on(left);
+  samurai::make_bc<Default>(conserved_variables,
+                            Inlet(conserved_variables, U_0, 0.0, eps_residual))->on(left);
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
 }
 
@@ -539,8 +539,10 @@ void TwoScaleCapillarity<dim>::run() {
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   double t          = 0.0;
-  const double dx   = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
+  const double dx   = mesh.cell_length(mesh.max_level());
   double dt         = std::min(Tf - t, cfl*dx/get_max_lambda());
+  std::cout << "Number of elements = " << mesh[mesh_id_t::cells].nb_cells() << std::endl;
+  std::cout << std::endl;
   while(t != Tf) {
     t += dt;
     if(t > Tf) {
@@ -556,7 +558,6 @@ void TwoScaleCapillarity<dim>::run() {
     /*--- Apply the numerical scheme without relaxation ---*/
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_bc(conserved_variables);
     try {
       auto flux_hyp = numerical_flux_hyp(conserved_variables);
       #ifdef ORDER_2
@@ -580,7 +581,6 @@ void TwoScaleCapillarity<dim>::run() {
     update_geometry();
     // Capillarity contribution
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_bc(conserved_variables);
     auto flux_st = numerical_flux_st(conserved_variables);
     #ifdef ORDER_2
       conserved_variables_tmp_2.resize();
@@ -610,7 +610,6 @@ void TwoScaleCapillarity<dim>::run() {
       // Apply the numerical scheme
       // Convective operator
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
       try {
         auto flux_hyp = numerical_flux_hyp(conserved_variables);
         conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
@@ -627,7 +626,6 @@ void TwoScaleCapillarity<dim>::run() {
       update_geometry();
       // Capillarity contribution
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
       flux_st = numerical_flux_st(conserved_variables);
       conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
       conserved_variables_np1.resize();
