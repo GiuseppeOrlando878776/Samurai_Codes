@@ -134,8 +134,10 @@ private:
   const double MR_regularity; // Multiresolution regularity
 
   // Auxiliary output streams for post-processing
-  const double kappa;       // Tolerance when we want to avoid division by zero
-  const double alpha1d_max; // Minimum threshold for which not computing anymore the unit normal
+  const double kappa;          // Tolerance when we want to avoid division by zero
+  const double alpha1d_max;    // Minimum threshold for which not computing anymore the unit normal
+  const double alpha1_bar_min; // Minimum effective volume fraction to identify the mixture region
+  const double alpha1_bar_max; // Maximum effective volume fraction to identify the mixture region
 
   std::ofstream Hlig;
   std::ofstream m1_integral;
@@ -182,16 +184,26 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
-                 sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
+    Rusanov_flux(EOS_phase1, EOS_phase2,
+                 sigma, eps, mod_grad_alpha1_bar_min,
+                 mass_transfer, sim_param.kappa, sim_param.Hmax,
+                 sim_param.alpha1d_max, sim_param.alpha1_bar_min, sim_param.alpha1_bar_max,
+                 sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
-                 sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters, sim_param.tol_Newton_p_star),
+    Godunov_flux(EOS_phase1, EOS_phase2,
+                 sigma, eps, mod_grad_alpha1_bar_min,
+                 mass_transfer, sim_param.kappa, sim_param.Hmax,
+                 sim_param.alpha1d_max, sim_param.alpha1_bar_min, sim_param.alpha1_bar_max,
+                 sim_param.lambda, sim_param.tol_Newton, max_Newton_iters, sim_param.tol_Newton_p_star),
   #endif
-  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, eps, mod_grad_alpha1_bar_min, mass_transfer, sim_param.kappa, sim_param.Hmax,
-                      sim_param.alpha1d_max, sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
+  SurfaceTension_flux(EOS_phase1, EOS_phase2,
+                      sigma, eps, mod_grad_alpha1_bar_min,
+                      mass_transfer, sim_param.kappa, sim_param.Hmax,
+                      sim_param.alpha1d_max, sim_param.alpha1_bar_min, sim_param.alpha1_bar_max,
+                      sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
-  kappa(sim_param.kappa), alpha1d_max(sim_param.alpha1d_max)
+  kappa(sim_param.kappa), alpha1d_max(sim_param.alpha1d_max),
+  alpha1_bar_min(sim_param.alpha1_bar_min), alpha1_bar_max(sim_param.alpha1_bar_max)
   {
     std::cout << "Initializing variables " << std::endl;
     std::cout << std::endl;
@@ -362,7 +374,7 @@ void TwoScaleCapillarity<dim>::init_variables() {
   const samurai::DirectionVector<dim> left  = {-1, 0};
   const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<Default>(conserved_variables,
-                            Inlet(conserved_variables, U_0, 0.0, 0.0, 0.0, EOS_phase1.get_rho0(), 0.0, 1e-10))->on(left);
+                            Inlet(conserved_variables, U_0, 0.0, 0.0, 0.0, EOS_phase1.get_rho0(), 0.0, eps))->on(left);
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
 }
 
@@ -431,8 +443,6 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
   // Sanity check (and numerical artefacts to clear data) after mesh adaptation
   alpha1_bar.resize();
   clear_data(1);
-
-  save(fs::current_path(), "_after_mesh_adaption", conserved_variables, alpha1_bar);
 
   // Recompute geoemtrical quantities
   normal.resize();
@@ -627,7 +637,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                            // Save small-scale variable
                            alpha1_d[cell] = conserved_variables[cell][ALPHA1_D_INDEX];
                          });
-  samurai::update_ghost_mr(alpha1);
+  samurai::update_ghost_mr(alpha1_d);
   grad_alpha1_d.resize();
   grad_alpha1_d = gradient(alpha1_d);
 
@@ -640,7 +650,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                                                conserved_variables[cell][M1_D_INDEX]/conserved_variables[cell][ALPHA1_D_INDEX] :
                                                EOS_phase1.get_rho0();
                            if(3.0/(kappa*rho1d)*rho1 - (1.0 - alpha1_bar[cell])/(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]) > 0.0 &&
-                              alpha1_bar[cell] > 1e-2 && alpha1_bar[cell] < 1e-1 &&
+                              alpha1_bar[cell] > alpha1_bar_min && alpha1_bar[cell] < alpha1_bar_max &&
                               -grad_alpha1_bar[cell][0]*conserved_variables[cell][RHO_U_INDEX]
                               -grad_alpha1_bar[cell][1]*conserved_variables[cell][RHO_U_INDEX + 1] > 0.0 &&
                               conserved_variables[cell][ALPHA1_D_INDEX] < alpha1d_max) {

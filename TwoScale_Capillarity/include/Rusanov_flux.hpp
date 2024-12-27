@@ -16,8 +16,8 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    RusanovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                const LinearizedBarotropicEOS<>& EOS_phase2,
+    RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                 const double sigma_,
                 const double eps_,
                 const double mod_grad_alpha1_bar_min_,
@@ -25,6 +25,8 @@ namespace samurai {
                 const double kappa_,
                 const double Hmax_,
                 const double alpha1d_max_ = 0.5,
+                const double alpha1_bar_min_ = 0.01,
+                const double alpha1_bar_max_ = 0.1,
                 const double lambda_ = 0.9,
                 const double tol_Newton_ = 1e-12,
                 const std::size_t max_Newton_iters_ = 60); // Constructor which accepts in inputs the equations of state of the two phases
@@ -38,7 +40,6 @@ namespace samurai {
     #endif
 
   private:
-    template<typename Gradient>
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                const std::size_t curr_d); // Rusanov flux along direction curr_d
@@ -47,8 +48,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                                  const LinearizedBarotropicEOS<>& EOS_phase2,
+  RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
+                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                                   const double sigma_,
                                   const double eps_,
                                   const double mod_grad_alpha1_bar_min_,
@@ -56,17 +57,20 @@ namespace samurai {
                                   const double kappa_,
                                   const double Hmax_,
                                   const double alpha1d_max_,
+                                  const double alpha1_bar_min_,
+                                  const double alpha1_bar_max_,
                                   const double lambda_,
                                   const double tol_Newton_,
                                   const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, eps_, mod_grad_alpha1_bar_min_,
+    Flux<Field>(EOS_phase1, EOS_phase2,
+                sigma_, eps_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
-                alpha1d_max_, lambda_, tol_Newton_, max_Newton_iters_) {}
+                alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
+                lambda_, tol_Newton_, max_Newton_iters_) {}
 
   // Implementation of a Rusanov flux
   //
   template<class Field>
-  template<typename Gradient>
   FluxValue<typename Flux<Field>::cfg> RusanovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                  const std::size_t curr_d) {
@@ -162,8 +166,7 @@ namespace samurai {
                                             #endif
 
                                             // Compute the numerical flux
-                                            return compute_discrete_flux(qL, qR, d,
-                                                                         grad_alpha1_bar[left], grad_alpha1_bar[right]);
+                                            return compute_discrete_flux(qL, qR, d);
                                           };
     });
 

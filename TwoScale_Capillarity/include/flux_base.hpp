@@ -72,6 +72,8 @@ namespace samurai {
          const double kappa_,
          const double Hmax_,
          const double alpha1d_max_ = 0.5,
+         const double alpha1_bar_min_ = 0.01,
+         const double alpha1_bar_max_ = 0.1,
          const double lambda_ = 0.9,
          const double tol_Newton_ = 1e-12,
          const std::size_t max_Newton_iters_ = 60); // Constructor which accepts in inputs the equations of state of the two phases
@@ -91,15 +93,19 @@ namespace samurai {
     const LinearizedBarotropicEOS<typename Field::value_type>& phase1;
     const LinearizedBarotropicEOS<typename Field::value_type>& phase2;
 
-    const bool mass_transfer; // Set whether to perform or not mass transfer
-    const double kappa; // Size of disperse phase particles
-    const double Hmax; // Maximume curvature before atomization
+    const double sigma;                   // Surface tension parameter
 
-    const double sigma;                   // Surfaace tension parameter
     const double eps;                     // Tolerance of pure phase to set NaNs
     const double mod_grad_alpha1_bar_min; // Tolerance to compute the unit normal
 
-    const double alpha1d_max;           // Maximum admitted small-scale volume fraction
+    const bool   mass_transfer; // Set whether to perform or not mass transfer
+    const double kappa;         // Size of disperse phase particles
+    const double Hmax;          // Maximume curvature before atomization
+
+    const double alpha1d_max;    // Maximum admitted small-scale volume fraction
+    const double alpha1_bar_min; // Minimum effective volume fraction for the interface
+    const double alpha1_bar_max; // Maximum effective volume fraction for the interface
+
     const double lambda;                // Parameter for bound preserving strategy
     const double tol_Newton;            // Tolerance Newton method relaxation
     const std::size_t max_Newton_iters; // Maximum Newton iterations
@@ -149,14 +155,16 @@ namespace samurai {
                     const double kappa_,
                     const double Hmax_,
                     const double alpha1d_max_,
+                    const double alpha1_bar_min_,
+                    const double alpha1_bar_max_,
                     const double lambda_,
                     const double tol_Newton_,
                     const std::size_t max_Newton_iters_):
     phase1(EOS_phase1), phase2(EOS_phase2),
-    mass_transfer(mass_transfer_), kappa(kappa_), Hmax(Hmax_),
     sigma(sigma_), eps(eps_), mod_grad_alpha1_bar_min(mod_grad_alpha1_bar_min_),
-    alpha1d_max(alpha1d_max_), lambda(lambda_),
-    tol_Newton(tol_Newton_), max_Newton_iters(max_Newton_iters_) {}
+    mass_transfer(mass_transfer_), kappa(kappa_), Hmax(Hmax_),
+    alpha1d_max(alpha1d_max_), alpha1_bar_min(alpha1_bar_min_), alpha1_bar_max(alpha1_bar_max_),
+    lambda(lambda_), tol_Newton(tol_Newton_), max_Newton_iters(max_Newton_iters_) {}
 
   // Evaluate the 'continuous flux'
   //
@@ -372,7 +380,7 @@ namespace samurai {
     typename Field::value_type H_lim;
     if(mass_transfer_NR) {
       if(3.0/(kappa*rho1d)*rho1 - (1.0 - alpha1_bar)/(1.0 - (*conserved_variables)(ALPHA1_D_INDEX)) > 0.0 &&
-         alpha1_bar > 1e-2 && alpha1_bar < 1e-1 &&
+         alpha1_bar > alpha1_bar_min && alpha1_bar < alpha1_bar_max &&
          -grad_alpha1_bar[0]*(*conserved_variables)(RHO_U_INDEX)
          -grad_alpha1_bar[1]*(*conserved_variables)(RHO_U_INDEX + 1) > 0.0 &&
          (*conserved_variables)(ALPHA1_D_INDEX) < alpha1d_max) {
