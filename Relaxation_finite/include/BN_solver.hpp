@@ -54,6 +54,7 @@ public:
 
 private:
   std::ofstream deltas;
+  std::ofstream output_data;
 
   /*--- Now we declare some relevant variables ---*/
   const samurai::Box<double, dim> box;
@@ -317,6 +318,17 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                   << std::setw(20) << std::left << delta_temp[cell]
                                   << std::setw(20) << std::left << delta_vel[cell]
                                   << std::endl;
+
+                           output_data << std::setprecision(10)
+                                       << std::setw(20) << std::left << x
+                                       << std::setw(20) << std::left << conserved_variables[cell][ALPHA1_INDEX]
+                                       << std::setw(20) << std::left << rho1[cell]
+                                       << std::setw(20) << std::left << vel1[cell]
+                                       << std::setw(20) << std::left << p1[cell]
+                                       << std::setw(20) << std::left << rho2[cell]
+                                       << std::setw(20) << std::left << vel2[cell]
+                                       << std::setw(20) << std::left << p2[cell]
+                                       << std::endl;
                          });
 }
 
@@ -1309,6 +1321,24 @@ void BN_Solver<dim>::run() {
            vel1, rho1, p1, c1, T1,
            vel2, rho2, p2, c2, T2, alpha2,
            delta_pres, delta_temp, delta_vel);
+
+      /*--- Save fields in a output file ---*/
+      output_data.open("output_data.dat", std::ofstream::out);
+      samurai::for_each_cell(mesh,
+                             [&](const auto& cell)
+                             {
+                               output_data << std::setprecision(10)
+                                           << std::setw(20) << std::left << cell.center()[0]
+                                           << std::setw(20) << std::left << conserved_variables[cell][ALPHA1_INDEX]
+                                           << std::setw(20) << std::left << rho1[cell]
+                                           << std::setw(20) << std::left << vel1[cell]
+                                           << std::setw(20) << std::left << p1[cell]
+                                           << std::setw(20) << std::left << rho2[cell]
+                                           << std::setw(20) << std::left << vel2[cell]
+                                           << std::setw(20) << std::left << p2[cell]
+                                           << std::endl;
+                             });
+      output_data.close();
     }
   }
 }
