@@ -480,52 +480,82 @@ void TwoScaleCapillarity<dim>::clear_data(unsigned int flag) {
                            // Sanity check for m1
                            if(conserved_variables[cell][M1_INDEX] < 0.0) {
                              if(conserved_variables[cell][M1_INDEX] < -1e-14) {
+                               std::cerr << cell << std::endl;
                                std::cerr << "Negative large-scale mass for phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][M1_INDEX] = 0.0;
                            }
+                           else if(std::isnan(conserved_variables[cell][M1_INDEX])) {
+                             std::cerr << cell << std::endl;
+                             std::cerr << "NaN large-scale mass for phase 1 " + op << std::endl;
+                           }
+
                            // Sanity check for m2
                            if(conserved_variables[cell][M2_INDEX] < 0.0) {
                              if(conserved_variables[cell][M2_INDEX] < -1e-14) {
+                               std::cerr << cell << std::endl;
                                std::cerr << "Negative mass for phase 2 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][M2_INDEX] = 0.0;
                            }
+                           else if(std::isnan(conserved_variables[cell][M2_INDEX])) {
+                             std::cerr << cell << std::endl;
+                             std::cerr << "NaN large-scale mass for phase 2 " + op << std::endl;
+                           }
+
                            // Sanity check for m1_d
                            if(conserved_variables[cell][M1_D_INDEX] < 0.0) {
                              if(conserved_variables[cell][M1_D_INDEX] < -1e-14) {
+                               std::cerr << cell << std::endl;
                                std::cerr << "Negative small-scale mass for phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][M1_D_INDEX] = 0.0;
                            }
+                           else if(std::isnan(conserved_variables[cell][M1_D_INDEX])) {
+                             std::cerr << cell << std::endl;
+                             std::cerr << "NaN small-scale mass for phase 1 " + op << std::endl;
+                           }
+
                            // Sanity check for alpha1_d
                            if(conserved_variables[cell][ALPHA1_D_INDEX] > 1.0) {
+                             std::cerr << cell << std::endl;
                              std::cerr << "Exceding value for small-scale volume fraction " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                              exit(1);
                            }
-                           if(conserved_variables[cell][ALPHA1_D_INDEX] < 0.0) {
+                           else if(conserved_variables[cell][ALPHA1_D_INDEX] < 0.0) {
                              if(conserved_variables[cell][ALPHA1_D_INDEX] < -1e-14) {
+                               std::cerr << cell << std::endl;
                                std::cerr << "Negative small-scale volume fraction " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][ALPHA1_D_INDEX] = 0.0;
                            }
+                           else if(std::isnan(conserved_variables[cell][ALPHA1_D_INDEX])) {
+                             std::cerr << cell << std::endl;
+                             std::cerr << "NaN small-scale volume fraction " + op << std::endl;
+                           }
+
                            // Sanity check for Sigma_d
                            if(conserved_variables[cell][SIGMA_D_INDEX] < 0.0) {
                              if(conserved_variables[cell][SIGMA_D_INDEX] < -1e-14) {
+                               std::cerr << cell << std::endl;
                                std::cerr << "Negative small-scale interfacial area" + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              conserved_variables[cell][SIGMA_D_INDEX] = 0.0;
+                           }
+                           else if(std::isnan(conserved_variables[cell][SIGMA_D_INDEX])) {
+                             std::cerr << cell << std::endl;
+                             std::cerr << "NaN small-scale interfacial area " + op << std::endl;
                            }
 
                            const auto rho = conserved_variables[cell][M1_INDEX]

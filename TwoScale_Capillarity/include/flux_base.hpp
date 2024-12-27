@@ -249,6 +249,9 @@ namespace samurai {
     for(std::size_t d = 0; d < Field::dim; ++d) {
       res(RHO_U_INDEX + d) = 0.0;
     }
+    res(M1_D_INDEX) = 0.0;
+    res(ALPHA1_D_INDEX) = 0.0;
+    res(SIGMA_D_INDEX) = 0.0;
 
     // Add the contribution due to surface tension
     const auto mod_grad_alpha1_bar = std::sqrt(xt::sum(grad_alpha1_bar*grad_alpha1_bar)());
