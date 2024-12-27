@@ -61,9 +61,6 @@ int main(int argc, char* argv[]) {
   app.add_option("--relax_temperature", sim_param.relax_temperature,
                  "If instantaneous relaxation, relax the temperature (this can occur only with pressure)")->capture_default_str()->group("Simulation parameters");
 
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
-
   // Set and declare simulation parameters related to EOS
   EOS_Parameters eos_param;
 
@@ -133,6 +130,8 @@ int main(int argc, char* argv[]) {
 
   // Create the instance of the class to perform the simulation
   CLI11_PARSE(app, argc, argv);
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
   auto BN_Solver_Sim = BN_Solver(min_corner, max_corner, sim_param, eos_param, Riemann_param);
 
   BN_Solver_Sim.run();

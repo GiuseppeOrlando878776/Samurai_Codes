@@ -270,19 +270,23 @@ namespace samurai {
       F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m/tau1_m*u1_m;
       F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m/tau1_m*u1_m*u1_m + alpha1_m*p1_m;
       const auto u1_star = uI_star;
-      for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-        F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
-                                          - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
-        F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
+      for(std::size_t d = 0; d < Field::dim; ++d) {
+        if(d != curr_d) {
+          F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
+                                            - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
+          F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
+        }
       }
       F_minus(ALPHA1_RHO1_E1_INDEX)          = alpha1_m/tau1_m*E1_m*u1_m + alpha1_m*p1_m*u1_m;
 
       F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m/tau2_m*u2_m;
       F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m/tau2_m*u2_m*u2_m + alpha2_m*p2_m;
-      for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-        F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
-                                          - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
-        F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
+      for(std::size_t d = 0; d < Field::dim; ++d) {
+        if(d != curr_d) {
+          F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
+                                            - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
+          F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
+        }
       }
       F_minus(ALPHA2_RHO2_E2_INDEX) = alpha2_m/tau2_m*E2_m*u2_m + alpha2_m*p2_m*u2_m;
 
@@ -494,19 +498,23 @@ namespace samurai {
       F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m/tau1_m*u1_m;
       F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m/tau1_m*u1_m*u1_m + alpha1_m*p1_m;
       const auto u1_star = uI_star;
-      for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-        F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
-                                          - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
-        F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
+      for(std::size_t d = 0; d < Field::dim; ++d) {
+        if(d != curr_d) {
+          F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
+                                            - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
+          F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
+        }
       }
       F_minus(ALPHA1_RHO1_E1_INDEX)          = alpha1_m/tau1_m*E1_m*u1_m + alpha1_m*p1_m*u1_m;
 
       F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m/tau2_m*u2_m;
       F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m/tau2_m*u2_m*u2_m + alpha2_m*p2_m;
-      for(std::size_t d = 0; d < Field::dim && d != curr_d; ++d) {
-        F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
-                                          - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
-        F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
+      for(std::size_t d = 0; d < Field::dim; ++d) {
+        if(d != curr_d) {
+          F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
+                                            - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
+          F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
+        }
       }
       F_minus(ALPHA2_RHO2_E2_INDEX) = alpha2_m/tau2_m*E2_m*u2_m + alpha2_m*p2_m*u2_m;
 
