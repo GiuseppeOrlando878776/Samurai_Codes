@@ -6,11 +6,13 @@
 
 #include "eos.hpp"
 
+#define ONE_D
+
 //#define ORDER_2
 
 namespace EquationData {
   static constexpr std::size_t dim = 1; /*--- Spatial dimension. It would be ideal to be able to get it
-                                              direclty from Field, but I need to move the definition of these indices ---*/
+                                              directly from Field, but I need to move the definition of these indices ---*/
 
   /*--- Declare suitable static variables for the sake of generalities in the indices ---*/
   static constexpr std::size_t ALPHA1_INDEX         = 0;
