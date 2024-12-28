@@ -20,8 +20,9 @@ struct Simulation_Parameters {
 
   std::size_t nfiles;
 
-  bool apply_pressure_relax;
-  bool apply_pressure_reinit;
+  bool   apply_pressure_relax;
+  bool   apply_finite_rate_relax;
+  double mu;
 };
 
 // Declare a struct with EOS parameters

@@ -18,14 +18,16 @@ int main(int argc, char* argv[]) {
   sim_param.xL = 0.0;
   sim_param.xR = 1.0;
 
-  sim_param.min_level = 10;
-  sim_param.max_level = 10;
+  sim_param.min_level = 16;
+  sim_param.max_level = 16;
 
-  sim_param.Tf = 0.15;
+  sim_param.Tf      = 2.9e-5;
   sim_param.Courant = 0.2;
-  sim_param.nfiles = 10;
+  sim_param.nfiles  = 10;
 
-  sim_param.apply_pressure_relax = false;
+  sim_param.apply_pressure_relax    = true;
+  sim_param.apply_finite_rate_relax = false;
+  sim_param.mu                      = 1e10;
 
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
@@ -33,23 +35,23 @@ int main(int argc, char* argv[]) {
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_pressure_relax", sim_param.apply_pressure_relax,
                  "Set whether to apply or not the relaxation of the pressure")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--apply_finite_rate_relax", sim_param.apply_finite_rate_relax,
+                 "Set whether to perform a finite rate mechanical relaxation")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--mu", sim_param.mu, "Finite rate parameter")->capture_default_str()->group("Simulation parameters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
-
   // Set and declare simulation parameters related to EOS
   EOS_Parameters eos_param;
 
-  eos_param.gamma_1 = 1.4;
-  eos_param.pi_infty_1 = 0.0;
-  eos_param.q_infty_1 = 0.0;
+  eos_param.gamma_1    = 2.43;
+  eos_param.pi_infty_1 = 5.3e9;
+  eos_param.q_infty_1  = 0.0;
 
-  eos_param.gamma_2 = 1.4;
-  eos_param.pi_infty_2 = 0.0;
-  eos_param.q_infty_2 = 0.0;
+  eos_param.gamma_2    = 1.62;
+  eos_param.pi_infty_2 = 141e9;
+  eos_param.q_infty_2  = 0.0;
 
   app.add_option("--gammma_1", eos_param.gamma_1, "gamma_1")->capture_default_str()->group("EOS parameters");
   app.add_option("--pi_infty_1", eos_param.pi_infty_1, "pi_infty_1")->capture_default_str()->group("EOS parameters");
@@ -61,21 +63,21 @@ int main(int argc, char* argv[]) {
   // Set and declare simulation parameters related to initial condition
   Riemann_Parameters Riemann_param;
 
-  Riemann_param.xd = 0.5;
+  Riemann_param.xd = 0.6;
 
-  Riemann_param.alpha1L = 0.8;
-  Riemann_param.rho1L = 1.0;
-  Riemann_param.p1L = 1.0;
-  Riemann_param.uL = 0.75;
-  Riemann_param.rho2L = 1.0;
-  Riemann_param.p2L = 1.0;
+  Riemann_param.alpha1L = 0.5954;
+  Riemann_param.rho1L   = 1185.0;
+  Riemann_param.p1L     = 2e11;
+  Riemann_param.uL      = 0.0;
+  Riemann_param.rho2L   = 3622.0;
+  Riemann_param.p2L     = 2e11;
 
-  Riemann_param.alpha1R = 0.3;
-  Riemann_param.rho1R = 0.125;
-  Riemann_param.p1R = 0.1;
-  Riemann_param.uR = 0.0;
-  Riemann_param.rho2R = 0.125;
-  Riemann_param.p2R = 0.1;
+  Riemann_param.alpha1R = 0.5954;
+  Riemann_param.rho1R   = 1185.0;
+  Riemann_param.p1R     = 1e5;
+  Riemann_param.uR      = 0.0;
+  Riemann_param.rho2R   = 3622.0;
+  Riemann_param.p2R     = 1e5;
 
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
   app.add_option("--alpha1L", Riemann_param.alpha1L, "Initial volume fraction at left")->capture_default_str()->group("Initial conditions");
@@ -93,6 +95,8 @@ int main(int argc, char* argv[]) {
 
   // Create the instance of the class to perform the simulation
   CLI11_PARSE(app, argc, argv);
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
   auto Relaxation_Sim = Relaxation(min_corner, max_corner,
                                    sim_param, eos_param,
                                    Riemann_param);
