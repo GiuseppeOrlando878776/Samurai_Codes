@@ -389,7 +389,6 @@ void BN_Solver<dim>::run() {
 
     // Apply the numerical scheme
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_bc(conserved_variables);
     #ifdef SULICIU_RELAXATION
       c = 0.0;
       auto Relaxation_Flux = Suliciu_flux(conserved_variables);
@@ -432,7 +431,6 @@ void BN_Solver<dim>::run() {
     // Consider the second stage for the second order
     #ifdef ORDER_2
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
       conserved_variables_tmp_2.resize();
       #ifdef SULICIU_RELAXATION
         c = 0.0;
