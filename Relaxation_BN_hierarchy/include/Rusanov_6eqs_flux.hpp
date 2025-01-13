@@ -49,7 +49,7 @@ namespace samurai {
     // Left state phase 1
     const auto rho1L = qL(ALPHA1_RHO1_INDEX)/qL(ALPHA1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1L         = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e1L -= 0.5*(qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
     }
     const auto p1L = this->phase1.pres_value(rho1L, e1L);
@@ -58,7 +58,7 @@ namespace samurai {
     // Left state phase 2
     const auto rho2L = qL(ALPHA2_RHO2_INDEX)/(1.0 - qL(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2L         = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e2L -= 0.5*(qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
     }
     const auto p2L = this->phase2.pres_value(rho2L, e2L);
@@ -75,7 +75,7 @@ namespace samurai {
     // Right state phase 1
     const auto rho1R = qR(ALPHA1_RHO1_INDEX)/qR(ALPHA1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1R         = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e1R -= 0.5*(qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
     }
     const auto p1R = this->phase1.pres_value(rho1R, e1R);
@@ -84,7 +84,7 @@ namespace samurai {
     // Right state phase 2
     const auto rho2R = qR(ALPHA2_RHO2_INDEX)/(1.0 - qR(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2R         = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e2R -= 0.5*(qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
     }
     const auto p2R = this->phase2.pres_value(rho2R, e2R);
@@ -107,7 +107,7 @@ namespace samurai {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
-    static_for<0, EquationData::dim>::apply(
+    static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;

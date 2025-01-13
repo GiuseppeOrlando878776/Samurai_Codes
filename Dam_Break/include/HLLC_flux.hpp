@@ -57,8 +57,8 @@ namespace samurai {
     const auto rho_star          = q_star(M1_INDEX) + q_star(M2_INDEX);
     q_star(RHO_ALPHA1_INDEX)     = rho_star*alpha1;
     q_star(RHO_U_INDEX + curr_d) = rho_star*S_star;
-    if(EquationData::dim > 1) {
-      for(std::size_t d = 0; d < dim && d != curr_d; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      if(d != curr_d) {
         q_star(RHO_U_INDEX + d) = rho_star*(q(RHO_U_INDEX + d)/rho);
       }
     }
@@ -133,7 +133,7 @@ namespace samurai {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
-    static_for<0, EquationData::dim>::apply(
+    static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;

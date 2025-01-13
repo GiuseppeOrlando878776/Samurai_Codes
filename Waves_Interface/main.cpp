@@ -44,9 +44,6 @@ int main(int argc, char* argv[]) {
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
-
   // Set and declare simulation parameters related to EOS
   EOS_Parameters eos_param;
 
@@ -67,6 +64,8 @@ int main(int argc, char* argv[]) {
 
   // Create the instance of the class to perform the simulation
   CLI11_PARSE(app, argc, argv);
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
+  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
   auto WaveInterface_Sim = WaveInterface(min_corner, max_corner,
                                          sim_param, eos_param);
 

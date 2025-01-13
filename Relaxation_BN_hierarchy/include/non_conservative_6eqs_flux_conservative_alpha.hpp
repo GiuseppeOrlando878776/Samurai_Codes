@@ -55,7 +55,7 @@ namespace samurai {
     F_plus(ALPHA1_RHO1_INDEX)  = 0.0;
     F_minus(ALPHA2_RHO2_INDEX) = 0.0;
     F_plus(ALPHA2_RHO2_INDEX)  = 0.0;
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       F_minus(RHO_U_INDEX + d) = 0.0;
       F_plus(RHO_U_INDEX + d) = 0.0;
     }
@@ -70,7 +70,7 @@ namespace samurai {
     const auto alpha1L = qL(ALPHA1_INDEX)/rhoL;
     const auto rho1L   = qL(ALPHA1_RHO1_INDEX)/alpha1L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1L           = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e1L -= 0.5*(qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
     }
     const auto p1L = this->phase1.pres_value(rho1L, e1L);
@@ -78,7 +78,7 @@ namespace samurai {
     // Pressure phase 2 left state
     const auto rho2L = qL(ALPHA2_RHO2_INDEX)/(1.0 - alpha1L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2L         = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e2L -= 0.5*(qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
     }
     const auto p2L = this->phase2.pres_value(rho2L, e2L);
@@ -93,7 +93,7 @@ namespace samurai {
     const auto alpha1R = qR(ALPHA1_INDEX)/rhoR;
     const auto rho1R   = qR(ALPHA1_RHO1_INDEX)/alpha1R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1R           = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e1R -= 0.5*(qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
     }
     const auto p1R = this->phase1.pres_value(rho1R, e1R);
@@ -101,7 +101,7 @@ namespace samurai {
     // Pressure phase 2 right state
     const auto rho2R = qR(ALPHA2_RHO2_INDEX)/(1.0 - alpha1R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2R         = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e2R -= 0.5*(qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
     }
     const auto p2R = this->phase2.pres_value(rho2R, e2R);
@@ -146,7 +146,7 @@ namespace samurai {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
-    static_for<0, EquationData::dim>::apply(
+    static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;

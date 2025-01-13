@@ -81,7 +81,7 @@ namespace samurai {
   Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
                                         const std::size_t curr_d) {
     // Sanity check in terms of dimensions
-    assert(curr_d < EquationData::dim);
+    assert(curr_d < Field::dim);
 
     // Initialize with the state
     FluxValue<cfg> res = q;
@@ -89,17 +89,14 @@ namespace samurai {
     // Start computing the flux
     const auto vel_d = q(RHOU_INDEX + curr_d)/q(RHO_INDEX);
     res(RHO_INDEX) *= vel_d;
-    res(RHOU_INDEX) *= vel_d;
-    if(EquationData::dim > 1) {
-      for(std::size_t d = 1; d < EquationData::dim; ++d) {
-        res(RHOU_INDEX + d) *= vel_d;
-      }
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      res(RHOU_INDEX + d) *= vel_d;
     }
     res(RHOE_INDEX) *= vel_d;
 
     // Compute the pressure
     auto e = q(RHOE_INDEX)/q(RHO_INDEX);
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e -= 0.5*(q(RHOU_INDEX + d)/q(RHO_INDEX))*(q(RHOU_INDEX + d)/q(RHO_INDEX));
     }
     const auto p = this->Euler_EOS.pres_value(q(RHO_INDEX), e);

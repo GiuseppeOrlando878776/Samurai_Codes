@@ -133,7 +133,7 @@ namespace samurai {
                                                                              const std::size_t curr_d,
                                                                              const Gradient& grad_alpha1) {
     // Sanity check in terms of dimensions
-    assert(curr_d < EquationData::dim);
+    assert(curr_d < Field::dim);
 
     // Initialize the resulting variable with the hyperbolic operator
     FluxValue<cfg> res = this->evaluate_hyperbolic_operator(q, curr_d);
@@ -150,7 +150,7 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
                                                                                  const std::size_t curr_d) {
     // Sanity check in terms of dimensions
-    assert(curr_d < EquationData::dim);
+    assert(curr_d < Field::dim);
 
     // Initialize the resulting variable
     FluxValue<cfg> res = q;
@@ -163,7 +163,7 @@ namespace samurai {
     res(M1_INDEX) *= vel_d;
     res(M2_INDEX) *= vel_d;
     res(RHO_ALPHA1_INDEX) *= vel_d;
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       res(RHO_U_INDEX + d) *= vel_d;
     }
 
@@ -189,7 +189,7 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_surface_tension_operator(const Gradient& grad_alpha1,
                                                                                       const std::size_t curr_d) {
     // Sanity check in terms of dimensions
-    assert(curr_d < EquationData::dim);
+    assert(curr_d < Field::dim);
 
     // Initialize the resulting variable
     FluxValue<cfg> res;
@@ -198,7 +198,7 @@ namespace samurai {
     res(M1_INDEX) = 0.0;
     res(M2_INDEX) = 0.0;
     res(RHO_ALPHA1_INDEX) = 0.0;
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       res(RHO_U_INDEX + d) = 0.0;
     }
 

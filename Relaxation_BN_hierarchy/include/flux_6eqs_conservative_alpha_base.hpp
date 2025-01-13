@@ -85,25 +85,22 @@ namespace samurai {
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d) {
     // Sanity check in terms of dimensions
-    assert(curr_d < EquationData::dim);
+    assert(curr_d < Field::dim);
 
     FluxValue<cfg> res = q;
 
     // Save the mixture density and the velocity along the direction of interest
     const auto rho   = q(ALPHA1_RHO1_INDEX) + q(ALPHA2_RHO2_INDEX);
     const auto vel_d = q(RHO_U_INDEX + curr_d)/rho;
-    res(RHO_U_INDEX) *= vel_d;
-    if(EquationData::dim > 1) {
-      for(std::size_t d = 1; d < EquationData::dim; ++d) {
-        res(RHO_U_INDEX + d) *= vel_d;
-      }
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      res(RHO_U_INDEX + d) *= vel_d;
     }
 
     // Compute density and pressure of phase 1
     const auto alpha1 = q(ALPHA1_INDEX)/rho;
     const auto rho1   = q(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1           = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e1 -= 0.5*(q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
     }
     const auto p1 = this->phase1.pres_value(rho1, e1);
@@ -117,7 +114,7 @@ namespace samurai {
     // Compute density and pressure of phase 2
     const auto rho2   = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2           = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e2 -= 0.5*(q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
     }
     const auto p2 = this->phase2.pres_value(rho2, e2);

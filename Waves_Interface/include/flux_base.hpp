@@ -109,7 +109,7 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
                                                                              const std::size_t curr_d) {
     // Sanity check in terms of dimensions
-    assert(curr_d < EquationData::dim);
+    assert(curr_d < Field::dim);
 
     // Initialize the resulting variable
     FluxValue<cfg> res = q;
@@ -122,7 +122,7 @@ namespace samurai {
     res(M1_INDEX) *= vel_d;
     res(M2_INDEX) *= vel_d;
     res(RHO_ALPHA1_INDEX) *= vel_d;
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       res(RHO_U_INDEX + d) *= vel_d;
     }
 

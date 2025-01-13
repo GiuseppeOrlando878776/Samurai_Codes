@@ -38,7 +38,7 @@ namespace fs = std::filesystem;
 // and some parameters related to the equations of state
 using namespace EquationData;
 
-// This is the class for the simulation of a two-scale model
+// This is the class for the simulation for the Euler equations
 //
 template<std::size_t dim>
 class Euler_MR {
@@ -292,8 +292,8 @@ void Euler_MR<dim>::update_auxiliary_fields() {
 template<std::size_t dim>
 template<class... Variables>
 void Euler_MR<dim>::save(const fs::path& path,
-                           const std::string& suffix,
-                           const Variables&... fields) {
+                         const std::string& suffix,
+                         const Variables&... fields) {
   auto level_ = samurai::make_field<std::size_t, 1>("level", mesh);
 
   if(!fs::exists(path)) {
@@ -365,7 +365,6 @@ void Euler_MR<dim>::run() {
 
     // Apply the numerical scheme
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_bc(conserved_variables);
     try {
       auto Cons_Flux = Discrete_flux(conserved_variables);
       #ifdef ORDER_2
@@ -392,7 +391,6 @@ void Euler_MR<dim>::run() {
     #ifdef ORDER_2
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
       try {
         auto Cons_Flux = Discrete_flux(conserved_variables);
         conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux;

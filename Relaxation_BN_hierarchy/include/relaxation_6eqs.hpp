@@ -34,7 +34,7 @@ namespace fs = std::filesystem;
 // and some parameters related to the equations of state
 using namespace EquationData;
 
-// This is the class for the simulation of a two-scale model
+// This is the class for the simulation of a 6-equation mixture-energy consistent model
 //
 template<std::size_t dim>
 class Relaxation {
@@ -306,7 +306,7 @@ void Relaxation<dim>::update_pressure_before_relaxation() {
 
                            e2_0[cell] = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
                                         conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              const auto vel_d = conserved_variables[cell][RHO_U_INDEX + d]/
                                                 (conserved_variables[cell][ALPHA1_RHO1_INDEX] +
                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]);
@@ -373,7 +373,7 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation_linearization() {
                                                         (1.0 - conserved_variables[cell][ALPHA1_INDEX]),
                                                         p_star); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              const auto vel_d = conserved_variables[cell][RHO_U_INDEX + d]/
                                                 (conserved_variables[cell][ALPHA1_RHO1_INDEX] +
                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]);
@@ -387,8 +387,8 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation_linearization() {
                                                + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
                              conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*E1;
                              conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*E2;
-                             assertm(std::abs((conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] +
-                                               conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]) -
+                             assertm(std::abs((conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] +
+                                               conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]) -
                                               rhoE_0)/rhoE_0 < 1e-12,
                                      "No conservation of total energy in the relexation");
                            #else
@@ -420,7 +420,7 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
                                                   /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            typename Field::value_type norm2_vel = 0.0;
-                           for(std::size_t d = 0; d < EquationData::dim; ++d) {
+                           for(std::size_t d = 0; d < dim; ++d) {
                              const auto vel_d = conserved_variables[cell][RHO_U_INDEX + d]/
                                                 (conserved_variables[cell][ALPHA1_RHO1_INDEX] +
                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]);
@@ -621,7 +621,6 @@ void Relaxation<dim>::run() {
 
     // Apply the numerical scheme
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_bc(conserved_variables);
     #ifdef RUSANOV_FLUX
       auto Cons_Flux    = Rusanov_flux(conserved_variables);
       auto NonCons_Flux = NonConservative_flux(conserved_variables);
@@ -671,7 +670,6 @@ void Relaxation<dim>::run() {
     #ifdef ORDER_2
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
       #ifdef RUSANOV_FLUX
         Cons_Flux    = Rusanov_flux(conserved_variables);
         NonCons_Flux = NonConservative_flux(conserved_variables);

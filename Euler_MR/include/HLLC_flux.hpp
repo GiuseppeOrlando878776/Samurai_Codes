@@ -48,7 +48,7 @@ namespace samurai {
                                              const std::size_t curr_d) const {
     // Compute the pressure
     auto e = q(RHOE_INDEX)/q(RHO_INDEX);
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       e -= 0.5*(q(RHOU_INDEX + d)/q(RHO_INDEX))*(q(RHOU_INDEX + d)/q(RHO_INDEX));
     }
     const auto p = this->Euler_EOS.pres_value(q(RHO_INDEX), e);
@@ -56,15 +56,15 @@ namespace samurai {
     // Compute middle state
     FluxValue<typename Flux<Field>::cfg> q_star;
 
-    const auto vel_d = q(RHOU_INDEX + curr_d)/q(RHO_INDEX);
-    q_star(RHO_INDEX) = q(RHO_INDEX)*((S - vel_d)/(S - S_star));
-    q_star(RHOU_INDEX) = q(RHO_INDEX)*((S - vel_d)/(S - S_star))*S_star;
-    if(EquationData::dim > 1) {
-      for(std::size_t d = 0; d < dim && d != curr_d; ++d) {
-        q_star(RHOU_INDEX + d) = q(RHO_INDEX)*((S - vel_d)/(S - S_star))*(q(RHOU_INDEX + d)/q(RHO_INDEX));
+    const auto vel_d            = q(RHOU_INDEX + curr_d)/q(RHO_INDEX);
+    q_star(RHO_INDEX)           = q(RHO_INDEX)*((S - vel_d)/(S - S_star));
+    q_star(RHOU_INDEX + curr_d) = q_star(RHO_INDEX)*S_star;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      if(d != curr_d) {
+        q_star(RHOU_INDEX + d) = q_star(RHO_INDEX)*(q(RHOU_INDEX + d)/q(RHO_INDEX));
       }
     }
-    q_star(RHOE_INDEX) = q(RHO_INDEX)*((S - vel_d)/(S - S_star))*
+    q_star(RHOE_INDEX) = q_star(RHO_INDEX)*
                          (q(RHOE_INDEX)/q(RHO_INDEX) + (S_star - vel_d)*(S_star + p/(q(RHO_INDEX)*(S - vel_d))));
 
     return q_star;
@@ -80,7 +80,7 @@ namespace samurai {
     // Left state
     const auto velL_d = qL(RHOU_INDEX + curr_d)/qL(RHO_INDEX);
     auto eL = qL(RHOE_INDEX)/qL(RHO_INDEX);
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       eL -= 0.5*(qL(RHOU_INDEX + d)/qL(RHO_INDEX))*(qL(RHOU_INDEX + d)/qL(RHO_INDEX));
     }
     const auto pL = this->Euler_EOS.pres_value(qL(RHO_INDEX), eL);
@@ -98,7 +98,7 @@ namespace samurai {
     // Right state
     const auto velR_d = qR(RHOU_INDEX + curr_d)/qR(RHO_INDEX);
     auto eR = qR(RHOE_INDEX)/qR(RHO_INDEX);
-    for(std::size_t d = 0; d < EquationData::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       eR -= 0.5*(qR(RHOU_INDEX + d)/qR(RHO_INDEX))*(qR(RHOU_INDEX + d)/qR(RHO_INDEX));
     }
     const auto pR = this->Euler_EOS.pres_value(qR(RHO_INDEX), eR);
@@ -145,7 +145,7 @@ namespace samurai {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
-    static_for<0, EquationData::dim>::apply(
+    static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;

@@ -134,7 +134,7 @@ namespace samurai {
     FluxDefinition<typename Flux<Field>::cfg> Rusanov_f;
 
     // Perform the loop over each dimension to compute the flux contribution
-    static_for<0, EquationData::dim>::apply(
+    static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;
