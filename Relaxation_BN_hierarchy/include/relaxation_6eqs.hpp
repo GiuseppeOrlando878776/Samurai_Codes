@@ -118,6 +118,7 @@ private:
                p2,
                c2,
                T2,
+               delta_pres,
                c,
                alpha2,
                Y2,
@@ -132,7 +133,7 @@ private:
 
   void update_auxiliary_fields(); // Routine to update auxiliary fields for output and time step update
 
-  double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
+  double get_max_lambda(); // Compute the estimate of the maximum eigenvalue
 
   void update_pressure_before_relaxation(); // Update pressure fields before relaxation
 
@@ -171,38 +172,40 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
 //
 template<std::size_t dim>
 void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
-  // Create conserved and auxiliary fields
+  /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  rho    = samurai::make_field<typename Field::value_type, 1>("rho", mesh);
-  p      = samurai::make_field<typename Field::value_type, 1>("p", mesh);
+  rho        = samurai::make_field<typename Field::value_type, 1>("rho", mesh);
+  p          = samurai::make_field<typename Field::value_type, 1>("p", mesh);
 
-  rho1   = samurai::make_field<typename Field::value_type, 1>("rho1", mesh);
-  p1     = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
-  c1     = samurai::make_field<typename Field::value_type, 1>("c1", mesh);
-  T1     = samurai::make_field<typename Field::value_type, 1>("T1", mesh);
+  rho1       = samurai::make_field<typename Field::value_type, 1>("rho1", mesh);
+  p1         = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
+  c1         = samurai::make_field<typename Field::value_type, 1>("c1", mesh);
+  T1         = samurai::make_field<typename Field::value_type, 1>("T1", mesh);
 
-  rho2   = samurai::make_field<typename Field::value_type, 1>("rho2", mesh);
-  p2     = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
-  c2     = samurai::make_field<typename Field::value_type, 1>("c2", mesh);
-  T2     = samurai::make_field<typename Field::value_type, 1>("T2", mesh);
+  rho2       = samurai::make_field<typename Field::value_type, 1>("rho2", mesh);
+  p2         = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
+  c2         = samurai::make_field<typename Field::value_type, 1>("c2", mesh);
+  T2         = samurai::make_field<typename Field::value_type, 1>("T2", mesh);
 
-  c      = samurai::make_field<typename Field::value_type, 1>("c", mesh);
+  delta_pres = samurai::make_field<typename Field::value_type, 1>("delta_pres", mesh);
 
-  vel    = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
+  c          = samurai::make_field<typename Field::value_type, 1>("c", mesh);
 
-  alpha2 = samurai::make_field<typename Field::value_type, 1>("alpha2", mesh);
-  Y2     = samurai::make_field<typename Field::value_type, 1>("Y2", mesh);
+  vel        = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
 
-  e1     = samurai::make_field<typename Field::value_type, 1>("e1", mesh);
-  e1_0   = samurai::make_field<typename Field::value_type, 1>("e1_0", mesh);
-  de1    = samurai::make_field<typename Field::value_type, 1>("de1", mesh);
+  alpha2     = samurai::make_field<typename Field::value_type, 1>("alpha2", mesh);
+  Y2         = samurai::make_field<typename Field::value_type, 1>("Y2", mesh);
 
-  e2     = samurai::make_field<typename Field::value_type, 1>("e2", mesh);
-  e2_0   = samurai::make_field<typename Field::value_type, 1>("e2_0", mesh);
-  de2    = samurai::make_field<typename Field::value_type, 1>("de2", mesh);
+  e1         = samurai::make_field<typename Field::value_type, 1>("e1", mesh);
+  e1_0       = samurai::make_field<typename Field::value_type, 1>("e1_0", mesh);
+  de1        = samurai::make_field<typename Field::value_type, 1>("de1", mesh);
 
-  // Set the initial state
+  e2         = samurai::make_field<typename Field::value_type, 1>("e2", mesh);
+  e2_0       = samurai::make_field<typename Field::value_type, 1>("e2_0", mesh);
+  de2        = samurai::make_field<typename Field::value_type, 1>("de2", mesh);
+
+  /*--- Set the initial state ---*/
   const double xd = Riemann_param.xd;
 
   /*--- Initialize the fields with a loop over all cells ---*/
@@ -246,7 +249,10 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                      + conserved_variables[cell][ALPHA2_RHO2_INDEX];
                            conserved_variables[cell][RHO_U_INDEX] = rho[cell]*vel[cell];
 
+                           // Save delta presure
+                           delta_pres[cell] = p1[cell] - p2[cell];
 
+                           // Save remainining variables
                            e1[cell] = EOS_phase1.e_value(rho1[cell], p1[cell]);
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
                                                                              (e1[cell] + 0.5*vel[cell]*vel[cell]);
@@ -306,12 +312,23 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 //
 template<std::size_t dim>
 void Relaxation<dim>::update_pressure_before_relaxation() {
+  // Resize because of (possible) multiresolution
+  e1_0.resize();
+  p1.resize();
+  rho1.resize();
+  c1.resize();
+
+  e2_0.resize();
+  p2.resize();
+  rho2.resize();
+  c2.resize();
+
+  // Update variables
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
                            e1_0[cell] = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
                                         conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
                            e2_0[cell] = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
                                         conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            for(std::size_t d = 0; d < dim; ++d) {
@@ -322,23 +339,16 @@ void Relaxation<dim>::update_pressure_before_relaxation() {
                              e1_0[cell] -= 0.5*vel_d*vel_d;
                              e2_0[cell] -= 0.5*vel_d*vel_d;
                            }
-                           p1[cell] = EOS_phase1.pres_value(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                                            conserved_variables[cell][ALPHA1_INDEX],
-                                                            e1_0[cell]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-                           p2[cell] = EOS_phase2.pres_value(conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                                            (1.0 - conserved_variables[cell][ALPHA1_INDEX]),
-                                                            e2_0[cell]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                         conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           p1[cell]   = EOS_phase1.pres_value(rho1[cell], e1_0[cell]);
+                           c1[cell]   = EOS_phase1.c_value(rho1[cell], p1[cell]);
 
                            rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
                                         (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-                           c1[cell] = EOS_phase1.c_value(rho1[cell], p1[cell]);
-
-                           c2[cell] = EOS_phase2.c_value(rho2[cell], p2[cell]);
+                           p2[cell]   = EOS_phase2.pres_value(rho2[cell], e2_0[cell]);
+                           c2[cell]   = EOS_phase2.c_value(rho2[cell], p2[cell]);
                          });
 }
 
@@ -370,25 +380,26 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation_linearization() {
                            const auto p_star = (-b + std::sqrt(b*b - 4.0*a*d))/(2.0*a);
 
                            // Update the volume fraction using the computed pressure
-                           conserved_variables[cell][ALPHA1_INDEX] *= ((EOS_phase1.get_gamma() - 1.0)*p_star + 2*p1[cell] + C1)/
+                           conserved_variables[cell][ALPHA1_INDEX] *= ((EOS_phase1.get_gamma() - 1.0)*p_star + 2.0*p1[cell] + C1)/
                                                                       ((EOS_phase1.get_gamma() + 1.0)*p_star + C1);
 
                            // Update the total energy of both phases
-                           auto E1 = EOS_phase1.e_value(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                                        conserved_variables[cell][ALPHA1_INDEX],
-                                                        p_star); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           auto E2 = EOS_phase2.e_value(conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                                        (1.0 - conserved_variables[cell][ALPHA1_INDEX]),
-                                                        p_star); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
+                           typename Field::value_type norm2_vel = 0.0;
                            for(std::size_t d = 0; d < dim; ++d) {
                              const auto vel_d = conserved_variables[cell][RHO_U_INDEX + d]/
                                                 (conserved_variables[cell][ALPHA1_RHO1_INDEX] +
                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]);
 
-                             E1 += 0.5*vel_d*vel_d;
-                             E2 += 0.5*vel_d*vel_d;
+                             norm2_vel += vel_d*vel_d;
                            }
+                           const auto E1 = EOS_phase1.e_value(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                              conserved_variables[cell][ALPHA1_INDEX],
+                                                              p_star)
+                                         + 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto E2 = EOS_phase2.e_value(conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                                              (1.0 - conserved_variables[cell][ALPHA1_INDEX]),
+                                                              p_star)
+                                         + 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            #ifdef NDEBUG
                              const auto rhoE_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]
@@ -467,27 +478,81 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
                                                   /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            // Update the total energy of both phases
-                           auto E2 = EOS_phase2.e_value(conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                                        (1.0 - conserved_variables[cell][ALPHA1_INDEX]),
-                                                        p2_star)
-                                   + 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto E1 = EOS_phase2.e_value(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                              conserved_variables[cell][ALPHA1_INDEX],
+                                                              p2_star + Delta_p_star)
+                                         + 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto E2 = EOS_phase2.e_value(conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                                              (1.0 - conserved_variables[cell][ALPHA1_INDEX]),
+                                                              p2_star)
+                                         + 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                           const auto rhoE_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]
-                                             + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
-                           conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*E2;
-                           conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = rhoE_0 - conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
+                           #ifdef NDEBUG
+                             const auto rhoE_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]
+                                               + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
+                             conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*E1;
+                             conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*E2;
+                             assertm(std::abs((conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] +
+                                               conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]) -
+                                              rhoE_0)/rhoE_0 < 1e-12,
+                                     "No conservation of total energy in the relexation");
+                           #else
+                             conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*E1;
+                             conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*E2;
+                           #endif
                          });
 }
 
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-double Relaxation<dim>::get_max_lambda() const {
+double Relaxation<dim>::get_max_lambda() {
+  // Resize because of (possible) multiresolution
+  rho.resize();
+  vel.resize();
+
+  rho1.resize();
+  e1.resize();
+  p1.resize();
+  c1.resize();
+
+  rho2.resize();
+  e2.resize();
+  p2.resize();
+  c2.resize();
+
+  // Loop over all cells to compute the estimate
   double res = 0.0;
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
+                           // Mixture variables
+                           rho[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]
+                                     + conserved_variables[cell][ALPHA2_RHO2_INDEX];
+                           vel[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
+
+                           // Phase 1
+                           rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                        conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+
+                           e1[cell]   = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
+                                        conserved_variables[cell][ALPHA1_RHO1_INDEX]
+                                      - 0.5*vel[cell]*vel[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           p1[cell]   = EOS_phase1.pres_value(rho1[cell], e1[cell]);
+                           c1[cell]   = EOS_phase1.c_value(rho1[cell], p1[cell]);
+
+                           // Phase 2
+                           rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                        (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+
+                           e2[cell]   = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
+                                        conserved_variables[cell][ALPHA2_RHO2_INDEX]
+                                      - 0.5*vel[cell]*vel[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           p2[cell]   = EOS_phase2.pres_value(rho2[cell], e2[cell]);
+                           c2[cell]   = EOS_phase2.c_value(rho2[cell], p2[cell]);
+
+                           // Update maximum eigenvalue estimate
                            res = std::max(std::max(std::abs(vel[cell]) + c1[cell],
                                                    std::abs(vel[cell]) + c2[cell]),
                                           res);
@@ -500,40 +565,36 @@ double Relaxation<dim>::get_max_lambda() const {
 //
 template<std::size_t dim>
 void Relaxation<dim>::update_auxiliary_fields() {
+  // Resize because of multiresolution
+  de1.resize();
+  T1.resize();
+
+  de2.resize();
+  T2.resize();
+  alpha2.resize();
+  Y2.resize();
+
+  delta_pres.resize();
+  p.resize();
+  c.resize();
+
+  // Loop to update fields
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           rho[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]
-                                     + conserved_variables[cell][ALPHA2_RHO2_INDEX];
-
-                           vel[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
-
                            // Phase 1
-                           rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                        conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-                           e1[cell]  = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
-                                       conserved_variables[cell][ALPHA1_RHO1_INDEX]
-                                     - 0.5*vel[cell]*vel[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            de1[cell] = e1[cell] - e1_0[cell];
-                           p1[cell]  = EOS_phase1.pres_value(rho1[cell], e1[cell]);
-                           c1[cell]  = EOS_phase1.c_value(rho1[cell], p1[cell]);
                            T1[cell]  = EOS_phase1.T_value(rho1[cell], p1[cell]);
 
                            // Phase 2
-                           rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                        (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-
-                           e2[cell]  = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
-                                       conserved_variables[cell][ALPHA2_RHO2_INDEX]
-                                     - 0.5*vel[cell]*vel[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           de2[cell] = e2[cell] - e2_0[cell];
-                           p2[cell]  = EOS_phase2.pres_value(rho2[cell], e2[cell]);
-                           c2[cell]  = EOS_phase2.c_value(rho2[cell], p2[cell]);
-                           T2[cell]  = EOS_phase2.T_value(rho2[cell], p2[cell]);
+                           de2[cell]    = e2[cell] - e2_0[cell];
+                           T2[cell]     = EOS_phase2.T_value(rho2[cell], p2[cell]);
 
                            alpha2[cell] = 1.0 - conserved_variables[cell][ALPHA1_INDEX];
                            Y2[cell]     = conserved_variables[cell][ALPHA2_RHO2_INDEX]/rho[cell];
+
+                           // Pressure difference
+                           delta_pres[cell] = p1[cell] - p2[cell];
 
                            // Remaining mixture variables
                            p[cell] = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
@@ -595,7 +656,7 @@ void Relaxation<dim>::run() {
   #endif
   auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
-  // Create the flux variables
+  /*--- Create the flux variables ---*/
   #ifdef RUSANOV_FLUX
     auto Rusanov_flux         = numerical_flux_cons.make_flux();
     auto NonConservative_flux = numerical_flux_non_cons.make_flux();
@@ -606,14 +667,14 @@ void Relaxation<dim>::run() {
     auto NonConservative_flux   = numerical_flux_non_cons.make_flux();
   #endif
 
-  // Save the initial condition
+  /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, suffix_init,
-       conserved_variables, rho, p, vel, c,
+       conserved_variables, rho, p, vel, c, delta_pres,
        rho1, p1, c1, T1, e1, rho2,
        p2, c2, T2, alpha2, Y2, e2);
 
-  // Save mesh size
+  /*--- Save mesh size (max level) ---*/
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
   const double dx = mesh.cell_length(mesh.max_level());
   std::cout << "Number of elements = " << mesh[mesh_id_t::cells].nb_cells() << std::endl;
@@ -636,16 +697,20 @@ void Relaxation<dim>::run() {
       auto NonCons_Flux = NonConservative_flux(conserved_variables);
 
       #ifdef ORDER_2
+        conserved_variables_tmp.resize();
         conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #else
+        conserved_variables_np1.resize();
         conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #endif
     #elifdef HLLC_FLUX
       auto Total_Flux = HLLC_flux(conserved_variables);
 
       #ifdef ORDER_2
+        conserved_variables_tmp.resize();
         conserved_variables_tmp = conserved_variables - dt*Total_Flux;
       #else
+        conserved_variables_np1.resize();
         conserved_variables_np1 = conserved_variables - dt*Total_Flux;
       #endif
     #elifdef HLLC_NON_CONS_FLUX
@@ -653,8 +718,10 @@ void Relaxation<dim>::run() {
       auto NonCons_Flux = NonConservative_flux(conserved_variables);
 
       #ifdef ORDER_2
+        conserved_variables_tmp.resize();
         conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #else
+        conserved_variables_np1.resize();
         conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #endif
     #endif
@@ -680,6 +747,7 @@ void Relaxation<dim>::run() {
     #ifdef ORDER_2
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
+      conserved_variables_tmp_2.resize();
       #ifdef RUSANOV_FLUX
         Cons_Flux    = Rusanov_flux(conserved_variables);
         NonCons_Flux = NonConservative_flux(conserved_variables);
@@ -711,14 +779,15 @@ void Relaxation<dim>::run() {
     #endif
 
     // Compute updated time step
-    update_auxiliary_fields();
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
     // Save the results
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
+
+      update_auxiliary_fields();
       save(path, suffix,
-           conserved_variables, rho, p, vel, c,
+           conserved_variables, rho, p, vel, c, delta_pres,
            rho1, p1, c1, T1, e1_0, e1, de1,
            rho2, p2, c2, T2, alpha2, Y2, e2_0, e2, de2);
     }

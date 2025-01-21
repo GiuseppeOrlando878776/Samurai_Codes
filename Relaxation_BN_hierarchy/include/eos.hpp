@@ -42,8 +42,8 @@ public:
 
   SG_EOS(const SG_EOS&) = default; // Default copy-constructor
 
-  SG_EOS(const double gamma_, const double pi_infty_ = 0.0,
-         const double q_infty_ = 0.0, const double c_v_ = 1.0); // Constructor which accepts as arguments
+  SG_EOS(const T gamma_, const T pi_infty_ = 0.0,
+         const T q_infty_ = 0.0, const T c_v_ = 1.0); // Constructor which accepts as arguments
                                                                 // the isentropic exponent and the parameters
                                                                 // that characterize the fluid
 
@@ -66,17 +66,17 @@ public:
   inline T get_c_v() const; // Auxiliary function to return parameter c_v of EOS
 
 private:
-  const double gamma;    // Isentropic exponent
-  const double pi_infty; // Pressure at 'infinite'
-  const double q_infty;  // Internal energy at 'infinite'
-  const double c_v;      // Specific heat at constant volume
+  const T gamma;    // Isentropic exponent
+  const T pi_infty; // Pressure at 'infinite'
+  const T q_infty;  // Internal energy at 'infinite'
+  const T c_v;      // Specific heat at constant volume
 };
 
 // Implement the constructor
 //
 template<typename T>
-SG_EOS<T>::SG_EOS(const double gamma_, const double pi_infty_,
-                  const double q_infty_, const double c_v_):
+SG_EOS<T>::SG_EOS(const T gamma_, const T pi_infty_,
+                  const T q_infty_, const T c_v_):
   EOS<T>(), gamma(gamma_), pi_infty(pi_infty_), q_infty(q_infty_), c_v(c_v_) {}
 
 // Compute the pressure value from the density and the internal energy
