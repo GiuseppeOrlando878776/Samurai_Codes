@@ -30,10 +30,12 @@ struct EOS_Parameters {
   double gamma_1;
   double pi_infty_1;
   double q_infty_1;
+  double c_v_1;
 
   double gamma_2;
   double pi_infty_2;
   double q_infty_2;
+  double c_v_2;
 };
 
 // Declare a struct with Riemann problem parameters

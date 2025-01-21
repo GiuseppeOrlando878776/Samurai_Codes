@@ -110,12 +110,14 @@ private:
                rho1,
                p1,
                c1,
+               T1,
                e1_0,
                e1,
                de1,
                rho2,
                p2,
                c2,
+               T2,
                c,
                alpha2,
                Y2,
@@ -151,8 +153,8 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   apply_pressure_relax(sim_param.apply_pressure_relax),
   apply_finite_rate_relax(sim_param.apply_finite_rate_relax), mu(sim_param.mu),
-  EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1),
-  EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2),
+  EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.c_v_1),
+  EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.c_v_2),
   #if defined RUSANOV_FLUX || defined HLLC_NON_CONS_FLUX
     numerical_flux_cons(EOS_phase1, EOS_phase2),
     numerical_flux_non_cons(EOS_phase1, EOS_phase2)
@@ -178,10 +180,12 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   rho1   = samurai::make_field<typename Field::value_type, 1>("rho1", mesh);
   p1     = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
   c1     = samurai::make_field<typename Field::value_type, 1>("c1", mesh);
+  T1     = samurai::make_field<typename Field::value_type, 1>("T1", mesh);
 
   rho2   = samurai::make_field<typename Field::value_type, 1>("rho2", mesh);
   p2     = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
   c2     = samurai::make_field<typename Field::value_type, 1>("c2", mesh);
+  T2     = samurai::make_field<typename Field::value_type, 1>("T2", mesh);
 
   c      = samurai::make_field<typename Field::value_type, 1>("c", mesh);
 
@@ -253,7 +257,11 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 
                            c1[cell] = EOS_phase1.c_value(rho1[cell], p1[cell]);
 
+                           T1[cell] = EOS_phase1.T_value(rho1[cell], p1[cell]);
+
                            c2[cell] = EOS_phase2.c_value(rho2[cell], p2[cell]);
+
+                           T2[cell] = EOS_phase2.T_value(rho2[cell], p2[cell]);
 
                            p[cell] = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
                                    + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
@@ -510,6 +518,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
                            de1[cell] = e1[cell] - e1_0[cell];
                            p1[cell]  = EOS_phase1.pres_value(rho1[cell], e1[cell]);
                            c1[cell]  = EOS_phase1.c_value(rho1[cell], p1[cell]);
+                           T1[cell]  = EOS_phase1.T_value(rho1[cell], p1[cell]);
 
                            // Phase 2
                            rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
@@ -521,6 +530,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
                            de2[cell] = e2[cell] - e2_0[cell];
                            p2[cell]  = EOS_phase2.pres_value(rho2[cell], e2[cell]);
                            c2[cell]  = EOS_phase2.c_value(rho2[cell], p2[cell]);
+                           T2[cell]  = EOS_phase2.T_value(rho2[cell], p2[cell]);
 
                            alpha2[cell] = 1.0 - conserved_variables[cell][ALPHA1_INDEX];
                            Y2[cell]     = conserved_variables[cell][ALPHA2_RHO2_INDEX]/rho[cell];
@@ -600,8 +610,8 @@ void Relaxation<dim>::run() {
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, suffix_init,
        conserved_variables, rho, p, vel, c,
-       rho1, p1, c1, e1, rho2,
-       p2, c2, alpha2, Y2, e2);
+       rho1, p1, c1, T1, e1, rho2,
+       p2, c2, T2, alpha2, Y2, e2);
 
   // Save mesh size
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
@@ -709,8 +719,8 @@ void Relaxation<dim>::run() {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, suffix,
            conserved_variables, rho, p, vel, c,
-           rho1, p1, c1, e1_0, e1, de1,
-           rho2, p2, c2, alpha2, Y2, e2_0, e2, de2);
+           rho1, p1, c1, T1, e1_0, e1, de1,
+           rho2, p2, c2, T2, alpha2, Y2, e2_0, e2, de2);
     }
   }
 }

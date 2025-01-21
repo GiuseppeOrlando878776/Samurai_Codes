@@ -27,6 +27,8 @@ public:
   inline virtual T e_value(const T rho, const T pres) const = 0; // Function to compute the internal energy from density and pressure
 
   inline virtual T c_value(const T rho, const T pres) const = 0; // Function to compute the speed of sound from density and pressure
+
+  inline virtual T T_value(const T rho, const T pres) const = 0; // Function to compute the speed of sound from density and pressure
 };
 
 
@@ -40,9 +42,10 @@ public:
 
   SG_EOS(const SG_EOS&) = default; // Default copy-constructor
 
-  SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_ = 0.0); // Constructor which accepts as arguments
-                                                                                    // the isentropic exponent and the two parameters
-                                                                                    // that characterize the fluid
+  SG_EOS(const double gamma_, const double pi_infty_ = 0.0,
+         const double q_infty_ = 0.0, const double c_v_ = 1.0); // Constructor which accepts as arguments
+                                                                // the isentropic exponent and the parameters
+                                                                // that characterize the fluid
 
   inline virtual T pres_value(const T rho, const T e) const override; // Function to compute the pressure from the density and the internal energy
 
@@ -52,23 +55,29 @@ public:
 
   inline virtual T c_value(const T rho, const T pres) const override; // Function to compute the speed of sound from density and pressure
 
+  inline virtual T T_value(const T rho, const T pres) const override; // Function to compute the speed of sound from density and pressure
+
   inline T get_gamma() const; // Auxiliary function to return parameter gamma of EOS
 
   inline T get_pi_infty() const; // Auxiliary function to return parameter pi_infty of EOS
 
   inline T get_q_infty() const; // Auxiliary function to return parameter q_infty of EOS
 
+  inline T get_c_v() const; // Auxiliary function to return parameter c_v of EOS
+
 private:
   const double gamma;    // Isentropic exponent
   const double pi_infty; // Pressure at 'infinite'
   const double q_infty;  // Internal energy at 'infinite'
+  const double c_v;      // Specific heat at constant volume
 };
 
 // Implement the constructor
 //
 template<typename T>
-SG_EOS<T>::SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_):
-  EOS<T>(), gamma(gamma_), pi_infty(pi_infty_), q_infty(q_infty_) {}
+SG_EOS<T>::SG_EOS(const double gamma_, const double pi_infty_,
+                  const double q_infty_, const double c_v_):
+  EOS<T>(), gamma(gamma_), pi_infty(pi_infty_), q_infty(q_infty_), c_v(c_v_) {}
 
 // Compute the pressure value from the density and the internal energy
 //
@@ -98,6 +107,13 @@ inline T SG_EOS<T>::c_value(const T rho, const T pres) const {
   return std::sqrt(gamma*(pres + pi_infty)/rho);
 }
 
+// Compute the temperature from density and pressure
+//
+template<typename T>
+inline T SG_EOS<T>::T_value(const T rho, const T pres) const {
+  return (pres + pi_infty)/((gamma - 1.0)*rho*c_v);
+}
+
 // Auxiliary function to retrive gamma of SG-EOS
 //
 template<typename T>
@@ -117,6 +133,13 @@ inline T SG_EOS<T>::get_pi_infty() const {
 template<typename T>
 inline T SG_EOS<T>::get_q_infty() const {
   return q_infty;
+}
+
+// Auxiliary function to retrive c_v of SG-EOS
+//
+template<typename T>
+inline T SG_EOS<T>::get_c_v() const {
+  return c_v;
 }
 
 #endif
