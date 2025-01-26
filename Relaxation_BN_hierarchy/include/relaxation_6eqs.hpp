@@ -478,7 +478,7 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
                                                   /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            // Update the total energy of both phases
-                           const auto E1 = EOS_phase2.e_value(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                           const auto E1 = EOS_phase1.e_value(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                                               conserved_variables[cell][ALPHA1_INDEX],
                                                               p2_star + Delta_p_star)
                                          + 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
