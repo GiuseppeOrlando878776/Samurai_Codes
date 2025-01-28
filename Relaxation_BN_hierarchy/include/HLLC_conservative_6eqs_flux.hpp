@@ -161,8 +161,8 @@ namespace samurai {
                         (rhoL*(sL - velL_d) - rhoR*(sR - velR_d));
 
     // Compute intermediate states
-    auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
-    auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
+    const auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
+    const auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
 
     // Compute the flux
     if(sL >= 0.0) {
