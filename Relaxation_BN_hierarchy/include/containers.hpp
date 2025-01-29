@@ -23,6 +23,7 @@ struct Simulation_Parameters {
   bool   apply_pressure_relax;
   bool   apply_finite_rate_relax;
   double mu;
+  bool   use_exact_relax;
 };
 
 // Declare a struct with EOS parameters

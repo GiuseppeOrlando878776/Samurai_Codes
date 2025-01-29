@@ -77,6 +77,7 @@ private:
 
   bool   apply_pressure_relax;    // Set whether to apply or not the pressure relaxation
   bool   apply_finite_rate_relax; // Set whether to perform a finite rate relaxation or an infinite rate
+  bool   use_exact_relax;         // Set whether to use the choice of pI which leads to analytical results in the case of instantaneous relaxation
   double mu;                      // Finite rate parameter
   double dt;                      // Time-step (to be declared here because of finite rate)
 
@@ -141,6 +142,8 @@ private:
 
   void update_pressure_before_relaxation(); // Update pressure fields before relaxation
 
+  void apply_instantaneous_pressure_relaxation(); // Apply an instantaneous pressure relaxation (special choice of pI to have exact solution)
+
   void apply_instantaneous_pressure_relaxation_linearization(); // Apply an instantaneous pressure relaxation (linearization method Pelanti based)
 
   void apply_finite_rate_pressure_relaxation(); // Apply a finite rate pressure relaxation (arbitrary rate Pelanti based)
@@ -159,6 +162,7 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   apply_pressure_relax(sim_param.apply_pressure_relax),
   apply_finite_rate_relax(sim_param.apply_finite_rate_relax), mu(sim_param.mu),
+  use_exact_relax(sim_param.use_exact_relax),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.c_v_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.c_v_2),
   #if defined RUSANOV_FLUX || defined HLLC_NON_CONS_FLUX
@@ -357,6 +361,96 @@ void Relaxation<dim>::update_pressure_before_relaxation() {
                          });
 }
 
+// Apply the instantaneous relaxation for the pressure (analytical solution for special pI)
+//
+template<std::size_t dim>
+void Relaxation<dim>::apply_instantaneous_pressure_relaxation() {
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                            // Save some quantities which remain constant during relaxation
+                            // for the sake of convenience and readability
+                            const auto rhoE_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]
+                                              + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
+
+                            const auto rho_0 = conserved_variables[cell][ALPHA1_RHO1_INDEX]
+                                             + conserved_variables[cell][ALPHA2_RHO2_INDEX];
+
+                            typename Field::value_type norm2_vel = 0.0;
+                            for(std::size_t d = 0; d < dim; ++d) {
+                              const auto vel_d = conserved_variables[cell][RHO_U_INDEX + d]/rho_0;
+                              norm2_vel += vel_d*vel_d;
+                            }
+
+                            const auto e_0 = rhoE_0/rho_0 - 0.5*norm2_vel;
+
+                            const auto Y1_0 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho_0;
+                            const auto Y2_0 = 1.0 - Y1_0;
+
+                            // Take interface pressure equal to the liquid one (for the moment)
+                            auto pres1 = p1[cell];
+                            auto pres2 = p2[cell];
+                            auto& pI   = pres1;
+
+                            const auto Laplace_cst_1 = (pres1 + EOS_phase1.get_pi_infty())/
+                                                       std::pow(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                                conserved_variables[cell][ALPHA1_INDEX], EOS_phase1.get_gamma());
+                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                            //const auto Laplace_cst_2 = (pres2 + EOS_phase2.get_pi_infty())/
+                            //                           std::pow(conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                            //                                    (1.0 - conserved_variables[cell][ALPHA1_INDEX]), EOS_phase2.get_gamma());
+                                                      /*--- TODO: Add treatment for vanishing volume fraction ---*/
+
+                            // Newton method to compute the new volume fraction
+                            const double tol             = 1e-8;
+                            const double lambda          = 0.9; // Bound preserving parameter
+                            const unsigned int max_iters = 100;
+                            auto alpha_max               = 1.0;
+                            auto alpha_min               = 0.0;
+
+                            auto dalpha1      = 0.0;
+                            unsigned int nite = 0;
+                            while(nite < max_iters && 2.0*(alpha_max - alpha_min)/(alpha_max + alpha_min) > tol) {
+                              pres1 > pres2 ? alpha_min = conserved_variables[cell][ALPHA1_INDEX] :
+                                              alpha_max = conserved_variables[cell][ALPHA1_INDEX];
+
+                              dalpha1 = (pres1 - pres2)/
+                                        std::abs((pres1 + (EOS_phase1.get_gamma() - 1.0)*pI + EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty())/
+                                                  conserved_variables[cell][ALPHA1_INDEX] +
+                                                 (pres2 + (EOS_phase2.get_gamma() - 1.0)*pI + EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty())/
+                                                 (1.0 - conserved_variables[cell][ALPHA1_INDEX]));
+
+                              /*--- Bound preserving strategy ---*/
+                              dalpha1 = std::min(dalpha1, lambda*(alpha_max - conserved_variables[cell][ALPHA1_INDEX]));
+                              dalpha1 = std::max(dalpha1, lambda*(alpha_min - conserved_variables[cell][ALPHA1_INDEX]));
+
+                              conserved_variables[cell][ALPHA1_INDEX] += dalpha1;
+
+                              /*--- Update pressure variables for next step and to update interfacial pressure ---*/
+                              const auto rho1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                              const auto rho2 = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                                (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+
+                              pres1         = std::pow(rho1, EOS_phase1.get_gamma())*Laplace_cst_1 - EOS_phase1.get_pi_infty();
+                              const auto e2 = (e_0 - Y1_0*EOS_phase1.e_value(rho1, pres1))/Y2_0;
+                              pres2         = EOS_phase2.pres_value(rho2, e2);
+
+                              /*pres2         = std::pow(rho2, EOS_phase2.get_gamma())*Laplace_cst_2 - EOS_phase2.get_pi_infty();
+                              const auto e1 = (e_0 - Y2_0*EOS_phase2.e_value(rho2, pres2)))/Y1_0;
+                              pres1         = EOS_phase1.pres_value(rho1, e1);*/
+
+                              nite++;
+                            }
+
+                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                                                              (EOS_phase1.e_value(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                                                                  conserved_variables[cell][ALPHA1_INDEX],
+                                                                                                  pres1) +
+                                                                               0.5*norm2_vel);
+                            conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = rhoE_0 - conserved_variables[cell][ALPHA1_RHO1_E1_INDEX];
+                          });
+}
 
 // Apply the instantaneous relaxation for the pressure (polynomial method Saurel)
 //
@@ -766,7 +860,12 @@ void Relaxation<dim>::run() {
         apply_finite_rate_pressure_relaxation();
       }
       else {
-        apply_instantaneous_pressure_relaxation_linearization();
+        if(use_exact_relax) {
+          apply_instantaneous_pressure_relaxation();
+        }
+        else {
+          apply_instantaneous_pressure_relaxation_linearization();
+        }
       }
     }
 
