@@ -21,7 +21,8 @@ struct Simulation_Parameters {
 
   bool apply_relaxation;
 
-  bool apply_finite_rate_relaxation;
+  bool   apply_finite_rate_relaxation;
+  bool   relax_instantaneous_velocity;
   double tau_u;
   double tau_p;
   double tau_T;

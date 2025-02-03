@@ -17,22 +17,20 @@ int main(int argc, char* argv[]) {
   sim_param.xL = 0.0;
   sim_param.xR = 1.0;
 
-  sim_param.min_level     = 0;
-  sim_param.max_level     = 0;
-  sim_param.MR_param      = 1e-2;
-  sim_param.MR_regularity = 0;
+  sim_param.min_level = 11;
+  sim_param.max_level = 11;
 
-  sim_param.Tf      = 0.03;
-  sim_param.Courant = 0.45;
-  sim_param.dt      = 1e-8;
+  sim_param.Tf      = 3.2e-3;
+  sim_param.Courant = 0.2;
   sim_param.nfiles  = 10;
 
   sim_param.apply_relaxation = false;
 
   sim_param.apply_finite_rate_relaxation = true;
-  sim_param.tau_u = 1.0;
-  sim_param.tau_p = 1e-5;
-  sim_param.tau_T = 1e-3;
+  sim_param.relax_instantaneous_velocity = true;
+  sim_param.tau_u = 1e-15;
+  sim_param.tau_p = 1e-10;
+  sim_param.tau_T = 1e10;
 
   sim_param.relax_pressure    = false;
   sim_param.relax_temperature = false;
@@ -53,6 +51,8 @@ int main(int argc, char* argv[]) {
                  "Choose whether to apply relaxation or not")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_finite_rate_relaxation", sim_param.apply_finite_rate_relaxation,
                  "If relaxation occurs, finite rate or not")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--relax_instantaneous_velocity", sim_param.relax_instantaneous_velocity,
+                 "If finite rate relaxation occurs, instantaneous velocity relaxation or not")->capture_default_str()->group("Simulation parameters");
   app.add_option("--tau_u", sim_param.tau_u, "Finite rate parameter for the velocity")->capture_default_str()->group("Simulation parameters");
   app.add_option("--tau_p", sim_param.tau_p, "Finite rate parameter for the pressure")->capture_default_str()->group("Simulation parameters");
   app.add_option("--tau_T", sim_param.tau_T, "Finite rate parameter for the temperature")->capture_default_str()->group("Simulation parameters");
@@ -64,15 +64,16 @@ int main(int argc, char* argv[]) {
   // Set and declare simulation parameters related to EOS
   EOS_Parameters eos_param;
 
-  eos_param.gamma_1    = 1.61492481180737;
-  eos_param.pi_infty_1 = 3.563521398523755e8;
-  eos_param.q_infty_1  = 0.0;
-  eos_param.cv_1       = 1.452904592629688e3;
+  eos_param.gamma_1    = 2.35;
+  eos_param.pi_infty_1 = 1e9;
+  eos_param.q_infty_1  = -1167e3;
+  eos_param.cv_1       = 1.816e3;
 
-  eos_param.gamma_2    = 1.085507894797296;
+
+  eos_param.gamma_2    = 1.43;
   eos_param.pi_infty_2 = 0.0;
-  eos_param.q_infty_2  = 0.0;
-  eos_param.cv_2       = 4.441148752333071e3;
+  eos_param.q_infty_2  = 2030e3;
+  eos_param.cv_2       = 1.040e3;
 
   app.add_option("--gammma_1", eos_param.gamma_1, "gamma_1")->capture_default_str()->group("EOS parameters");
   app.add_option("--pi_infty_1", eos_param.pi_infty_1, "pi_infty_1")->capture_default_str()->group("EOS parameters");
@@ -88,21 +89,21 @@ int main(int argc, char* argv[]) {
 
   Riemann_param.xd      = 0.5;
 
-  Riemann_param.alpha1L = 0.3;
+  Riemann_param.alpha1L = 1.0 - 1e-2;
   Riemann_param.p1L     = 1e5;
-  Riemann_param.T1L     = 363.0;
-  Riemann_param.u1L     = 0.0;
+  Riemann_param.rho1L   = 1150.0;
+  Riemann_param.u1L     = -2.0;
   Riemann_param.p2L     = 1e5;
-  Riemann_param.T2L     = 1000.0;
-  Riemann_param.u2L     = 0.0;
+  Riemann_param.rho2L   = 0.63;
+  Riemann_param.u2L     = -2.0;
 
-  Riemann_param.alpha1R = 0.3;
+  Riemann_param.alpha1R = 1.0 - 1e-2;
   Riemann_param.p1R     = 1e5;
-  Riemann_param.T1R     = 363.0;
-  Riemann_param.u1R     = 0.0;
+  Riemann_param.rho1R   = 1150.0;
+  Riemann_param.u1R     = 2.0;
   Riemann_param.p2R     = 1e5;
-  Riemann_param.T2R     = 1000.0;
-  Riemann_param.u2R     = 0.0;
+  Riemann_param.rho2R   = 0.63;
+  Riemann_param.u2R     = 2.0;
 
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
   app.add_option("--alpha1L", Riemann_param.alpha1L, "Initial volume fraction at left")->capture_default_str()->group("Initial conditions");

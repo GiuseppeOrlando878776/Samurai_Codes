@@ -58,10 +58,10 @@ public:
 
   SG_EOS(const SG_EOS&) = default; // Default copy-constructor
 
-  SG_EOS(const double gamma_,
-         const double pi_infty_,
-         const double q_infty_ = 0.0,
-         const double c_v_ = 1.0); // Constructor which accepts as arguments
+  SG_EOS(const T gamma_,
+         const T pi_infty_ = 0.0,
+         const T q_infty_ = 0.0,
+         const T c_v_ = 1.0);      // Constructor which accepts as arguments
                                    // the isentropic exponent and the three parameters
                                    // that characterize the fluid
 
@@ -95,25 +95,25 @@ public:
 
   virtual T drho_dT_P(const T temp, const T pres) const override; // Function to compute the derivative of the density w.r.t. temperature (fixed pressure)
 
-  inline double get_gamma() const; // Return the isentropic exponent
+  inline T get_gamma() const; // Return the isentropic exponent
 
-  inline double get_pi_infty() const; // Return the pressure at 'infinite'
+  inline T get_pi_infty() const; // Return the pressure at 'infinite'
 
-  inline double get_q_infty() const; // Return the internal energy at 'infinite'
+  inline T get_q_infty() const; // Return the internal energy at 'infinite'
 
-  inline double get_cv() const; // Return the specific heat at constant volume
+  inline T get_cv() const; // Return the specific heat at constant volume
 
 private:
-  const double gamma;    // Isentropic exponent
-  const double pi_infty; // Pressure at 'infinite'
-  const double q_infty;  // Internal energy at 'infinite'
-  const double c_v;      // Specific heat at constant volume
+  const T gamma;    // Isentropic exponent
+  const T pi_infty; // Pressure at 'infinite'
+  const T q_infty;  // Internal energy at 'infinite'
+  const T c_v;      // Specific heat at constant volume
 };
 
 // Implement the constructor
 //
 template<typename T>
-SG_EOS<T>::SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_, const double c_v_):
+SG_EOS<T>::SG_EOS(const T gamma_, const T pi_infty_, const T q_infty_, const T c_v_):
   EOS<T>(), gamma(gamma_), pi_infty(pi_infty_), q_infty(q_infty_), c_v(c_v_) {}
 
 // Compute the pressure value from the density and the internal energy
@@ -235,28 +235,28 @@ T SG_EOS<T>::drho_dT_P(const T temp, const T pres) const {
 // Return the isentropic exponent
 //
 template<typename T>
-inline double SG_EOS<T>::get_gamma() const {
+inline T SG_EOS<T>::get_gamma() const {
   return gamma;
 }
 
 // Return the pressure at 'infinite'
 //
 template<typename T>
-inline double SG_EOS<T>::get_pi_infty() const {
+inline T SG_EOS<T>::get_pi_infty() const {
   return pi_infty;
 }
 
 // Return the internal energu at 'infinite'
 //
 template<typename T>
-inline double SG_EOS<T>::get_q_infty() const {
+inline T SG_EOS<T>::get_q_infty() const {
   return q_infty;
 }
 
 // Return the specific heat at constant volume
 //
 template<typename T>
-inline double SG_EOS<T>::get_cv() const {
+inline T SG_EOS<T>::get_cv() const {
   return c_v;
 }
 
