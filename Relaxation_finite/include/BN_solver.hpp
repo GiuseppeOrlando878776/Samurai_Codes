@@ -14,14 +14,21 @@ namespace fs = std::filesystem;
 
 #include <samurai/mr/adapt.hpp>
 
-#include "Rusanov_flux.hpp"
-#include "non_conservative_flux.hpp"
-#include "Suliciu_scheme.hpp"
-
 #include "containers.hpp"
 
+// Add user implemented boundary condition
+#include "user_bc.hpp"
+
+// Include 'numerical flux' scheme
 #define SULICIU_RELAXATION
 //#define RUSANOV_FLUX
+
+#ifdef SULICIU_RELAXATION
+  #include "Suliciu_scheme.hpp"
+#else
+  #include "Rusanov_flux.hpp"
+  #include "non_conservative_flux.hpp"
+#endif
 
 // Specify the use of this namespace where we just store the indices
 // and some parameters related to the equations of state
@@ -225,28 +232,15 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            const auto center = cell.center();
                            const double x    = center[0];
 
-                           if(x <= Riemann_param.xd) {
-                             conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1L;
+                           conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1L;
 
-                             p1[cell]   = Riemann_param.p1L;
-                             vel1[cell] = Riemann_param.u1L;
-                             rho1[cell] = Riemann_param.rho1L;
+                           p1[cell]   = Riemann_param.p1L;
+                           vel1[cell] = Riemann_param.u1L;
+                           rho1[cell] = Riemann_param.rho1L;
 
-                             p2[cell]   = Riemann_param.p2L;
-                             vel2[cell] = Riemann_param.u2L;
-                             rho2[cell] = Riemann_param.rho2L;
-                           }
-                           else {
-                             conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1R;
-
-                             p1[cell]   = Riemann_param.p1R;
-                             vel1[cell] = Riemann_param.u1R;
-                             rho1[cell] = Riemann_param.rho1R;
-
-                             p2[cell]   = Riemann_param.p2R;
-                             vel2[cell] = Riemann_param.u2R;
-                             rho2[cell]   = Riemann_param.rho2R;
-                           }
+                           p2[cell]   = Riemann_param.p2L;
+                           vel2[cell] = Riemann_param.u2L;
+                           rho2[cell] = Riemann_param.rho2L;
 
                            T1[cell] = EOS_phase1.T_value_RhoP(rho1[cell], p1[cell]);
 
@@ -312,18 +306,11 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                           (1.0 - Riemann_param.alpha1L)*Riemann_param.rho2L*
                                           (EOS_phase2.e_value_RhoP(Riemann_param.rho2L, Riemann_param.p2L) +
                                            0.5*Riemann_param.u2L*Riemann_param.u2L))->on(left);
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
-                                          Riemann_param.alpha1R,
-                                          Riemann_param.alpha1R*Riemann_param.rho1R,
-                                          Riemann_param.alpha1R*Riemann_param.rho1R*Riemann_param.u1R,
-                                          Riemann_param.alpha1R*Riemann_param.rho1R*
-                                          (EOS_phase1.e_value_RhoP(Riemann_param.rho1R, Riemann_param.p1R) +
-                                           0.5*Riemann_param.u1R*Riemann_param.u1R),
-                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R,
-                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R*Riemann_param.u2R,
-                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R*
-                                          (EOS_phase2.e_value_RhoP(Riemann_param.rho2R, Riemann_param.p2R) +
-                                           0.5*Riemann_param.u2R*Riemann_param.u2R))->on(right);
+  //samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
+  samurai::make_bc<Default>(conserved_variables,
+                            Outflow(conserved_variables,
+                                    Riemann_param.p1L, EOS_phase1,
+                                    Riemann_param.p2L, EOS_phase2))->on(right);
 }
 
 /*--- AUXILIARY ROUTINES ---*/
@@ -1197,6 +1184,23 @@ void BN_Solver<dim>::run() {
     auto NonConservative_flux = numerical_flux_non_cons.make_flux();
   #endif
 
+  /*--- Add the gravity contribution ---*/
+  using cfg = samurai::LocalCellSchemeConfig<samurai::SchemeType::LinearHomogeneous,
+                                             Field::size,
+                                             decltype(conserved_variables)>;
+  auto gravity = samurai::make_cell_based_scheme<cfg>();
+  gravity.coefficients_func() = [](double)
+                                {
+                                  samurai::StencilCoeffs<cfg> coeffs;
+
+                                  coeffs[0].fill(0.0);
+
+                                  coeffs[0](ALPHA1_RHO1_U1_INDEX, ALPHA1_RHO1_INDEX) = 9.8;
+                                  coeffs[0](ALPHA2_RHO2_U2_INDEX, ALPHA2_RHO2_INDEX) = 9.8;
+
+                                  return coeffs;
+                                };
+
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, filename, suffix_init,
@@ -1207,6 +1211,8 @@ void BN_Solver<dim>::run() {
 
   /*--- Set mesh size ---*/
   const double dx = mesh.cell_length(mesh.max_level());
+  std::cout << "Number of elements = " << mesh[samurai::MRMesh<Config>::mesh_id_t::cells].nb_cells() << std::endl;
+  std::cout << std::endl;
 
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
@@ -1229,10 +1235,10 @@ void BN_Solver<dim>::run() {
 
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*Relaxation_Flux;
+        conserved_variables_tmp = conserved_variables - dt*Relaxation_Flux + dt*gravity(conserved_variables);
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*Relaxation_Flux;
+        conserved_variables_np1 = conserved_variables - dt*Relaxation_Flux + dt*gravity(conserved_variables);
       #endif
     #elifdef RUSANOV_FLUX
       auto Cons_Flux    = Rusanov_flux(conserved_variables);
@@ -1243,10 +1249,10 @@ void BN_Solver<dim>::run() {
 
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
+        conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux + dt*gravity(conserved_variables);
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
+        conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux + dt*gravity(conserved_variables);
       #endif
     #endif
 
@@ -1289,12 +1295,12 @@ void BN_Solver<dim>::run() {
         c = 0.0;
         Relaxation_Flux = Suliciu_flux(conserved_variables);
 
-        conserved_variables_tmp_2 = conserved_variables - dt*Relaxation_Flux;
+        conserved_variables_tmp_2 = conserved_variables - dt*Relaxation_Flux + dt*gravity(conserved_variables);
       #elifdef RUSANOV_FLUX
         Cons_Flux    = Rusanov_flux(conserved_variables);
         NonCons_Flux = NonConservative_flux(conserved_variables);
 
-        conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
+        conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux + dt*gravity(conserved_variables);
       #endif
       conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());

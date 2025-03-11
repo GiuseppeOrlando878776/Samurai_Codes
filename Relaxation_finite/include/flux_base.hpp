@@ -6,8 +6,6 @@
 
 #include "eos.hpp"
 
-#define ONE_D
-
 //#define ORDER_2
 
 namespace EquationData {
