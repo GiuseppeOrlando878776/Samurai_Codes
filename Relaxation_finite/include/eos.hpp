@@ -32,6 +32,8 @@ public:
 
   virtual T c_value_RhoP(const T rho, const T pres) const = 0; // Function to compute the speed of sound from density and pressure
 
+  virtual T s_value_Rhoe(const T rho, const T e) const = 0; // Function to compute the specific entropy from density and internal energy
+
   virtual T de_drho_T(const T rho, const T temp) const = 0; // Function to compute the derivative of the internal energy w.r.t. density (fixed temperature)
 
   virtual T de_dT_rho(const T temp, const T rho) const = 0; // Function to compute the derivative of the internal energy w.r.t. temperature (fixed density)
@@ -80,6 +82,8 @@ public:
   virtual T e_value_PT(const T pres, const T temp) const override; // Function to compute the internal energy from pressure and temperature
 
   virtual T c_value_RhoP(const T rho, const T pres) const override; // Function to compute the speed of sound from density and pressure
+
+  virtual T s_value_Rhoe(const T rho, const T e) const override; // Function to compute the specific entropy from density and internal energy
 
   virtual T de_drho_T(const T rho, const T temp) const override; // Function to compute the derivative of the internal energy w.r.t. density (fixed temperature)
 
@@ -170,6 +174,15 @@ T SG_EOS<T>::e_value_PT(const T pres, const T temp) const {
 template<typename T>
 T SG_EOS<T>::c_value_RhoP(const T rho, const T pres) const {
   return std::sqrt(gamma*(pres + pi_infty)/rho);
+}
+
+// Compute the speed of sound from density and pressure
+//
+template<typename T>
+T SG_EOS<T>::s_value_Rhoe(const T rho, const T e) const {
+  const T v = 1.0/rho;
+
+  return c_v*std::log(std::pow(v,gamma - 1.0)*(e - q_infty - pi_infty*v));
 }
 
 // Compute the derivative of the internal energy w.r.t. density (fixed temperature)

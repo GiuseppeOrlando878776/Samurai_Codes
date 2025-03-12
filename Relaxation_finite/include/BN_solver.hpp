@@ -16,10 +16,6 @@ namespace fs = std::filesystem;
 
 #include "containers.hpp"
 
-// Add user implemented boundary condition
-#include "user_bc.hpp"
-
-// Include 'numerical flux' scheme
 #define SULICIU_RELAXATION
 //#define RUSANOV_FLUX
 
@@ -121,11 +117,18 @@ private:
                delta_pres,
                delta_temp;
 
-  Field_Scalar p_ref; // Auxiliary field for the pressure relaxation
-
   Field_Vect vel1,
              vel2,
              delta_vel;
+
+  Field_Scalar entropy_after_flux_phase1,
+               entropy_production_flux_phase1,
+               entropy_after_relaxation_phase1,
+               entropy_production_relaxation_phase1,
+               entropy_after_flux_phase2,
+               entropy_production_flux_phase2,
+               entropy_after_relaxation_phase2,
+               entropy_production_relaxation_phase2;
 
   const double MR_param; // Multiresolution parameter
   const double MR_regularity; // Multiresolution regularity
@@ -158,10 +161,14 @@ private:
   void perform_instantaneous_relaxation(); // Routine to perform instantaneous relaxation (velocity and pressure-temperature)
 
   template<typename State>
-  void compute_coefficients_source_relaxation(const State& q, const typename Field::value_type,
+  void compute_coefficients_source_relaxation(const State& q,
                                               const std::array<typename Field::value_type, dim>& delta_u_loc,
                                               Matrix_Relaxation& A, Vector_Relaxation& S); // Compute the coefficients
                                                                                            // and the source term for the relaxation
+
+  void compute_entropy_after_flux(); // Keep track of entropy and entropy production after convective step
+
+  void compute_entropy_after_relaxation(); // Keep track of entropy and entropy production after relaxation step
 };
 
 /*--- START WITH CLASS CONSTRUCTOR ---*/
@@ -219,11 +226,20 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   T1     = samurai::make_field<typename Field::value_type, 1>("T1", mesh);
   T2     = samurai::make_field<typename Field::value_type, 1>("T2", mesh);
 
-  p_ref  = samurai::make_field<typename Field::value_type, 1>("p_ref", mesh);
-
   delta_pres = samurai::make_field<typename Field::value_type, 1>("delta_pres", mesh);
   delta_temp = samurai::make_field<typename Field::value_type, 1>("delta_temp", mesh);
   delta_vel  = samurai::make_field<typename Field::value_type, dim>("delta_vel", mesh);
+
+  // Create auxiliary fields to keep track of the entropy
+  entropy_after_flux_phase1            = samurai::make_field<typename Field::value_type, 1>("entropy_after_flux_phase1", mesh);
+  entropy_production_flux_phase1       = samurai::make_field<typename Field::value_type, 1>("entropy_production_flux_phase1", mesh);
+  entropy_after_relaxation_phase1      = samurai::make_field<typename Field::value_type, 1>("entropy_after_relaxation_phase1", mesh);
+  entropy_production_relaxation_phase1 = samurai::make_field<typename Field::value_type, 1>("entropy_production_relaxation_phase1", mesh);
+
+  entropy_after_flux_phase2            = samurai::make_field<typename Field::value_type, 1>("entropy_after_flux_phase2", mesh);
+  entropy_production_flux_phase2       = samurai::make_field<typename Field::value_type, 1>("entropy_production_flux_phase2", mesh);
+  entropy_after_relaxation_phase2      = samurai::make_field<typename Field::value_type, 1>("entropy_after_relaxation_phase2", mesh);
+  entropy_production_relaxation_phase2 = samurai::make_field<typename Field::value_type, 1>("entropy_production_relaxation_phase2", mesh);
 
   // Initialize the fields with a loop over all cells
   samurai::for_each_cell(mesh,
@@ -232,15 +248,28 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            const auto center = cell.center();
                            const double x    = center[0];
 
-                           conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1L;
+                           if(x <= Riemann_param.xd) {
+                             conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1L;
 
-                           p1[cell]   = Riemann_param.p1L;
-                           vel1[cell] = Riemann_param.u1L;
-                           rho1[cell] = Riemann_param.rho1L;
+                             p1[cell]   = Riemann_param.p1L;
+                             vel1[cell] = Riemann_param.u1L;
+                             rho1[cell] = Riemann_param.rho1L;
 
-                           p2[cell]   = Riemann_param.p2L;
-                           vel2[cell] = Riemann_param.u2L;
-                           rho2[cell] = Riemann_param.rho2L;
+                             p2[cell]   = Riemann_param.p2L;
+                             vel2[cell] = Riemann_param.u2L;
+                             rho2[cell] = Riemann_param.rho2L;
+                           }
+                           else {
+                             conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1R;
+
+                             p1[cell]   = Riemann_param.p1R;
+                             vel1[cell] = Riemann_param.u1R;
+                             rho1[cell] = Riemann_param.rho1R;
+
+                             p2[cell]   = Riemann_param.p2R;
+                             vel2[cell] = Riemann_param.u2R;
+                             rho2[cell]   = Riemann_param.rho2R;
+                           }
 
                            T1[cell] = EOS_phase1.T_value_RhoP(rho1[cell], p1[cell]);
 
@@ -275,10 +304,16 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            delta_temp[cell] = T1[cell] - T2[cell];
                            delta_vel[cell]  = vel1[cell] - vel2[cell];
 
-                           // Initialize the pressure reference for the relaxation
-                           p_ref[cell] = std::abs(alpha2[cell]*rho1[cell]*c1[cell]*c1[cell] +
-                                                  conserved_variables[cell][ALPHA1_INDEX]*rho2[cell]*c2[cell]*c2[cell] -
-                                                  alpha2[cell]*(p1[cell] - p2[cell])/(rho1[cell]*EOS_phase1.de_dP_rho(p1[cell], rho1[cell])));
+                           // Compute entropies
+                           entropy_after_flux_phase1[cell]            = EOS_phase1.s_value_Rhoe(rho1[cell], e1);
+                           entropy_after_relaxation_phase1[cell]      = EOS_phase1.s_value_Rhoe(rho1[cell], e1);
+                           entropy_production_flux_phase1[cell]       = 0.0;
+                           entropy_production_relaxation_phase1[cell] = 0.0;
+
+                           entropy_after_flux_phase2[cell]            = EOS_phase2.s_value_Rhoe(rho2[cell], e2);
+                           entropy_after_relaxation_phase2[cell]      = EOS_phase2.s_value_Rhoe(rho2[cell], e2);
+                           entropy_production_flux_phase2[cell]       = 0.0;
+                           entropy_production_relaxation_phase2[cell] = 0.0;
 
                            output_data << std::setprecision(10)
                                        << std::setw(20) << std::left << x
@@ -306,11 +341,18 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                           (1.0 - Riemann_param.alpha1L)*Riemann_param.rho2L*
                                           (EOS_phase2.e_value_RhoP(Riemann_param.rho2L, Riemann_param.p2L) +
                                            0.5*Riemann_param.u2L*Riemann_param.u2L))->on(left);
-  //samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
-  samurai::make_bc<Default>(conserved_variables,
-                            Outflow(conserved_variables,
-                                    Riemann_param.p1L, EOS_phase1,
-                                    Riemann_param.p2L, EOS_phase2))->on(right);
+  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
+                                          Riemann_param.alpha1R,
+                                          Riemann_param.alpha1R*Riemann_param.rho1R,
+                                          Riemann_param.alpha1R*Riemann_param.rho1R*Riemann_param.u1R,
+                                          Riemann_param.alpha1R*Riemann_param.rho1R*
+                                          (EOS_phase1.e_value_RhoP(Riemann_param.rho1R, Riemann_param.p1R) +
+                                           0.5*Riemann_param.u1R*Riemann_param.u1R),
+                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R,
+                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R*Riemann_param.u2R,
+                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R*
+                                          (EOS_phase2.e_value_RhoP(Riemann_param.rho2R, Riemann_param.p2R) +
+                                           0.5*Riemann_param.u2R*Riemann_param.u2R))->on(right);
 }
 
 /*--- AUXILIARY ROUTINES ---*/
@@ -428,7 +470,7 @@ void BN_Solver<dim>::save(const fs::path& path,
 /*--- AUXILIARY ROUTINE FOR THE RELAXATION ---*/
 template<std::size_t dim>
 template<typename State>
-void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q, const typename Field::value_type p_ref_loc,
+void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
                                                             const std::array<typename Field::value_type, dim>& delta_u_loc,
                                                             Matrix_Relaxation& A, Vector_Relaxation& S) {
   // Compute auxiliary variables for phase 1
@@ -470,6 +512,8 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q, cons
               substituting uI \cdot grad\alpha we get d\alpha/dt... ---*/
 
   // Compute the coefficients
+  const auto p_ref_loc     = rho1_loc*c1_loc*c1_loc/q[ALPHA1_INDEX]
+                           + rho2_loc*c2_loc*c2_loc/(1.0 - q[ALPHA1_INDEX]); /*--- TODO: Add treatment fro vanishing volume fraction ---*/
   const auto p_relax_coeff = (q[ALPHA1_INDEX]*(1.0 - q[ALPHA1_INDEX]))/(tau_p*p_ref_loc);
   const auto T_relax_coeff = (q[ALPHA1_RHO1_INDEX]*cv1*q[ALPHA2_RHO2_INDEX]*cv2)/
                              (tau_T*(q[ALPHA1_RHO1_INDEX]*cv1 + q[ALPHA2_RHO2_INDEX]*cv2));
@@ -547,7 +591,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                            p2[cell]   = EOS_phase2.pres_value_Rhoe(rho2[cell], e2);
 
                            // Compute matrix relaxation coefficients
-                           compute_coefficients_source_relaxation(conserved_variables[cell], p_ref[cell],
+                           compute_coefficients_source_relaxation(conserved_variables[cell],
                                                                   delta_u, A_relax, S_relax);
 
                            // Solve the linear system
@@ -753,7 +797,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                            p2[cell]   = EOS_phase2.pres_value_Rhoe(rho2[cell], e2_0);
 
                            // Compute matrix relaxation coefficients
-                           compute_coefficients_source_relaxation(conserved_variables[cell], p_ref[cell],
+                           compute_coefficients_source_relaxation(conserved_variables[cell],
                                                                   delta_u, A_relax, S_relax);
 
                            // Solve the linear system
@@ -1146,6 +1190,106 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
                          });
 }
 
+// Keep track of entropy and entropy production after convective step
+//
+template<std::size_t dim>
+void BN_Solver<dim>::compute_entropy_after_flux() {
+  entropy_after_flux_phase1.resize();
+  entropy_production_flux_phase1.resize();
+
+  rho1.resize();
+  vel1.resize();
+
+  entropy_after_flux_phase2.resize();
+  entropy_production_flux_phase2.resize();
+
+  rho2.resize();
+  vel2.resize();
+
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                           // Compute entropies
+                           rho1[cell]    = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                           conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           vel1[cell]    = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX]/
+                                           conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto e1 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
+                                           conserved_variables[cell][ALPHA1_RHO1_INDEX]
+                                         - 0.5*vel1[cell]*vel1[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           entropy_after_flux_phase1[cell]      = EOS_phase1.s_value_Rhoe(rho1[cell], e1);
+                           entropy_production_flux_phase1[cell] = entropy_after_flux_phase1[cell] - entropy_after_relaxation_phase1[cell];
+                           /*--- TODO: To be corrected taking into account entropy flux ---*/
+
+                           rho2[cell]    = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                           (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           vel2[cell]    = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX]/
+                                             conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto e2 = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
+                                           conserved_variables[cell][ALPHA2_RHO2_INDEX]
+                                         - 0.5*vel2[cell]*vel2[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           entropy_after_flux_phase2[cell]      = EOS_phase2.s_value_Rhoe(rho2[cell], e2);
+                           entropy_production_flux_phase2[cell] = entropy_after_flux_phase2[cell] - entropy_after_relaxation_phase2[cell];
+                           /*--- TODO: To be corrected taking into account entropy flux ---*/
+
+                           /*if(entropy_production_flux_phase1[cell] < 0.0) {
+                             std::cerr << "Suspicious sign of entropy production phase 1 after convective step " << cell << std::endl;
+                           }
+                           if(entropy_production_flux_phase2[cell] < 0.0) {
+                             std::cerr << "Suspicious sign of entropy production phase 2 after convective step " << cell << std::endl;
+                           }*/
+                         });
+}
+
+// Keep track of entropy and entropy production after relaxation
+//
+template<std::size_t dim>
+void BN_Solver<dim>::compute_entropy_after_relaxation() {
+  entropy_after_relaxation_phase1.resize();
+  entropy_production_relaxation_phase1.resize();
+
+  rho1.resize();
+  vel1.resize();
+
+  entropy_after_relaxation_phase2.resize();
+  entropy_production_relaxation_phase2.resize();
+
+  rho2.resize();
+  vel2.resize();
+
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                           // Compute entropies
+                           rho1[cell]    = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                           conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           vel1[cell]    = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX]/
+                                           conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto e1 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
+                                           conserved_variables[cell][ALPHA1_RHO1_INDEX]
+                                         - 0.5*vel1[cell]*vel1[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           entropy_after_relaxation_phase1[cell]      = EOS_phase1.s_value_Rhoe(rho1[cell], e1);
+                           entropy_production_relaxation_phase1[cell] = entropy_after_relaxation_phase1[cell] - entropy_after_flux_phase1[cell];
+
+                           rho2[cell]    = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                           (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           vel2[cell]    = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX]/
+                                             conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto e2 = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
+                                           conserved_variables[cell][ALPHA2_RHO2_INDEX]
+                                         - 0.5*vel2[cell]*vel2[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           entropy_after_relaxation_phase2[cell]      = EOS_phase2.s_value_Rhoe(rho2[cell], e2);
+                           entropy_production_relaxation_phase2[cell] = entropy_after_relaxation_phase2[cell] - entropy_after_flux_phase2[cell];
+
+                           if(entropy_production_relaxation_phase1[cell] < 0.0) {
+                             std::cerr << "Suspicious sign of entropy production phase 1 after relaxation " << cell << std::endl;
+                           }
+                           if(entropy_production_relaxation_phase2[cell] < 0.0) {
+                             std::cerr << "Suspicious sign of entropy production phase 2 after relxation " << cell << std::endl;
+                           }
+                         });
+}
+
 /*--- EXECUTE THE TEMPORAL LOOP ---*/
 
 // Implement the function that effectively performs the temporal loop
@@ -1184,35 +1328,20 @@ void BN_Solver<dim>::run() {
     auto NonConservative_flux = numerical_flux_non_cons.make_flux();
   #endif
 
-  /*--- Add the gravity contribution ---*/
-  using cfg = samurai::LocalCellSchemeConfig<samurai::SchemeType::LinearHomogeneous,
-                                             Field::size,
-                                             decltype(conserved_variables)>;
-  auto gravity = samurai::make_cell_based_scheme<cfg>();
-  gravity.coefficients_func() = [](double)
-                                {
-                                  samurai::StencilCoeffs<cfg> coeffs;
-
-                                  coeffs[0].fill(0.0);
-
-                                  coeffs[0](ALPHA1_RHO1_U1_INDEX, ALPHA1_RHO1_INDEX) = 9.8;
-                                  coeffs[0](ALPHA2_RHO2_U2_INDEX, ALPHA2_RHO2_INDEX) = 9.8;
-
-                                  return coeffs;
-                                };
-
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, filename, suffix_init,
        conserved_variables, rho, p,
        vel1, rho1, p1, c1, T1,
        vel2, rho2, p2, c2, T2, alpha2,
-       delta_pres, delta_temp, delta_vel);
+       delta_pres, delta_temp, delta_vel,
+       entropy_after_flux_phase1, entropy_production_flux_phase1,
+       entropy_after_relaxation_phase1, entropy_production_relaxation_phase1,
+       entropy_after_flux_phase2, entropy_production_flux_phase2,
+       entropy_after_relaxation_phase2, entropy_production_relaxation_phase2);
 
   /*--- Set mesh size ---*/
   const double dx = mesh.cell_length(mesh.max_level());
-  std::cout << "Number of elements = " << mesh[samurai::MRMesh<Config>::mesh_id_t::cells].nb_cells() << std::endl;
-  std::cout << std::endl;
 
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
@@ -1235,10 +1364,10 @@ void BN_Solver<dim>::run() {
 
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*Relaxation_Flux + dt*gravity(conserved_variables);
+        conserved_variables_tmp = conserved_variables - dt*Relaxation_Flux;
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*Relaxation_Flux + dt*gravity(conserved_variables);
+        conserved_variables_np1 = conserved_variables - dt*Relaxation_Flux;
       #endif
     #elifdef RUSANOV_FLUX
       auto Cons_Flux    = Rusanov_flux(conserved_variables);
@@ -1249,10 +1378,10 @@ void BN_Solver<dim>::run() {
 
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux + dt*gravity(conserved_variables);
+        conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux + dt*gravity(conserved_variables);
+        conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #endif
     #endif
 
@@ -1261,6 +1390,7 @@ void BN_Solver<dim>::run() {
     #else
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
+    compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
 
     // Perform relaxation if desired
     if(apply_relaxation) {
@@ -1286,6 +1416,7 @@ void BN_Solver<dim>::run() {
         }
       }
     }
+    compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
 
     // Consider the second stage for the second order
     #ifdef ORDER_2
@@ -1295,15 +1426,16 @@ void BN_Solver<dim>::run() {
         c = 0.0;
         Relaxation_Flux = Suliciu_flux(conserved_variables);
 
-        conserved_variables_tmp_2 = conserved_variables - dt*Relaxation_Flux + dt*gravity(conserved_variables);
+        conserved_variables_tmp_2 = conserved_variables - dt*Relaxation_Flux;
       #elifdef RUSANOV_FLUX
         Cons_Flux    = Rusanov_flux(conserved_variables);
         NonCons_Flux = NonConservative_flux(conserved_variables);
 
-        conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux + dt*gravity(conserved_variables);
+        conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
       #endif
       conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
 
       // Perform relaxation if desired
       if(apply_relaxation) {
@@ -1324,6 +1456,7 @@ void BN_Solver<dim>::run() {
           }
         }
       }
+      compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
     #endif
 
     // Save the results
@@ -1334,7 +1467,11 @@ void BN_Solver<dim>::run() {
            conserved_variables, rho, p,
            vel1, rho1, p1, c1, T1,
            vel2, rho2, p2, c2, T2, alpha2,
-           delta_pres, delta_temp, delta_vel);
+           delta_pres, delta_temp, delta_vel,
+           entropy_after_flux_phase1, entropy_production_flux_phase1,
+           entropy_after_relaxation_phase1, entropy_production_relaxation_phase1,
+           entropy_after_flux_phase2, entropy_production_flux_phase2,
+           entropy_after_relaxation_phase2, entropy_production_relaxation_phase2);
 
       /*--- Save fields in a output file ---*/
       output_data.open("output_data.dat", std::ofstream::out);
