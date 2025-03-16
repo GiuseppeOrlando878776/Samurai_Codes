@@ -236,8 +236,8 @@ namespace samurai {
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const double atol  = 1e-8;
-      const souble rtol  = 1e-8;
+      const double atol  = 1e-10;
+      const souble rtol  = 1e-10;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
                                        a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
                                        atol, rtol);
@@ -466,8 +466,8 @@ namespace samurai {
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const double atol  = 1e-8;
-      const double rtol  = 1e-8;
+      const double atol  = 1e-10;
+      const double rtol  = 1e-10;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
                                        a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
                                        atol, rtol);

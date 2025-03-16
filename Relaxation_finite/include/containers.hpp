@@ -27,6 +27,7 @@ struct Simulation_Parameters {
   double tau_p;
   double tau_T;
 
+  bool relax_velocity;
   bool relax_pressure;
   bool relax_temperature;
 };
