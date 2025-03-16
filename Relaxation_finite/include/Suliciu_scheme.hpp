@@ -50,7 +50,7 @@ namespace samurai {
     T Newton(const T rhs,
              const T a1, const T alpha1L, const T alpha1R, const T vel1_diesis, const T tau1L_diesis, const T tau1R_diesis,
              const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis,
-             const double eps) const;
+             const double atol, const double rtol) const;
 
     template<typename T>
     void Riemann_solver_phase_vI(const T xi,
@@ -236,9 +236,11 @@ namespace samurai {
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const double eps   = 1e-7;
+      const double atol  = 1e-8;
+      const souble rtol  = 1e-8;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
-                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis, eps);
+                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
+                                       atol, rtol);
 
       // Compute the "fluxes"
       field_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
@@ -464,9 +466,11 @@ namespace samurai {
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const double eps   = 1e-7;
+      const double atol  = 1e-8;
+      const double rtol  = 1e-8;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
-                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis, eps);
+                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
+                                       atol, rtol);
 
       // Compute the "fluxes"
       field_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
@@ -704,7 +708,7 @@ namespace samurai {
   T RelaxationFlux<Field>::Newton(const T rhs,
                                   const T a1, const T alpha1L, const T alpha1R, const T vel1_diesis, const T tau1L_diesis, const T tau1R_diesis,
                                   const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis,
-                                  const double eps) const {
+                                  const double atol, const double rtol) const {
     if(alpha1L == alpha1R) {
       return vel1_diesis;
     }
@@ -722,8 +726,9 @@ namespace samurai {
 
       while(iter < 50 &&
             std::abs(Psi(u_star, a1, alpha1L, alpha1R, vel1_diesis,
-                                 a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs) > eps &&
-            std::abs(du) > eps) {
+                                 a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs) > atol &&
+            std::abs(du) > atol &&
+            std::abs(du)/(std::abs(u_star) + 1e-16) > rtol) {
         ++iter;
 
         u_star += du;
