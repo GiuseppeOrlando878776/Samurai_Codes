@@ -9,7 +9,7 @@
 // Main function to run the program
 //
 int main(int argc, char* argv[]) {
-  CLI::App app{"Suliciu-type relaxation scheme for the 1D Baer-Nunziato model"};
+  auto& app = samurai::initialize("Suliciu-type relaxation scheme for the 1D Baer-Nunziato model", argc, argv);
 
   // Set and declare simulation parameters related to mesh, final time and Courant
   Simulation_Parameters sim_param;
@@ -138,6 +138,8 @@ int main(int argc, char* argv[]) {
   auto BN_Solver_Sim = BN_Solver(min_corner, max_corner, sim_param, eos_param, Riemann_param);
 
   BN_Solver_Sim.run();
+
+  samurai::finalize();
 
   return 0;
 }
