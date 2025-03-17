@@ -1037,8 +1037,8 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
                            // Compute the pressure equilibrium with the linearization method (Pelanti)
                            const auto a    = 1.0 + EOS_phase2.get_gamma()*conserved_variables[cell][ALPHA1_INDEX]
                                            + EOS_phase1.get_gamma()*(1.0 - conserved_variables[cell][ALPHA1_INDEX]);
-                           const auto Z1   = rho1[cell]*c1[cell]*c1[cell];
-                           const auto Z2   = rho2[cell]*c2[cell]*c2[cell];
+                           const auto Z1   = rho1[cell]*c1[cell];
+                           const auto Z2   = rho2[cell]*c2[cell];
                            const auto pI_0 = (Z2*p1[cell] + Z1*p2[cell])/(Z1 + Z2);
                            const auto C1   = 2.0*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
                                            + (EOS_phase1.get_gamma() - 1.0)*pI_0;
