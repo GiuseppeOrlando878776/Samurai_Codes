@@ -236,8 +236,8 @@ namespace samurai {
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const double atol  = 1e-10;
-      const souble rtol  = 1e-10;
+      const double atol  = 1e-8;
+      const souble rtol  = 1e-8;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
                                        a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
                                        atol, rtol);
@@ -466,8 +466,8 @@ namespace samurai {
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const double atol  = 1e-10;
-      const double rtol  = 1e-10;
+      const double atol  = 1e-8;
+      const double rtol  = 1e-8;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
                                        a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
                                        atol, rtol);
@@ -572,23 +572,19 @@ namespace samurai {
         static constexpr int d = decltype(integral_constant_d)::value;
 
         // Compute now the "discrete" non-conservative flux function
-        discrete_flux[d].flux_function = [&](auto& cells, const Field& field)
+        discrete_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
+                                             const StencilData<typename Flux<Field>::cfg>& /*data*/,
+                                             const StencilValues<typename Flux<Field>::cfg> field)
                                             {
                                               FluxValue<typename Flux<Field>::cfg> F_minus,
                                                                                    F_plus;
 
                                               #ifdef ORDER_2
-                                                // Compute the stencil
-                                                const auto& left_left   = cells[0];
-                                                const auto& left        = cells[1];
-                                                const auto& right       = cells[2];
-                                                const auto& right_right = cells[3];
-
                                                 // MUSCL reconstruction
-                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
-                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
-                                                const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
-                                                const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
+                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
                                                 FluxValue<typename Flux<Field>::cfg> primL_recon,
                                                                                      primR_recon;
@@ -602,21 +598,15 @@ namespace samurai {
                                                                       field[left](ALPHA1_INDEX), field[right](ALPHA1_INDEX),
                                                                       d, F_minus, F_plus, c);
                                               #else
-                                                // Compute the stencil and extract state
-                                                const auto& left  = cells[0];
-                                                const auto& right = cells[1];
-
-                                                const FluxValue<typename Flux<Field>::cfg>& qL = field[left];
-                                                const FluxValue<typename Flux<Field>::cfg>& qR = field[right];
+                                                // Extract state
+                                                const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
+                                                const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
 
                                                 compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
                                               #endif
 
-                                              samurai::FluxValuePair<typename Flux<Field>::cfg> flux;
                                               flux[0] = F_minus;
                                               flux[1] = -F_plus;
-
-                                              return flux;
                                             };
       }
     );

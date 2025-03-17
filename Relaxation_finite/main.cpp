@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
   sim_param.tau_p = 1e-10;
   sim_param.tau_T = 1e10;
 
+  sim_param.relax_velocity    = true;
   sim_param.relax_pressure    = false;
   sim_param.relax_temperature = false;
 
@@ -56,6 +57,8 @@ int main(int argc, char* argv[]) {
   app.add_option("--tau_u", sim_param.tau_u, "Finite rate parameter for the velocity")->capture_default_str()->group("Simulation parameters");
   app.add_option("--tau_p", sim_param.tau_p, "Finite rate parameter for the pressure")->capture_default_str()->group("Simulation parameters");
   app.add_option("--tau_T", sim_param.tau_T, "Finite rate parameter for the temperature")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--relax_velocity", sim_param.relax_velocity,
+                 "If instantaneous relaxation, relax the velocity")->capture_default_str()->group("Simulation parameters");
   app.add_option("--relax_pressure", sim_param.relax_pressure,
                  "If instantaneous relaxation, relax the pressure")->capture_default_str()->group("Simulation parameters");
   app.add_option("--relax_temperature", sim_param.relax_temperature,
@@ -68,7 +71,6 @@ int main(int argc, char* argv[]) {
   eos_param.pi_infty_1 = 1e9;
   eos_param.q_infty_1  = -1167e3;
   eos_param.cv_1       = 1.816e3;
-
 
   eos_param.gamma_2    = 1.43;
   eos_param.pi_infty_2 = 0.0;

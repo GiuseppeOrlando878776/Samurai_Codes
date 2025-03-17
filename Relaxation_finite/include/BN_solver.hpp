@@ -7,7 +7,7 @@
 #include <samurai/bc.hpp>
 #include <samurai/box.hpp>
 #include <samurai/field.hpp>
-#include <samurai/hdf5.hpp>
+#include <samurai/io/hdf5.hpp>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -81,6 +81,7 @@ private:
   double tau_p; // Relaxation parameter for the pressure
   double tau_T; // Relaxation parameter for the temperature
 
+  bool relax_velocity;    // If instantaneous relaxation, choose whether to relax the velocity
   bool relax_pressure;    // If instantaneous relaxation, choose whether to relax the pressure
   bool relax_temperature; // If instantaneous relaxation, choose whether to relax the temperature (only possible with pressure)
 
@@ -156,7 +157,9 @@ private:
 
   void perform_instantaneous_velocity_relaxation(); // Routine to perform instantaneous velocity relaxation
 
-  void perform_instantaneous_pressure_relaxation(); // Routine to perform instantaneous pressure relaxation (velocity before)
+  void perform_instantaneous_velocity_pressure_relaxation(); // Routine to perform instantaneous pressure relaxation (velocity before)
+
+  void perform_instantaneous_pressure_relaxation(); // Routine to perform instantaneous pressure relaxation
 
   void perform_instantaneous_relaxation(); // Routine to perform instantaneous relaxation (velocity and pressure-temperature)
 
@@ -187,7 +190,7 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
   apply_finite_rate_relaxation(sim_param.apply_finite_rate_relaxation),
   relax_instantaneous_velocity(sim_param.relax_instantaneous_velocity),
   tau_u(sim_param.tau_u), tau_p(sim_param.tau_p), tau_T(sim_param.tau_T),
-  relax_pressure(sim_param.relax_pressure), relax_temperature(sim_param.relax_temperature),
+  relax_velocity(sim_param.relax_velocity), relax_pressure(sim_param.relax_pressure), relax_temperature(sim_param.relax_temperature),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.cv_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.cv_2),
   #ifdef SULICIU_RELAXATION
@@ -638,62 +641,72 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                            const auto norm2_deltau = delta_u[0]*delta_u[0];
                            const auto rhoe_0       = rhoE_0
                                                    - 0.5*rho_0*(norm2_um + Y1_0*(1.0 - Y1_0)*norm2_deltau);
-                           for(unsigned int iter = 0; iter < 50; ++iter) {
-                             // Compute Jacobian matrix
-                             Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                                 (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
-                                                  EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
-                                                 EOS_phase1.drho_dP_T(p2[cell] + delta_p, T1[cell])
-                                                -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                                 (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
-                                                  EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
-                                                 EOS_phase2.drho_dP_T(p2[cell], T2[cell]);
-                             Jac_update[0][1] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                           typename Field::value_type dp2 = std::numeric_limits<typename Field::value_type>::max();
+                           typename Field::value_type dT2 = std::numeric_limits<typename Field::value_type>::max();
+                           unsigned int iter;
+                           const unsigned int max_iter = 50;
+                           for(iter = 0; iter < max_iter; ++iter) {
+                             if(std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6) {
+                               // Compute Jacobian matrix
+                               Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                  (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
+                                                   EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
+                                                   EOS_phase1.drho_dP_T(p2[cell] + delta_p, T1[cell])
+                                                  -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                                  (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
+                                                   EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
+                                                  EOS_phase2.drho_dP_T(p2[cell], T2[cell]);
+                              Jac_update[0][1] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                                  (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
                                                   EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
                                                  EOS_phase1.drho_dT_P(T2[cell] + delta_T, p2[cell] + delta_T)
-                                                -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                                 -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
                                                  (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
                                                   EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
                                                  EOS_phase2.drho_dT_P(T2[cell], p2[cell]);
-                             Jac_update[1][0] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                                EOS_phase1.de_dP_T(p2[cell] + delta_p, T2[cell] + delta_T) +
-                                                conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                EOS_phase2.de_dP_T(p2[cell], T2[cell]);
-                             Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                                EOS_phase1.de_dT_P(T2[cell] + delta_T, p2[cell] + delta_p) +
-                                                conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                EOS_phase2.de_dT_P(T2[cell], p2[cell]);
+                              Jac_update[1][0] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                                 EOS_phase1.de_dP_T(p2[cell] + delta_p, T2[cell] + delta_T) +
+                                                 conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                                 EOS_phase2.de_dP_T(p2[cell], T2[cell]);
+                              Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                                 EOS_phase1.de_dT_P(T2[cell] + delta_T, p2[cell] + delta_p) +
+                                                 conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                                 EOS_phase2.de_dT_P(T2[cell], p2[cell]);
 
-                             // Evaluate the functions for which we are looking for the zeros
-                             const auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                             EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
-                                           + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                             EOS_phase2.rho_value_PT(p2[cell], T2[cell])
-                                           - 1.0;
-                             const auto f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                             EOS_phase1.e_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
-                                           + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                             EOS_phase2.e_value_PT(p2[cell], T2[cell])
-                                           - rhoe_0;
-                             if(std::abs(f1) > 1e-12 && std::abs(f2) > 1e-12) {
-                               // Apply the Newton method
-                               const auto det_Jac = Jac_update[0][0]*Jac_update[1][1]
-                                                  - Jac_update[0][1]*Jac_update[1][0];
-                               if(std::abs(det_Jac) > 1e-10) {
-                                 const auto dp2 = (1.0/det_Jac)*(Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
-                                 const auto dT2 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
-                                 p2[cell] -= dp2;
-                                 T2[cell] -= dT2;
-
-                                 if(std::abs(dp2) < 1e-12 && std::abs(dT2) < 1e-12) {
-                                   break;
+                              // Evaluate the functions for which we are looking for the zeros
+                              const auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                              EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                            + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                              EOS_phase2.rho_value_PT(p2[cell], T2[cell])
+                                            - 1.0;
+                              const auto f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                              EOS_phase1.e_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                            + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                              EOS_phase2.e_value_PT(p2[cell], T2[cell])
+                                            - rhoe_0;
+                              if(std::abs(f1) > 1e-12 || std::abs(f2) > 1e-12) {
+                                 // Apply the Newton method
+                                 const auto det_Jac = Jac_update[0][0]*Jac_update[1][1]
+                                                    - Jac_update[0][1]*Jac_update[1][0];
+                                 if(std::abs(det_Jac) > 1e-10) {
+                                   dp2 = (1.0/det_Jac)*(Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
+                                   dT2 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
+                                   p2[cell] -= dp2;
+                                   T2[cell] -= dT2;
+                                 }
+                                 else {
+                                   std::cerr << "Non-invertible Jacobian in the Newton method in the re-update of conserved variables after relaxation" << std::endl;
+                                   exit(1);
                                  }
                                }
                              }
                              else {
                                break;
                              }
+                           }
+                           if(iter == max_iter && (std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6)) {
+                             std::cerr << "Newton method not converged in the re-update of conserved variables after relaxation" << std::endl;
+                             exit(1);
                            }
 
                            // Once pressure and temperature have been update, finalize the update
@@ -956,7 +969,7 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
 // Apply the instantaneous relaxation (velocity and pressure)
 //
 template<std::size_t dim>
-void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
+void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
   // Resize fields because of multiresolution
   rho1.resize();
   p1.resize();
@@ -1062,6 +1075,85 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
                                                                    conserved_variables[cell][ALPHA1_INDEX],
                                                                    p_star)
                                          + 0.5*norm2_vel_star; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+
+                           conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*E1;
+
+                           conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = rhoE_0 - conserved_variables[cell][ALPHA1_RHO1_E1_INDEX];
+                         });
+}
+
+// Apply the instantaneous relaxation (only pressure)
+//
+template<std::size_t dim>
+void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
+  // Resize fields because of multiresolution
+  rho1.resize();
+  p1.resize();
+  vel1.resize();
+  c1.resize();
+
+  rho2.resize();
+  p2.resize();
+  vel2.resize();
+  c2.resize();
+
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                           /*--- Focus now on the pressure relaxation ---*/
+                           // Compute the initial fileds for the pressure relaxation
+                           vel1[cell]      = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX]/
+                                             conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto e1_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
+                                             conserved_variables[cell][ALPHA1_RHO1_INDEX]
+                                           - 0.5*vel1[cell]*vel1[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           vel2[cell]      = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX]/
+                                             conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto e2_0 = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX]/
+                                             conserved_variables[cell][ALPHA2_RHO2_INDEX]
+                                           - 0.5*vel2[cell]*vel2[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+
+                           const auto rhoE_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]
+                                             + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
+
+                           rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                        conserved_variables[cell][ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           p1[cell]   = EOS_phase1.pres_value_Rhoe(rho1[cell], e1_0);
+                           c1[cell]   = EOS_phase1.c_value_RhoP(rho1[cell], p1[cell]);
+
+                           rho2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                        (1.0 - conserved_variables[cell][ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           p2[cell]   = EOS_phase2.pres_value_Rhoe(rho2[cell], e2_0);
+                           c2[cell]   = EOS_phase2.c_value_RhoP(rho2[cell], p2[cell]);
+
+                           // Compute the pressure equilibrium with the linearization method (Pelanti)
+                           const auto a    = 1.0 + EOS_phase2.get_gamma()*conserved_variables[cell][ALPHA1_INDEX]
+                                           + EOS_phase1.get_gamma()*(1.0 - conserved_variables[cell][ALPHA1_INDEX]);
+                           const auto Z1   = rho1[cell]*c1[cell];
+                           const auto Z2   = rho2[cell]*c2[cell];
+                           const auto pI_0 = (Z2*p1[cell] + Z1*p2[cell])/(Z1 + Z2);
+                           const auto C1   = 2.0*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
+                                           + (EOS_phase1.get_gamma() - 1.0)*pI_0;
+                           const auto C2   = 2.0*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
+                                           + (EOS_phase2.get_gamma() - 1.0)*pI_0;
+                           const auto b    = C1*(1.0 - conserved_variables[cell][ALPHA1_INDEX])
+                                           + C2*conserved_variables[cell][ALPHA1_INDEX]
+                                           - (1.0 + EOS_phase2.get_gamma())*conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
+                                           - (1.0 + EOS_phase1.get_gamma())*(1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
+                           const auto d    = -(C2*conserved_variables[cell][ALPHA1_INDEX]*p1[cell] +
+                                               C1*(1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell]);
+
+                           const auto p_star = (-b + std::sqrt(b*b - 4.0*a*d))/(2.0*a);
+
+                           // Update the volume fraction using the computed pressure
+                           conserved_variables[cell][ALPHA1_INDEX] *= ((EOS_phase1.get_gamma() - 1.0)*p_star + 2.0*p1[cell] + C1)/
+                                                                      ((EOS_phase1.get_gamma() + 1.0)*p_star + C1);
+
+                           // Update the total energy of both phases
+                           const auto E1 = EOS_phase1.e_value_RhoP(conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                                   conserved_variables[cell][ALPHA1_INDEX],
+                                                                   p_star)
+                                         + 0.5*vel1[cell]*vel1[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*E1;
 
@@ -1400,7 +1492,7 @@ void BN_Solver<dim>::run() {
     #else
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
-    compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
+    //compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
 
     // Perform relaxation if desired
     if(apply_relaxation) {
@@ -1413,20 +1505,25 @@ void BN_Solver<dim>::run() {
         }
       }
       else {
-        if(relax_pressure) {
-          if(relax_temperature) {
-            perform_instantaneous_relaxation();
+        if(relax_velocity) {
+          if(relax_pressure) {
+            if(relax_temperature) {
+              perform_instantaneous_relaxation();
+            }
+            else {
+              perform_instantaneous_velocity_pressure_relaxation();
+            }
           }
           else {
-            perform_instantaneous_pressure_relaxation();
+            perform_instantaneous_velocity_relaxation();
           }
         }
         else {
-          perform_instantaneous_velocity_relaxation();
+          perform_instantaneous_pressure_relaxation();
         }
       }
     }
-    compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
+    //compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
 
     // Consider the second stage for the second order
     #ifdef ORDER_2
@@ -1445,7 +1542,7 @@ void BN_Solver<dim>::run() {
       #endif
       conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
-      compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
+      //compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
 
       // Perform relaxation if desired
       if(apply_relaxation) {
@@ -1466,7 +1563,7 @@ void BN_Solver<dim>::run() {
           }
         }
       }
-      compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
+      //compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
     #endif
 
     // Save the results
