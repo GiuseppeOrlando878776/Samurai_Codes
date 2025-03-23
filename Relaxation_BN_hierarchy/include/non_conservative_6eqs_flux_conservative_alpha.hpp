@@ -152,31 +152,27 @@ namespace samurai {
         static constexpr int d = decltype(integral_constant_d)::value;
 
         // Compute now the "discrete" non-conservative flux function
-        discrete_flux[d].flux_function = [&](auto& cells, const Field& field)
-                                            {
-                                              // Compute the stencil
-                                              #ifdef ORDER_2
-                                                const auto& left  = cells[1];
-                                                const auto& right = cells[2];
-                                              #else
-                                                const auto& left  = cells[0];
-                                                const auto& right = cells[1];
-                                              #endif
+        discrete_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
+                                             const StencilData<typename Flux<Field>::cfg>& /*data*/,
+                                             const StencilValues<typename Flux<Field>::cfg> field)
+                                             {
+                                               // Extract the states
+                                               #ifdef ORDER_2
+                                                 const FluxValue<typename Flux<Field>::cfg>& qL = field[1];
+                                                 const FluxValue<typename Flux<Field>::cfg>& qR = field[2];
+                                               #else
+                                                 const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
+                                                 const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
+                                               #endif
 
-                                              const FluxValue<typename Flux<Field>::cfg>& qL = field[left];
-                                              const FluxValue<typename Flux<Field>::cfg>& qR = field[right];
+                                               FluxValue<typename Flux<Field>::cfg> F_minus,
+                                                                                    F_plus;
 
-                                              FluxValue<typename Flux<Field>::cfg> F_minus,
-                                                                                   F_plus;
+                                               compute_discrete_flux(qL, qR, d, F_minus, F_plus);
 
-                                              compute_discrete_flux(qL, qR, d, F_minus, F_plus);
-
-                                              samurai::FluxValuePair<typename Flux<Field>::cfg> flux;
-                                              flux[0] = F_minus;
-                                              flux[1] = -F_plus;
-
-                                              return flux;
-                                            };
+                                               flux[0] = F_minus;
+                                               flux[1] = -F_plus;
+                                             };
       }
     );
 

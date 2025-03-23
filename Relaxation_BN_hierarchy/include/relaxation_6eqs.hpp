@@ -7,7 +7,7 @@
 #include <samurai/bc.hpp>
 #include <samurai/box.hpp>
 #include <samurai/field.hpp>
-#include <samurai/hdf5.hpp>
+#include <samurai/io/hdf5.hpp>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -161,8 +161,8 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false}}),
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   apply_pressure_relax(sim_param.apply_pressure_relax),
-  apply_finite_rate_relax(sim_param.apply_finite_rate_relax), mu(sim_param.mu),
-  use_exact_relax(sim_param.use_exact_relax),
+  apply_finite_rate_relax(sim_param.apply_finite_rate_relax),
+  use_exact_relax(sim_param.use_exact_relax), mu(sim_param.mu),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.c_v_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.c_v_2),
   #if defined RUSANOV_FLUX || defined HLLC_NON_CONS_FLUX
@@ -462,8 +462,8 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation_linearization() {
                            // Compute the pressure equilibrium with the linearization method (Pelanti)
                            const auto a    = 1.0 + EOS_phase2.get_gamma()*conserved_variables[cell][ALPHA1_INDEX]
                                            + EOS_phase1.get_gamma()*(1.0 - conserved_variables[cell][ALPHA1_INDEX]);
-                           const auto Z1   = rho1[cell]*c1[cell]*c1[cell];
-                           const auto Z2   = rho2[cell]*c2[cell]*c2[cell];
+                           const auto Z1   = rho1[cell]*c1[cell];
+                           const auto Z2   = rho2[cell]*c2[cell];
                            const auto pI_0 = (Z2*p1[cell] + Z1*p2[cell])/(Z1 + Z2);
                            const auto C1   = 2.0*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
                                            + (EOS_phase1.get_gamma() - 1.0)*pI_0;
@@ -524,8 +524,8 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
                          [&](const auto& cell)
                          {
                            // Compute constant fields that do not change by hypothesis in the relaxation
-                           const auto Z1   = rho1[cell]*c1[cell]*c1[cell];
-                           const auto Z2   = rho2[cell]*c2[cell]*c2[cell];
+                           const auto Z1   = rho1[cell]*c1[cell];
+                           const auto Z2   = rho2[cell]*c2[cell];
                            const auto pI_0 = (Z2*p1[cell] + Z1*p2[cell])/(Z1 + Z2);
 
                            const auto xi1_m1_0 = 1.0/conserved_variables[cell][ALPHA1_INDEX]*

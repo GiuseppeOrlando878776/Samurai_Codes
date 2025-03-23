@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-#ifndef HLLC_conservative_6eqs_flux_hpp
-#define HLLC_conservative_6eqs_flux_hpp
+#ifndef HLLC_conservative_6eqs_internal_energy_flux_hpp
+#define HLLC_conservative_6eqs_internal_energy_flux_hpp
 
-#include "flux_6eqs_base.hpp"
+#include "flux_6eqs_internal_energy_base.hpp"
 
 namespace samurai {
   using namespace EquationData;
@@ -16,8 +16,8 @@ namespace samurai {
   template<class Field>
   class HLLCFlux_Conservative: public Flux<Field> {
   public:
-    HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1,
-                          const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+    HLLCFlux_Conservative(const SG_EOS<typename Field::value_type>& EOS_phase1,
+                          const SG_EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
 
     auto make_flux(); // Compute the flux over all cells
 
@@ -37,8 +37,8 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  HLLCFlux_Conservative<Field>::HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1,
-                                                      const EOS<typename Field::value_type>& EOS_phase2):
+  HLLCFlux_Conservative<Field>::HLLCFlux_Conservative(const SG_EOS<typename Field::value_type>& EOS_phase1,
+                                                      const SG_EOS<typename Field::value_type>& EOS_phase2):
     Flux<Field>(EOS_phase1, EOS_phase2) {}
 
   // Implement the auxliary routine that computes the middle state
@@ -55,19 +55,13 @@ namespace samurai {
     // Phase 1
     const auto alpha1 = q(ALPHA1_INDEX);
     const auto rho1   = q(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e1           = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      e1 -= 0.5*(q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
-    }
-    const auto p1 = this->phase1.pres_value(rho1, e1);
+    const auto e1     = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p1     = this->phase1.pres_value(rho1, e1);
 
     // Phase 2
     const auto rho2 = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e2         = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      e2 -= 0.5*(q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
-    }
-    const auto p2 = this->phase2.pres_value(rho2, e2);
+    const auto e2   = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p2   = this->phase2.pres_value(rho2, e2);
 
     // Compute middle state
     FluxValue<typename Flux<Field>::cfg> q_star;
@@ -82,10 +76,18 @@ namespace samurai {
         q_star(RHO_U_INDEX + d) = rho_star*(q(RHO_U_INDEX + d)/rho);
       }
     }
-    q_star(ALPHA1_RHO1_E1_INDEX) = q_star(ALPHA1_RHO1_INDEX)*
-                                   (q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX) + (S_star - vel_d)*(S_star + p1/(rho1*(S - vel_d))));
-    q_star(ALPHA2_RHO2_E2_INDEX) = q_star(ALPHA2_RHO2_INDEX)*
-                                   (q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX) + (S_star - vel_d)*(S_star + p2/(rho2*(S - vel_d))));
+    const auto rho1_star = q_star(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p1_star   = (p1 + this->phase1.get_pi_infty())*
+                           ((this->phase1.get_gamma() - 1.0)*rho1 - (this->phase1.get_gamma() + 1.0)*rho1_star)/
+                           ((this->phase1.get_gamma() - 1.0)*rho1_star - (this->phase1.get_gamma() + 1.0)*rho1)
+                         - this->phase1.get_pi_infty();
+    q_star(ALPHA1_RHO1_E1_INDEX) = q_star(ALPHA1_RHO1_INDEX)*this->phase1.e_value(rho1_star, p1_star);
+    const auto rho2_star = q_star(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p2_star   = (p2 + this->phase2.get_pi_infty())*
+                           ((this->phase2.get_gamma() - 1.0)*rho2 - (this->phase2.get_gamma() + 1.0)*rho2_star)/
+                           ((this->phase2.get_gamma() - 1.0)*rho2_star - (this->phase2.get_gamma() + 1.0)*rho2)
+                         - this->phase2.get_pi_infty();
+    q_star(ALPHA2_RHO2_E2_INDEX) = q_star(ALPHA2_RHO2_INDEX)*this->phase2.e_value(rho2_star, p2_star);
 
     return q_star;
   }
@@ -105,21 +107,15 @@ namespace samurai {
     // Left state phase 1
     const auto alpha1L = qL(ALPHA1_INDEX);
     const auto rho1L   = qL(ALPHA1_RHO1_INDEX)/alpha1L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e1L           = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d  = 0; d < Field::dim; ++d) {
-      e1L -= 0.5*(qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
-    }
-    const auto p1L = this->phase1.pres_value(rho1L, e1L);
-    const auto c1L = this->phase1.c_value(rho1L, p1L);
+    const auto e1L     = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p1L     = this->phase1.pres_value(rho1L, e1L);
+    const auto c1L     = this->phase1.c_value(rho1L, p1L);
 
     // Left state phase 2
     const auto rho2L = qL(ALPHA2_RHO2_INDEX)/(1.0 - alpha1L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e2L         = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      e2L -= 0.5*(qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
-    }
-    const auto p2L = this->phase2.pres_value(rho2L, e2L);
-    const auto c2L = this->phase2.c_value(rho2L, p2L);
+    const auto e2L   = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p2L   = this->phase2.pres_value(rho2L, e2L);
+    const auto c2L   = this->phase2.c_value(rho2L, p2L);
 
     // Compute frozen speed of sound and mixture pressure left state
     const auto Y1L = qL(ALPHA1_RHO1_INDEX)/rhoL;
@@ -133,21 +129,15 @@ namespace samurai {
     // Right state phase 1
     const auto alpha1R = qR(ALPHA1_INDEX);
     const auto rho1R   = qR(ALPHA1_RHO1_INDEX)/alpha1R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e1R           = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      e1R -= 0.5*(qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
-    }
-    const auto p1R = this->phase1.pres_value(rho1R, e1R);
-    const auto c1R = this->phase1.c_value(rho1R, p1R);
+    const auto e1R     = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p1R     = this->phase1.pres_value(rho1R, e1R);
+    const auto c1R     = this->phase1.c_value(rho1R, p1R);
 
     // Right state phase 2
     const auto rho2R = qR(ALPHA2_RHO2_INDEX)/(1.0 - alpha1R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e2R         = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      e2R -= 0.5*(qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
-    }
-    const auto p2R = this->phase2.pres_value(rho2R, e2R);
-    const auto c2R = this->phase2.c_value(rho2R, p2R);
+    const auto e2R   = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p2R   = this->phase2.pres_value(rho2R, e2R);
+    const auto c2R   = this->phase2.c_value(rho2R, p2R);
 
     // Compute frozen speed of sound and mixture pressure right state
     const auto Y1R = qR(ALPHA1_RHO1_INDEX)/rhoR;
@@ -161,8 +151,8 @@ namespace samurai {
                         (rhoL*(sL - velL_d) - rhoR*(sR - velR_d));
 
     // Compute intermediate states
-    const auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
-    const auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
+    auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
+    auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
 
     // Compute the flux
     if(sL >= 0.0) {
@@ -209,10 +199,10 @@ namespace samurai {
                                              {
                                                #ifdef ORDER_2
                                                  // MUSCL reconstruction
-                                                 const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
-                                                 const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
-                                                 const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
-                                                 const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
+                                                 const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                 const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                 const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                 const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
                                                  FluxValue<typename Flux<Field>::cfg> primL_recon,
                                                                                       primR_recon;
@@ -222,9 +212,12 @@ namespace samurai {
                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
                                                #else
-                                                 // Extract the states
+                                                 // Compute the stencil and extract state
+                                                 const auto& left  = cells[0];
+                                                 const auto& right = cells[1];
+
                                                  const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
-                                                 const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
+                                                 const FluxValue<typename Flux<Field>::cfg>& qR = field[2];
                                                #endif
 
                                                FluxValue<typename Flux<Field>::cfg> F_minus,
@@ -234,7 +227,7 @@ namespace samurai {
 
                                                flux[0] = F_minus;
                                                flux[1] = -F_plus;
-                                            };
+                                             };
       }
     );
 

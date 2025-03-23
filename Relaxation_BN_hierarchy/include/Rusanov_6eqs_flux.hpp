@@ -113,39 +113,35 @@ namespace samurai {
         static constexpr int d = decltype(integral_constant_d)::value;
 
         // Compute now the "discrete" flux function
-        discrete_flux[d].cons_flux_function = [&](auto& cells, const Field& field)
-                                              {
-                                                #ifdef ORDER_2
-                                                  // Compute the stencil
-                                                  const auto& left_left   = cells[0];
-                                                  const auto& left        = cells[1];
-                                                  const auto& right       = cells[2];
-                                                  const auto& right_right = cells[3];
+        discrete_flux[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
+                                                  const StencilData<typename Flux<Field>::cfg>& /*data*/,
+                                                  const StencilValues<typename Flux<Field>::cfg> field)
+                                                  {
+                                                    #ifdef ORDER_2
+                                                      // MUSCL reconstruction
+                                                      const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                      const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                      const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                      const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                                  // MUSCL reconstruction
-                                                  const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
+                                                      FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                           primR_recon;
+                                                      this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                                   primL_recon, primR_recon);
 
-                                                  FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                       primR_recon;
-                                                  this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                               primL_recon, primR_recon);
+                                                      FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                      FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                    #else
+                                                      // Extract the state
+                                                      const auto& left  = cells[0];
+                                                      const auto& right = cells[1];
 
-                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
-                                                #else
-                                                  // Compute the stencil and extract state
-                                                  const auto& left  = cells[0];
-                                                  const auto& right = cells[1];
+                                                      const FluxValue<typename Flux<Field>::cfg>& qL = field[left];
+                                                      const FluxValue<typename Flux<Field>::cfg>& qR = field[right];
+                                                    #endif
 
-                                                  const FluxValue<typename Flux<Field>::cfg>& qL = field[left];
-                                                  const FluxValue<typename Flux<Field>::cfg>& qR = field[right];
-                                                #endif
-
-                                                return compute_discrete_flux(qL, qR, d);
-                                              };
+                                                    flux = compute_discrete_flux(qL, qR, d);
+                                                  };
       }
     );
 
