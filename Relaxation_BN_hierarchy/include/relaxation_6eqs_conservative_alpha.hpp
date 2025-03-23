@@ -18,11 +18,12 @@ namespace fs = std::filesystem;
 
 #ifdef HLLC_FLUX
   #include "HLLC_6eqs_flux_conservative_alpha.hpp"
-#elifdef HLLC_NON_CONS_FLUX
-  #include "HLLC_conservative_6eqs_flux_conservative_alpha.hpp"
-  #include "non_conservative_6eqs_flux_conservative_alpha.hpp"
-#elifdef RUSANOV_FLUX
-  #include "Rusanov_6eqs_flux_conservative_alpha.hpp"
+#else
+  #ifdef HLLC_NON_CONS_FLUX
+    #include "HLLC_conservative_6eqs_flux_conservative_alpha.hpp"
+  #elifdef RUSANOV_FLUX
+    #include "Rusanov_6eqs_flux_conservative_alpha.hpp"
+  #endif  
   #include "non_conservative_6eqs_flux_conservative_alpha.hpp"
 #endif
 

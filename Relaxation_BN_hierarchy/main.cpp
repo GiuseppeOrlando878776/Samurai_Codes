@@ -26,8 +26,8 @@ int main(int argc, char* argv[]) {
 
   sim_param.apply_pressure_relax    = true;
   sim_param.apply_finite_rate_relax = false;
-  sim_param.mu                      = 1e10;
-  sim_param.use_exact_relax         = true;
+  sim_param.tau_p                   = 1e-8;
+  sim_param.use_exact_relax         = false;
 
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
                  "Set whether to apply or not the relaxation of the pressure")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_finite_rate_relax", sim_param.apply_finite_rate_relax,
                  "Set whether to perform a finite rate mechanical relaxation")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--mu", sim_param.mu, "Finite rate parameter")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--tau_p", sim_param.tau_p, "Finite rate parameter")->capture_default_str()->group("Simulation parameters");
   app.add_option("--use_exact_relax", sim_param.use_exact_relax,
                  "Use pI to obtain exact relaxation in the case of instantaneous relaxation")->capture_default_str()->group("Simulation parameters");
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");

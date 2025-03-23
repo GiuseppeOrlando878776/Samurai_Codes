@@ -18,13 +18,16 @@ namespace fs = std::filesystem;
 
 #ifdef HLLC_FLUX
   #include "HLLC_6eqs_flux.hpp"
-#elifdef HLLC_NON_CONS_FLUX
-  #include "HLLC_conservative_6eqs_flux.hpp"
-  #include "non_conservative_6eqs_flux.hpp"
-#elifdef RUSANOV_FLUX
-  #include "Rusanov_6eqs_flux.hpp"
+#else
+  #ifdef HLLC_NON_CONS_FLUX
+    #include "HLLC_conservative_6eqs_flux.hpp"
+  #elifdef RUSANOV_FLUX
+    #include "Rusanov_6eqs_flux.hpp"
+  #endif
   #include "non_conservative_6eqs_flux.hpp"
 #endif
+
+#define NDEBUG
 
 #include "containers.hpp"
 
@@ -78,7 +81,7 @@ private:
   bool   apply_pressure_relax;    // Set whether to apply or not the pressure relaxation
   bool   apply_finite_rate_relax; // Set whether to perform a finite rate relaxation or an infinite rate
   bool   use_exact_relax;         // Set whether to use the choice of pI which leads to analytical results in the case of instantaneous relaxation
-  double mu;                      // Finite rate parameter
+  double tau_p;                   // Finite rate parameter
   double dt;                      // Time-step (to be declared here because of finite rate)
 
   Field conserved_variables; // The variable which stores the conserved variables,
@@ -162,7 +165,7 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   apply_pressure_relax(sim_param.apply_pressure_relax),
   apply_finite_rate_relax(sim_param.apply_finite_rate_relax),
-  use_exact_relax(sim_param.use_exact_relax), mu(sim_param.mu),
+  use_exact_relax(sim_param.use_exact_relax), tau_p(sim_param.tau_p),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.c_v_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.c_v_2),
   #if defined RUSANOV_FLUX || defined HLLC_NON_CONS_FLUX
@@ -556,10 +559,10 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
 
                            // Update the volume fraction
                            conserved_variables[cell][ALPHA1_INDEX] += (p1[cell] - p2[cell])/(xi1_m1_0 + xi2_m1_0)*
-                                                                      (1.0 - std::exp(-mu*(xi1_m1_0 + xi2_m1_0)*dt));
+                                                                      (1.0 - std::exp(-dt/tau_p));
 
                            // Compute the pressure difference after relaxation
-                           const auto Delta_p_star = (p1[cell] - p2[cell])*std::exp(-mu*(xi1_m1_0 + xi2_m1_0)*dt);
+                           const auto Delta_p_star = (p1[cell] - p2[cell])*std::exp(-dt/tau_p);
 
                            // Compute phase 2 pressure after relaxation
                            const auto p2_star = (rhoe_0 -

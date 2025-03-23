@@ -22,7 +22,7 @@ struct Simulation_Parameters {
 
   bool   apply_pressure_relax;
   bool   apply_finite_rate_relax;
-  double mu;
+  double tau_p;
   bool   use_exact_relax;
 };
 
