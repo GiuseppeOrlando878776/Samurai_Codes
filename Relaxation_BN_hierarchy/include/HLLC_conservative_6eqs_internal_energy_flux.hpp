@@ -11,13 +11,13 @@ namespace samurai {
   using namespace EquationData;
 
   /**
-    * Implementation of a HLLC flux for the conservatibe portion of the system (no volume fraction)
+    * Implementation of a HLLC flux for the conservative portion of the system (no volume fraction)
     */
   template<class Field>
   class HLLCFlux_Conservative: public Flux<Field> {
   public:
     HLLCFlux_Conservative(const SG_EOS<typename Field::value_type>& EOS_phase1,
-                          const SG_EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+                          const SG_EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in input the equations of state of the two phases
 
     auto make_flux(); // Compute the flux over all cells
 
@@ -212,12 +212,9 @@ namespace samurai {
                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
                                                #else
-                                                 // Compute the stencil and extract state
-                                                 const auto& left  = cells[0];
-                                                 const auto& right = cells[1];
-
+                                                 // Extract the states
                                                  const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
-                                                 const FluxValue<typename Flux<Field>::cfg>& qR = field[2];
+                                                 const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
                                                #endif
 
                                                FluxValue<typename Flux<Field>::cfg> F_minus,

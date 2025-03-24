@@ -19,24 +19,29 @@ def scatter_plot(ax, points):
 def scatter_update(scatter, points):
     scatter.set_offsets(points[:, :2])
 
-def line_plot(ax, x_Rusanov_BR_Orlando, y_Rusanov_BR_Orlando, \
-                  x_Rusanov_BR_Tumolo, y_Rusanov_BR_Tumolo, \
-                  x_Rusanov_centered, y_Rusanov_centered, \
-                  x_HLLC_BR_Orlando, y_HLLC_BR_Orlando, \
-                  x_HLLC_BR_Tumolo, y_HLLC_BR_Tumolo, \
-                  x_HLLC_centered, y_HLLC_centered, \
-                  x_HLLC, y_HLLC):
+def line_plot(ax, x_1, y_1, \
+                  x_2, y_2, \
+                  x_3, y_3, \
+                  x_4, y_4, \
+                  x_5, y_5, \
+                  x_6, y_6, \
+                  x_7, y_7):
     #Plot results
-    plot_Rusanov_BR_Orlando = ax.plot(x_Rusanov_BR_Orlando, y_Rusanov_BR_Orlando, 'b-', linewidth=1, markersize=4)[0]
-    plot_Rusanov_BR_Tumolo  = ax.plot(x_Rusanov_BR_Tumolo, y_Rusanov_BR_Tumolo, 'ro', linewidth=1, markersize=4, alpha=1, markevery=3)[0]
-    plot_Rusanov_centered   = ax.plot(x_Rusanov_centered, y_Rusanov_centered, 'gx', linewidth=1, markersize=4, alpha=1, markevery=2)[0]
-    plot_HLLC_BR_Orlando    = ax.plot(x_HLLC_BR_Orlando, y_HLLC_BR_Orlando, 'ys', linewidth=1, markersize=4, alpha=1, markevery=6)[0]
-    plot_HLLC_BR_Tumolo     = ax.plot(x_HLLC_BR_Tumolo, y_HLLC_BR_Tumolo, 'o', color='orange', linewidth=1, markersize=4, alpha=1, markevery=6)[0]
-    plot_HLLC_centered      = ax.plot(x_HLLC_centered, y_HLLC_centered, 'bd', linewidth=1, markersize=4, alpha=1, markevery=8)[0]
-    plot_HLLC               = ax.plot(x_HLLC, y_HLLC, 'k-', linewidth=1, markersize=4, alpha=1)[0]
+    plot_1 = ax.plot(x_1, y_1, 'b-', linewidth=1, markersize=4)[0]
+    plot_2 = ax.plot(x_2, y_2, 'ro', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
+    plot_3 = ax.plot(x_3, y_3, 'gx', linewidth=1, markersize=4, alpha=1, markevery=2)[0]
+    plot_4 = ax.plot(x_4, y_4, 'ys', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
+    plot_5 = ax.plot(x_5, y_5, 'o', color='orange', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
+    plot_6 = ax.plot(x_6, y_6, 'bd', linewidth=1, markersize=4, alpha=1, markevery=2)[0]
+    plot_7 = ax.plot(x_7, y_7, 'k-', linewidth=1, markersize=4, alpha=1)[0]
 
     ax.tick_params(axis='x', labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
+    ax.yaxis.get_offset_text().set_fontsize(20)
+    #np.savetxt('DOUBLE_RAREFACTION/numerical_results_alpha2.dat', \
+    #           np.c_[x_1, y_1,\
+    #                 x_4, y_4, \
+    #                 x_7, y_7])
 
     #Read and plot the analytical results
     if args.analytical is not None:
@@ -55,216 +60,216 @@ def line_plot(ax, x_Rusanov_BR_Orlando, y_Rusanov_BR_Orlando, \
     #Add legend
     if args.analytical is not None:
         if args.reference is not None:
-            ax.legend([plot_Rusanov_BR_Orlando, plot_Rusanov_BR_Tumolo, plot_Rusanov_centered, \
-                       plot_HLLC_BR_Orlando, plot_HLLC_BR_Tumolo, plot_HLLC_centered, plot_HLLC, \
+            ax.legend([plot_1, plot_2, plot_3, \
+                       plot_4, plot_5, plot_6, plot_7, \
                        plot_analytical, plot_ref], \
-                      ['Rusanov + BR (34)', 'Rusanov + BR (35)', 'Rusanov + Crouzet et al.', \
-                       'HLLC + BR (34)', 'HLLC + BR (35)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
+                      ['HLL + BR (27)', 'HLL + BR (28)', 'HLL + Crouzet et al.', \
+                       'HLLC + BR (27)', 'HLLC + BR (28)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
                        'Analytical (5 equations)', 'Reference results'], fontsize="20", loc="best")
         else:
-            ax.legend([plot_Rusanov_BR_Orlando, plot_Rusanov_BR_Tumolo, plot_Rusanov_centered, \
-                       plot_HLLC_BR_Orlando, plot_HLLC_BR_Tumolo, plot_HLLC_centered, plot_HLLC, \
+            ax.legend([plot_1, plot_2, plot_3, \
+                       plot_4, plot_5, plot_6, plot_7, \
                        plot_analytical], \
-                      ['Rusanov + BR (34)', 'Rusanov + BR (35)', 'Rusanov + Crouzet et al.', \
-                       'HLLC + BR (34)', 'HLLC + BR (35)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
+                      ['HLL + BR (27)', 'HLL + BR (28)', 'HLL + Crouzet et al.', \
+                       'HLLC + BR (27)', 'HLLC + BR (28)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
                        'Analytical (5 equations)'], fontsize="20", loc="best")
     elif args.reference is not None:
-        ax.legend([plot_Rusanov_BR_Orlando, plot_Rusanov_BR_Tumolo, plot_Rusanov_centered, \
-                   plot_HLLC_BR_Orlando, plot_HLLC_BR_Tumolo, plot_HLLC_centered, plot_HLLC, \
+        ax.legend([plot_1, plot_2, plot_3, \
+                   plot_4, plot_5, plot_6, plot_7, \
                    plot_ref], \
-                  ['Rusanov + BR (34)', 'Rusanov + BR (35)', 'Rusanov + Crouzet et al.', \
-                   'HLLC + BR (34)', 'HLLC + BR (35)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
+                  ['HLL + BR (27)', 'HLL + BR (28)', 'HLL + Crouzet et al.', \
+                   'HLLC + BR (27)', 'HLLC + BR (28)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
                    'Reference results'], fontsize="20", loc="best")
     else:
-        ax.legend([plot_Rusanov_BR_Orlando, plot_Rusanov_BR_Tumolo, plot_Rusanov_centered, \
-                   plot_HLLC_BR_Orlando, plot_HLLC_BR_Tumolo, plot_HLLC_centered, plot_HLLC], \
-                  ['Rusanov + BR (34)', 'Rusanov + BR (35)', 'Rusanov + Crouzet et al.', \
-                   'HLLC + BR (34)', 'HLLC + BR (35)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)'], fontsize="20", loc="best")
+        ax.legend([plot_1, plot_2, plot_3, \
+                   plot_4, plot_5, plot_6, plot_7], \
+                  ['HLL + BR (27)', 'HLL + BR (28)', 'HLL + Crouzet et al.', \
+                   'HLLC + BR (27)', 'HLLC + BR (28)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)'], fontsize="20", loc="best")
 
-    return plot_Rusanov_BR_Orlando, plot_Rusanov_BR_Tumolo, plot_Rusanov_centered, \
-           plot_HLLC_BR_Orlando, plot_HLLC_BR_Tumolo, plot_HLLC_centered, plot_HLLC
+    return plot_1, plot_2, plot_3, \
+           plot_4, plot_5, plot_6, plot_7
 
-def line_update(lines, x_Rusanov_BR_Orlando, y_Rusanov_BR_Orlando, \
-                       x_Rusanov_BR_Tumolo, y_Rusanov_BR_Tumolo, \
-                       x_Rusanov_centered, y_Rusanov_centered, \
-                       x_HLLC_BR_Orlando, y_HLLC_BR_Orlando, \
-                       x_HLLC_BR_Tumolo, y_HLLC_BR_Tumolo, \
-                       x_HLLC_centered, y_HLLC_centered, \
-                       x_HLLC, y_HLLC):
-    lines[1].set_data(x_Rusanov_BR_Orlando, y_Rusanov_BR_Orlando)
-    lines[2].set_data(x_Rusanov_BR_Tumolo, y_Rusanov_BR_Tumolo)
-    lines[3].set_data(x_Rusanov_centered, y_Rusanov_centered)
-    lines[4].set_data(x_HLLC_BR_Orlando, y_HLLC_BR_Orlando)
-    lines[5].set_data(x_HLLC_BR_Tumolo, y_HLLC_BR_Tumolo)
-    lines[6].set_data(x_HLLC_centered, y_HLLC_centered)
-    lines[7].set_data(x_HLLC, y_HLLC)
+def line_update(lines, x_1, y_1, \
+                       x_2, y_2, \
+                       x_3, y_3, \
+                       x_4, y_4, \
+                       x_5, y_5, \
+                       x_6, y_6, \
+                       x_7, y_7):
+    lines[1].set_data(x_1, y_1)
+    lines[2].set_data(x_2, y_2)
+    lines[3].set_data(x_3, y_3)
+    lines[4].set_data(x_4, y_4)
+    lines[5].set_data(x_5, y_5)
+    lines[6].set_data(x_6, y_6)
+    lines[7].set_data(x_7, y_7)
 
 class Plot:
-    def __init__(self, filename_Rusanov_BR_Orlando, \
-                       filename_Rusanov_BR_Tumolo, \
-                       filename_Rusanov_centered, \
-                       filename_HLLC_BR_Orlando, \
-                       filename_HLLC_BR_Tumolo, \
-                       filename_HLLC_centered, \
-                       filename_HLLC):
+    def __init__(self, filename_1, \
+                       filename_2, \
+                       filename_3, \
+                       filename_4, \
+                       filename_5, \
+                       filename_6, \
+                       filename_7):
         self.fig = plt.figure()
         self.artists = []
         self.ax = []
 
-        mesh_Rusanov_BR_Orlando = read_mesh(filename_Rusanov_BR_Orlando)
+        mesh_1 = read_mesh(filename_1)
         if args.field is None:
             ax = plt.subplot(111)
-            self.plot(ax, mesh_Rusanov_BR_Orlando)
+            self.plot(ax, mesh_1)
             ax.set_title("Mesh")
             self.ax = [ax]
         else:
-            mesh_Rusanov_BR_Tumolo = read_mesh(filename_Rusanov_BR_Tumolo)
-            mesh_Rusanov_centered = read_mesh(filename_Rusanov_centered)
-            mesh_HLLC_BR_Orlando = read_mesh(filename_HLLC_BR_Orlando)
-            mesh_HLLC_BR_Tumolo = read_mesh(filename_HLLC_BR_Tumolo)
-            mesh_HLLC_centered = read_mesh(filename_HLLC_centered)
-            mesh_HLLC = read_mesh(filename_HLLC)
+            mesh_2 = read_mesh(filename_2)
+            mesh_3 = read_mesh(filename_3)
+            mesh_4 = read_mesh(filename_4)
+            mesh_5 = read_mesh(filename_5)
+            mesh_6 = read_mesh(filename_6)
+            mesh_7 = read_mesh(filename_7)
             for i, f in enumerate(args.field):
                 ax = plt.subplot(1, len(args.field), i + 1)
-                self.plot(ax, mesh_Rusanov_BR_Orlando, mesh_Rusanov_BR_Tumolo, mesh_Rusanov_centered, \
-                              mesh_HLLC_BR_Orlando, mesh_HLLC_BR_Tumolo, mesh_HLLC_centered, mesh_HLLC, f)
-                ax.set_title(r"$\alpha_{1}$",fontsize=20)
+                self.plot(ax, mesh_1, mesh_2, mesh_3, \
+                              mesh_4, mesh_5, mesh_6, mesh_7, f)
+                ax.set_title(r"$\rho$",fontsize=20)
 
-    def plot(self, ax, mesh_Rusanov_BR_Orlando, \
-                       mesh_Rusanov_BR_Tumolo=None, \
-                       mesh_Rusanov_centered=None, \
-                       mesh_HLLC_BR_Orlando=None, \
-                       mesh_HLLC_BR_Tumolo=None, \
-                       mesh_HLLC_centered=None, \
-                       mesh_HLLC=None, field=None, init=True):
-        points_Rusanov_BR_Orlando       = mesh_Rusanov_BR_Orlando['points']
-        connectivity_Rusanov_BR_Orlando = mesh_Rusanov_BR_Orlando['connectivity']
+    def plot(self, ax, mesh_1, \
+                       mesh_2=None, \
+                       mesh_3=None, \
+                       mesh_4=None, \
+                       mesh_5=None, \
+                       mesh_6=None, \
+                       mesh_7=None, field=None, init=True):
+        points_1       = mesh_1['points']
+        connectivity_1 = mesh_1['connectivity']
 
-        segments_Rusanov_BR_Orlando = np.zeros((connectivity_Rusanov_BR_Orlando.shape[0], 2, 2))
-        segments_Rusanov_BR_Orlando[:, :, 0] = points_Rusanov_BR_Orlando[:][connectivity_Rusanov_BR_Orlando[:]][:, :, 0]
+        segments_1 = np.zeros((connectivity_1.shape[0], 2, 2))
+        segments_1[:, :, 0] = points_1[:][connectivity_1[:]][:, :, 0]
 
         if field is None:
-            segments_Rusanov_BR_Orlando[:, :, 1] = 0
+            segments_1[:, :, 1] = 0
             if init:
                 self.artists.append(scatter_plot(ax, points))
-                self.lc = mc.LineCollection(segments_Rusanov_BR_Orlando, colors='b', linewidths=2)
+                self.lc = mc.LineCollection(segments_1, colors='b', linewidths=2)
                 self.lines = ax.add_collection(self.lc)
             else:
                 scatter_update(self.artists[self.index], points)
                 self.index += 1
                 # self.lc.set_array(segments)
         else:
-            data_Rusanov_BR_Orlando    = mesh_Rusanov_BR_Orlando['fields'][field][:]
-            centers_Rusanov_BR_Orlando = 0.5*(segments_Rusanov_BR_Orlando[:, 0, 0] + segments_Rusanov_BR_Orlando[:, 1, 0])
-            segments_Rusanov_BR_Orlando[:, :, 1] = data_Rusanov_BR_Orlando[:, np.newaxis]
+            data_1    = mesh_1['fields'][field][:]
+            centers_1 = 0.5*(segments_1[:, 0, 0] + segments_1[:, 1, 0])
+            segments_1[:, :, 1] = data_1[:, np.newaxis]
             # ax.scatter(centers, data, marker='+')
-            index_Rusanov_BR_Orlando = np.argsort(centers_Rusanov_BR_Orlando)
+            index_1 = np.argsort(centers_1)
 
-            points_Rusanov_BR_Tumolo       = mesh_Rusanov_BR_Tumolo['points']
-            connectivity_Rusanov_BR_Tumolo = mesh_Rusanov_BR_Tumolo['connectivity']
-            segments_Rusanov_BR_Tumolo     = np.zeros((connectivity_Rusanov_BR_Tumolo.shape[0], 2, 2))
-            segments_Rusanov_BR_Tumolo[:, :, 0] = points_Rusanov_BR_Tumolo[:][connectivity_Rusanov_BR_Tumolo[:]][:, :, 0]
-            data_Rusanov_BR_Tumolo    = mesh_Rusanov_BR_Tumolo['fields'][field][:]
-            centers_Rusanov_BR_Tumolo = 0.5*(segments_Rusanov_BR_Tumolo[:, 0, 0] + segments_Rusanov_BR_Tumolo[:, 1, 0])
-            segments_Rusanov_BR_Tumolo[:, :, 1] = data_Rusanov_BR_Tumolo[:, np.newaxis]
-            index_Rusanov_BR_Tumolo = np.argsort(centers_Rusanov_BR_Tumolo)
+            points_2       = mesh_2['points']
+            connectivity_2 = mesh_2['connectivity']
+            segments_2     = np.zeros((connectivity_2.shape[0], 2, 2))
+            segments_2[:, :, 0] = points_2[:][connectivity_2[:]][:, :, 0]
+            data_2    = mesh_2['fields'][field][:]
+            centers_2 = 0.5*(segments_2[:, 0, 0] + segments_2[:, 1, 0])
+            segments_2[:, :, 1] = data_2[:, np.newaxis]
+            index_2 = np.argsort(centers_2)
 
-            points_Rusanov_centered       = mesh_Rusanov_centered['points']
-            connectivity_Rusanov_centered = mesh_Rusanov_centered['connectivity']
-            segments_Rusanov_centered     = np.zeros((connectivity_Rusanov_centered.shape[0], 2, 2))
-            segments_Rusanov_centered[:, :, 0] = points_Rusanov_centered[:][connectivity_Rusanov_centered[:]][:, :, 0]
-            data_Rusanov_centered    = mesh_Rusanov_centered['fields'][field][:]
-            centers_Rusanov_centered = 0.5*(segments_Rusanov_centered[:, 0, 0] + segments_Rusanov_centered[:, 1, 0])
-            segments_Rusanov_centered[:, :, 1] = data_Rusanov_centered[:, np.newaxis]
-            index_Rusanov_centered = np.argsort(centers_Rusanov_centered)
+            points_3       = mesh_3['points']
+            connectivity_3 = mesh_3['connectivity']
+            segments_3     = np.zeros((connectivity_3.shape[0], 2, 2))
+            segments_3[:, :, 0] = points_3[:][connectivity_3[:]][:, :, 0]
+            data_3    = mesh_3['fields'][field][:]
+            centers_3 = 0.5*(segments_3[:, 0, 0] + segments_3[:, 1, 0])
+            segments_3[:, :, 1] = data_3[:, np.newaxis]
+            index_3 = np.argsort(centers_3)
 
-            points_HLLC_BR_Orlando       = mesh_HLLC_BR_Orlando['points']
-            connectivity_HLLC_BR_Orlando = mesh_HLLC_BR_Orlando['connectivity']
-            segments_HLLC_BR_Orlando     = np.zeros((connectivity_HLLC_BR_Orlando.shape[0], 2, 2))
-            segments_HLLC_BR_Orlando[:, :, 0] = points_HLLC_BR_Orlando[:][connectivity_HLLC_BR_Orlando[:]][:, :, 0]
-            data_HLLC_BR_Orlando    = mesh_HLLC_BR_Orlando['fields'][field][:]
-            centers_HLLC_BR_Orlando = 0.5*(segments_HLLC_BR_Orlando[:, 0, 0] + segments_HLLC_BR_Orlando[:, 1, 0])
-            segments_HLLC_BR_Orlando[:, :, 1] = data_HLLC_BR_Orlando[:, np.newaxis]
-            index_HLLC_BR_Orlando = np.argsort(centers_HLLC_BR_Orlando)
+            points_4       = mesh_4['points']
+            connectivity_4 = mesh_4['connectivity']
+            segments_4     = np.zeros((connectivity_4.shape[0], 2, 2))
+            segments_4[:, :, 0] = points_4[:][connectivity_4[:]][:, :, 0]
+            data_4    = mesh_4['fields'][field][:]
+            centers_4 = 0.5*(segments_4[:, 0, 0] + segments_4[:, 1, 0])
+            segments_4[:, :, 1] = data_4[:, np.newaxis]
+            index_4 = np.argsort(centers_4)
 
-            points_HLLC_BR_Tumolo       = mesh_HLLC_BR_Tumolo['points']
-            connectivity_HLLC_BR_Tumolo = mesh_HLLC_BR_Tumolo['connectivity']
-            segments_HLLC_BR_Tumolo     = np.zeros((connectivity_HLLC_BR_Tumolo.shape[0], 2, 2))
-            segments_HLLC_BR_Tumolo[:, :, 0] = points_HLLC_BR_Tumolo[:][connectivity_HLLC_BR_Tumolo[:]][:, :, 0]
-            data_HLLC_BR_Tumolo    = mesh_HLLC_BR_Tumolo['fields'][field][:]
-            centers_HLLC_BR_Tumolo = 0.5*(segments_HLLC_BR_Tumolo[:, 0, 0] + segments_HLLC_BR_Tumolo[:, 1, 0])
-            segments_HLLC_BR_Tumolo[:, :, 1] = data_HLLC_BR_Tumolo[:, np.newaxis]
-            index_HLLC_BR_Tumolo = np.argsort(centers_HLLC_BR_Tumolo)
+            points_5       = mesh_5['points']
+            connectivity_5 = mesh_5['connectivity']
+            segments_5     = np.zeros((connectivity_5.shape[0], 2, 2))
+            segments_5[:, :, 0] = points_5[:][connectivity_5[:]][:, :, 0]
+            data_5    = mesh_5['fields'][field][:]
+            centers_5 = 0.5*(segments_5[:, 0, 0] + segments_5[:, 1, 0])
+            segments_5[:, :, 1] = data_5[:, np.newaxis]
+            index_5 = np.argsort(centers_5)
 
-            points_HLLC_centered       = mesh_HLLC_centered['points']
-            connectivity_HLLC_centered = mesh_HLLC_centered['connectivity']
-            segments_HLLC_centered     = np.zeros((connectivity_HLLC_centered.shape[0], 2, 2))
-            segments_HLLC_centered[:, :, 0] = points_HLLC_centered[:][connectivity_HLLC_centered[:]][:, :, 0]
-            data_HLLC_centered    = mesh_HLLC_centered['fields'][field][:]
-            centers_HLLC_centered = 0.5*(segments_HLLC_centered[:, 0, 0] + segments_HLLC_centered[:, 1, 0])
-            segments_HLLC_centered[:, :, 1] = data_HLLC_centered[:, np.newaxis]
-            index_HLLC_centered = np.argsort(centers_HLLC_centered)
+            points_6       = mesh_6['points']
+            connectivity_6 = mesh_6['connectivity']
+            segments_6     = np.zeros((connectivity_6.shape[0], 2, 2))
+            segments_6[:, :, 0] = points_6[:][connectivity_6[:]][:, :, 0]
+            data_6    = mesh_6['fields'][field][:]
+            centers_6 = 0.5*(segments_6[:, 0, 0] + segments_6[:, 1, 0])
+            segments_6[:, :, 1] = data_6[:, np.newaxis]
+            index_6 = np.argsort(centers_6)
 
-            points_HLLC       = mesh_HLLC['points']
-            connectivity_HLLC = mesh_HLLC['connectivity']
-            segments_HLLC     = np.zeros((connectivity_HLLC.shape[0], 2, 2))
-            segments_HLLC[:, :, 0] = points_HLLC[:][connectivity_HLLC[:]][:, :, 0]
-            data_HLLC     = mesh_HLLC['fields'][field][:]
-            centers_HLLC  = .5*(segments_HLLC[:, 0, 0] + segments_HLLC[:, 1, 0])
-            segments_HLLC[:, :, 1] = data_HLLC[:, np.newaxis]
-            index_HLLC = np.argsort(centers_HLLC)
+            points_7       = mesh_7['points']
+            connectivity_7 = mesh_7['connectivity']
+            segments_7     = np.zeros((connectivity_7.shape[0], 2, 2))
+            segments_7[:, :, 0] = points_7[:][connectivity_7[:]][:, :, 0]
+            data_7     = mesh_7['fields'][field][:]
+            centers_7  = .5*(segments_7[:, 0, 0] + segments_7[:, 1, 0])
+            segments_7[:, :, 1] = data_7[:, np.newaxis]
+            index_7 = np.argsort(centers_7)
             if init:
-                self.artists.append(line_plot(ax, centers_Rusanov_BR_Orlando[index_Rusanov_BR_Orlando], data_Rusanov_BR_Orlando[index_Rusanov_BR_Orlando], \
-                                                  centers_Rusanov_BR_Tumolo[index_Rusanov_BR_Tumolo], data_Rusanov_BR_Tumolo[index_Rusanov_BR_Tumolo], \
-						                          centers_Rusanov_centered[index_Rusanov_centered], data_Rusanov_centered[index_Rusanov_centered], \
-                                                  centers_HLLC_BR_Orlando[index_HLLC_BR_Orlando], data_HLLC_BR_Orlando[index_HLLC_BR_Orlando], \
-                                                  centers_HLLC_BR_Tumolo[index_HLLC_BR_Tumolo], data_HLLC_BR_Tumolo[index_HLLC_BR_Tumolo], \
-                                  		          centers_HLLC_centered[index_HLLC_centered], data_HLLC_centered[index_HLLC_centered], \
-						                          centers_HLLC[index_HLLC], data_HLLC[index_HLLC]))
+                self.artists.append(line_plot(ax, centers_1[index_1], data_1[index_1], \
+                                                  centers_2[index_2], data_2[index_2], \
+						                          centers_3[index_3], data_3[index_3], \
+                                                  centers_4[index_4], data_4[index_4], \
+                                                  centers_5[index_5], data_5[index_5], \
+                                  		          centers_6[index_6], data_6[index_6], \
+						                          centers_7[index_7], data_7[index_7]))
             else:
-                line_update(self.artists[self.index], centers_Rusanov_BR_Orlando[index_Rusanov_BR_Orlando], data_Rusanov_BR_Orlando[index_Rusanov_BR_Orlando], \
-                                                      centers_Rusanov_BR_Tumolo[index_Rusanov_BR_Tumolo], data_Rusanov_BR_Tumolo[index_Rusanov_BR_Tumolo], \
-						                              centers_Rusanov_centered[index_Rusanov_centered], data_Rusanov_centered[index_Rusanov_centered], \
-                                                      centers_HLLC_BR_Orlando[index_HLLC_BR_Orlando], data_HLLC_BR_Orlando[index_HLLC_BR_Orlando], \
-                                                      centers_HLLC_BR_Tumolo[index_HLLC_BR_Tumolo], data_HLLC_BR_Tumolo[index_HLLC_BR_Tumolo], \
-                                  		              centers_HLLC_centered[index_HLLC_centered], data_HLLC_centered[index_HLLC_centered], \
-						                              centers_HLLC[index_HLLC], data_HLLC[index_HLLC])
+                line_update(self.artists[self.index], centers_1[index_1], data_1[index_1], \
+                                                      centers_2[index_2], data_2[index_2], \
+						                              centers_3[index_3], data_3[index_3], \
+                                                      centers_4[index_4], data_4[index_4], \
+                                                      centers_5[index_5], data_5[index_5], \
+                                  		              centers_6[index_6], data_6[index_6], \
+						                              centers_7[index_7], data_7[index_7])
                 self.index += 1
 
         for aax in self.ax:
             aax.relim()
             aax.autoscale_view()
 
-    def update(self, filename_Rusanov_BR_Orlando, filename_Rusanov_BR_Tumolo, filename_Rusanov_centered, \
-                     filename_HLLC_BR_Orlando, filename_HLLC_BR_Tumolo, filename_HLLC_centered, \
-                     filename_HLLC):
-        mesh_Rusanov_BR_Orlando = read_mesh(filename_Rusanov_BR_Orlando)
+    def update(self, filename_1, filename_2, filename_3, \
+                     filename_4, filename_5, filename_6, \
+                     filename_7):
+        mesh_1 = read_mesh(filename_1)
         self.index = 0
         if args.field is None:
-            self.plot(None, mesh_Rusanov_BR_Orlando, init=False)
+            self.plot(None, mesh_1, init=False)
         else:
-            mesh_Rusanov_BR_Tumolo = read_mesh(filename_Rusanov_BR_Tumolo)
-            mesh_Rusanov_centered = read_mesh(filename_Rusanov_centered)
-            mesh_HLLC_BR_Orlando = read_mesh(filename_HLLC_BR_Orlando)
-            mesh_HLLC_BR_Tumolo = read_mesh(filename_HLLC_BR_Tumolo)
-            mesh_HLLC_centered = read_mesh(filename_HLLC_centered)
-            mesh_HLLC = read_mesh(filename_HLLC)
+            mesh_2 = read_mesh(filename_2)
+            mesh_3 = read_mesh(filename_3)
+            mesh_4 = read_mesh(filename_4)
+            mesh_5 = read_mesh(filename_5)
+            mesh_6 = read_mesh(filename_6)
+            mesh_7 = read_mesh(filename_7)
 
             for i, f in enumerate(args.field):
-                self.plot(None, mesh_Rusanov_BR_Orlando, mesh_Rusanov_BR_Tumolo, mesh_Rusanov_centered, \
-                                mesh_HLLC_BR_Orlando, mesh_HLLC_BR_Tumolo, mesh_HLLC, f, init=False)
+                self.plot(None, mesh_1, mesh_2, mesh_3, \
+                                mesh_4, mesh_5, mesh_7, f, init=False)
 
     def get_artist(self):
         return self.artists
 
 parser = argparse.ArgumentParser(description='Plot 1d mesh and field from samurai simulations.')
-parser.add_argument('filename_Rusanov_BR_Orlando', type=str, help='hdf5 file to plot without .h5 extension')
-parser.add_argument('filename_Rusanov_BR_Tumolo', type=str, help='hdf5 file to plot without .h5 extension')
-parser.add_argument('filename_Rusanov_centered', type=str, help='hdf5 file to plot without .h5 extension')
-parser.add_argument('filename_HLLC_BR_Orlando', type=str, help='hdf5 file to plot without .h5 extension')
-parser.add_argument('filename_HLLC_BR_Tumolo', type=str, help='hdf5 file to plot without .h5 extension')
-parser.add_argument('filename_HLLC_centered', type=str, help='hdf5 file to plot without .h5 extension')
-parser.add_argument('filename_HLLC', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_1', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_2', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_3', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_4', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_5', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_6', type=str, help='hdf5 file to plot without .h5 extension')
+parser.add_argument('filename_7', type=str, help='hdf5 file to plot without .h5 extension')
 parser.add_argument('--field', nargs="+", type=str, required=False, help='list of fields to plot')
 parser.add_argument('--start', type=int, required=False, default=0, help='iteration start')
 parser.add_argument('--end', type=int, required=False, default=None, help='iteration end')
@@ -277,29 +282,29 @@ parser.add_argument('--column_reference', type=int, required=False, help='variab
 args = parser.parse_args()
 
 if args.end is None:
-    Plot(args.filename_Rusanov_BR_Orlando, \
-         args.filename_Rusanov_BR_Tumolo, \
-         args.filename_Rusanov_centered, \
-         args.filename_HLLC_BR_Orlando, \
-         args.filename_HLLC_BR_Tumolo, args.filename_HLLC_centered, \
-         args.filename_HLLC)
+    Plot(args.filename_1, \
+         args.filename_2, \
+         args.filename_3, \
+         args.filename_4, \
+         args.filename_5, args.filename_6, \
+         args.filename_7)
 else:
-    p = Plot(f"{args.filename_Rusanov_BR_Orlando}{args.start}", \
-             f"{args.filename_Rusanov_BR_Tumolo}{args.start}", \
-             f"{args.filename_Rusanov_centered}{args.start}", \
-             f"{args.filename_HLLC_BR_Orlando}{args.start}", \
-             f"{args.filename_HLLC_BR_Tumolo}{args.start}", \
-             f"{args.filename_HLLC_centered}{args.start}", \
-             f"{args.filename_HLLC}{args.start}")
+    p = Plot(f"{args.filename_1}{args.start}", \
+             f"{args.filename_2}{args.start}", \
+             f"{args.filename_3}{args.start}", \
+             f"{args.filename_4}{args.start}", \
+             f"{args.filename_5}{args.start}", \
+             f"{args.filename_6}{args.start}", \
+             f"{args.filename_7}{args.start}")
     def animate(i):
         p.fig.suptitle(f"iteration {i + args.start}")
-        p.update(f"{args.filename_Rusanov_BR_Orlando}{i + args.start}", \
-                 f"{args.filename_Rusanov_BR_Tumolo}{i + args.start}", \
-                 f"{args.filename_Rusanov_centered}{args.start}", \
-                 f"{args.filename_HLLC_BR_Orlando}{i + args.start}", \
-                 f"{args.filename_HLLC_BR_Tumolo}{i + args.start}", \
-                 f"{args.filename_HLLC_centered}{args.start}", \
-                 f"{args.filename_HLLC}{args.start}")
+        p.update(f"{args.filename_1}{i + args.start}", \
+                 f"{args.filename_2}{i + args.start}", \
+                 f"{args.filename_3}{i + args.start}", \
+                 f"{args.filename_4}{i + args.start}", \
+                 f"{args.filename_5}{i + args.start}", \
+                 f"{args.filename_6}{i + args.start}", \
+                 f"{args.filename_7}{i + args.start}")
         return p.get_artist()
     ani = animation.FuncAnimation(p.fig, animate, frames=args.end-args.start, interval=args.wait, repeat=True)
 

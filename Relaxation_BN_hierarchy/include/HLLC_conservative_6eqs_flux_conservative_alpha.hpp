@@ -11,13 +11,13 @@ namespace samurai {
   using namespace EquationData;
 
   /**
-    * Implementation of a HLLC flux for the conservatibe portion of the system (no volume fraction)
+    * Implementation of a HLLC flux for the conservative portion of the system (no volume fraction)
     */
   template<class Field>
   class HLLCFlux_Conservative: public Flux<Field> {
   public:
     HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1,
-                          const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+                          const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in input the equations of state of the two phases
 
     auto make_flux(); // Compute the flux over all cells
 

@@ -14,6 +14,7 @@ namespace fs = std::filesystem;
 
 #define HLLC_FLUX
 //#define HLLC_NON_CONS_FLUX
+//#define HLL_FLUX
 //#define RUSANOV_FLUX
 
 #ifdef HLLC_FLUX
@@ -21,16 +22,17 @@ namespace fs = std::filesystem;
 #else
   #ifdef HLLC_NON_CONS_FLUX
     #include "HLLC_conservative_6eqs_flux.hpp"
+  #elifdef HLL_FLUX
+    #include "HLL_6eqs_flux.hpp"
   #elifdef RUSANOV_FLUX
     #include "Rusanov_6eqs_flux.hpp"
   #endif
   #include "non_conservative_6eqs_flux.hpp"
 #endif
 
-#define NDEBUG
-
 #include "containers.hpp"
 
+#define NDEBUG
 #define assertm(exp, msg) assert(((void)msg, exp))
 
 // Specify the use of this namespace where we just store the indices
@@ -90,19 +92,20 @@ private:
   const SG_EOS<typename Field::value_type> EOS_phase1; // Equation of state of phase 1
   const SG_EOS<typename Field::value_type> EOS_phase2; // Equation of state of phase 2
 
-  #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> numerical_flux_cons; // variable to compute the numerical flux for the conservative part
-                                                     // (this is necessary to call 'make_flux')
-
-    samurai::NonConservativeFlux<Field> numerical_flux_non_cons; // variable to compute the numerical flux for the non-conservative part
-                                                                 // (this is necessary to call 'make_flux')
-  #elifdef HLLC_FLUX
+  #ifdef HLLC_FLUX
     samurai::HLLCFlux<Field> numerical_flux; // variable to compute the numerical flux
                                              // (this is necessary to call 'make_flux')
-  #elifdef HLLC_NON_CONS_FLUX
-    samurai::HLLCFlux_Conservative<Field> numerical_flux_cons; // variable to compute the numerical flux for the conservative part
-                                                               // (this is necessary to call 'make_flux')
-
+  #else
+    #ifdef HLLC_NON_CONS_FLUX
+      samurai::HLLCFlux_Conservative<Field> numerical_flux_cons; // variable to compute the numerical flux for the conservative part
+                                                                 // (this is necessary to call 'make_flux')
+    #elifdef HLL_FLUX
+      samurai::HLLFlux<Field> numerical_flux_cons; // variable to compute the numerical flux for the conservative part
+                                                   // (this is necessary to call 'make_flux')
+    #elifdef RUSANOV_FLUX
+      samurai::RusanovFlux<Field> numerical_flux_cons; // variable to compute the numerical flux for the conservative part
+                                                       // (this is necessary to call 'make_flux')
+    #endif
     samurai::NonConservativeFlux<Field> numerical_flux_non_cons; // variable to compute the numerical flux for the non-conservative part
                                                                  // (this is necessary to call 'make_flux')
   #endif
@@ -168,11 +171,11 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
   use_exact_relax(sim_param.use_exact_relax), tau_p(sim_param.tau_p),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.c_v_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.c_v_2),
-  #if defined RUSANOV_FLUX || defined HLLC_NON_CONS_FLUX
+  #ifdef HLLC_FLUX
+    numerical_flux(EOS_phase1, EOS_phase2)
+  #else
     numerical_flux_cons(EOS_phase1, EOS_phase2),
     numerical_flux_non_cons(EOS_phase1, EOS_phase2)
-  #else
-    numerical_flux(EOS_phase1, EOS_phase2)
   #endif
   {
     std::cout << "Initializing variables" << std::endl;
@@ -673,7 +676,7 @@ void Relaxation<dim>::get_min_alpha(const double time) {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Update maximum eigenvalue estimate
+                           // Update minimum value of alpha1
                            alpha1_min = std::min(alpha1_min, conserved_variables[cell][ALPHA1_INDEX]);
                          });
 
@@ -756,10 +759,12 @@ template<std::size_t dim>
 void Relaxation<dim>::run() {
   // Default output arguemnts
   fs::path path = fs::current_path();
-  #ifdef RUSANOV_FLUX
-    filename = "Relaxation_Rusanov_6eqs_total_energy";
-  #elifdef HLLC_FLUX
+  #ifdef HLLC_FLUX
     filename = "Relaxation_HLLC_6eqs_total_energy";
+  #elifdef HLL_FLUX
+    filename = "Relaxation_HLL_6eqs_total_energy";
+  #elifdef RUSANOV_FLUX
+    filename = "Relaxation_Rusanov_6eqs_total_energy";
   #elifdef HLLC_NON_CONS_FLUX
     filename = "Relaxation_HLLC_non_cons_6eqs_total_energy";
   #endif
@@ -780,14 +785,17 @@ void Relaxation<dim>::run() {
   auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
   /*--- Create the flux variables ---*/
-  #ifdef RUSANOV_FLUX
-    auto Rusanov_flux         = numerical_flux_cons.make_flux();
-    auto NonConservative_flux = numerical_flux_non_cons.make_flux();
-  #elifdef HLLC_FLUX
+  #ifdef HLLC_FLUX
     auto HLLC_flux = numerical_flux.make_flux();
-  #elifdef HLLC_NON_CONS_FLUX
-    auto HLLC_Conservative_flux = numerical_flux_cons.make_flux();
-    auto NonConservative_flux   = numerical_flux_non_cons.make_flux();
+  #else
+    #ifdef HLLC_NON_CONS_FLUX
+      auto HLLC_Conservative_flux = numerical_flux_cons.make_flux();
+    #elifdef HLL_FLUX
+      auto HLL_flux = numerical_flux_cons.make_flux();
+    #elifdef RUSANOV_FLUX
+      auto Rusanov_flux = numerical_flux_cons.make_flux();
+    #endif
+    auto NonConservative_flux = numerical_flux_non_cons.make_flux();
   #endif
 
   /*--- Save the initial condition ---*/
@@ -816,18 +824,7 @@ void Relaxation<dim>::run() {
 
     // Apply the numerical scheme
     samurai::update_ghost_mr(conserved_variables);
-    #ifdef RUSANOV_FLUX
-      auto Cons_Flux    = Rusanov_flux(conserved_variables);
-      auto NonCons_Flux = NonConservative_flux(conserved_variables);
-
-      #ifdef ORDER_2
-        conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
-      #else
-        conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
-      #endif
-    #elifdef HLLC_FLUX
+    #ifdef HLLC_FLUX
       auto Total_Flux = HLLC_flux(conserved_variables);
 
       #ifdef ORDER_2
@@ -837,8 +834,14 @@ void Relaxation<dim>::run() {
         conserved_variables_np1.resize();
         conserved_variables_np1 = conserved_variables - dt*Total_Flux;
       #endif
-    #elifdef HLLC_NON_CONS_FLUX
-      auto Cons_Flux    = HLLC_Conservative_flux(conserved_variables);
+    #else
+      #ifdef HLLC_NON_CONS_FLUX
+        auto Cons_Flux = HLLC_Conservative_flux(conserved_variables);
+      #elifdef HLL_FLUX
+        auto Cons_Flux = HLL_flux(conserved_variables);
+      #elifdef RUSANOV_FLUX
+        auto Cons_Flux = Rusanov_flux(conserved_variables);
+      #endif
       auto NonCons_Flux = NonConservative_flux(conserved_variables);
 
       #ifdef ORDER_2
@@ -877,17 +880,18 @@ void Relaxation<dim>::run() {
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
       conserved_variables_tmp_2.resize();
-      #ifdef RUSANOV_FLUX
-        Cons_Flux    = Rusanov_flux(conserved_variables);
-        NonCons_Flux = NonConservative_flux(conserved_variables);
-
-        conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
-      #elifdef HLLC_FLUX
+      #ifdef HLLC_FLUX
         Total_Flux = HLLC_flux(conserved_variables);
 
         conserved_variables_tmp_2 = conserved_variables - dt*Total_Flux;
-      #elifdef HLLC_NON_CONS_FLUX
-        Cons_Flux    = HLLC_Conservative_flux(conserved_variables);
+      #else
+        #ifdef HLLC_NON_CONS_FLUX
+          Cons_Flux = HLLC_Conservative_flux(conserved_variables);
+        #elifdef HLL_FLUX
+          Cons_Flux = HLL_flux(conserved_variables);
+        #elifdef RUSANOV_FLUX
+          Cons_Flux = Rusanov_flux(conserved_variables);
+        #endif
         NonCons_Flux = NonConservative_flux(conserved_variables);
 
         conserved_variables_tmp_2 = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;

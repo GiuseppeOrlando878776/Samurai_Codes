@@ -21,7 +21,7 @@ namespace samurai {
   class NonConservativeFlux: public Flux<Field> {
   public:
     NonConservativeFlux(const SG_EOS<typename Field::value_type>& EOS_phase1,
-                        const SG_EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+                        const SG_EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in input the equations of state of the two phases
 
     auto make_flux(); // Compute the flux over all cells
 

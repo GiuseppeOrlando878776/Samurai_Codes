@@ -19,7 +19,7 @@ namespace samurai {
   class RusanovFlux: public Flux<Field> {
   public:
     RusanovFlux(const EOS<typename Field::value_type>& EOS_phase1,
-                const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+                const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in input the equations of state of the two phases
 
     auto make_flux(); // Compute the flux over all cells
 
@@ -132,12 +132,9 @@ namespace samurai {
                                                       FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
                                                       FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
                                                     #else
-                                                      // Extract the state
-                                                      const auto& left  = cells[0];
-                                                      const auto& right = cells[1];
-
-                                                      const FluxValue<typename Flux<Field>::cfg>& qL = field[left];
-                                                      const FluxValue<typename Flux<Field>::cfg>& qR = field[right];
+                                                      // Extract the states
+                                                      const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
+                                                      const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
                                                     #endif
 
                                                     flux = compute_discrete_flux(qL, qR, d);
