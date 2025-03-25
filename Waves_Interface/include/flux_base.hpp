@@ -10,10 +10,10 @@
 
 #include "barotropic_eos.hpp"
 
-// Preprocessor to define whether order 2 is desired
+/*--- Preprocessor to define whether order 2 is desired ---*/
 //#define ORDER_2
 
-// Preprocessor to define whether relaxation is desired after reconstruction for order 2
+/*--- Preprocessor to define whether relaxation is desired after reconstruction for order 2 ---*/
 #ifdef ORDER_2
   #define RELAX_RECONSTRUCTION
 #endif
@@ -22,10 +22,10 @@
  * Useful parameters and enumerators
  */
 namespace EquationData {
-  // Declare spatial dimension
+  /*--- Declare spatial dimension ---*/
   static constexpr std::size_t dim = 1;
 
-  // Use auxiliary variables for the indices for the sake of generality
+  /*--- Use auxiliary variables for the indices for the sake of generality ---*/
   static constexpr std::size_t M1_INDEX         = 0;
   static constexpr std::size_t M2_INDEX         = 1;
   static constexpr std::size_t RHO_ALPHA1_INDEX = 2;
@@ -33,7 +33,7 @@ namespace EquationData {
 
   static constexpr std::size_t ALPHA1_INDEX = RHO_ALPHA1_INDEX;
 
-  // Save also the total number of (scalar) variables
+  /*--- Save also the total number of (scalar) variables ---*/
   static constexpr std::size_t NVARS = 3 + dim;
 }
 
@@ -46,7 +46,7 @@ namespace samurai {
   template<class Field>
   class Flux {
   public:
-    // Definitions and sanity checks
+    /*--- Definitions and sanity checks ---*/
     static constexpr std::size_t field_size = Field::size;
     static_assert(field_size == EquationData::NVARS, "The number of elements in the state does not correspond to the number of equations");
     static_assert(Field::dim == EquationData::dim, "The spatial dimensions between Field and the parameter list do not match");
@@ -60,27 +60,27 @@ namespace samurai {
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
     Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename State>
     void perform_Newton_step_relaxation(std::unique_ptr<State> conserved_variables,
                                         typename Field::value_type& dalpha1, typename Field::value_type& alpha1,
                                         typename Field::value_type& rho, bool& relaxation_applied,
-                                        const double tol = 1e-12, const double lambda = 0.9); // Perform a Newton step relaxation for a state vector
-                                                                                              // (it is not a real space dependent procedure,
-                                                                                              // but I would need to be able to do it inside the flux location
-                                                                                              // for MUSCL reconstruction)
+                                        const double tol = 1e-12, const double lambda = 0.9); /*--- Perform a Newton step relaxation for a state vector
+                                                                                                    (it is not a real space dependent procedure,
+                                                                                                     but I would need to be able to do it inside the flux location
+                                                                                                     for MUSCL reconstruction) ---*/
 
   protected:
     const LinearizedBarotropicEOS<typename Field::value_type>& phase1;
     const LinearizedBarotropicEOS<typename Field::value_type>& phase2;
 
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
-                                            const std::size_t curr_d); // Evaluate the 'continuous' flux for the state q along direction curr_d
+                                            const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q along direction curr_d ---*/
 
-    FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; // Conversion from conservative to primitive variables
+    FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conservative to primitive variables ---*/
 
-    FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; // Conversion from primitive to conservative variables
+    FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conservative variables ---*/
 
     #ifdef ORDER_2
       void perform_reconstruction(const FluxValue<cfg>& primLL,
@@ -88,10 +88,10 @@ namespace samurai {
                                   const FluxValue<cfg>& primR,
                                   const FluxValue<cfg>& primRR,
                                   FluxValue<cfg>& primL_recon,
-                                  FluxValue<cfg>& primR_recon); // Reconstruction for second order scheme
+                                  FluxValue<cfg>& primR_recon); /*--- Reconstruction for second order scheme ---*/
 
       #ifdef RELAX_RECONSTRUCTION
-        void relax_reconstruction(FluxValue<cfg>& q); // Relax reconstructed state
+        void relax_reconstruction(FluxValue<cfg>& q); /*--- Relax reconstructed state ---*/
       #endif
     #endif
   };
@@ -108,17 +108,17 @@ namespace samurai {
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
                                                                              const std::size_t curr_d) {
-    // Sanity check in terms of dimensions
+    /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
 
-    // Initialize the resulting variable
+    /*--- Initialize the resulting variable ---*/
     FluxValue<cfg> res = q;
 
-    // Compute the current density and velocity
+    /*--- Compute the current density and velocity ---*/
     const auto rho   = q(M1_INDEX) + q(M2_INDEX);
     const auto vel_d = q(RHO_U_INDEX + curr_d)/rho;
 
-    // Multiply the state by the velocity along the direction of interest
+    /*--- Multiply the state by the velocity along the direction of interest ---*/
     res(M1_INDEX) *= vel_d;
     res(M2_INDEX) *= vel_d;
     res(RHO_ALPHA1_INDEX) *= vel_d;
@@ -126,7 +126,7 @@ namespace samurai {
       res(RHO_U_INDEX + d) *= vel_d;
     }
 
-    // Compute and add the contribution due to the pressure
+    /*--- Compute and add the contribution due to the pressure ---*/
     const auto alpha1 = q(RHO_ALPHA1_INDEX)/rho;
     const auto rho1   = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1     = phase1.pres_value(rho1);
@@ -144,10 +144,10 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
-    // Create a copy of the state to save the output
+    /*--- Create a copy of the state to save the output ---*/
     FluxValue<cfg> prim = cons;
 
-    // Apply conversion only to the volume fraction
+    /*--- Apply conversion only to the volume fraction ---*/
     prim(ALPHA1_INDEX) = cons(RHO_ALPHA1_INDEX)/(cons(M1_INDEX) + cons(M2_INDEX));
 
     return prim;
@@ -157,10 +157,10 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
-    // Create a copy of the state to save the output
+    /*--- Create a copy of the state to save the output ---*/
     FluxValue<cfg> cons = prim;
 
-    // Apply conversion only to the mixture density times volume fraction
+    /*--- Apply conversion only to the mixture density times volume fraction ---*/
     cons(RHO_ALPHA1_INDEX) = (prim(M1_INDEX) + prim(M2_INDEX))*prim(ALPHA1_INDEX);
 
     return cons;
@@ -176,12 +176,12 @@ namespace samurai {
                                              const FluxValue<cfg>& primRR,
                                              FluxValue<cfg>& primL_recon,
                                              FluxValue<cfg>& primR_recon) {
-      // Initialize with the original state
+      /*--- Initialize with the original state ---*/
       primL_recon = primL;
       primR_recon = primR;
 
-      // Perform the reconstruction.
-      const double beta = 1.0; /*--- MINMOD limiter ---*/
+      /*--- Perform the reconstruction ---*/
+      const double beta = 1.0; // MINMOD limiter
       for(std::size_t comp = 0; comp < Field::size; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
@@ -220,17 +220,17 @@ namespace samurai {
                                                    typename Field::value_type& dalpha1, typename Field::value_type& alpha1,
                                                    typename Field::value_type& rho, bool& relaxation_applied,
                                                    const double tol, const double lambda) {
-    // Update auxiliary values affected by the nonlinear function for which we seek a zero
+    /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto rho1 = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1   = phase1.pres_value(rho1);
 
     const auto rho2 = (*conserved_variables)(M2_INDEX)/(1.0 - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p2   = phase2.pres_value(rho2);
 
-    // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
+    /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
     const auto F = p1 - p2;
 
-    // Perform the relaxation only where really needed
+    /*--- Perform the relaxation only where really needed ---*/
     if(!std::isnan(F) && std::abs(F) > tol*phase1.get_p0() && std::abs(dalpha1) > tol) {
       relaxation_applied = true;
 
@@ -269,9 +269,9 @@ namespace samurai {
     #ifdef RELAX_RECONSTRUCTION
       template<class Field>
       void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q) {
-        // Declare and set relevant parameters
-        const double tol    = 1e-12; /*--- Tolerance of the Newton method ---*/
-        const double lambda = 0.9;   /*--- Parameter for bound preserving strategy ---*/
+        /*--- Declare and set relevant parameters ---*/
+        const double tol        = 1e-12; /*--- Tolerance of the Newton method ---*/
+        const double lambda     = 0.9;   /*--- Parameter for bound preserving strategy ---*/
         std::size_t Newton_iter = 0;
         bool relaxation_applied = true;
 

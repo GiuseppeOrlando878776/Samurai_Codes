@@ -4,13 +4,10 @@ project(two_scale_capillarity)
 
 find_package(samurai)
 find_package(CLI11)
+find_package(MPI)
 
 include(FindPkgConfig)
 pkg_check_modules(PETSC PETSc)
-
-if(PETSC_FOUND)
-    find_package(MPI)
-endif()
 
 set(CMAKE_CXX_STANDARD 17)
 

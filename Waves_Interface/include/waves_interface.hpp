@@ -7,16 +7,16 @@
 #include <samurai/bc.hpp>
 #include <samurai/box.hpp>
 #include <samurai/field.hpp>
-#include <samurai/hdf5.hpp>
+#include <samurai/io/hdf5.hpp>
 #include <numbers>
 
 #include <filesystem>
 namespace fs = std::filesystem;
 
-// Add header file for the multiresolution
+/*--- Add header file for the multiresolution ---*/
 #include <samurai/mr/adapt.hpp>
 
-// Add header with auxiliary structs
+/*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
 
 // Include the headers with the numerical fluxes
@@ -29,10 +29,10 @@ namespace fs = std::filesystem;
   #include "Exact_Godunov_flux.hpp"
 #endif
 
-// Define preprocessor to check whether to control data or not
+/*--- Define preprocessor to check whether to control data or not ---*/
 #define VERBOSE
 
-// Auxiliary function to compute the regualized Heaviside
+/*--- Auxiliary function to compute the regualized Heaviside ---*/
 template<typename T = double>
 T CHeaviside(const T x, const T eps) {
   if(x < -eps) {
@@ -48,8 +48,7 @@ T CHeaviside(const T x, const T eps) {
   //return 0.5 + 0.5*std::tanh(8.0*(x/eps + 0.5));
 }
 
-// Specify the use of this namespace where we just store the indices
-// and, in this case, some parameters related to EOS
+/*--- Specify the use of this namespace where we just store the indices ---*/
 using namespace EquationData;
 
 /** This is the class for the simulation of a model
@@ -60,44 +59,44 @@ class WaveInterface {
 public:
   using Config = samurai::MRConfig<dim, 2, 2, 2>;
 
-  WaveInterface() = default; // Default constructor. This will do nothing
-                             // and basically will never be used
+  WaveInterface() = default; /*--- Default constructor. This will do nothing
+                                   and basically will never be used ---*/
 
   WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                 const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                 const Simulation_Parameters& sim_param,
-                const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
-                                                  // to the grid and to the physics.
+                const EOS_Parameters& eos_param); /*--- Class constrcutor with the arguments related
+                                                        to the grid and to the physics ---*/
 
-  void run(); // Function which actually executes the temporal loop
+  void run(); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const fs::path& path,
             const std::string& suffix,
-            const Variables&... fields); // Routine to save the results
+            const Variables&... fields); /*--- Routine to save the results ---*/
 
 private:
   /*--- Now we declare some relevant variables ---*/
   const samurai::Box<double, dim> box;
 
-  samurai::MRMesh<Config> mesh; // Variable to store the mesh
+  samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
   using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
   using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
   using Field_Vect   = samurai::Field<decltype(mesh), typename Field::value_type, dim, false>;
 
-  bool apply_relax; // Choose whether to apply or not the relaxation
+  bool apply_relax; /*--- Choose whether to apply or not the relaxation ---*/
 
-  double Tf;  // Final time of the simulation
-  double cfl; // Courant number of the simulation so as to compute the time step
+  double Tf;  /*--- Final time of the simulation ---*/
+  double cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
 
-  std::size_t nfiles; // Number of files desired for output
+  std::size_t nfiles; /*--- Number of files desired for output ---*/
 
-  Field conserved_variables; // The variable which stores the conserved variables,
-                             // namely the varialbes for which we solve a PDE system
+  Field conserved_variables; /*--- The variable which stores the conserved variables,
+                                   namely the varialbes for which we solve a PDE system ---*/
 
-  // Now we declare a bunch of fields which depend from the state, but it is useful
-  // to have it so as to avoid recomputation
+  /*--- Now we declare a bunch of fields which depend from the state, but it is useful
+        to have it so as to avoid recomputation ---*/
   Field_Scalar alpha1,
                dalpha1,
                p1,
@@ -111,31 +110,32 @@ private:
   Field_Vect   u;
 
   LinearizedBarotropicEOS<typename Field::value_type> EOS_phase1,
-                                                      EOS_phase2; // The two variables which take care of the
-                                                                  // barotropic EOS to compute the speed of sound
+                                                      EOS_phase2; /*--- The two variables which take care of the
+                                                                        barotropic EOS to compute the speed of sound ---*/
   #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
+    samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux ---*/
   #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
+    samurai::GodunovFlux<Field> Godunov_flux; /*--- Auxiliary variable to compute the flux ---*/
   #endif
 
-  std::string filename; // Auxiliary variable to store the name of output
+  std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
-  const double MR_param; // Multiresolution parameter
-  const double MR_regularity; // Multiresolution regularity
+  const double MR_param; /*--- Multiresolution parameter ---*/
+  const double MR_regularity; /*--- Multiresolution regularity ---*/
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
-  void init_variables(const double eps_interface_over_dx); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+  void init_variables(const double eps_interface_over_dx); /*--- Routine to initialize the variables
+                                                                 (both conserved and auxiliary, this is problem dependent) ---*/
 
-  double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
+  double get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
 
   #ifdef VERBOSE
-    void check_data(unsigned int flag = 0); // Numerical artefact to avoid spurious small negative values
+    void check_data(unsigned int flag = 0); /*--- Check if small negative values arise ---*/
   #endif
 
-  void perform_mesh_adaptation(); // Perform the mesh adaptation
+  void perform_mesh_adaptation(); /*--- Perform the mesh adaptation ---*/
 
-  void apply_relaxation(); // Apply the relaxation
+  void apply_relaxation(); /*--- Apply the relaxation ---*/
 };
 
 /*---- START WITH THE IMPLEMENTATION OF THE CONSTRUCTOR ---*/
@@ -159,8 +159,12 @@ WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim
   #endif
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
-    std::cout << "Initializing variables " << std::endl;
-    std::cout << std::endl;
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if(rank == 0) {
+      std::cout << "Initializing variables " << std::endl;
+      std::cout << std::endl;
+    }
     init_variables(sim_param.eps_interface_over_dx);
   }
 
@@ -168,7 +172,7 @@ WaveInterface<dim>::WaveInterface(const xt::xtensor_fixed<double, xt::xshape<dim
 //
 template<std::size_t dim>
 void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
-  // Create conserved and auxiliary fields
+  /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
   alpha1   = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
@@ -185,13 +189,13 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
 
   u          = samurai::make_field<typename Field::value_type, dim>("u", mesh);
 
-  // Declare some constant parameters associated to the grid and to the
-  // initial state
+  /*--- Declare some constant parameters associated to the grid and to the
+        initial state ---*/
   const double x_interface   = 0.7;
   const double dx            = mesh.cell_length(mesh.max_level());
   const double eps_interface = eps_interface_over_dx*dx;
 
-  // Initialize some fields to define the bubble with a loop over all cells
+  /*--- Initialize some fields to define the bubble with a loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -244,7 +248,7 @@ void WaveInterface<dim>::init_variables(const double eps_interface_over_dx) {
                                                           (1.0 - alpha1[cell])/(rho2*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2)))));
                          });
 
-  // Consider Neumann bcs
+  /*--- Consider Neumann bcs ---*/
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0);
 }
 
@@ -259,14 +263,14 @@ double WaveInterface<dim>::get_max_lambda() const {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Compute the velocity
+                           /*--- Compute the velocity ---*/
                            const auto rho_    = conserved_variables[cell][M1_INDEX]
                                               + conserved_variables[cell][M2_INDEX];
                            const auto alpha1_ = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho_;
 
                            const auto vel = conserved_variables[cell][RHO_U_INDEX]/rho_;
 
-                           // Compute frozen speed of sound
+                           /*--- Compute frozen speed of sound ---*/
                            const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1_;
                            /*--- TODO: Add a check in case of zero volume fraction ---*/
                            const auto rho2      = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1_);
@@ -277,7 +281,7 @@ double WaveInterface<dim>::get_max_lambda() const {
                                                   EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
                            const auto c         = std::sqrt(c_squared/rho_);
 
-                           // Update eigenvalue estimate
+                           /*--- Update eigenvalue estimate ---*/
                            res = std::max(std::abs(vel) + c, res);
                          });
 
@@ -292,7 +296,7 @@ void WaveInterface<dim>::perform_mesh_adaptation() {
   auto MRadaptation = samurai::make_MRAdapt(alpha1);
   MRadaptation(MR_param, MR_regularity, conserved_variables);
 
-  // Sanity check after mesh adaptation
+  /*--- Sanity check after mesh adaptation ---*/
   #ifdef VERBOSE
     check_data(1);
   #endif
@@ -343,7 +347,7 @@ void WaveInterface<dim>::apply_relaxation() {
   const double tol    = 1e-12; // Tolerance of the Newton method
   const double lambda = 0.9;   // Parameter for bound preserving strategy
 
-  // Loop of Newton method.
+  /*--- Loop of Newton method ---*/
   std::size_t Newton_iter = 0;
   bool relaxation_applied = true;
   while(relaxation_applied == true) {
@@ -402,7 +406,7 @@ void WaveInterface<dim>::save(const fs::path& path,
 //
 template<std::size_t dim>
 void WaveInterface<dim>::run() {
-  // Default output arguemnts
+  /*--- Default output arguemnts ---*/
   fs::path path = fs::current_path();
   filename = "waves_interface";
   #ifdef RUSANOV_FLUX
@@ -422,30 +426,38 @@ void WaveInterface<dim>::run() {
 
   const double dt_save = Tf/static_cast<double>(nfiles);
 
-  // Auxiliary variable to save updated fields
+  /*--- Auxiliary variable to save updated fields ---*/
   #ifdef ORDER_2
     auto conserved_variables_tmp   = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
     auto conserved_variables_tmp_2 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp_2", mesh);
   #endif
   auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
-  // Create the flux variable
+  /*--- Create the flux variable ---*/
   #ifdef RUSANOV_FLUX
     auto numerical_flux = Rusanov_flux.make_flux();
   #elifdef GODUNOV_FLUX
     auto numerical_flux = Godunov_flux.make_flux();
   #endif
 
-  // Save the initial condition
+  /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, suffix_init, conserved_variables, alpha1, rho, p1, p2, p, p_minus_p0, u, c_frozen, c_Wood);
 
-  // Start the loop
+  /*--- Set mesh size ---*/
   const double dx = mesh.cell_length(mesh.max_level());
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
-  std::cout << "Number of elements = " << mesh[mesh_id_t::cells].nb_cells() << std::endl;
-  std::cout << std::endl;
+  const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
+  unsigned int n_elements;
+  MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
+  if(rank == 0) {
+    std::cout << "Number of elements = " <<  n_elements << std::endl;
+    std::cout << std::endl;
+  }
 
+  /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   double t          = 0.0;
@@ -457,12 +469,15 @@ void WaveInterface<dim>::run() {
       t = Tf;
     }
 
-    std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if(rank == 0) {
+      std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    }
 
-    /*--- Apply mesh adaptation ---*/
+    // Apply mesh adaptation
     perform_mesh_adaptation();
 
-    /*--- Apply the numerical scheme without relaxation ---*/
+    // Apply the numerical scheme without relaxation
     samurai::update_ghost_mr(conserved_variables);
     try {
       auto flux_conserved = numerical_flux(conserved_variables);
@@ -485,7 +500,7 @@ void WaveInterface<dim>::run() {
       check_data();
     #endif
 
-    /*--- Apply relaxation ---*/
+    // Apply relaxation
     if(apply_relax) {
       // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
       // concerns next time step, rho_alpha1
@@ -503,7 +518,7 @@ void WaveInterface<dim>::run() {
       apply_relaxation();
     }
 
-    /*--- Consider the second stage for the second order ---*/
+    // Consider the second stage for the second order
     #ifdef ORDER_2
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
@@ -540,10 +555,10 @@ void WaveInterface<dim>::run() {
       }
     #endif
 
-    /*--- Compute updated time step ---*/
+    // Compute updated time step
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
-    /*--- Save the results ---*/
+    // Save the results
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
 

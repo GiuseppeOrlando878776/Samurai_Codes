@@ -160,8 +160,12 @@ StaticBubble<dim>::StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>
   #endif
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, eps_nan, mod_grad_alpha1_bar_min)
   {
-    std::cout << "Initializing variables " << std::endl;
-    std::cout << std::endl;
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if(rank == 0) {
+      std::cout << "Initializing variables " << std::endl;
+      std::cout << std::endl;
+    }
     init_variables(sim_param.L, sim_param.eps_over_R);
   }
 
@@ -617,7 +621,10 @@ void StaticBubble<dim>::run() {
       t = Tf;
     }
 
-    std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if(rank == 0) {
+      std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    }
 
     // Apply mesh adaptation
     perform_mesh_adaptation(filename);

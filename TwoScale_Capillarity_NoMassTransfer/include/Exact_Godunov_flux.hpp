@@ -21,19 +21,19 @@ namespace samurai {
     GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
                 const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                 const double sigma_,
-                const double mod_grad_alpha1_min_); // Constructor which accepts in inputs the equations of state of the two phases
+                const double mod_grad_alpha1_min_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Field_Scalar>
-      auto make_two_scale_capillarity(const Field_Scalar& H); // Compute the flux over all the directions
+      auto make_two_scale_capillarity(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
     #else
-      auto make_two_scale_capillarity(); // Compute the flux over all the directions
+      auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
     #endif
 
   private:
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d); // Godunov flux for the along direction curr_d
+                                                               const std::size_t curr_d); /*--- Godunov flux for the along direction curr_d ---*/
 
     void solve_p_star(const FluxValue<typename Flux<Field>::cfg>& qL,
                       const FluxValue<typename Flux<Field>::cfg>& qR,
@@ -41,7 +41,7 @@ namespace samurai {
                       const typename Field::value_type vel_d_L,
                       const typename Field::value_type p0_L,
                       const typename Field::value_type p0_R,
-                      typename Field::value_type& p_star); // Newton method to compute p* in the exact solver for the hyperbolic part
+                      typename Field::value_type& p_star); /*--- Newton method to compute p* in the exact solver for the hyperbolic part ---*/
   };
 
   // Constructor derived from the base class
@@ -69,7 +69,7 @@ namespace samurai {
 
     typename Field::value_type dp_star = std::numeric_limits<typename Field::value_type>::infinity();
 
-    // Left state useful variables
+    /*--- Left state useful variables ---*/
     const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
     const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
     const auto rho1_L      = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
@@ -80,7 +80,7 @@ namespace samurai {
     const auto p_L         = alpha1_L*this->phase1.pres_value(rho1_L)
                            + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L);
 
-    // Right state useful variables
+    /*--- Right state useful variables ---*/
     const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
     const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
     const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
@@ -109,7 +109,7 @@ namespace samurai {
       F_p_star -= (p_star - p_R)/std::sqrt(rho_R*(p_star - p0_R));
     }
 
-    // Loop of Newton method to compute p*
+    /*--- Loop of Newton method to compute p* ---*/
     std::size_t Newton_iter = 0;
     while(Newton_iter < max_iters && std::abs(F_p_star) > tol*std::abs(vel_d_L) && std::abs(dp_star/p_star) > tol) {
       Newton_iter++;
@@ -170,7 +170,7 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> GodunovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                  const std::size_t curr_d) {
-    // Verify if left and right state are coherent
+    /*--- Verify if left and right state are coherent ---*/
     #ifdef VERBOSE_FLUX
       if(qL(M1_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(qL(M1_INDEX))));
@@ -193,7 +193,7 @@ namespace samurai {
       }
     #endif
 
-    // Compute the intermediate state (either shock or rarefaction)
+    /*--- Compute the intermediate state (either shock or rarefaction) ---*/
     FluxValue<typename Flux<Field>::cfg> q_star = qL;
 
     // Left state useful variables
@@ -281,7 +281,7 @@ namespace samurai {
           }
         }
       }
-      // 3-waves left fan
+      // 3-wave left fan
       else {
         // Left of the left fan is qL, already assigned. Now we need to check if we are in
         // the left fan or at the right of the left fan
@@ -357,7 +357,7 @@ namespace samurai {
           }
         }
       }
-      // 3-waves right fan
+      // 3-wave right fan
       else {
         const auto sH_R = vel_d_R + c_R;
         auto sT_R       = std::numeric_limits<double>::infinity();
@@ -404,7 +404,7 @@ namespace samurai {
       }
     }
 
-    // Compute the hyperbolic contribution to the flux
+    /*--- Compute the hyperbolic contribution to the flux ---*/
     return this->evaluate_hyperbolic_operator(q_star, curr_d);
   }
 
@@ -420,52 +420,44 @@ namespace samurai {
   {
     FluxDefinition<typename Flux<Field>::cfg> Godunov_f;
 
-    // Perform the loop over each dimension to compute the flux contribution
+    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;
 
         // Compute now the "discrete" flux function, in this case a Godunov flux
-        Godunov_f[d].cons_flux_function = [&](auto& cells, const Field& field)
-                                          {
-                                            #ifdef ORDER_2
-                                              // Compute the stencil
-                                              const auto& left_left   = cells[0];
-                                              const auto& left        = cells[1];
-                                              const auto& right       = cells[2];
-                                              const auto& right_right = cells[3];
+        Godunov_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
+                                              const StencilData<typename Flux<Field>::cfg>& data,
+                                              const StencilValues<typename Flux<Field>::cfg> field)
+                                              {
+                                                #ifdef ORDER_2
+                                                  // MUSCL reconstruction
+                                                  const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                              // MUSCL reconstruction
-                                              const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
-                                              const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
-                                              const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
-                                              const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
+                                                  FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                       primR_recon;
+                                                  this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                               primL_recon, primR_recon);
 
-                                              FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                   primR_recon;
-                                              this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                           primL_recon, primR_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                              FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                              FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                  #ifdef RELAX_RECONSTRUCTION
+                                                    this->relax_reconstruction(qL, H[data.cells[1]]);
+                                                    this->relax_reconstruction(qR, H[data.cells[2]]);
+                                                  #endif
+                                                #else
+                                                  // Compute the stencil and extract state
+                                                  const FluxValue<typename Flux<Field>::cfg> qL = field[0];
+                                                  const FluxValue<typename Flux<Field>::cfg> qR = field[1];
+                                                #endif
 
-                                              #ifdef RELAX_RECONSTRUCTION
-                                                this->relax_reconstruction(qL, H[left]);
-                                                this->relax_reconstruction(qR, H[right]);
-                                              #endif
-                                            #else
-                                              // Compute the stencil and extract state
-                                              const auto& left  = cells[0];
-                                              const auto& right = cells[1];
-
-                                              const FluxValue<typename Flux<Field>::cfg> qL = field[left];
-                                              const FluxValue<typename Flux<Field>::cfg> qR = field[right];
-                                            #endif
-
-                                            // Compute the numerical flux
-                                            return compute_discrete_flux(qL, qR, d);
-                                          };
+                                                flux = compute_discrete_flux(qL, qR, d);
+                                              };
     });
 
     return make_flux_based_scheme(Godunov_f);

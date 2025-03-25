@@ -9,9 +9,9 @@
 // Main function to run the program
 //
 int main(int argc, char* argv[]) {
-  CLI::App app{"Finite volume example for the waves-interface interaction"};
+  auto& app = samurai::initialize("Finite volume example for the waves-interface interaction", argc, argv);
 
-  // Set and declare simulation parameters related to mesh, final time and Courant
+  /*--- Set and declare simulation parameters related to mesh, final time and Courant ---*/
   Simulation_Parameters sim_param;
 
   sim_param.xL = 0.0;
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
-  // Set and declare simulation parameters related to EOS
+  /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters eos_param;
 
   eos_param.p0_phase1   = 1e5;
@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--rho0_phase2", eos_param.p0_phase2, "rho0_phase2")->capture_default_str()->group("EOS parameters");
   app.add_option("--c0_phase2", eos_param.c0_phase2, "c0_phase2")->capture_default_str()->group("EOS parameters");
 
-  // Create the instance of the class to perform the simulation
+  /*--- Create the instance of the class to perform the simulation ---*/
   CLI11_PARSE(app, argc, argv);
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
@@ -70,6 +70,8 @@ int main(int argc, char* argv[]) {
                                          sim_param, eos_param);
 
   WaveInterface_Sim.run();
+
+  samurai::finalize();
 
   return 0;
 }

@@ -9,8 +9,7 @@
 // Main function to run the program
 //
 int main(int argc, char* argv[]) {
-  CLI::App app{"Finite volume example for air-blasted liquid column "
-                "without mass transfer"};
+  auto& app = samurai::initialize("Finite volume example for air-blasted liquid column without mass transfer", argc, argv);
 
   // Set and declare simulation parameters related to mesh, final time and Courant
   Simulation_Paramaters sim_param;
@@ -30,7 +29,9 @@ int main(int argc, char* argv[]) {
 
   sim_param.nfiles = 10;
 
-  sim_param.sigma = 1e-2;
+  sim_param.R          = 0.15;
+  sim_param.eps_over_R = 0.2;
+  sim_param.sigma      = 1e-2;
 
   sim_param.apply_relaxation    = true;
   sim_param.eps_residual        = 1e-8;
@@ -40,8 +41,11 @@ int main(int argc, char* argv[]) {
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--yL", sim_param.xL, "y Bottom-end of the domain")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--yR", sim_param.xR, "y Top-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--yL", sim_param.yL, "y Bottom-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--yR", sim_param.yR, "y Top-end of the domain")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--R", sim_param.R, "Initial radius of the liquid column")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--eps_over_R", sim_param.eps_over_R,
+                 "Initial interface thickness with respect to the radius")->capture_default_str()->group("Simulation parameters");
   app.add_option("--sigma", sim_param.sigma, "Surface tension coefficient")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--eps_residual", sim_param.eps_residual, "Tolerance for residual volume fraction")->capture_default_str()->group("Simulation_Paramaters");
@@ -79,6 +83,8 @@ int main(int argc, char* argv[]) {
                                                      sim_param, eos_param);
 
   TwoScaleCapillarity_Sim.run();
+
+  samurai::finalize();
 
   return 0;
 }
