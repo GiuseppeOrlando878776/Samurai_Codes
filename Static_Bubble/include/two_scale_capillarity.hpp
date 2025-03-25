@@ -7,18 +7,18 @@
 #include <samurai/bc.hpp>
 #include <samurai/box.hpp>
 #include <samurai/field.hpp>
-#include <samurai/hdf5.hpp>
+#include <samurai/io/hdf5.hpp>
 
 #include <filesystem>
 namespace fs = std::filesystem;
 
-// Add header file for the multiresolution
+/*--- Add header file for the multiresolution ---*/
 #include <samurai/mr/adapt.hpp>
 
-// Add header with auxiliary structs
+/*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
 
-// Include the headers with the numerical fluxes
+/*--- Include the headers with the numerical fluxes ---*/
 //#define RUSANOV_FLUX
 #define GODUNOV_FLUX
 
@@ -27,6 +27,7 @@ namespace fs = std::filesystem;
 #elifdef GODUNOV_FLUX
   #include "Exact_Godunov_flux.hpp"
 #endif
+#include "SurfaceTension_flux.hpp"
 
 // Specify the use of this namespace where we just store the indices
 // and, in this case, some parameters related to EOS
@@ -37,53 +38,52 @@ using namespace EquationData;
 template<std::size_t dim>
 class StaticBubble {
 public:
-  using Config = samurai::MRConfig<dim, 2, 2, 2>;
+  using Config = samurai::MRConfig<dim, 2, 2, 0>;
 
-  StaticBubble() = default; // Default constructor. This will do nothing
-                            // and basically will never be used
+  StaticBubble() = default; /*--- Default constructor. This will do nothing
+                                  and basically will never be used ---*/
 
   StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                const Simulation_Paramaters& sim_param,
-               const EOS_Parameters& eos_param); // Class constrcutor with the arguments related
-                                                 // to the grid, to the physics and to the relaxation.
+               const EOS_Parameters& eos_param); /*--- Class constrcutor with the arguments related
+                                                       to the grid, to the physics and to the relaxation. ---*/
 
-  void run(); // Function which actually executes the temporal loop
+  void run(); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const fs::path& path,
             const std::string& filename,
             const std::string& suffix,
-            const Variables&... fields); // Routine to save the results
+            const Variables&... fields); /*--- Routine to save the results ---*/
 
 private:
   /*--- Now we declare some relevant variables ---*/
   const samurai::Box<double, dim> box;
 
   samurai::MRMesh<Config> mesh; // Variable to store the mesh
-  using mesh_id_t = typename decltype(mesh)::mesh_id_t;
 
   using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::Field<decltype(mesh), double, 1, false>;
-  using Field_Vect   = samurai::Field<decltype(mesh), double, dim, false>;
+  using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
+  using Field_Vect   = samurai::Field<decltype(mesh), typename Field::value_type, dim, false>;
 
-  bool apply_relax; // Choose whether to apply or not the relaxation
+  bool apply_relax; /*--- Choose whether to apply or not the relaxation ---*/
 
-  double Tf;  // Final time of the simulation
-  double cfl; // Courant number of the simulation so as to compute the time step
+  double Tf;  /*--- Final time of the simulation ---*/
+  double cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
 
-  std::size_t nfiles; // Number of files desired for output
+  std::size_t nfiles; /*--- Number of files desired for output ---*/
 
   double MR_param;
-  unsigned int MR_regularity; // multiresolution parameters
+  unsigned int MR_regularity; /*--- multiresolution parameters ---*/
 
-  Field conserved_variables; // The variable which stores the conserved variables,
-                             // namely the varialbes for which we solve a PDE system
+  Field conserved_variables; /*--- The variable which stores the conserved variables,
+                                   namely the varialbes for which we solve a PDE system ---*/
 
-  // Now we declare a bunch of fields which depend from the state, but it is useful
-  // to have it so as to avoid recomputation
+  /*--- Now we declare a bunch of fields which depend from the state, but it is useful
+        to have it so as to avoid recomputation ---*/
   Field_Scalar alpha1_bar,
-               H,
+               H_bar,
                dalpha1_bar,
                p1,
                p2,
@@ -98,38 +98,41 @@ private:
   using divergence_type = decltype(samurai::make_divergence_order2<decltype(normal)>());
   divergence_type divergence;
 
-  const double R; // Bubble radius
-  const double sigma; // Surface tension coefficient
+  const double R; /*--- Bubble radius ---*/
+  const double sigma; /*--- Surface tension coefficient ---*/
 
-  const double eps;                     // Tolerance when we want to avoid division by zero
-  const double mod_grad_alpha1_bar_min; // Minimum threshold for which not computing anymore the unit normal
+  const double eps_nan;                 /*--- Tolerance when we want to avoid division by zero ---*/
+  const double mod_grad_alpha1_bar_min; /*--- Minimum threshold for which not computing anymore the unit normal ---*/
 
   LinearizedBarotropicEOS<> EOS_phase1,
-                            EOS_phase2; // The two variables which take care of the
-                                        // barotropic EOS to compute the speed of sound
+                            EOS_phase2; /*--- The two variables which take care of the
+                                              barotropic EOS to compute the speed of sound ---*/
   #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> Rusanov_flux; // Auxiliary variable to compute the flux
+    samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux ---*/
   #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field> Godunov_flux; // Auxiliary variable to compute the flux
+    samurai::GodunovFlux<Field> Godunov_flux; /*--- Auxiliary variable to compute the flux ---*/
   #endif
+  samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
 
-  std::ofstream pressure_data;
+  std::ofstream pressure_data,
+                max_velocity;
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
-  void update_geometry(); // Auxiliary routine to compute normals and curvature
+  void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
 
-  void init_variables(); // Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
+  void init_variables(const double L, const double eps_over_R); /*--- Routine to initialize the variables
+                                                                      (both conserved and auxiliary, this is problem dependent) ---*/
 
-  double get_max_lambda() const; // Compute the estimate of the maximum eigenvalue
+  double get_max_lambda(const double time); /*--- Compute the estimate of the maximum eigenvalue ---*/
 
   void clear_data(const std::string& filename,
-                  unsigned int flag = 0); // Numerical artefact to avoid spurious small negative values
+                  unsigned int flag = 0); /*--- Numerical artefact to avoid spurious small negative values ---*/
 
-  void perform_mesh_adaptation(const std::string& filename); // Perform the mesh adaptation
+  void perform_mesh_adaptation(const std::string& filename); /*--- Perform the mesh adaptation ---*/
 
-  void apply_relaxation(); // Apply the relaxation
+  void apply_relaxation(); /*--- Apply the relaxation ---*/
 
-  void execute_postprocess(const double time); // Execute the postprocess
+  void execute_postprocess_pressure_jump(const double time); /*--- Execute the postprocess ---*/
 };
 
 /*---- START WITH THE IMPLEMENTATION OF THE CONSTRUCTOR ---*/
@@ -141,24 +144,25 @@ StaticBubble<dim>::StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>
                                 const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                                 const Simulation_Paramaters& sim_param,
                                 const EOS_Parameters& eos_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {false, false}),
+  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{true, true}}),
   apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf),
   cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   gradient(samurai::make_gradient_order2<decltype(alpha1_bar)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>()),
   R(sim_param.R), sigma(sim_param.sigma),
-  eps(sim_param.eps_nan), mod_grad_alpha1_bar_min(sim_param.mod_grad_alpha1_bar_min),
+  eps_nan(sim_param.eps_nan), mod_grad_alpha1_bar_min(sim_param.mod_grad_alpha1_bar_min),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, eps, mod_grad_alpha1_bar_min)
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, eps_nan, mod_grad_alpha1_bar_min),
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, eps, mod_grad_alpha1_bar_min)
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, eps_nan, mod_grad_alpha1_bar_min),
   #endif
+  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, eps_nan, mod_grad_alpha1_bar_min)
   {
     std::cout << "Initializing variables " << std::endl;
     std::cout << std::endl;
-    init_variables();
+    init_variables(sim_param.L, sim_param.eps_over_R);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -184,39 +188,38 @@ void StaticBubble<dim>::update_geometry() {
                            }
                          });
   samurai::update_ghost_mr(normal);
-  H = -divergence(normal);
+  H_bar = -divergence(normal);
 }
 
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void StaticBubble<dim>::init_variables() {
-  // Create conserved and auxiliary fields
-  conserved_variables = samurai::make_field<double, EquationData::NVARS>("conserved", mesh);
+void StaticBubble<dim>::init_variables(const double L, const double eps_over_R) {
+  /*--- Create conserved and auxiliary fields ---*/
+  conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  alpha1_bar      = samurai::make_field<double, 1>("alpha1_bar", mesh);
-  grad_alpha1_bar = samurai::make_field<double, dim>("grad_alpha1_bar", mesh);
-  normal          = samurai::make_field<double, dim>("normal", mesh);
-  H               = samurai::make_field<double, 1>("H", mesh);
+  alpha1_bar      = samurai::make_field<typename Field::value_type, 1>("alpha1_bar", mesh);
+  grad_alpha1_bar = samurai::make_field<typename Field::value_type, dim>("grad_alpha1_bar", mesh);
+  normal          = samurai::make_field<typename Field::value_type, dim>("normal", mesh);
+  H_bar           = samurai::make_field<typename Field::value_type, 1>("H_bar", mesh);
 
-  dalpha1_bar     = samurai::make_field<double, 1>("dalpha1_bar", mesh);
+  dalpha1_bar     = samurai::make_field<typename Field::value_type, 1>("dalpha1_bar", mesh);
 
-  p1              = samurai::make_field<double, 1>("p1", mesh);
-  p2              = samurai::make_field<double, 1>("p2", mesh);
-  p_bar           = samurai::make_field<double, 1>("p_bar", mesh);
+  p1              = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
+  p2              = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
+  p_bar           = samurai::make_field<typename Field::value_type, 1>("p_bar", mesh);
 
-  // Declare some constant parameters associated to the grid and to the
-  // initial state
-  const double L     = 0.75;
+  /*--- Declare some constant parameters associated to the grid and to the
+        initial state ---*/
   const double x0    = 0.5*L;
   const double y0    = 0.5*L;
-  const double eps_R = 0.6*R;
+  const double eps_R = eps_over_R*R;
 
   const double U_0 = 0.0;
   const double U_1 = 0.0;
   const double V   = 0.0;
 
-  // Initialize some fields to define the bubble with a loop over all cells
+  /*--- Initialize some fields to define the bubble with a loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -265,11 +268,11 @@ void StaticBubble<dim>::init_variables() {
                            p_bar[cell] = alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell];
                          });
 
-  // Compute the geometrical quantities
+  /*--- Compute the geometrical quantities ---*/
   update_geometry();
 
-  // Consider Dirichlet bcs
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+  /*--- Consider Dirichlet bcs ---*/
+  //samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
 }
 
 /*---- FOCUS NOW ON THE AUXILIARY FUNCTIONS ---*/
@@ -277,36 +280,43 @@ void StaticBubble<dim>::init_variables() {
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-double StaticBubble<dim>::get_max_lambda() const {
+double StaticBubble<dim>::get_max_lambda(const double time) {
   double res = 0.0;
+  typename Field::value_type max_abs_u = 0.0;
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Compute the velocity along both horizontal and vertical direction
+                           /*--- Compute the velocity along both horizontal and vertical direction ---*/
                            const auto rho   = conserved_variables[cell][M1_INDEX]
                                             + conserved_variables[cell][M2_INDEX]
                                             + conserved_variables[cell][M1_D_INDEX];
                            const auto vel_x = conserved_variables[cell][RHO_U_INDEX]/rho;
                            const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
 
-                           // Compute frozen speed of sound
+                           /*--- Compute frozen speed of sound ---*/
                            const auto alpha1    = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1      = (alpha1 > eps) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
+                           const auto rho1      = (alpha1 > eps_nan) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
                            const auto alpha2    = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
-                           const auto rho2      = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
+                           const auto rho2      = (alpha2 > eps_nan) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
                            const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                                                 + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
                            const auto c         = std::sqrt(c_squared/rho)/(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
 
-                           // Add term due to surface tension
+                           /*--- Add term due to surface tension ---*/
                            const double r = sigma*std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())/(rho*c*c);
 
-                           // Update eigenvalue estimate
+                           /*--- Update eigenvalue estimate ---*/
                            res = std::max(std::max(std::abs(vel_x) + c*(1.0 + 0.125*r),
                                                    std::abs(vel_y) + c*(1.0 + 0.125*r)),
                                           res);
+
+                           /*--- Maximum absolute value of the velocity ---*/
+                           max_abs_u = std::max(std::sqrt(vel_x*vel_x + vel_y*vel_y), max_abs_u);
                          });
+
+  /*--- Save in output max velocity ---*/
+  max_velocity << std::fixed << std::setprecision(12) << time << '\t' << max_abs_u << std::endl;
 
   return res;
 }
@@ -319,13 +329,13 @@ void StaticBubble<dim>::perform_mesh_adaptation(const std::string& filename) {
   auto MRadaptation = samurai::make_MRAdapt(grad_alpha1_bar);
   MRadaptation(MR_param, MR_regularity, conserved_variables);
 
-  // Sanity check (and numerical artefacts to clear data) after mesh adaptation
+  /*--- Sanity check (and numerical artefacts to clear data) after mesh adaptation ---*/
   alpha1_bar.resize();
   clear_data(filename, 1);
 
-  // Recompute geoemtrical quantities
+  /*--- Recompute geoemtrical quantities ---*/
   normal.resize();
-  H.resize();
+  H_bar.resize();
   grad_alpha1_bar.resize();
   update_geometry();
 }
@@ -420,8 +430,8 @@ void StaticBubble<dim>::apply_relaxation() {
   const double tol    = 1e-12; // Tolerance of the Newton method
   const double lambda = 0.9;   // Parameter for bound preserving strategy
 
-  // Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
-  // over each cell would be more logic, but this would lead to issues to call 'update_geometry'
+  /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
+        over each cell would be more logic, but this would lead to issues to call 'update_geometry' ---*/
   std::size_t Newton_iter = 0;
   bool relaxation_applied = true;
   while(relaxation_applied == true) {
@@ -434,11 +444,11 @@ void StaticBubble<dim>::apply_relaxation() {
                            {
                              #ifdef RUSANOV_FLUX
                                Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H[cell], dalpha1_bar[cell], alpha1_bar[cell],
+                                                                           H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
                                                                            relaxation_applied, tol, lambda);
                              #elifdef GODUNOV_FLUX
                                Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                           H[cell], dalpha1_bar[cell], alpha1_bar[cell],
+                                                                           H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
                                                                            relaxation_applied, tol, lambda);
                              #endif
 
@@ -451,7 +461,7 @@ void StaticBubble<dim>::apply_relaxation() {
     if(Newton_iter > 60) {
       std::cout << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "static_bubble", "_diverged",
-           conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H);
+           conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar);
       exit(1);
     }
   }
@@ -483,8 +493,8 @@ void StaticBubble<dim>::save(const fs::path& path,
 // Execute postprocessing
 //
 template<std::size_t dim>
-void StaticBubble<dim>::execute_postprocess(const double time) {
-  // Compute pressure fields
+void StaticBubble<dim>::execute_postprocess_pressure_jump(const double time) {
+  /*--- Compute pressure fields and maximum velocity ---*/
   p1.resize();
   p2.resize();
   p_bar.resize();
@@ -492,22 +502,22 @@ void StaticBubble<dim>::execute_postprocess(const double time) {
                          [&](const auto& cell)
                          {
                            const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1   = (alpha1 > eps) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
+                           const auto rho1   = (alpha1 > eps_nan) ? conserved_variables[cell][M1_INDEX]/alpha1 : nan("");
                            p1[cell]          = EOS_phase1.pres_value(rho1);
 
                            const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
-                           const auto rho2   = (alpha2 > eps) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
+                           const auto rho2   = (alpha2 > eps_nan) ? conserved_variables[cell][M2_INDEX]/alpha2 : nan("");
                            p2[cell]          = EOS_phase2.pres_value(rho2);
 
-                           p_bar[cell]       = (alpha1 > eps && alpha2 > eps) ?
+                           p_bar[cell]       = (alpha1 > eps_nan && alpha2 > eps_nan) ?
                                                alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell] :
-                                               ((alpha1 < eps) ? p2[cell] : p1[cell]);
+                                               ((alpha1 < eps_nan) ? p2[cell] : p1[cell]);
                          });
 
-  // Threshold to define internal pressure
+  /*--- Threshold to define internal pressure ---*/
   const double alpha1_int = 0.99;
 
-  // Compute average pressure withint the droplet
+  /*--- Compute average pressure withint the droplet ---*/
   double p_in_avg = 0.0;
   double volume   = 0.0;
   samurai::for_each_cell(mesh,
@@ -532,7 +542,7 @@ void StaticBubble<dim>::execute_postprocess(const double time) {
 //
 template<std::size_t dim>
 void StaticBubble<dim>::run() {
-  // Default output arguemnts
+  /*--- Default output arguemnts ---*/
   fs::path path = fs::current_path();
   std::string filename = "static_bubble";
   #ifdef RUSANOV_FLUX
@@ -552,40 +562,52 @@ void StaticBubble<dim>::run() {
 
   const double dt_save = Tf/static_cast<double>(nfiles);
 
-  // Auxiliary variables to save updated fields
+  /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp   = samurai::make_field<double, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_tmp_2 = samurai::make_field<double, EquationData::NVARS>("conserved_tmp_2", mesh);
+    auto conserved_variables_tmp   = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_tmp_2 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp_2", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_field<double, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
-  // Create the flux variable
+  /*--- Create the flux variables ---*/
   #ifdef RUSANOV_FLUX
     #ifdef ORDER_2
-      auto numerical_flux = Rusanov_flux.make_two_scale_capillarity(grad_alpha1_bar, H);
+      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity(H_bar);
     #else
-      auto numerical_flux = Rusanov_flux.make_two_scale_capillarity(grad_alpha1_bar);
+      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity();
     #endif
   #elifdef GODUNOV_FLUX
     #ifdef ORDER_2
-      auto numerical_flux = Godunov_flux.make_two_scale_capillarity(grad_alpha1_bar, H);
+      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity(H_bar);
     #else
-      auto numerical_flux = Godunov_flux.make_two_scale_capillarity(grad_alpha1_bar);
+      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
     #endif
   #endif
+  auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1_bar);
 
-  // Save the initial condition
+  /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, filename, suffix_init, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H, p1, p2, p_bar);
+  save(path, filename, suffix_init, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar);
   pressure_data.open("pressure_data.dat", std::ofstream::out);
   double t = 0.0;
-  execute_postprocess(t);
+  execute_postprocess_pressure_jump(t);
 
-  // Set initial time step
-  const double dx = samurai::cell_length(mesh[mesh_id_t::cells].max_level());
-  double dt       = std::min(Tf - t, cfl*dx/get_max_lambda());
+  /*--- Set initial time step ---*/
+  const double dx = mesh.cell_length(mesh.max_level());
+  max_velocity.open("max_velocity.dat", std::ofstream::out);
+  double dt = std::min(Tf - t, cfl*dx/get_max_lambda(t));
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  using mesh_id_t = typename decltype(mesh)::mesh_id_t;
+  const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
+  unsigned int n_elements;
+  MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
+  if(rank == 0) {
+    std::cout << "Number of elements = " <<  n_elements << std::endl;
+    std::cout << std::endl;
+  }
 
-  // Start the loop
+  /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   while(t != Tf) {
@@ -597,28 +619,39 @@ void StaticBubble<dim>::run() {
 
     std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
 
-    /*--- Apply mesh adaptation ---*/
+    // Apply mesh adaptation
     perform_mesh_adaptation(filename);
 
-    /*--- Apply the numerical scheme without relaxation ---*/
+    // Apply the numerical scheme without relaxation
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_bc(conserved_variables);
-    auto flux_conserved = numerical_flux(conserved_variables);
+    auto flux_hyp = numerical_flux_hyp(conserved_variables);
     #ifdef ORDER_2
       conserved_variables_tmp.resize();
-      conserved_variables_tmp = conserved_variables - dt*flux_conserved;
+      conserved_variables_tmp = conserved_variables - dt*flux_hyp;
       std::swap(conserved_variables.array(), conserved_variables_tmp.array());
     #else
       conserved_variables_np1.resize();
-      conserved_variables_np1 = conserved_variables - dt*flux_conserved;
+      conserved_variables_np1 = conserved_variables - dt*flux_hyp;
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
 
-    /*-- Clear data to avoid small spurious negative values and recompute geoemtrical quantities ---*/
+    // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
     clear_data(filename);
     update_geometry();
 
-    /*--- Apply relaxation ---*/
+    // Capillarity contribution
+    samurai::update_ghost_mr(grad_alpha1_bar);
+    auto flux_st = numerical_flux_st(conserved_variables);
+    #ifdef ORDER_2
+      conserved_variables_tmp_2.resize();
+      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+    #else
+      conserved_variables_np1 = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_np1.array());
+    #endif
+
+    // Apply relaxation
     if(apply_relax) {
       // Apply relaxation if desired, which will modify alpha1_bar and, consequently, for what
       // concerns next time step, rho_alpha1_bar (as well as grad_alpha1_bar).
@@ -632,21 +665,27 @@ void StaticBubble<dim>::run() {
       update_geometry();
     }
 
-    /*--- Consider the second stage for the second order ---*/
+    // Consider the second stage for the second order
     #ifdef ORDER_2
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_bc(conserved_variables);
-      flux_conserved = numerical_flux(conserved_variables);
-      conserved_variables_tmp_2.resize();
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_conserved;
+      flux_hyp = numerical_flux_hyp(conserved_variables);
+      conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
+      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+
+      // Check if spurious negative values arise and recompute geometrical quantities
+      clear_data(filename);
+      update_geometry();
+
+      // Capillarity contribution
+      samurai::update_ghost_mr(grad_alpha1_bar);
+      flux_st = numerical_flux_st(conserved_variables);
+      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
+
+      // Compute evaluation of the advection step
       conserved_variables_np1.resize();
       conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
-
-      // Clear data to avoid small spurious negative values and recompute geoemtrical quantities
-      clear_data(filename);
-      update_geometry();
 
       // Apply the relaxation
       if(apply_relax) {
@@ -662,19 +701,20 @@ void StaticBubble<dim>::run() {
       }
     #endif
 
-    /*--- Compute updated time step ---*/
-    dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+    // Compute updated time step
+    dt = std::min(Tf - t, cfl*dx/get_max_lambda(t));
 
-    /*--- Postprocess data ---*/
-    execute_postprocess(t);
+    // Postprocess data
+    execute_postprocess_pressure_jump(t);
 
-    /*--- Save the results ---*/
+    // Save the results
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, filename, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H, p1, p2, p_bar);
+      save(path, filename, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar);
     }
-  }
+  } /*--- end of the time loop ---*/
 
-  /*--- Close the file with pressure data ---*/
+  /*--- Close the output files ---*/
   pressure_data.close();
+  max_velocity.close();
 }
