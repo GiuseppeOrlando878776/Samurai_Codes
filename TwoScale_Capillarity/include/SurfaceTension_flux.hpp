@@ -19,7 +19,7 @@ namespace samurai {
     SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                        const LinearizedBarotropicEOS<>& EOS_phase2,
                        const double sigma_,
-                       const double eps_,
+                       const double eps_nan_,
                        const double mod_grad_alpha1_bar_min_,
                        const bool mass_transfer_,
                        const double kappa_,
@@ -29,16 +29,16 @@ namespace samurai {
                        const double alpha1_bar_max_ = 0.1,
                        const double lambda_ = 0.9,
                        const double tol_Newton_ = 1e-12,
-                       const std::size_t max_Newton_iters_ = 60); // Constructor which accepts in inputs the equations of state of the two phases
+                       const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Gradient>
-    auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); // Compute the flux over all the directions
+    auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); /*--- Compute the flux over all the directions ---*/
 
   private:
     template<typename Gradient>
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const Gradient& grad_alpha1_barL,
                                                                const Gradient& grad_alpha1_barR,
-                                                               const std::size_t curr_d); // Surface tension contribution along direction curr_d
+                                                               const std::size_t curr_d); /*--- Surface tension contribution along direction curr_d ---*/
   };
 
   // Constructor derived from the base class
@@ -47,7 +47,7 @@ namespace samurai {
   SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                                                 const LinearizedBarotropicEOS<>& EOS_phase2,
                                                 const double sigma_,
-                                                const double eps_,
+                                                const double eps_nan_,
                                                 const double mod_grad_alpha1_bar_min_,
                                                 const bool mass_transfer_,
                                                 const double kappa_,
@@ -59,7 +59,7 @@ namespace samurai {
                                                 const double tol_Newton_,
                                                 const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1, EOS_phase2,
-                sigma_, eps_, mod_grad_alpha1_bar_min_,
+                sigma_, eps_nan_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
                 lambda_, tol_Newton_, max_Newton_iters_) {}
@@ -82,26 +82,23 @@ namespace samurai {
   auto SurfaceTensionFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar) {
     FluxDefinition<typename Flux<Field>::cfg> SurfaceTension_f;
 
-    // Perform the loop over each dimension to compute the flux contribution
+    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;
 
         // Compute now the "discrete" flux function
-        SurfaceTension_f[d].cons_flux_function = [&](auto& cells, const Field& field)
+        SurfaceTension_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
+                                                     const StencilData<typename Flux<Field>::cfg>& data,
+                                                     const StencilValues<typename Flux<Field>::cfg> /*field*/)
                                                     {
-                                                      // Compute the stencil
-                                                      #ifdef ORDER_2
-                                                        const auto& left  = cells[1];
-                                                        const auto& right = cells[2];
-                                                      #else
-                                                        const auto& left  = cells[0];
-                                                        const auto& right = cells[1];
-                                                      #endif
-
                                                       // Compute the numerical flux
-                                                      return compute_discrete_flux(grad_alpha1_bar[left], grad_alpha1_bar[right], d);
+                                                      #ifdef ORDER_2
+                                                        flux = compute_discrete_flux(grad_alpha1_bar[data.cells[1]], grad_alpha1_bar[data.cells[2]], d);
+                                                      #else
+                                                        flux = compute_discrete_flux(grad_alpha1_bar[data.cells[0]], grad_alpha1_bar[data.cells[1]], d);
+                                                      #endif
                                                     };
     });
 

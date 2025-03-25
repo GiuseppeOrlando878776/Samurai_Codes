@@ -11,17 +11,17 @@
 template<typename T = double>
 class BarotropicEOS {
 public:
-  BarotropicEOS() = default; // Default constructor
+  BarotropicEOS() = default; /*--- Default constructor ---*/
 
-  BarotropicEOS(const BarotropicEOS&) = default; // Default copy-constructor
+  BarotropicEOS(const BarotropicEOS&) = default; /*--- Default copy-constructor ---*/
 
   virtual ~BarotropicEOS() = default;
 
-  virtual T pres_value(const T& rho) const = 0; // Function to compute the pressure from the density
+  virtual T pres_value(const T& rho) const = 0; /*--- Function to compute the pressure from the density ---*/
 
-  virtual T c_value(const T& rho) const = 0; // Function to compute the speed of sound
+  virtual T c_value(const T& rho) const = 0; /*--- Function to compute the speed of sound ---*/
 
-  virtual T rho_value(const T& pres) const = 0; // Function to compute the density from the pressure
+  virtual T rho_value(const T& pres) const = 0; /*--- Function to compute the density from the pressure ---*/
 };
 
 
@@ -31,35 +31,35 @@ public:
 template<typename T = double>
 class LinearizedBarotropicEOS: public BarotropicEOS<T> {
 public:
-  LinearizedBarotropicEOS() = default; // Default constructor
+  LinearizedBarotropicEOS() = default; /*--- Default constructor ---*/
 
-  LinearizedBarotropicEOS(const LinearizedBarotropicEOS&) = default; // Default copy-constructor
+  LinearizedBarotropicEOS(const LinearizedBarotropicEOS&) = default; /*--- Default copy-constructor ---*/
 
-  LinearizedBarotropicEOS(const double p0_, const double rho0_, const double c0_); // Constructor which accepts as arguments
-                                                                                   // reference pressure, density and speed of sound
+  LinearizedBarotropicEOS(const double p0_, const double rho0_, const double c0_); /*--- Constructor which accepts as arguments
+                                                                                         reference pressure, density and speed of sound ---*/
 
-  virtual T pres_value(const T& rho) const override; // Function to actually compute the pressure from the density
+  virtual T pres_value(const T& rho) const override; /*--- Function to actually compute the pressure from the density ---*/
 
-  virtual T c_value(const T& rho) const override; // Function to compute the speed of sound
+  virtual T c_value(const T& rho) const override; /*--- Function to compute the speed of sound ---*/
 
-  virtual T rho_value(const T& pres) const override; // Function to compute the density from the pressure
+  virtual T rho_value(const T& pres) const override; /*--- Function to compute the density from the pressure ---*/
 
-  inline double get_c0() const; // Get the speed of sound
+  inline double get_c0() const; /*--- Get the speed of sound ---*/
 
-  inline double get_p0() const; // Get the reference pressure
+  inline double get_p0() const; /*--- Get the reference pressure ---*/
 
-  inline double get_rho0() const; // Get the reference density
+  inline double get_rho0() const; /*--- Get the reference density ---*/
 
-  inline void set_c0(const double c0_); // Set the speed of sound
+  inline void set_c0(const double c0_); /*--- Set the speed of sound ---*/
 
-  inline void set_p0(const double p0_); // Set the reference pressure
+  inline void set_p0(const double p0_); /*--- Set the reference pressure ---*/
 
-  inline void set_rho0(const double rho0_); // Set the reference density
+  inline void set_rho0(const double rho0_); /*--- Set the reference density ---*/
 
 private:
-  double p0;   // Reference pressure
-  double rho0; // Reference density
-  double c0;   // Speed of sound
+  double p0;   /*--- Reference pressure ---*/
+  double rho0; /*--- Reference density ---*/
+  double c0;   /*--- Speed of sound ---*/
 };
 
 // Implement the constructor

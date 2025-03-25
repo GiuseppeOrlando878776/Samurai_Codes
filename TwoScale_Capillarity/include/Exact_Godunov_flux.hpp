@@ -19,7 +19,7 @@ namespace samurai {
     GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                 const LinearizedBarotropicEOS<>& EOS_phase2,
                 const double sigma_,
-                const double eps_,
+                const double eps_nan_,
                 const double mod_grad_alpha1_bar_min_,
                 const bool mass_transfer_,
                 const double kappa_,
@@ -30,25 +30,25 @@ namespace samurai {
                 const double lambda_ = 0.9,
                 const double tol_Newton_ = 1e-12,
                 const std::size_t max_Newton_iters_ = 60,
-                const double tol_Newton_p_star_ = 1e-8); // Constructor which accepts in inputs the equations of state of the two phases
+                const double tol_Newton_p_star_ = 1e-8); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Gradient, typename Field_Scalar>
       auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
-                                      const Field_Scalar& H_bar); // Compute the flux over all the directions
+                                      const Field_Scalar& H_bar); /*--- Compute the flux over all the directions --*/
     #else
-      auto make_two_scale_capillarity(); // Compute the flux over all the directions
+      auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
     #endif
 
   private:
-    const double tol_Newton_p_star; // Tolerance of the Newton method to compute p_star
+    const double tol_Newton_p_star; /*--- Tolerance of the Newton method to compute p_star ---*/
 
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d); // Godunov flux for the along direction curr_d
+                                                               const std::size_t curr_d); /*--- Godunov flux for the along direction curr_d ---*/
 
     void solve_alpha1_d_fan(const typename Field::value_type rhs,
-                            typename Field::value_type& alpha1_d); // Newton method to compute alpha1_d for the fan
+                            typename Field::value_type& alpha1_d); /*--- Newton method to compute alpha1_d for the fan ---*/
 
     void solve_p_star(const FluxValue<typename Flux<Field>::cfg>& qL,
                       const FluxValue<typename Flux<Field>::cfg>& qR,
@@ -56,7 +56,7 @@ namespace samurai {
                       const typename Field::value_type vel_d_L,
                       const typename Field::value_type p0_L,
                       const typename Field::value_type p0_R,
-                      typename Field::value_type& p_star); // Newton method to compute p* in the exact solver for the hyperbolic part
+                      typename Field::value_type& p_star); /*--- Newton method to compute p* in the exact solver for the hyperbolic part ---*/
   };
 
   // Constructor derived from the base class
@@ -65,7 +65,7 @@ namespace samurai {
   GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                                   const LinearizedBarotropicEOS<>& EOS_phase2,
                                   const double sigma_,
-                                  const double eps_,
+                                  const double eps_nan_,
                                   const double mod_grad_alpha1_bar_min_,
                                   const bool mass_transfer_,
                                   const double kappa_,
@@ -78,7 +78,7 @@ namespace samurai {
                                   const std::size_t max_Newton_iters_,
                                   const double tol_Newton_p_star_):
     Flux<Field>(EOS_phase1, EOS_phase2,
-                sigma_, eps_, mod_grad_alpha1_bar_min_,
+                sigma_, eps_nan_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
                 lambda_, tol_Newton_, max_Newton_iters_), tol_Newton_p_star(tol_Newton_p_star_) {}
@@ -93,9 +93,9 @@ namespace samurai {
     const auto alpha1_d_0 = alpha1_d;
     auto F_alpha1_d       = 1.0/(1.0 - alpha1_d);
 
-    // Loop of Newton method
+    /*--- Loop of Newton method ---*/
     std::size_t Newton_iter = 0;
-    while(Newton_iter < this->max_Newton_iters && alpha1_d > this->eps && 1.0 - alpha1_d > this->eps &&
+    while(Newton_iter < this->max_Newton_iters && alpha1_d > this->eps_nan && 1.0 - alpha1_d > this->eps_nan &&
           std::abs(F_alpha1_d - rhs) > this->tol_Newton*std::abs(rhs) && std::abs(dalpha1_d)/alpha1_d > this->tol_Newton) {
       Newton_iter++;
 
@@ -136,34 +136,34 @@ namespace samurai {
                                         typename Field::value_type& p_star) {
     typename Field::value_type dp_star = std::numeric_limits<typename Field::value_type>::infinity();
 
-    // Left state useful variables
+    /*--- Left state useful variables ---*/
     const auto rho_L        = qL(M1_INDEX) + qL(M2_INDEX) + qL(M1_D_INDEX);
     const auto alpha1_bar_L = qL(RHO_ALPHA1_BAR_INDEX)/rho_L;
     const auto alpha1_L     = alpha1_bar_L*(1.0 - qL(ALPHA1_D_INDEX));
-    const auto rho1_L       = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
+    const auto rho1_L       = (alpha1_L > this->eps_nan) ? qL(M1_INDEX)/alpha1_L : nan("");
     const auto alpha2_L     = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
-    const auto rho2_L       = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
+    const auto rho2_L       = (alpha2_L > this->eps_nan) ? qL(M2_INDEX)/alpha2_L : nan("");
     const auto c_squared_L  = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                             + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
-    const auto p_bar_L      = (alpha1_L > this->eps && alpha2_L > this->eps) ?
+    const auto p_bar_L      = (alpha1_L > this->eps_nan && alpha2_L > this->eps_nan) ?
                               alpha1_bar_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->phase2.pres_value(rho2_L) :
-                              ((alpha1_L < this->eps) ? this->phase2.pres_value(rho2_L) : this->phase1.pres_value(rho1_L));
+                              ((alpha1_L < this->eps_nan) ? this->phase2.pres_value(rho2_L) : this->phase1.pres_value(rho1_L));
 
-    // Right state useful variables
+    /*--- Right state useful variables ---*/
     const auto rho_R        = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
     const auto alpha1_bar_R = qR(RHO_ALPHA1_BAR_INDEX)/rho_R;
     const auto alpha1_R     = alpha1_bar_R*(1.0 - qR(ALPHA1_D_INDEX));
-    const auto rho1_R       = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
+    const auto rho1_R       = (alpha1_R > this->eps_nan) ? qR(M1_INDEX)/alpha1_R : nan("");
     const auto alpha2_R     = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
-    const auto rho2_R       = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
+    const auto rho2_R       = (alpha2_R > this->eps_nan) ? qR(M2_INDEX)/alpha2_R : nan("");
     const auto c_squared_R  = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                             + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
-    const auto p_bar_R      = (alpha1_R > this->eps && alpha2_R > this->eps) ?
+    const auto p_bar_R      = (alpha1_R > this->eps_nan && alpha2_R > this->eps_nan) ?
                               alpha1_bar_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->phase2.pres_value(rho2_R) :
-                              ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
+                              ((alpha1_R < this->eps_nan) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
 
     if(p_star <= p0_L || p_bar_L <= p0_L) {
       std::cerr << "Non-admissible value for the pressure at the beginning of the Newton method to compute p* in Godunov solver" << std::endl;
@@ -184,7 +184,7 @@ namespace samurai {
       F_p_star -= std::sqrt(1.0 - qR(ALPHA1_D_INDEX))*(p_star - p_bar_R)/std::sqrt(rho_R*(p_star - p0_R));
     }
 
-    // Loop of Newton method
+    /*--- Loop of Newton method ---*/
     std::size_t Newton_iter = 0;
     while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->tol_Newton_p_star*std::abs(vel_d_L) &&
           std::abs(dp_star/p_star) > this->tol_Newton_p_star) {
@@ -248,7 +248,7 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> GodunovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                  const std::size_t curr_d) {
-    // Compute the intermediate state (either shock or rarefaction)
+    /*--- Compute the intermediate state (either shock or rarefaction) ---*/
     FluxValue<typename Flux<Field>::cfg> q_star = qL;
 
     // Left state useful variables
@@ -256,9 +256,9 @@ namespace samurai {
     const auto vel_d_L      = qL(RHO_U_INDEX + curr_d)/rho_L;
     const auto alpha1_bar_L = qL(RHO_ALPHA1_BAR_INDEX)/rho_L;
     const auto alpha1_L     = alpha1_bar_L*(1.0 - qL(ALPHA1_D_INDEX));
-    const auto rho1_L       = (alpha1_L > this->eps) ? qL(M1_INDEX)/alpha1_L : nan("");
+    const auto rho1_L       = (alpha1_L > this->eps_nan) ? qL(M1_INDEX)/alpha1_L : nan("");
     const auto alpha2_L     = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
-    const auto rho2_L       = (alpha2_L > this->eps) ? qL(M2_INDEX)/alpha2_L : nan("");
+    const auto rho2_L       = (alpha2_L > this->eps_nan) ? qL(M2_INDEX)/alpha2_L : nan("");
     const auto c_squared_L  = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                             + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
@@ -268,20 +268,20 @@ namespace samurai {
     const auto vel_d_R      = qR(RHO_U_INDEX + curr_d)/rho_R;
     const auto alpha1_bar_R = qR(RHO_ALPHA1_BAR_INDEX)/rho_R;
     const auto alpha1_R     = alpha1_bar_R*(1.0 - qR(ALPHA1_D_INDEX));
-    const auto rho1_R       = (alpha1_R > this->eps) ? qR(M1_INDEX)/alpha1_R : nan("");
+    const auto rho1_R       = (alpha1_R > this->eps_nan) ? qR(M1_INDEX)/alpha1_R : nan("");
     const auto alpha2_R     = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
-    const auto rho2_R       = (alpha2_R > this->eps) ? qR(M2_INDEX)/alpha2_R : nan("");
+    const auto rho2_R       = (alpha2_R > this->eps_nan) ? qR(M2_INDEX)/alpha2_R : nan("");
     const auto c_squared_R  = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                             + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
     // Compute p*
-    const auto p_bar_L = (alpha1_L > this->eps && alpha2_L > this->eps) ?
+    const auto p_bar_L = (alpha1_L > this->eps_nan && alpha2_L > this->eps_nan) ?
                           alpha1_bar_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->phase2.pres_value(rho2_L) :
-                         ((alpha1_L < this->eps) ? this->phase2.pres_value(rho2_L) : this->phase1.pres_value(rho1_L));
-    const auto p_bar_R = (alpha1_R > this->eps && alpha2_R > this->eps) ?
+                         ((alpha1_L < this->eps_nan) ? this->phase2.pres_value(rho2_L) : this->phase1.pres_value(rho1_L));
+    const auto p_bar_R = (alpha1_R > this->eps_nan && alpha2_R > this->eps_nan) ?
                           alpha1_bar_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->phase2.pres_value(rho2_R) :
-                         ((alpha1_R < this->eps) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
+                         ((alpha1_R < this->eps_nan) ? this->phase2.pres_value(rho2_R) : this->phase1.pres_value(rho1_R));
 
     const auto p0_L = p_bar_L - rho_L*c_L*c_L;
     const auto p0_R = p_bar_R - rho_R*c_R*c_R;
@@ -304,8 +304,8 @@ namespace samurai {
         const auto m1_L_star       = qL(M1_INDEX)*r;
         const auto m2_L_star       = qL(M2_INDEX)*r;
         const auto alpha1_d_L_star = qL(ALPHA1_D_INDEX)*r;
-        const auto m1_d_L_star     = (qL(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_L_star*(qL(M1_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
-        const auto Sigma_d_L_star  = (qL(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_L_star*(qL(SIGMA_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
+        const auto m1_d_L_star     = (qL(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_L_star*(qL(M1_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
+        const auto Sigma_d_L_star  = (qL(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_L_star*(qL(SIGMA_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
         const auto rho_L_star      = m1_L_star + m2_L_star + m1_d_L_star;
 
         auto s_L = nan("");
@@ -351,8 +351,8 @@ namespace samurai {
                                      std::exp((vel_d_L - c_L*(1.0 - qL(ALPHA1_D_INDEX))/(1.0 - alpha1_d_L_fan))/(c_L*(1.0 - qL(ALPHA1_D_INDEX))));
           const auto m2_L_fan      = (1.0 - alpha1_d_L_fan)*(qL(M2_INDEX)/(1.0 - qL(ALPHA1_D_INDEX)))*
                                      std::exp((vel_d_L - c_L*(1.0 - qL(ALPHA1_D_INDEX))/(1.0 - alpha1_d_L_fan))/(c_L*(1.0 - qL(ALPHA1_D_INDEX))));
-          const auto m1_d_L_fan    = (qL(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_L_fan*(qL(M1_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
-          const auto Sigma_d_L_fan = (qL(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_L_fan*(qL(SIGMA_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
+          const auto m1_d_L_fan    = (qL(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_L_fan*(qL(M1_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
+          const auto Sigma_d_L_fan = (qL(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_L_fan*(qL(SIGMA_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
           const auto rho_L_fan     = m1_L_fan + m2_L_fan + m1_d_L_fan;
 
           q_star(M1_INDEX)             = m1_L_fan;
@@ -374,8 +374,8 @@ namespace samurai {
                                       std::exp((vel_d_L - u_star)/(c_L*(1.0 - qL(ALPHA1_D_INDEX))));
           const auto m2_L_star      = (1.0 - alpha1_d_L_star)*(qL(M2_INDEX)/(1.0 - qL(ALPHA1_D_INDEX)))*
                                       std::exp((vel_d_L - u_star)/(c_L*(1.0 - qL(ALPHA1_D_INDEX))));
-          const auto m1_d_L_star    = (qL(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_L_star*(qL(M1_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
-          const auto Sigma_d_L_star = (qL(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_L_star*(qL(SIGMA_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
+          const auto m1_d_L_star    = (qL(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_L_star*(qL(M1_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
+          const auto Sigma_d_L_star = (qL(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_L_star*(qL(SIGMA_D_INDEX)/qL(ALPHA1_D_INDEX)) : 0.0;
           const auto rho_L_star     = m1_L_star + m2_L_star + m1_d_L_star;
 
           q_star(M1_INDEX)             = m1_L_star;
@@ -403,8 +403,8 @@ namespace samurai {
         const auto m1_R_star       = qR(M1_INDEX)*r;
         const auto m2_R_star       = qR(M2_INDEX)*r;
         const auto alpha1_d_R_star = qR(ALPHA1_D_INDEX)*r;
-        const auto m1_d_R_star     = (qR(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_R_star*(qR(M1_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
-        const auto Sigma_d_R_star  = (qR(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_R_star*(qR(SIGMA_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
+        const auto m1_d_R_star     = (qR(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_R_star*(qR(M1_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
+        const auto Sigma_d_R_star  = (qR(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_R_star*(qR(SIGMA_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
         const auto rho_R_star      = m1_R_star + m2_R_star + m1_d_R_star;
 
         auto s_R = nan("");
@@ -459,8 +459,8 @@ namespace samurai {
                                      std::exp(-(vel_d_R + c_R*(1.0 - qR(ALPHA1_D_INDEX))/(1.0 - alpha1_d_R_fan))/(c_R*(1.0 - qR(ALPHA1_D_INDEX))));
           const auto m2_R_fan      = (1.0 - alpha1_d_R_fan)*(qR(M2_INDEX)/(1.0 - qR(ALPHA1_D_INDEX)))*
                                      std::exp(-(vel_d_R + c_R*(1.0 - qR(ALPHA1_D_INDEX))/(1.0 - alpha1_d_R_fan))/(c_R*(1.0 - qR(ALPHA1_D_INDEX))));
-          const auto m1_d_R_fan    = (qR(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_R_fan*(qR(M1_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
-          const auto Sigma_d_R_fan = (qR(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_R_fan*(qR(SIGMA_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
+          const auto m1_d_R_fan    = (qR(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_R_fan*(qR(M1_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
+          const auto Sigma_d_R_fan = (qR(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_R_fan*(qR(SIGMA_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
           const auto rho_R_fan     = m1_R_fan + m2_R_fan + m1_d_R_fan;
 
           q_star(M1_INDEX)             = m1_R_fan;
@@ -482,8 +482,8 @@ namespace samurai {
                                       std::exp(-(vel_d_R - u_star)/(c_R*(1.0 - qR(ALPHA1_D_INDEX))));
           const auto m2_R_star      = (1.0 - alpha1_d_R_star)*(qR(M2_INDEX)/(1.0 - qR(ALPHA1_D_INDEX)))*
                                       std::exp(-(vel_d_R - u_star)/(c_R*(1.0 - qR(ALPHA1_D_INDEX))));
-          const auto m1_d_R_star    = (qR(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_R_star*(qR(M1_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
-          const auto Sigma_d_R_star = (qR(ALPHA1_D_INDEX) > this->eps) ? alpha1_d_R_star*(qR(SIGMA_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
+          const auto m1_d_R_star    = (qR(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_R_star*(qR(M1_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
+          const auto Sigma_d_R_star = (qR(ALPHA1_D_INDEX) > this->eps_nan) ? alpha1_d_R_star*(qR(SIGMA_D_INDEX)/qR(ALPHA1_D_INDEX)) : 0.0;
           const auto rho_R_star     = m1_R_star + m2_R_star + m1_d_R_star;
 
           q_star(M1_INDEX)             = m1_R_star;
@@ -519,52 +519,45 @@ namespace samurai {
   {
     FluxDefinition<typename Flux<Field>::cfg> Godunov_f;
 
-    // Perform the loop over each dimension to compute the flux contribution
+    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {
         static constexpr int d = decltype(integral_constant_d)::value;
 
         // Compute now the "discrete" flux function, in this case a Godunov flux
-        Godunov_f[d].cons_flux_function = [&](auto& cells, const Field& field)
-                                          {
-                                            #ifdef ORDER_2
-                                              // Compute the stencil
-                                              const auto& left_left   = cells[0];
-                                              const auto& left        = cells[1];
-                                              const auto& right       = cells[2];
-                                              const auto& right_right = cells[3];
+        Godunov_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
+                                              const StencilData<typename Flux<Field>::cfg>& data,
+                                              const StencilValues<typename Flux<Field>::cfg> field)
+                                              {
+                                                #ifdef ORDER_2
+                                                  // MUSCL reconstruction
+                                                  const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                              // MUSCL reconstruction
-                                              const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[left_left]);
-                                              const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[left]);
-                                              const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[right]);
-                                              const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[right_right]);
+                                                  FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                       primR_recon;
+                                                  this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                               primL_recon, primR_recon);
 
-                                              FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                   primR_recon;
-                                              this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                           primL_recon, primR_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                              FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                              FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                  #ifdef RELAX_RECONSTRUCTION
+                                                    this->relax_reconstruction(qL, H_bar[data.cells[1]], grad_alpha1_bar[data.cells[1]]);
+                                                    this->relax_reconstruction(qR, H_bar[data.cells[2]], grad_alpha1_bar[data.cells[2]]);
+                                                  #endif
+                                                #else
+                                                  // Extract the states
+                                                  const FluxValue<typename Flux<Field>::cfg> qL = field[0];
+                                                  const FluxValue<typename Flux<Field>::cfg> qR = field[1];
+                                                #endif
 
-                                              #ifdef RELAX_RECONSTRUCTION
-                                                this->relax_reconstruction(qL, H_bar[left], grad_alpha1_bar[left]);
-                                                this->relax_reconstruction(qR, H_bar[right], grad_alpha1_bar[right]);
-                                              #endif
-                                            #else
-                                              // Compute the stencil and extract state
-                                              const auto& left  = cells[0];
-                                              const auto& right = cells[1];
-
-                                              const FluxValue<typename Flux<Field>::cfg> qL = field[left];
-                                              const FluxValue<typename Flux<Field>::cfg> qR = field[right];
-                                            #endif
-
-                                            // Compute the numerical flux
-                                            return compute_discrete_flux(qL, qR, d);
-                                          };
+                                                // Compute the numerical flux
+                                                flux = compute_discrete_flux(qL, qR, d);
+                                              };
     });
 
     return make_flux_based_scheme(Godunov_f);

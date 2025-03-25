@@ -7,6 +7,7 @@
 
 // Declare a struct with the simulation parameters
 // (domain, levels, final time, and Courant number)
+//
 struct Simulation_Paramaters {
   double xL;
   double xR;
@@ -18,6 +19,8 @@ struct Simulation_Paramaters {
   double      MR_param;
   double      MR_regularity;
 
+  double R;
+  double eps_over_R;
   double sigma;
 
   double Tf;
@@ -41,11 +44,10 @@ struct Simulation_Paramaters {
   double alpha1d_max;
   double alpha1_bar_min;
   double alpha1_bar_max;
-
-  double eps_over_R;
 };
 
 // Declare a struct with EOS parameters
+//
 struct EOS_Parameters {
   double p0_phase1;
   double rho0_phase1;
