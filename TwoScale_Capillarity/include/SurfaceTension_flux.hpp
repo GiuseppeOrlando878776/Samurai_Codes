@@ -19,7 +19,6 @@ namespace samurai {
     SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                        const LinearizedBarotropicEOS<>& EOS_phase2,
                        const double sigma_,
-                       const double eps_nan_,
                        const double mod_grad_alpha1_bar_min_,
                        const bool mass_transfer_,
                        const double kappa_,
@@ -47,7 +46,6 @@ namespace samurai {
   SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
                                                 const LinearizedBarotropicEOS<>& EOS_phase2,
                                                 const double sigma_,
-                                                const double eps_nan_,
                                                 const double mod_grad_alpha1_bar_min_,
                                                 const bool mass_transfer_,
                                                 const double kappa_,
@@ -59,7 +57,7 @@ namespace samurai {
                                                 const double tol_Newton_,
                                                 const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1, EOS_phase2,
-                sigma_, eps_nan_, mod_grad_alpha1_bar_min_,
+                sigma_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
                 lambda_, tol_Newton_, max_Newton_iters_) {}

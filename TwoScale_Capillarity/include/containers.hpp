@@ -28,7 +28,7 @@ struct Simulation_Paramaters {
 
   std::size_t nfiles;
 
-  double eps_nan;
+  double eps_residual;
   double mod_grad_alpha1_bar_min;
 
   double      tol_Newton_p_star;

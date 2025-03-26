@@ -46,26 +46,25 @@ auto Inlet(const Field& Q,
            const typename Field::value_type alpha1_bar_D,
            const typename Field::value_type alpha1_d_D,
            const typename Field::value_type rho1_d_D,
-           const typename Field::value_type Sigma_d_D,
-           const double eps) {
-  return[&Q, ux_D, uy_D, alpha1_bar_D, alpha1_d_D, rho1_d_D, Sigma_d_D, eps]
+           const typename Field::value_type Sigma_d_D) {
+  return[&Q, ux_D, uy_D, alpha1_bar_D, alpha1_d_D, rho1_d_D, Sigma_d_D]
   (const auto& /*normal*/, const auto& cell_in, const auto& /*coord*/)
   {
     /*--- Compute phasic pressures form the internal state ---*/
     const auto alpha1_bar = Q[cell_in](RHO_ALPHA1_BAR_INDEX)/
                             (Q[cell_in](M1_INDEX) + Q[cell_in](M2_INDEX) + Q[cell_in](M1_D_INDEX));
     const auto alpha1     = alpha1_bar*(1.0 - Q[cell_in](ALPHA1_D_INDEX));
-    const auto rho1       = (alpha1 > eps) ? Q[cell_in](M1_INDEX)/alpha1 : nan("");
+    const auto rho1       = Q[cell_in](M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
 
     const auto alpha2     = 1.0 - alpha1 - Q[cell_in](ALPHA1_D_INDEX);
-    const auto rho2       = (alpha2 > eps) ? Q[cell_in](M2_INDEX)/alpha2 : nan("");
+    const auto rho2       = Q[cell_in](M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
 
     /*--- Compute the corresponding ghost state ---*/
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::size>> Q_ghost;
     const auto alpha1_D           = alpha1_bar_D*(1.0 - alpha1_d_D);
     const auto alpha2_D           = 1.0 - alpha1_D - alpha1_d_D;
-    Q_ghost[M1_INDEX]             = (!std::isnan(rho1)) ? alpha1_D*rho1 : 0.0;
-    Q_ghost[M2_INDEX]             = (!std::isnan(rho2)) ? alpha2_D*rho2 : 0.0;
+    Q_ghost[M1_INDEX]             = alpha1_D*rho1;
+    Q_ghost[M2_INDEX]             = alpha2_D*rho2;
     Q_ghost[M1_D_INDEX]           = alpha1_d_D*rho1_d_D;
     Q_ghost[ALPHA1_D_INDEX]       = alpha1_d_D;
     Q_ghost[SIGMA_D_INDEX]        = Sigma_d_D;

@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
 
   sim_param.nfiles = 10;
 
-  sim_param.eps_nan                 = 1e-20;
+  sim_param.eps_residual            = 1e-8;
   sim_param.mod_grad_alpha1_bar_min = 0.0;
 
   sim_param.apply_relaxation  = true;
@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
                  "Initial interface thickness with respect to the radius")->capture_default_str()->group("Simulation parameters");
   app.add_option("--sigma", sim_param.sigma, "Surface tension coefficient")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Simulation_Paramaters");
-  app.add_option("--eps_nan", sim_param.eps_nan, "Tolerance for zero volume fraction")->capture_default_str()->group("Simulation_Paramaters");
+  app.add_option("--eps_residual", sim_param.eps_residual, "Residual large scale volume fraction")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--mod_grad_alpha1_bar_min", sim_param.mod_grad_alpha1_bar_min,
                  "Tolerance for zero gradient volume fraction")->capture_default_str()->group("Simulation_Paramaters");
   app.add_option("--lambda", sim_param.lambda,

@@ -66,7 +66,6 @@ namespace samurai {
     Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
          const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
          const double sigma_,
-         const double eps_nan_,
          const double mod_grad_alpha1_bar_min_,
          const bool mass_transfer_,
          const double kappa_,
@@ -95,7 +94,6 @@ namespace samurai {
 
     const double sigma; /*--- Surface tension parameter ---*/
 
-    const double eps_nan;                 /*--- Tolerance of pure phase to set NaNs ---*/
     const double mod_grad_alpha1_bar_min; /*--- Tolerance to compute the unit normal ---*/
 
     const bool   mass_transfer; /*--- Set whether to perform or not mass transfer ---*/
@@ -149,7 +147,6 @@ namespace samurai {
   Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
                     const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                     const double sigma_,
-                    const double eps_nan_,
                     const double mod_grad_alpha1_bar_min_,
                     const bool mass_transfer_,
                     const double kappa_,
@@ -161,7 +158,7 @@ namespace samurai {
                     const double tol_Newton_,
                     const std::size_t max_Newton_iters_):
     phase1(EOS_phase1), phase2(EOS_phase2),
-    sigma(sigma_), eps_nan(eps_nan_), mod_grad_alpha1_bar_min(mod_grad_alpha1_bar_min_),
+    sigma(sigma_), mod_grad_alpha1_bar_min(mod_grad_alpha1_bar_min_),
     mass_transfer(mass_transfer_), kappa(kappa_), Hmax(Hmax_),
     alpha1d_max(alpha1d_max_), alpha1_bar_min(alpha1_bar_min_), alpha1_bar_max(alpha1_bar_max_),
     lambda(lambda_), tol_Newton(tol_Newton_), max_Newton_iters(max_Newton_iters_) {}
@@ -211,16 +208,14 @@ namespace samurai {
     /*--- Compute and add the contribution due to the pressure ---*/
     const auto alpha1_bar = q(RHO_ALPHA1_BAR_INDEX)/rho;
     const auto alpha1     = alpha1_bar*(1.0 - q(ALPHA1_D_INDEX));
-    const auto rho1       = (alpha1 > eps_nan) ? q(M1_INDEX)/alpha1 : nan("");
+    const auto rho1       = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1         = phase1.pres_value(rho1);
 
     const auto alpha2     = 1.0 - alpha1 - q(ALPHA1_D_INDEX);
-    const auto rho2       = (alpha2 > eps_nan) ? q(M2_INDEX)/alpha2 : nan("");
+    const auto rho2       = q(M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p2         = phase2.pres_value(rho2);
 
-    const auto p_bar      = (alpha1 > eps_nan && alpha2 > eps_nan) ?
-                            alpha1_bar*p1 + (1.0 - alpha1_bar)*p2 :
-                            ((alpha1 < eps_nan) ? p2 : p1);
+    const auto p_bar      = alpha1_bar*p1 + (1.0 - alpha1_bar)*p2;
 
     res(RHO_U_INDEX + curr_d) += p_bar;
 
@@ -352,31 +347,22 @@ namespace samurai {
                                                    typename Field::value_type& alpha1_bar,
                                                    const Gradient& grad_alpha1_bar,
                                                    bool& relaxation_applied, const bool mass_transfer_NR) {
-    /*--- Reinitialization of partial masses in case of evanascent volume fraction ---*/
-    if(alpha1_bar < eps_nan) {
-      (*conserved_variables)(M1_INDEX) = alpha1_bar*phase1.get_rho0();
-    }
-    if(1.0 - alpha1_bar < eps_nan) {
-      (*conserved_variables)(M2_INDEX) = (1.0 - alpha1_bar)*phase2.get_rho0();
-    }
-
-    const auto rho = (*conserved_variables)(M1_INDEX)
-                   + (*conserved_variables)(M2_INDEX)
-                   + (*conserved_variables)(M1_D_INDEX);
-
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto alpha1 = alpha1_bar*(1.0 - (*conserved_variables)(ALPHA1_D_INDEX));
-    const auto rho1   = (alpha1 > eps_nan) ? (*conserved_variables)(M1_INDEX)/alpha1 : nan("");
+    const auto rho1   = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1     = phase1.pres_value(rho1);
 
     const auto alpha2 = 1.0 - alpha1 - (*conserved_variables)(ALPHA1_D_INDEX);
-    const auto rho2   = (alpha2 > eps_nan) ? (*conserved_variables)(M2_INDEX)/alpha2 : nan("");
+    const auto rho2   = (*conserved_variables)(M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p2     = phase2.pres_value(rho2);
 
-    const auto rho1d  = ((*conserved_variables)(M1_D_INDEX) > eps_nan && (*conserved_variables)(ALPHA1_D_INDEX) > eps_nan) ?
+    const auto rho1d  = ((*conserved_variables)(M1_D_INDEX) > 0.0 && (*conserved_variables)(ALPHA1_D_INDEX) > 0.0) ?
                         (*conserved_variables)(M1_D_INDEX)/(*conserved_variables)(ALPHA1_D_INDEX) : phase1.get_rho0();
 
     /*--- Prepare for mass transfer if desired ---*/
+    const auto rho = (*conserved_variables)(M1_INDEX)
+                   + (*conserved_variables)(M2_INDEX)
+                   + (*conserved_variables)(M1_D_INDEX);
     typename Field::value_type H_lim;
     if(mass_transfer_NR) {
       if(3.0/(kappa*rho1d)*rho1 - (1.0 - alpha1_bar)/(1.0 - (*conserved_variables)(ALPHA1_D_INDEX)) > 0.0 &&
@@ -404,8 +390,7 @@ namespace samurai {
                  - sigma*H_lim;
 
     // Perform the relaxation only where really needed
-    if(!std::isnan(F) && std::abs(F) > tol_Newton*std::min(phase1.get_p0(), sigma*H_lim) && std::abs(dalpha1_bar) > tol_Newton &&
-       alpha1_bar > eps_nan && 1.0 - alpha1_bar > eps_nan) {
+    if(!std::isnan(F) && std::abs(F) > tol_Newton*std::min(phase1.get_p0(), sigma*H_lim) && std::abs(dalpha1_bar) > tol_Newton) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
@@ -418,7 +403,7 @@ namespace samurai {
       auto dtau_ov_epsilon = std::numeric_limits<typename Field::value_type>::infinity();
 
       // Bound preserving condition for m1, velocity and small-scale volume fraction
-      if(dH > 0.0 && !std::isnan(rho1)) {
+      if(dH > 0.0) {
         // Bound preserving condition for m1
         dtau_ov_epsilon = lambda*(alpha1*(1.0 - alpha1_bar))/(sigma*dH);
         if(dtau_ov_epsilon < 0.0) {
@@ -564,7 +549,7 @@ namespace samurai {
 
     // Update "conservative counter part" of large-scale volume fraction.
     // Do it outside because this can change either because of relaxation of
-    // alpha1_bar or because of change of rho for evanescent volume fractions.
+    // alpha1_bar.
     (*conserved_variables)(RHO_ALPHA1_BAR_INDEX) = rho*alpha1_bar;
   }
 
