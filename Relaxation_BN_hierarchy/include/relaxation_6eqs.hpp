@@ -64,8 +64,6 @@ public:
             const Variables&... fields); // Routine to save the results
 
 private:
-  std::ofstream output_alpha1; // Auxiliary stream file to save minimum of alpha1
-
   /*--- Now we declare some relevant variables ---*/
   const samurai::Box<double, dim> box;
 
@@ -144,8 +142,6 @@ private:
 
   double get_max_lambda(); // Compute the estimate of the maximum eigenvalue
 
-  void get_min_alpha(const double time); // Compute the estimate of the maximum eigenvalue
-
   void update_pressure_before_relaxation(); // Update pressure fields before relaxation
 
   void apply_instantaneous_pressure_relaxation(); // Apply an instantaneous pressure relaxation (special choice of pI to have exact solution)
@@ -163,7 +159,6 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
                             const Simulation_Parameters& sim_param,
                             const EOS_Parameters& eos_param,
                             const Riemann_Parameters& Riemann_param):
-  output_alpha1("alpha1_min.dat", std::ofstream::out),
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false}}),
   Tf(sim_param.Tf), cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   apply_pressure_relax(sim_param.apply_pressure_relax),
@@ -626,6 +621,8 @@ double Relaxation<dim>::get_max_lambda() {
   p2.resize();
   c2.resize();
 
+  c.resize();
+
   // Loop over all cells to compute the estimate
   double res = 0.0;
 
@@ -657,34 +654,16 @@ double Relaxation<dim>::get_max_lambda() {
                            p2[cell]   = EOS_phase2.pres_value(rho2[cell], e2[cell]);
                            c2[cell]   = EOS_phase2.c_value(rho2[cell], p2[cell]);
 
+                           // Frozen speed of sound
+                           c[cell] = std::sqrt((conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho[cell])*c1[cell]*c1[cell] +
+                                               (1.0 - conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho[cell])*c2[cell]*c2[cell]);
+
                            // Update maximum eigenvalue estimate
-                           res = std::max(std::max(std::abs(vel[cell]) + c1[cell],
-                                                   std::abs(vel[cell]) + c2[cell]),
+                           res = std::max(std::abs(vel[cell]) + c[cell],
                                           res);
                          });
 
   return res;
-}
-
-// Compute the minimum of alpha1 over time
-//
-template<std::size_t dim>
-void Relaxation<dim>::get_min_alpha(const double time) {
-  // Loop over all cells to compute the estimate
-  typename Field::value_type alpha1_min = 1.0;
-
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                         {
-                           // Update minimum value of alpha1
-                           alpha1_min = std::min(alpha1_min, conserved_variables[cell][ALPHA1_INDEX]);
-                         });
-
-  // Save pressure difference (only one cell is present)
-  output_alpha1 << std::setprecision(12)
-                << std::setw(20) << std::left << time
-                << std::setw(20) << std::left << alpha1_min
-                << std::endl;
 }
 
 // Update auxiliary fields after solution of the system
@@ -702,7 +681,6 @@ void Relaxation<dim>::update_auxiliary_fields() {
 
   delta_pres.resize();
   p.resize();
-  c.resize();
 
   // Loop to update fields
   samurai::for_each_cell(mesh,
@@ -725,9 +703,6 @@ void Relaxation<dim>::update_auxiliary_fields() {
                            // Remaining mixture variables
                            p[cell] = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
                                    + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
-
-                           c[cell] = std::sqrt((conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho[cell])*c1[cell]*c1[cell] +
-                                               (1.0 - conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho[cell])*c2[cell]*c2[cell]);
                          });
 }
 
@@ -815,7 +790,6 @@ void Relaxation<dim>::run() {
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   double t          = 0.0;
-  get_min_alpha(t);
   dt                = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
     t += dt;
@@ -915,7 +889,6 @@ void Relaxation<dim>::run() {
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
     // Save the results
-    get_min_alpha(t);
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
 
