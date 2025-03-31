@@ -12,9 +12,9 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
-#define HLLC_FLUX
+//#define HLLC_FLUX
 //#define HLLC_NON_CONS_FLUX
-//#define HLL_FLUX
+#define HLL_FLUX
 //#define RUSANOV_FLUX
 
 #ifdef HLLC_FLUX
@@ -709,7 +709,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
 
                            // Remaining mixture variables
                            p[cell] = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
-                                   + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
+                                   + alpha2[cell]*p2[cell];
                          });
 }
 
@@ -786,8 +786,8 @@ void Relaxation<dim>::run() {
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, suffix_init,
        conserved_variables, rho, p, vel, c, delta_pres,
-       rho1, p1, c1, T1, e1, rho2,
-       p2, c2, T2, alpha2, Y2, e2);
+       rho1, p1, c1, T1, e1,
+       rho2, p2, c2, T2, alpha2, Y2, e2);
 
   /*--- Save mesh size (max level) ---*/
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
