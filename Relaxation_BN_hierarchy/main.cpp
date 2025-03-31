@@ -11,7 +11,7 @@
 int main(int argc, char* argv[]) {
   auto& app = samurai::initialize("Solver for 6-equation mixture-energy-consistent two-phase model", argc, argv);
 
-  // Set and declare simulation parameters related to mesh, final time and Courant
+  /*--- Set and declare simulation parameters related to mesh, final time and Courant ---*/
   Simulation_Parameters sim_param;
 
   sim_param.xL = 0.0;
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
-  // Set and declare simulation parameters related to EOS
+  /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters eos_param;
 
   eos_param.gamma_1    = 1.4;
@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--q_infty_2", eos_param.q_infty_2, "q_infty_2")->capture_default_str()->group("EOS parameters");
   app.add_option("--c_v_2", eos_param.c_v_2, "c_v_2")->capture_default_str()->group("EOS parameters");
 
-  // Set and declare simulation parameters related to initial condition
+  /*--- Set and declare simulation parameters related to initial condition ---*/
   Riemann_Parameters Riemann_param;
 
   Riemann_param.xd = 0.5;
@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--rho2R", Riemann_param.rho2R, "Initial density phase 2 at right")->capture_default_str()->group("Initial conditions");
   app.add_option("--p2R", Riemann_param.p2R, "Initial pressure phase 2 at right")->capture_default_str()->group("Initial conditions");
 
-  // Create the instance of the class to perform the simulation
+  /*--- Create the instance of the class to perform the simulation ---*/
   CLI11_PARSE(app, argc, argv);
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};

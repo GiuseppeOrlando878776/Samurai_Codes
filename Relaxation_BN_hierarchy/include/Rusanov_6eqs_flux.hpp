@@ -19,14 +19,14 @@ namespace samurai {
   class RusanovFlux: public Flux<Field> {
   public:
     RusanovFlux(const EOS<typename Field::value_type>& EOS_phase1,
-                const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in input the equations of state of the two phases
+                const EOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
-    auto make_flux(); // Compute the flux over all cells
+    auto make_flux(); /*--- Compute the flux over all cells ---*/
 
   private:
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d); // Rusanov flux along direction d
+                                                               const std::size_t curr_d); /*--- Rusanov flux along direction d ---*/
   };
 
   // Constructor derived from base class
@@ -42,11 +42,11 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> RusanovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                  std::size_t curr_d) {
-    // Save mixture density and velocity current direction left state
+    /*--- Save mixture density and velocity current direction left state ---*/
     const auto rhoL   = qL(ALPHA1_RHO1_INDEX) + qL(ALPHA2_RHO2_INDEX);
     const auto velL_d = qL(RHO_U_INDEX + curr_d)/rhoL;
 
-    // Left state phase 1
+    /*--- Left state phase 1 ---*/
     const auto rho1L = qL(ALPHA1_RHO1_INDEX)/qL(ALPHA1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1L         = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
@@ -55,7 +55,7 @@ namespace samurai {
     const auto p1L = this->phase1.pres_value(rho1L, e1L);
     const auto c1L = this->phase1.c_value(rho1L, p1L);
 
-    // Left state phase 2
+    /*--- Left state phase 2 ---*/
     const auto rho2L = qL(ALPHA2_RHO2_INDEX)/(1.0 - qL(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2L         = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
@@ -64,15 +64,15 @@ namespace samurai {
     const auto p2L = this->phase2.pres_value(rho2L, e2L);
     const auto c2L = this->phase2.c_value(rho2L, p2L);
 
-    // Compute frozen speed of sound left state
+    /*--- Compute frozen speed of sound left state ---*/
     const auto Y1L = qL(ALPHA1_RHO1_INDEX)/rhoL;
     const auto cL  = std::sqrt(Y1L*c1L*c1L + (1.0 - Y1L)*c2L*c2L);
 
-    // Save mixture density and velocity current direction right state
+    /*--- Save mixture density and velocity current direction right state ---*/
     const auto rhoR   = qR(ALPHA1_RHO1_INDEX) + qR(ALPHA2_RHO2_INDEX);
     const auto velR_d = qR(RHO_U_INDEX + curr_d)/rhoR;
 
-    // Right state phase 1
+    /*--- Right state phase 1 ---*/
     const auto rho1R = qR(ALPHA1_RHO1_INDEX)/qR(ALPHA1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1R         = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
@@ -81,7 +81,7 @@ namespace samurai {
     const auto p1R = this->phase1.pres_value(rho1R, e1R);
     const auto c1R = this->phase1.c_value(rho1R, p1R);
 
-    // Right state phase 2
+    /*--- Right state phase 2 ---*/
     const auto rho2R = qR(ALPHA2_RHO2_INDEX)/(1.0 - qR(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2R         = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
@@ -90,7 +90,7 @@ namespace samurai {
     const auto p2R = this->phase2.pres_value(rho2R, e2R);
     const auto c2R = this->phase2.c_value(rho2R, p2R);
 
-    // Compute frozen speed of sound right state
+    /*--- Compute frozen speed of sound right state ---*/
     const auto Y1R = qR(ALPHA1_RHO1_INDEX)/rhoR;
     const auto cR  = std::sqrt(Y1R*c1R*c1R + (1.0 - Y1R)*c2R*c2R);
 
