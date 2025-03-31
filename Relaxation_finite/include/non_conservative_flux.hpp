@@ -15,16 +15,16 @@ namespace samurai {
   template<class Field>
   class NonConservativeFlux: public Flux<Field> {
   public:
-    NonConservativeFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+    NonConservativeFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
-    auto make_flux(); // Compute the flux over all cells
+    auto make_flux(); /*--- Compute the flux over all cells ---*/
 
   private:
     void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                const FluxValue<typename Flux<Field>::cfg>& qR,
                                const std::size_t curr_d,
                                FluxValue<typename Flux<Field>::cfg>& F_minus,
-                               FluxValue<typename Flux<Field>::cfg>& F_plus); // Non-conservative flux
+                               FluxValue<typename Flux<Field>::cfg>& F_plus); /*--- Non-conservative flux ---*/
   };
 
   // Constructor derived from base class
@@ -41,13 +41,13 @@ namespace samurai {
                                                          const std::size_t curr_d,
                                                          FluxValue<typename Flux<Field>::cfg>& F_minus,
                                                          FluxValue<typename Flux<Field>::cfg>& F_plus) {
-    // Zero contribution from continuity equations
+    /*--- Zero contribution from continuity equations ---*/
     F_minus(ALPHA1_RHO1_INDEX) = 0.0;
     F_minus(ALPHA2_RHO2_INDEX) = 0.0;
     F_plus(ALPHA1_RHO1_INDEX)  = 0.0;
     F_plus(ALPHA2_RHO2_INDEX)  = 0.0;
 
-    // Interfacial velocity and interfacial pressure computed from left state
+    /*--- Interface velocity and interface pressure computed from left state ---*/
     const auto velIL = qL(ALPHA1_RHO1_U1_INDEX + curr_d)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto rho2L = qL(ALPHA2_RHO2_INDEX)/(1.0 - qL(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2L         = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -57,7 +57,7 @@ namespace samurai {
     }
     const auto pIL   = this->phase2.pres_value_Rhoe(rho2L, e2L);
 
-    // Interfacial velocity and interfacial pressure computed from right state
+    /*--- Interface velocity and interface pressure computed from right state ---*/
     const auto velIR = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto rho2R = qR(ALPHA2_RHO2_INDEX)/(1.0 - qR(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2R         = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -106,7 +106,7 @@ namespace samurai {
   auto NonConservativeFlux<Field>::make_flux() {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
-    // Perform the loop over each dimension to compute the flux contribution
+    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
       {

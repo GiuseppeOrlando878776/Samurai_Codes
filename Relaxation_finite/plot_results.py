@@ -28,7 +28,10 @@ def line_plot(ax, x, y):
         plot_ref = ax.plot(data_ref[:,0], data_ref[:,args.column_reference - 1], 'C3-', linewidth=1.5, markersize=3, alpha=0.5)[0]
 
     #Plot Samurai results
-    plot_samurai = ax.plot(x, y, 'C0o', linewidth=1, markersize=4, alpha=0.5)[0]
+    plot_samurai = ax.plot(x, y, 'C0-', linewidth=2, markersize=4, alpha=0.5)[0]
+    ax.tick_params(axis='x',labelsize=20)
+    ax.tick_params(axis='y',labelsize=20)
+    #ax.set_ylim(0, 1.2*10**5)
 
     #Add legend
     if args.reference is not None:
@@ -55,7 +58,7 @@ class Plot:
             for i, f in enumerate(args.field):
                 ax = plt.subplot(1, len(args.field), i + 1)
                 self.plot(ax, mesh, f)
-                ax.set_title(f)
+                ax.set_title(f, fontsize=20)
 
 
     def plot(self, ax, mesh, field=None, init=True):

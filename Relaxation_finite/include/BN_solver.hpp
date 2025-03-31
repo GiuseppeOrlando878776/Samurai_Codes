@@ -37,23 +37,23 @@ class BN_Solver {
 public:
   using Config = samurai::MRConfig<dim, 2>;
 
-  BN_Solver() = default; // Default constructor. This will do nothing
-                         // and basically will never be used
+  BN_Solver() = default; /*--- Default constructor. This will do nothing
+                               and basically will never be used ---*/
 
   BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
             const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
             const Simulation_Parameters& sim_param,
             const EOS_Parameters& eos_param,
-            const Riemann_Parameters& Riemann_param); // Class constrcutor with the arguments related
-                                                      // to the grid and to the physics.
+            const Riemann_Parameters& Riemann_param); /*--- Class constrcutor with the arguments related
+                                                            to the grid and to the physics. ---*/
 
-  void run(); // Function which actually executes the temporal loop
+  void run(); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const fs::path& path,
             const std::string& filename,
             const std::string& suffix,
-            const Variables&... fields); // Routine to save the results
+            const Variables&... fields); /*--- Routine to save the results ---*/
 
 private:
   std::ofstream output_data;
@@ -115,11 +115,14 @@ private:
                alpha2,
                T1,
                T2,
+               Y1,
+               Y2,
                delta_pres,
                delta_temp;
 
   Field_Vect vel1,
              vel2,
+             vel,
              delta_vel;
 
   Field_Scalar entropy_after_flux_phase1,
@@ -191,8 +194,8 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
   relax_instantaneous_velocity(sim_param.relax_instantaneous_velocity),
   tau_u(sim_param.tau_u), tau_p(sim_param.tau_p), tau_T(sim_param.tau_T),
   relax_velocity(sim_param.relax_velocity), relax_pressure(sim_param.relax_pressure), relax_temperature(sim_param.relax_temperature),
-  EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.cv_1),
-  EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.cv_2),
+  EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.c_v_1),
+  EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.c_v_2),
   #ifdef SULICIU_RELAXATION
     numerical_flux(EOS_phase1, EOS_phase2),
   #elifdef RUSANOV_FLUX
@@ -208,7 +211,7 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
 //
 template<std::size_t dim>
 void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
-  // Create conserved and auxiliary fields
+  /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
   rho  = samurai::make_field<typename Field::value_type, 1>("rho", mesh);
@@ -224,16 +227,20 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 
   vel1 = samurai::make_field<typename Field::value_type, dim>("vel1", mesh);
   vel2 = samurai::make_field<typename Field::value_type, dim>("vel2", mesh);
+  vel  = samurai::make_field<typename Field::value_type, 1>("vel", mesh);
 
   alpha2 = samurai::make_field<typename Field::value_type, 1>("alpha2", mesh);
-  T1     = samurai::make_field<typename Field::value_type, 1>("T1", mesh);
-  T2     = samurai::make_field<typename Field::value_type, 1>("T2", mesh);
+  Y1     = samurai::make_field<typename Field::value_type, 1>("Y1", mesh);
+  Y2     = samurai::make_field<typename Field::value_type, 1>("Y2", mesh);
+
+  T1 = samurai::make_field<typename Field::value_type, 1>("T1", mesh);
+  T2 = samurai::make_field<typename Field::value_type, 1>("T2", mesh);
 
   delta_pres = samurai::make_field<typename Field::value_type, 1>("delta_pres", mesh);
   delta_temp = samurai::make_field<typename Field::value_type, 1>("delta_temp", mesh);
   delta_vel  = samurai::make_field<typename Field::value_type, dim>("delta_vel", mesh);
 
-  // Create auxiliary fields to keep track of the entropy
+  /*--- Create auxiliary fields to keep track of the entropy ---*/
   entropy_after_flux_phase1            = samurai::make_field<typename Field::value_type, 1>("entropy_after_flux_phase1", mesh);
   entropy_production_flux_phase1       = samurai::make_field<typename Field::value_type, 1>("entropy_production_flux_phase1", mesh);
   entropy_after_relaxation_phase1      = samurai::make_field<typename Field::value_type, 1>("entropy_after_relaxation_phase1", mesh);
@@ -244,7 +251,7 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   entropy_after_relaxation_phase2      = samurai::make_field<typename Field::value_type, 1>("entropy_after_relaxation_phase2", mesh);
   entropy_production_relaxation_phase2 = samurai::make_field<typename Field::value_type, 1>("entropy_production_relaxation_phase2", mesh);
 
-  // Initialize the fields with a loop over all cells
+  /*--- Initialize the fields with a loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -302,6 +309,11 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            p[cell] = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
                                    + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
 
+                           Y1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho[cell];
+                           Y2[cell] = conserved_variables[cell][ALPHA2_RHO2_INDEX]/rho[cell];
+
+                           vel[cell] = Y1[cell]*vel1[cell] + Y2[cell]*vel2[cell];
+
                            // Save deltas
                            delta_pres[cell] = p1[cell] - p2[cell];
                            delta_temp[cell] = T1[cell] - T2[cell];
@@ -330,6 +342,7 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                        << std::endl;
                          });
 
+  /*--- Add boundary conditions ---*/
   const xt::xtensor_fixed<int, xt::xshape<1>> left{-1};
   const xt::xtensor_fixed<int, xt::xshape<1>> right{1};
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
@@ -383,9 +396,10 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::update_auxiliary_fields() {
-  // Resize fields because of multiresolution
+  /*--- Resize fields because of multiresolution ---*/
   rho.resize();
   p.resize();
+  vel.resize();
 
   rho1.resize();
   p1.resize();
@@ -400,12 +414,14 @@ void BN_Solver<dim>::update_auxiliary_fields() {
   T2.resize();
 
   alpha2.resize();
+  Y1.resize();
+  Y2.resize();
 
   delta_pres.resize();
   delta_temp.resize();
   delta_vel.resize();
 
-  // Loop over all cells
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -435,10 +451,16 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                            c2[cell]      = EOS_phase2.c_value_RhoP(rho2[cell], p2[cell]);
                            T2[cell]      = EOS_phase2.T_value_RhoP(rho2[cell], p2[cell]);
 
-                           alpha2[cell]  = 1.0 - conserved_variables[cell][ALPHA1_INDEX];
+                           // Compute remaining useful fields
+                           alpha2[cell] = 1.0 - conserved_variables[cell][ALPHA1_INDEX];
 
-                           p[cell] = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
-                                   + (1.0 - conserved_variables[cell][ALPHA1_INDEX])*p2[cell];
+                           Y1[cell]     = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho[cell];
+                           Y2[cell]     = conserved_variables[cell][ALPHA2_RHO2_INDEX]/rho[cell];
+
+                           vel[cell]    = Y1[cell]*vel1[cell] + Y2[cell]*vel2[cell];
+
+                           p[cell]      = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
+                                        + alpha2[cell]*p2[cell];
 
                            // Save deltas
                            delta_pres[cell] = p1[cell] - p2[cell];
@@ -470,13 +492,16 @@ void BN_Solver<dim>::save(const fs::path& path,
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
 }
 
-/*--- AUXILIARY ROUTINE FOR THE RELAXATION ---*/
+/*--- AUXILIARY ROUTINES FOR THE RELAXATION ---*/
+
+// Routine to compute the source terms associated to the finte-rate relaxation
+//
 template<std::size_t dim>
 template<typename State>
 void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
                                                             const std::array<typename Field::value_type, dim>& delta_u_loc,
                                                             Matrix_Relaxation& A, Vector_Relaxation& S) {
-  // Compute auxiliary variables for phase 1
+  /*--- Compute auxiliary variables for phase 1 ---*/
   const auto rho1_loc = q[ALPHA1_RHO1_INDEX]/q[ALPHA1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
   std::array<typename Field::value_type, dim> vel1_loc;
   auto e1_loc = q[ALPHA1_RHO1_E1_INDEX]/q[ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -491,7 +516,7 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
   const auto cv1    = EOS_phase1.de_dT_rho(T1_loc, rho1_loc);
   const auto Gamma1 = EOS_phase1.de_drho_T(rho1_loc, T1_loc);
 
-  // Compute auxiliary variables for phase 2
+  /*--- Compute auxiliary variables for phase 2 ---*/
   const auto rho2_loc = q[ALPHA2_RHO2_INDEX]/(1.0 - q[ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
   std::array<typename Field::value_type, dim> vel2_loc;
   auto e2_loc = q[ALPHA2_RHO2_E2_INDEX]/q[ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -514,7 +539,7 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
   /*--- TODO: Possibly change, a priori this is not necessarily the same of the convective operator, even though
               substituting uI \cdot grad\alpha we get d\alpha/dt... ---*/
 
-  // Compute the coefficients
+  /*--- Compute the coefficients ---*/
   const auto p_ref_loc     = rho1_loc*c1_loc*c1_loc/q[ALPHA1_INDEX]
                            + rho2_loc*c2_loc*c2_loc/(1.0 - q[ALPHA1_INDEX]); /*--- TODO: Add treatment fro vanishing volume fraction ---*/
   const auto p_relax_coeff = (q[ALPHA1_INDEX]*(1.0 - q[ALPHA1_INDEX]))/(tau_p*p_ref_loc);
@@ -537,7 +562,7 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
   A[1][0] = -dt*a_Tp;
   A[1][1] = 1.0 - dt*a_TT;
 
-  // Set source term
+  /*--- Set source term ---*/
   const auto rho_0      = q[ALPHA1_RHO1_INDEX] + q[ALPHA2_RHO2_INDEX];
   const auto Y1_0       = q[ALPHA1_RHO1_INDEX]/rho_0;
   const auto a_tilde_pu = -1.0/tau_u*(((1.0 - Y1_0)*(beta - 1.0))/kappa1 + (Y1_0*beta)/kappa2);
@@ -554,7 +579,7 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_relaxation_finite_rate() {
-  // Resize fields because of multiresolution
+  /*--- Resize fields because of multiresolution ---*/
   rho1.resize();
   p1.resize();
   vel1.resize();
@@ -565,7 +590,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
   vel2.resize();
   T2.resize();
 
-  // Loop over all cells
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -645,8 +670,19 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                            typename Field::value_type dT2 = std::numeric_limits<typename Field::value_type>::max();
                            unsigned int iter;
                            const unsigned int max_iter = 50;
+                           auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                     EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                   + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                     EOS_phase2.rho_value_PT(p2[cell], T2[cell])
+                                   - 1.0;
+                           auto f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                     EOS_phase1.e_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                   + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                     EOS_phase2.e_value_PT(p2[cell], T2[cell])
+                                   - rhoe_0;
                            for(iter = 0; iter < max_iter; ++iter) {
-                             if(std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6) {
+                             if(std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6 ||
+                                std::abs(f1) > 1e-12 || std::abs(f2/rhoe_0) > 1e-6) {
                                // Compute Jacobian matrix
                                Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                                   (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
@@ -656,55 +692,55 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                                   (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
                                                    EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
                                                   EOS_phase2.drho_dP_T(p2[cell], T2[cell]);
-                              Jac_update[0][1] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                                 (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
-                                                  EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
-                                                 EOS_phase1.drho_dT_P(T2[cell] + delta_T, p2[cell] + delta_T)
-                                                 -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                                 (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
-                                                  EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
-                                                 EOS_phase2.drho_dT_P(T2[cell], p2[cell]);
-                              Jac_update[1][0] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                                 EOS_phase1.de_dP_T(p2[cell] + delta_p, T2[cell] + delta_T) +
-                                                 conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                 EOS_phase2.de_dP_T(p2[cell], T2[cell]);
-                              Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                                 EOS_phase1.de_dT_P(T2[cell] + delta_T, p2[cell] + delta_p) +
-                                                 conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                 EOS_phase2.de_dT_P(T2[cell], p2[cell]);
+                               Jac_update[0][1] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                  (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
+                                                   EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
+                                                  EOS_phase1.drho_dT_P(T2[cell] + delta_T, p2[cell] + delta_T)
+                                                  -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                                  (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
+                                                   EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
+                                                  EOS_phase2.drho_dT_P(T2[cell], p2[cell]);
+                               Jac_update[1][0] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                                  EOS_phase1.de_dP_T(p2[cell] + delta_p, T2[cell] + delta_T) +
+                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                                  EOS_phase2.de_dP_T(p2[cell], T2[cell]);
+                               Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                                  EOS_phase1.de_dT_P(T2[cell] + delta_T, p2[cell] + delta_p) +
+                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                                  EOS_phase2.de_dT_P(T2[cell], p2[cell]);
 
-                              // Evaluate the functions for which we are looking for the zeros
-                              const auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                              EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
-                                            + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                              EOS_phase2.rho_value_PT(p2[cell], T2[cell])
-                                            - 1.0;
-                              const auto f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                              EOS_phase1.e_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
-                                            + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                              EOS_phase2.e_value_PT(p2[cell], T2[cell])
-                                            - rhoe_0;
-                              if(std::abs(f1) > 1e-12 || std::abs(f2) > 1e-12) {
-                                 // Apply the Newton method
-                                 const auto det_Jac = Jac_update[0][0]*Jac_update[1][1]
-                                                    - Jac_update[0][1]*Jac_update[1][0];
-                                 if(std::abs(det_Jac) > 1e-10) {
-                                   dp2 = (1.0/det_Jac)*(Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
-                                   dT2 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
-                                   p2[cell] -= dp2;
-                                   T2[cell] -= dT2;
-                                 }
-                                 else {
-                                   std::cerr << "Non-invertible Jacobian in the Newton method in the re-update of conserved variables after relaxation" << std::endl;
-                                   exit(1);
-                                 }
+                               // Apply the Newton method
+                               const auto det_Jac = Jac_update[0][0]*Jac_update[1][1]
+                                                  - Jac_update[0][1]*Jac_update[1][0];
+                               if(std::abs(det_Jac) > 1e-10) {
+                                 dp2 = (1.0/det_Jac)*(Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
+                                 dT2 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
+                                 p2[cell] -= dp2;
+                                 T2[cell] -= dT2;
                                }
+                               else {
+                                 std::cerr << "Non-invertible Jacobian in the Newton method in the re-update of conserved variables after relaxation" << std::endl;
+                                 exit(1);
+                               }
+
+                               // Recompute functions for which we look for zero for next iteration
+                               f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                    EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                  + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                    EOS_phase2.rho_value_PT(p2[cell], T2[cell])
+                                  - 1.0;
+                               f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                    EOS_phase1.e_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                  + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                    EOS_phase2.e_value_PT(p2[cell], T2[cell])
+                                  - rhoe_0;
                              }
                              else {
                                break;
                              }
                            }
-                           if(iter == max_iter && (std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6)) {
+                           if(iter == max_iter &&
+                              (std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6 || std::abs(f1) > 1e-12 || std::abs(f2/rhoe_0) > 1e-6)) {
                              std::cerr << "Newton method not converged in the re-update of conserved variables after relaxation" << std::endl;
                              exit(1);
                            }
@@ -729,7 +765,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
-  // Resize fields because of multiresolution
+  /*--- Resize fields because of multiresolution ---*/
   rho1.resize();
   p1.resize();
   vel1.resize();
@@ -740,7 +776,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
   vel2.resize();
   T2.resize();
 
-  // Loop over all cells
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -782,7 +818,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                                                                 vel_star[d]*vel_star[d];
                            }
 
-                           // Update total energy of the two phases ---*/
+                           // Update total energy of the two phases
                            const auto chi1    = 0.0; // uI = (1 - chi1)*u1 + chi1*u2;
                            const auto e1_star = e1_0 + 0.5*chi1*(vel1[cell] - vel2[cell])*(vel1[cell] - vel2[cell])*(1.0 - Y1_0);
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] += conserved_variables[cell][ALPHA1_RHO1_INDEX]*e1_star;
@@ -837,62 +873,83 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                            const auto norm2_vel = um_d*um_d;
                            const auto rhoe_0    = rhoE_0
                                                 - 0.5*rho_0*norm2_vel;
-                           for(unsigned int iter = 0; iter < 50; ++iter) {
-                             // Compute Jacobian matrix
-                             Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                                 (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
-                                                  EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
-                                                 EOS_phase1.drho_dP_T(p2[cell] + delta_p, T1[cell])
-                                                -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                                 (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
-                                                  EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
-                                                 EOS_phase2.drho_dP_T(p2[cell], T2[cell]);
-                             Jac_update[0][1] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                                 (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
-                                                  EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
-                                                 EOS_phase1.drho_dT_P(T2[cell] + delta_T, p2[cell] + delta_T)
-                                                -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                                 (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
-                                                  EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
-                                                 EOS_phase2.drho_dT_P(T2[cell], p2[cell]);
-                             Jac_update[1][0] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                                EOS_phase1.de_dP_T(p2[cell] + delta_p, T2[cell] + delta_T) +
-                                                conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                EOS_phase2.de_dP_T(p2[cell], T2[cell]);
-                             Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                                EOS_phase1.de_dT_P(T2[cell] + delta_T, p2[cell] + delta_p) +
-                                                conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                EOS_phase2.de_dT_P(T2[cell], p2[cell]);
+                           typename Field::value_type dp2 = std::numeric_limits<typename Field::value_type>::max();
+                           typename Field::value_type dT2 = std::numeric_limits<typename Field::value_type>::max();
+                           unsigned int iter;
+                           const unsigned int max_iter = 50;
+                           auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                     EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                   + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                     EOS_phase2.rho_value_PT(p2[cell], T2[cell])
+                                   - 1.0;
+                           auto f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                     EOS_phase1.e_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                   + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                     EOS_phase2.e_value_PT(p2[cell], T2[cell])
+                                   - rhoe_0;
+                           for(iter = 0; iter < max_iter; ++iter) {
+                             if(std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6 ||
+                                std::abs(f1) > 1e-12 || std::abs(f2/rhoe_0) > 1e-6) {
+                               // Compute Jacobian matrix
+                               Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                  (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
+                                                   EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
+                                                   EOS_phase1.drho_dP_T(p2[cell] + delta_p, T1[cell])
+                                                  -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                                  (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
+                                                   EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
+                                                  EOS_phase2.drho_dP_T(p2[cell], T2[cell]);
+                               Jac_update[0][1] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                                  (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
+                                                   EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T))*
+                                                  EOS_phase1.drho_dT_P(T2[cell] + delta_T, p2[cell] + delta_T)
+                                                  -conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                                  (EOS_phase2.rho_value_PT(p2[cell], T2[cell])*
+                                                   EOS_phase2.rho_value_PT(p2[cell], T2[cell]))*
+                                                  EOS_phase2.drho_dT_P(T2[cell], p2[cell]);
+                               Jac_update[1][0] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                                  EOS_phase1.de_dP_T(p2[cell] + delta_p, T2[cell] + delta_T) +
+                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                                  EOS_phase2.de_dP_T(p2[cell], T2[cell]);
+                               Jac_update[1][1] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                                  EOS_phase1.de_dT_P(T2[cell] + delta_T, p2[cell] + delta_p) +
+                                                  conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                                  EOS_phase2.de_dT_P(T2[cell], p2[cell]);
 
-                             // Evaluate the functions for which we are looking for the zeros
-                             const auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
-                                             EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
-                                           + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
-                                             EOS_phase2.rho_value_PT(p2[cell], T2[cell])
-                                           - 1.0;
-                             const auto f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                             EOS_phase1.e_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
-                                           + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                             EOS_phase2.e_value_PT(p2[cell], T2[cell])
-                                           - rhoe_0;
-                             if(std::abs(f1) > 1e-12 && std::abs(f2) > 1e-12) {
                                // Apply the Newton method
                                const auto det_Jac = Jac_update[0][0]*Jac_update[1][1]
                                                   - Jac_update[0][1]*Jac_update[1][0];
                                if(std::abs(det_Jac) > 1e-10) {
-                                 const auto dp2 = (1.0/det_Jac)*(Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
-                                 const auto dT2 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
+                                 dp2 = (1.0/det_Jac)*(Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
+                                 dT2 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
                                  p2[cell] -= dp2;
                                  T2[cell] -= dT2;
-
-                                 if(std::abs(dp2) < 1e-12 && std::abs(dT2) < 1e-12) {
-                                   break;
-                                 }
                                }
+                               else {
+                                 std::cerr << "Non-invertible Jacobian in the Newton method in the re-update of conserved variables after relaxation" << std::endl;
+                                 exit(1);
+                               }
+
+                               // Recompute functions for which we look for zero for next iteration
+                               f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
+                                    EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                  + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
+                                    EOS_phase2.rho_value_PT(p2[cell], T2[cell])
+                                  - 1.0;
+                               f2 = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
+                                    EOS_phase1.e_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
+                                  + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
+                                    EOS_phase2.e_value_PT(p2[cell], T2[cell])
+                                  - rhoe_0;
                              }
                              else {
                                break;
                              }
+                           }
+                           if(iter == max_iter &&
+                              (std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6 || std::abs(f1) > 1e-12 || std::abs(f2/rhoe_0) > 1e-6)) {
+                             std::cerr << "Newton method not converged in the re-update of conserved variables after relaxation" << std::endl;
+                             exit(1);
                            }
 
                            // Once pressure and temperature have been update, finalize the update
@@ -915,19 +972,20 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
-  // Resize fields because of multiresolution
+  /*--- Resize fields because of multiresolution ---*/
   vel1.resize();
   vel2.resize();
 
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
                            // Save initial specific internal energy of phase 1 for the total energy update
-                           vel1[cell]       = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX]/
-                                              conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           const auto e1_0  = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
-                                              conserved_variables[cell][ALPHA1_RHO1_INDEX]
-                                            - 0.5*vel1[cell]*vel1[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           vel1[cell]      = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX]/
+                                             conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                           const auto e1_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
+                                             conserved_variables[cell][ALPHA1_RHO1_INDEX]
+                                           - 0.5*vel1[cell]*vel1[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            // Save initial velocity of phase 2
                            vel2[cell] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX]/
@@ -970,7 +1028,7 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
-  // Resize fields because of multiresolution
+  /*--- Resize fields because of multiresolution ---*/
   rho1.resize();
   p1.resize();
   vel1.resize();
@@ -981,6 +1039,7 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
   vel2.resize();
   c2.resize();
 
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -1050,9 +1109,7 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
                            // Compute the pressure equilibrium with the linearization method (Pelanti)
                            const auto a    = 1.0 + EOS_phase2.get_gamma()*conserved_variables[cell][ALPHA1_INDEX]
                                            + EOS_phase1.get_gamma()*(1.0 - conserved_variables[cell][ALPHA1_INDEX]);
-                           const auto Z1   = rho1[cell]*c1[cell];
-                           const auto Z2   = rho2[cell]*c2[cell];
-                           const auto pI_0 = (Z2*p1[cell] + Z1*p2[cell])/(Z1 + Z2);
+                           const auto pI_0 = p2[cell];
                            const auto C1   = 2.0*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
                                            + (EOS_phase1.get_gamma() - 1.0)*pI_0;
                            const auto C2   = 2.0*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
@@ -1086,7 +1143,7 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
-  // Resize fields because of multiresolution
+  /*--- Resize fields because of multiresolution ---*/
   rho1.resize();
   p1.resize();
   vel1.resize();
@@ -1097,6 +1154,7 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
   vel2.resize();
   c2.resize();
 
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -1129,9 +1187,7 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
                            // Compute the pressure equilibrium with the linearization method (Pelanti)
                            const auto a    = 1.0 + EOS_phase2.get_gamma()*conserved_variables[cell][ALPHA1_INDEX]
                                            + EOS_phase1.get_gamma()*(1.0 - conserved_variables[cell][ALPHA1_INDEX]);
-                           const auto Z1   = rho1[cell]*c1[cell];
-                           const auto Z2   = rho2[cell]*c2[cell];
-                           const auto pI_0 = (Z2*p1[cell] + Z1*p2[cell])/(Z1 + Z2);
+                           const auto pI_0 = p2[cell];
                            const auto C1   = 2.0*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
                                            + (EOS_phase1.get_gamma() - 1.0)*pI_0;
                            const auto C2   = 2.0*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
@@ -1165,11 +1221,12 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_instantaneous_relaxation() {
-  // Resize because of multiresolution
+  /*--- Resize because of multiresolution ---*/
   vel1.resize();
 
   vel2.resize();
 
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -1286,6 +1343,7 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::compute_entropy_after_flux() {
+  /*--- Resize because of multiresolution ---*/
   entropy_after_flux_phase1.resize();
   entropy_production_flux_phase1.resize();
 
@@ -1298,6 +1356,7 @@ void BN_Solver<dim>::compute_entropy_after_flux() {
   rho2.resize();
   vel2.resize();
 
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -1339,6 +1398,7 @@ void BN_Solver<dim>::compute_entropy_after_flux() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::compute_entropy_after_relaxation() {
+  /*--- Resize because of multiresolution ---*/
   entropy_after_relaxation_phase1.resize();
   entropy_production_relaxation_phase1.resize();
 
@@ -1351,6 +1411,7 @@ void BN_Solver<dim>::compute_entropy_after_relaxation() {
   rho2.resize();
   vel2.resize();
 
+  /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -1375,7 +1436,7 @@ void BN_Solver<dim>::compute_entropy_after_relaxation() {
                            entropy_after_relaxation_phase2[cell]      = EOS_phase2.s_value_Rhoe(rho2[cell], e2);
                            entropy_production_relaxation_phase2[cell] = entropy_after_relaxation_phase2[cell] - entropy_after_flux_phase2[cell];
 
-                           if(entropy_production_relaxation_phase1[cell] < -1e-5) {
+                           /*if(entropy_production_relaxation_phase1[cell] < -1e-5) {
                              std::cerr << "Suspicious sign of entropy production phase 1 after relaxation " << cell << std::endl;
                              std::cerr << entropy_production_relaxation_phase1[cell] << std::endl;
                              std::cerr << entropy_production_relaxation_phase1[cell] +
@@ -1388,7 +1449,7 @@ void BN_Solver<dim>::compute_entropy_after_relaxation() {
                              std::cerr << entropy_production_relaxation_phase1[cell] +
                                           entropy_production_relaxation_phase2[cell] << std::endl;
                              exit(1);
-                           }
+                           }*/
                          });
 }
 
@@ -1433,9 +1494,9 @@ void BN_Solver<dim>::run() {
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, filename, suffix_init,
-       conserved_variables, rho, p,
-       vel1, rho1, p1, c1, T1,
-       vel2, rho2, p2, c2, T2, alpha2,
+       conserved_variables, rho, p, vel,
+       vel1, rho1, p1, c1, T1, Y1,
+       vel2, rho2, p2, c2, T2, alpha2, Y2,
        delta_pres, delta_temp, delta_vel,
        entropy_after_flux_phase1, entropy_production_flux_phase1,
        entropy_after_relaxation_phase1, entropy_production_relaxation_phase1,
@@ -1492,7 +1553,7 @@ void BN_Solver<dim>::run() {
     #else
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
-    //compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
+    compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
 
     // Perform relaxation if desired
     if(apply_relaxation) {
@@ -1523,7 +1584,7 @@ void BN_Solver<dim>::run() {
         }
       }
     }
-    //compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
+    compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
 
     // Consider the second stage for the second order
     #ifdef ORDER_2
@@ -1542,7 +1603,7 @@ void BN_Solver<dim>::run() {
       #endif
       conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
-      //compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
+      compute_entropy_after_flux(); /*--- Check entropy production after convective step ---*/
 
       // Perform relaxation if desired
       if(apply_relaxation) {
@@ -1563,7 +1624,7 @@ void BN_Solver<dim>::run() {
           }
         }
       }
-      //compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
+      compute_entropy_after_relaxation(); /*--- Check entropy production after (possible) relaxation ---*/
     #endif
 
     // Save the results
@@ -1571,9 +1632,9 @@ void BN_Solver<dim>::run() {
     if(t >= static_cast<double>(nsave + 1)*dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, filename, suffix,
-           conserved_variables, rho, p,
-           vel1, rho1, p1, c1, T1,
-           vel2, rho2, p2, c2, T2, alpha2,
+           conserved_variables, rho, p, vel,
+           vel1, rho1, p1, c1, T1, Y1,
+           vel2, rho2, p2, c2, T2, alpha2, Y2,
            delta_pres, delta_temp, delta_vel,
            entropy_after_flux_phase1, entropy_production_flux_phase1,
            entropy_after_relaxation_phase1, entropy_production_relaxation_phase1,

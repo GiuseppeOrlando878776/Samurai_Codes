@@ -11,7 +11,7 @@
 int main(int argc, char* argv[]) {
   auto& app = samurai::initialize("Suliciu-type relaxation scheme for the 1D Baer-Nunziato model", argc, argv);
 
-  // Set and declare simulation parameters related to mesh, final time and Courant
+  /*--- Set and declare simulation parameters related to mesh, final time and Courant ---*/
   Simulation_Parameters sim_param;
 
   sim_param.xL = -2.0;
@@ -26,13 +26,13 @@ int main(int argc, char* argv[]) {
 
   sim_param.apply_relaxation = false;
 
-  sim_param.apply_finite_rate_relaxation = true;
-  sim_param.relax_instantaneous_velocity = true;
+  sim_param.apply_finite_rate_relaxation = false;
+  sim_param.relax_instantaneous_velocity = false;
   sim_param.tau_u = 1e-15;
   sim_param.tau_p = 1e-10;
   sim_param.tau_T = 1e10;
 
-  sim_param.relax_velocity    = true;
+  sim_param.relax_velocity    = false;
   sim_param.relax_pressure    = false;
   sim_param.relax_temperature = false;
 
@@ -64,29 +64,29 @@ int main(int argc, char* argv[]) {
   app.add_option("--relax_temperature", sim_param.relax_temperature,
                  "If instantaneous relaxation, relax the temperature (this can occur only with pressure)")->capture_default_str()->group("Simulation parameters");
 
-  // Set and declare simulation parameters related to EOS
+  /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters eos_param;
 
   eos_param.gamma_1    = 2.35;
   eos_param.pi_infty_1 = 1e9;
   eos_param.q_infty_1  = -1167e3;
-  eos_param.cv_1       = 1.816e3;
+  eos_param.c_v_1      = 1.816e3;
 
   eos_param.gamma_2    = 1.43;
   eos_param.pi_infty_2 = 0.0;
   eos_param.q_infty_2  = 2030e3;
-  eos_param.cv_2       = 1.040e3;
+  eos_param.c_v_2      = 1.040e3;
 
   app.add_option("--gammma_1", eos_param.gamma_1, "gamma_1")->capture_default_str()->group("EOS parameters");
   app.add_option("--pi_infty_1", eos_param.pi_infty_1, "pi_infty_1")->capture_default_str()->group("EOS parameters");
   app.add_option("--q_infty_1", eos_param.q_infty_1, "q_infty_1")->capture_default_str()->group("EOS parameters");
-  app.add_option("--cv_1", eos_param.cv_1, "cv_1")->capture_default_str()->group("EOS parameters");
+  app.add_option("--c_v_1", eos_param.c_v_1, "c_v_1")->capture_default_str()->group("EOS parameters");
   app.add_option("--gammma_2", eos_param.gamma_2, "gamma_2")->capture_default_str()->group("EOS parameters");
   app.add_option("--pi_infty_2", eos_param.pi_infty_2, "pi_infty_2")->capture_default_str()->group("EOS parameters");
   app.add_option("--q_infty_2", eos_param.q_infty_2, "q_infty_2")->capture_default_str()->group("EOS parameters");
-  app.add_option("--cv_2", eos_param.cv_2, "cv_2")->capture_default_str()->group("EOS parameters");
+  app.add_option("--c_v_2", eos_param.c_v_2, "c_v_2")->capture_default_str()->group("EOS parameters");
 
-  // Set and declare simulation parameters related to initial condition
+  /*--- Set and declare simulation parameters related to initial condition ---*/
   Riemann_Parameters Riemann_param;
 
   Riemann_param.xd      = 0.0;
@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--u2R", Riemann_param.u2R, "Initial horizontal velocity phase 2 at right")->capture_default_str()->group("Initial conditions");
   app.add_option("--v2R", Riemann_param.v2R, "Initial vertical velocity phase 2 at right")->capture_default_str()->group("Initial conditions");
 
-  // Create the instance of the class to perform the simulation
+  /*--- Create the instance of the class to perform the simulation ---*/
   CLI11_PARSE(app, argc, argv);
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};

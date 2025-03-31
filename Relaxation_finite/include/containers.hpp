@@ -3,13 +3,16 @@
 
 // Declare a struct with the simulation parameters
 // (domain, levels, final time, and Courant number)
+//
 struct Simulation_Parameters {
   double xL;
   double xR;
   double yL;
   double yR;
+
   std::size_t min_level;
   std::size_t max_level;
+
   double MR_param;
   double MR_regularity;
 
@@ -33,19 +36,21 @@ struct Simulation_Parameters {
 };
 
 // Declare a struct with EOS parameters
+//
 struct EOS_Parameters {
   double gamma_1;
   double pi_infty_1;
   double q_infty_1;
-  double cv_1;
+  double c_v_1;
 
   double gamma_2;
   double pi_infty_2;
   double q_infty_2;
-  double cv_2;
+  double c_v_2;
 };
 
 // Declare a struct with Riemann problem parameters
+//
 struct Riemann_Parameters {
   double xd;
 

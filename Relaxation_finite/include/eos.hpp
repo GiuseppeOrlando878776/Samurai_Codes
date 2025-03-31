@@ -10,43 +10,43 @@ class EOS {
 public:
   static_assert(std::is_arithmetic_v<T>, "Template argument EOS not well suited for arithemtic operations");
 
-  EOS() = default; // Default constructor
+  EOS() = default; /*--- Default constructor ---*/
 
-  EOS(const EOS&) = default; // Default copy-constructor
+  EOS(const EOS&) = default; /*--- Default copy-constructor ---*/
 
-  virtual ~EOS() {} // Virtual destructor (it can be useful since we work thourgh the base class)
+  virtual ~EOS() {} /*--- Virtual destructor (it can be useful since we work thourgh the base class) ---*/
 
-  virtual T pres_value_Rhoe(const T rho, const T e) const = 0; // Function to compute the pressure from the density and the internal energy
+  virtual T pres_value_Rhoe(const T rho, const T e) const = 0; /*--- Function to compute the pressure from the density and the internal energy ---*/
 
-  virtual T rho_value_Pe(const T pres, const T e) const = 0; // Function to compute the density from the pressure and the internal energy
+  virtual T rho_value_Pe(const T pres, const T e) const = 0; /*--- Function to compute the density from the pressure and the internal energy ---*/
 
-  virtual T e_value_RhoP(const T rho, const T pres) const = 0; // Function to compute the internal energy from density and pressure
+  virtual T e_value_RhoP(const T rho, const T pres) const = 0; /*--- Function to compute the internal energy from density and pressure ---*/
 
-  virtual T T_value_Rhoe(const T rho, const T e) const = 0; // Function to compute the temperature from density and internal energy
+  virtual T T_value_Rhoe(const T rho, const T e) const = 0; /*--- Function to compute the temperature from density and internal energy ---*/
 
-  virtual T T_value_RhoP(const T rho, const T pres) const = 0; // Function to compute the temperature from density and pressure
+  virtual T T_value_RhoP(const T rho, const T pres) const = 0; /*--- Function to compute the temperature from density and pressure ---*/
 
-  virtual T rho_value_PT(const T pres, const T temp) const = 0; // Function to compute the density from pressure and temperature
+  virtual T rho_value_PT(const T pres, const T temp) const = 0; /*--- Function to compute the density from pressure and temperature ---*/
 
-  virtual T e_value_PT(const T pres, const T temp) const = 0; // Function to compute the internal energy from pressure and temperature
+  virtual T e_value_PT(const T pres, const T temp) const = 0; /*--- Function to compute the internal energy from pressure and temperature ---*/
 
-  virtual T c_value_RhoP(const T rho, const T pres) const = 0; // Function to compute the speed of sound from density and pressure
+  virtual T c_value_RhoP(const T rho, const T pres) const = 0; /*--- Function to compute the speed of sound from density and pressure ---*/
 
-  virtual T s_value_Rhoe(const T rho, const T e) const = 0; // Function to compute the specific entropy from density and internal energy
+  virtual T s_value_Rhoe(const T rho, const T e) const = 0; /*--- Function to compute the specific entropy from density and internal energy ---*/
 
-  virtual T de_drho_T(const T rho, const T temp) const = 0; // Function to compute the derivative of the internal energy w.r.t. density (fixed temperature)
+  virtual T de_drho_T(const T rho, const T temp) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. density (fixed temperature) ---*/
 
-  virtual T de_dT_rho(const T temp, const T rho) const = 0; // Function to compute the derivative of the internal energy w.r.t. temperature (fixed density)
+  virtual T de_dT_rho(const T temp, const T rho) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. temperature (fixed density) ---*/
 
-  virtual T de_dT_P(const T temp, const T pres) const = 0; // Function to compute the derivative of the internal energy w.r.t. temperature (fixed pressure)
+  virtual T de_dT_P(const T temp, const T pres) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. temperature (fixed pressure) ---*/
 
-  virtual T de_dP_T(const T pres, const T temp) const = 0; // Function to compute the derivative of the internal energy w.r.t. pressure (fixed temperature)
+  virtual T de_dP_T(const T pres, const T temp) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. pressure (fixed temperature) ---*/
 
-  virtual T de_dP_rho(const T pres, const T rho) const = 0; // Function to compute the derivative of the internal energy w.r.t. pressure (fixed density)
+  virtual T de_dP_rho(const T pres, const T rho) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. pressure (fixed density) ---*/
 
-  virtual T drho_dP_T(const T pres, const T temp) const = 0; // Function to compute the derivative of the density w.r.t. pressure (fixed temperature)
+  virtual T drho_dP_T(const T pres, const T temp) const = 0; /*--- Function to compute the derivative of the density w.r.t. pressure (fixed temperature) ---*/
 
-  virtual T drho_dT_P(const T temp, const T pres) const = 0; // Function to compute the derivative of the density w.r.t. temperature (fixed pressure)
+  virtual T drho_dT_P(const T temp, const T pres) const = 0; /*--- Function to compute the derivative of the density w.r.t. temperature (fixed pressure) ---*/
 };
 
 
@@ -56,62 +56,62 @@ public:
 template<typename T = double>
 class SG_EOS: public EOS<T> {
 public:
-  SG_EOS() = default; // Default constructor
+  SG_EOS() = default; /*--- Default constructor ---*/
 
-  SG_EOS(const SG_EOS&) = default; // Default copy-constructor
+  SG_EOS(const SG_EOS&) = default; /*--- Default copy-constructor ---*/
 
   SG_EOS(const T gamma_,
          const T pi_infty_ = 0.0,
          const T q_infty_ = 0.0,
-         const T c_v_ = 1.0);      // Constructor which accepts as arguments
-                                   // the isentropic exponent and the three parameters
-                                   // that characterize the fluid
+         const T c_v_ = 1.0);      /*--- Constructor which accepts as arguments
+                                         the isentropic exponent and the three parameters
+                                         that characterize the fluid ---*/
 
-  virtual T pres_value_Rhoe(const T rho, const T e) const override; // Function to compute the pressure from the density and the internal energy
+  virtual T pres_value_Rhoe(const T rho, const T e) const override; /*--- Function to compute the pressure from the density and the internal energy ---*/
 
-  virtual T rho_value_Pe(const T pres, const T e) const override; // Function to compute the density from the pressure and the internal energy
+  virtual T rho_value_Pe(const T pres, const T e) const override; /*--- Function to compute the density from the pressure and the internal energy ---*/
 
-  virtual T e_value_RhoP(const T rho, const T pres) const override; // Function to compute the internal energy from density and pressure
+  virtual T e_value_RhoP(const T rho, const T pres) const override; /*--- Function to compute the internal energy from density and pressure ---*/
 
-  virtual T T_value_Rhoe(const T rho, const T e) const override; // Function to compute the temperature from density and internal energy
+  virtual T T_value_Rhoe(const T rho, const T e) const override; /*--- Function to compute the temperature from density and internal energy ---*/
 
-  virtual T T_value_RhoP(const T rho, const T pres) const override; // Function to compute the temperature from density and pressure
+  virtual T T_value_RhoP(const T rho, const T pres) const override; /*--- Function to compute the temperature from density and pressure ---*/
 
-  virtual T rho_value_PT(const T pres, const T temp) const override; // Function to compute the density from pressure and temperature
+  virtual T rho_value_PT(const T pres, const T temp) const override; /*--- Function to compute the density from pressure and temperature ---*/
 
-  virtual T e_value_PT(const T pres, const T temp) const override; // Function to compute the internal energy from pressure and temperature
+  virtual T e_value_PT(const T pres, const T temp) const override; /*--- Function to compute the internal energy from pressure and temperature ---*/
 
-  virtual T c_value_RhoP(const T rho, const T pres) const override; // Function to compute the speed of sound from density and pressure
+  virtual T c_value_RhoP(const T rho, const T pres) const override; /*--- Function to compute the speed of sound from density and pressure ---*/
 
-  virtual T s_value_Rhoe(const T rho, const T e) const override; // Function to compute the specific entropy from density and internal energy
+  virtual T s_value_Rhoe(const T rho, const T e) const override; /*--- Function to compute the specific entropy from density and internal energy ---*/
 
-  virtual T de_drho_T(const T rho, const T temp) const override; // Function to compute the derivative of the internal energy w.r.t. density (fixed temperature)
+  virtual T de_drho_T(const T rho, const T temp) const override; /*--- Function to compute the derivative of the internal energy w.r.t. density (fixed temperature) ---*/
 
-  virtual T de_dT_rho(const T temp, const T rho) const override; // Function to compute the derivative of the internal energy w.r.t. temperature (fixed density)
+  virtual T de_dT_rho(const T temp, const T rho) const override; /*--- Function to compute the derivative of the internal energy w.r.t. temperature (fixed density) ---*/
 
-  virtual T de_dT_P(const T temp, const T pres) const override; // Function to compute the derivative of the internal energy w.r.t. temperature (fixed pressure)
+  virtual T de_dT_P(const T temp, const T pres) const override; /*--- Function to compute the derivative of the internal energy w.r.t. temperature (fixed pressure) ---*/
 
-  virtual T de_dP_T(const T pres, const T temp) const override; // Function to compute the derivative of the internal energy w.r.t. pressure (fixed temperature)
+  virtual T de_dP_T(const T pres, const T temp) const override; /*--- Function to compute the derivative of the internal energy w.r.t. pressure (fixed temperature) ---*/
 
-  virtual T de_dP_rho(const T pres, const T rho) const override; // Function to compute the derivative of the internal energy w.r.t. pressure (fixed density)
+  virtual T de_dP_rho(const T pres, const T rho) const override; /*--- Function to compute the derivative of the internal energy w.r.t. pressure (fixed density) ---*/
 
-  virtual T drho_dP_T(const T pres, const T temp) const override; // Function to compute the derivative of the density w.r.t. pressure (fixed temperature)
+  virtual T drho_dP_T(const T pres, const T temp) const override; /*--- Function to compute the derivative of the density w.r.t. pressure (fixed temperature) ---*/
 
-  virtual T drho_dT_P(const T temp, const T pres) const override; // Function to compute the derivative of the density w.r.t. temperature (fixed pressure)
+  virtual T drho_dT_P(const T temp, const T pres) const override; /*--- Function to compute the derivative of the density w.r.t. temperature (fixed pressure) ---*/
 
-  inline T get_gamma() const; // Return the isentropic exponent
+  inline T get_gamma() const; /*--- Return the isentropic exponent ---*/
 
-  inline T get_pi_infty() const; // Return the pressure at 'infinite'
+  inline T get_pi_infty() const; /*--- Return the pressure at 'infinite' ---*/
 
-  inline T get_q_infty() const; // Return the internal energy at 'infinite'
+  inline T get_q_infty() const; /*--- Return the internal energy at 'infinite' ---*/
 
-  inline T get_cv() const; // Return the specific heat at constant volume
+  inline T get_cv() const; /*--- Return the specific heat at constant volume ---*/
 
 private:
-  const T gamma;    // Isentropic exponent
-  const T pi_infty; // Pressure at 'infinite'
-  const T q_infty;  // Internal energy at 'infinite'
-  const T c_v;      // Specific heat at constant volume
+  const T gamma;    /*--- Isentropic exponent ---*/
+  const T pi_infty; /*--- Pressure at 'infinite' ---*/
+  const T q_infty;  /*--- Internal energy at 'infinite' ---*/
+  const T c_v;      /*--- Specific heat at constant volume ---*/
 };
 
 // Implement the constructor
