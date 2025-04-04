@@ -120,8 +120,8 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
 
-  void init_variables(const double L, const double eps_over_R); /*--- Routine to initialize the variables
-                                                                      (both conserved and auxiliary, this is problem dependent) ---*/
+  void init_variables(const double x0, const double y0, const double eps_over_R); /*--- Routine to initialize the variables
+                                                                                       (both conserved and auxiliary, this is problem dependent) ---*/
 
   double get_max_lambda(const double time); /*--- Compute the estimate of the maximum eigenvalue ---*/
 
@@ -166,7 +166,9 @@ StaticBubble<dim>::StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>
       std::cout << "Initializing variables " << std::endl;
       std::cout << std::endl;
     }
-    init_variables(sim_param.L, sim_param.eps_over_R);
+    init_variables(sim_param.xL + 0.5*(sim_param.xR - sim_param.xL),
+                   sim_param.yL + 0.5*(sim_param.yR - sim_param.yL),
+                   sim_param.eps_over_R);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -198,7 +200,7 @@ void StaticBubble<dim>::update_geometry() {
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void StaticBubble<dim>::init_variables(const double L, const double eps_over_R) {
+void StaticBubble<dim>::init_variables(const double x0, const double y0, const double eps_over_R) {
   /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
@@ -215,8 +217,6 @@ void StaticBubble<dim>::init_variables(const double L, const double eps_over_R) 
 
   /*--- Declare some constant parameters associated to the grid and to the
         initial state ---*/
-  const double x0    = 0.5*L;
-  const double y0    = 0.5*L;
   const double eps_R = eps_over_R*R;
 
   const double U_0 = 0.0;
@@ -239,23 +239,49 @@ void StaticBubble<dim>::init_variables(const double L, const double eps_over_R) 
                                             ((r < R - 0.5*eps_R) ? 1.0 : 0.0);
 
                            alpha1_bar[cell] = w;
+                         });
 
+  update_geometry();
+
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
                            // Set small-scale variables
                            conserved_variables[cell][ALPHA1_D_INDEX] = 0.0;
                            conserved_variables[cell][SIGMA_D_INDEX]  = 0.0;
                            conserved_variables[cell][M1_D_INDEX]     = conserved_variables[cell][ALPHA1_D_INDEX]*EOS_phase1.get_rho0();
 
+                           // Recompute geometric locations to set partial masses
+                           const auto center = cell.center();
+                           const double x    = center[0];
+                           const double y    = center[1];
+
+                           const double r = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
+
                            // Set mass large-scale phase 1
-                           p1[cell]        = EOS_phase1.get_p0();
+                           if(r >= R + eps_R) {
+                             p1[cell] = nan("");
+                           }
+                           else {
+                             p1[cell] = EOS_phase2.get_p0();
+                             if(r >= R && r < R + eps_R) {
+                               p1[cell] += sigma*H_bar[cell];
+                             }
+                             else {
+                               p1[cell] += sigma/R;
+                             }
+                           }
                            const auto rho1 = EOS_phase1.rho_value(p1[cell]);
 
-                           conserved_variables[cell][M1_INDEX] = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho1;
+                           conserved_variables[cell][M1_INDEX] = (!std::isnan(rho1)) ?
+                                                                 alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho1 : 0.0;
 
                            // Set mass phase 2
-                           p2[cell]        = EOS_phase2.get_p0();
+                           p2[cell]        = (r >= R) ? EOS_phase2.get_p0() : nan("");
                            const auto rho2 = EOS_phase2.rho_value(p2[cell]);
 
-                           conserved_variables[cell][M2_INDEX] = (1.0 - alpha1_bar[cell])*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho2;
+                           conserved_variables[cell][M2_INDEX] = (!std::isnan(rho2)) ?
+                                                                 (1.0 - alpha1_bar[cell])*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho2 : 0.0;
 
                            // Set conserved variable associated to large-scale volume fraction
                            const auto rho = conserved_variables[cell][M1_INDEX]
@@ -568,8 +594,8 @@ void StaticBubble<dim>::run() {
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp   = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_tmp_2 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp_2", mesh);
+    auto conserved_variables_old = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
   #endif
   auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
@@ -629,7 +655,14 @@ void StaticBubble<dim>::run() {
     // Apply mesh adaptation
     perform_mesh_adaptation(filename);
 
+    // Save current state in case of order 2
+    #ifdef ORDER_2
+      conserved_variables_old.resize();
+      conserved_variables_old = conserved_variables;
+    #endif
+
     // Apply the numerical scheme without relaxation
+    // Convective operator
     samurai::update_ghost_mr(conserved_variables);
     auto flux_hyp = numerical_flux_hyp(conserved_variables);
     #ifdef ORDER_2
@@ -650,50 +683,15 @@ void StaticBubble<dim>::run() {
     samurai::update_ghost_mr(grad_alpha1_bar);
     auto flux_st = numerical_flux_st(conserved_variables);
     #ifdef ORDER_2
-      conserved_variables_tmp_2.resize();
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+      conserved_variables_tmp = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
     #else
       conserved_variables_np1 = conserved_variables - dt*flux_st;
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
 
-    // Apply relaxation
-    if(apply_relax) {
-      // Apply relaxation if desired, which will modify alpha1_bar and, consequently, for what
-      // concerns next time step, rho_alpha1_bar (as well as grad_alpha1_bar).
-      dalpha1_bar.resize();
-      samurai::for_each_cell(mesh,
-                             [&](const auto& cell)
-                             {
-                               dalpha1_bar[cell] = std::numeric_limits<typename Field::value_type>::infinity();
-                             });
-      apply_relaxation();
-      update_geometry();
-    }
-
-    // Consider the second stage for the second order
+    /*--- Consider the second stage for the second order ---*/
     #ifdef ORDER_2
-      // Apply the numerical scheme
-      samurai::update_ghost_mr(conserved_variables);
-      flux_hyp = numerical_flux_hyp(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
-      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
-
-      // Check if spurious negative values arise and recompute geometrical quantities
-      clear_data(filename);
-      update_geometry();
-
-      // Capillarity contribution
-      samurai::update_ghost_mr(grad_alpha1_bar);
-      flux_st = numerical_flux_st(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-
-      // Compute evaluation of the advection step
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
-
       // Apply the relaxation
       if(apply_relax) {
         // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
@@ -706,6 +704,30 @@ void StaticBubble<dim>::run() {
         apply_relaxation();
         update_geometry();
       }
+
+      // Apply the numerical scheme
+      // Convective operator
+      samurai::update_ghost_mr(conserved_variables);
+      flux_hyp = numerical_flux_hyp(conserved_variables);
+      conserved_variables_tmp = conserved_variables - dt*flux_hyp;
+      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+
+      // Check if spurious negative values arise and recompute geometrical quantities
+      clear_data(filename);
+      update_geometry();
+
+      // Capillarity contribution
+      samurai::update_ghost_mr(grad_alpha1_bar);
+      flux_st = numerical_flux_st(conserved_variables);
+      conserved_variables_tmp = conserved_variables - dt*flux_st;
+
+      // Compute evaluation
+      conserved_variables_np1.resize();
+      conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables_tmp);
+      std::swap(conserved_variables.array(), conserved_variables_np1.array());
+
+      // Recompute volume fraction gradient and curvature for the next time step
+      update_geometry();
     #endif
 
     // Compute updated time step

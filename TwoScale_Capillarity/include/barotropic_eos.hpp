@@ -22,6 +22,8 @@ public:
   virtual T c_value(const T& rho) const = 0; /*--- Function to compute the speed of sound ---*/
 
   virtual T rho_value(const T& pres) const = 0; /*--- Function to compute the density from the pressure ---*/
+
+  virtual T e_value(const T& rho) const = 0; /*--- Function to compute the internal energy from the density ---*/
 };
 
 
@@ -43,6 +45,8 @@ public:
   virtual T c_value(const T& rho) const override; /*--- Function to compute the speed of sound ---*/
 
   virtual T rho_value(const T& pres) const override; /*--- Function to compute the density from the pressure ---*/
+
+  virtual T e_value(const T& rho) const override; /*--- Function to compute the internal energy from the density ---*/
 
   inline double get_c0() const; /*--- Get the speed of sound ---*/
 
@@ -97,6 +101,17 @@ T LinearizedBarotropicEOS<T>::rho_value(const T& pres) const {
   }
 
   return (pres - p0)/(c0*c0) + rho0;
+}
+
+// Implement the internal energy from the density
+//
+template<typename T>
+T LinearizedBarotropicEOS<T>::e_value(const T& rho) const {
+  if(std::isnan(rho)) {
+    return nan("");
+  }
+
+  return c0*c0*std::log(rho) - p0/rho;
 }
 
 // Implement the getter of the speed of sound

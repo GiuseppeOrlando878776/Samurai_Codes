@@ -512,8 +512,8 @@ void TwoScaleCapillarity<dim>::run() {
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp   = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_tmp_2 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp_2", mesh);
+    auto conserved_variables_old = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
   #endif
   auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
@@ -570,6 +570,26 @@ void TwoScaleCapillarity<dim>::run() {
     // Apply mesh adaptation
     perform_mesh_adaptation();
 
+    // Save current state in case of order 2
+    #ifdef ORDER_2
+      conserved_variables_old.resize();
+      conserved_variables_old = conserved_variables;
+    #endif
+
+    // Apply relaxation
+    if(apply_relax) {
+      // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
+      // concerns next time step, rho_alpha1 (as well as grad_alpha1)
+      dalpha1.resize();
+      samurai::for_each_cell(mesh,
+                             [&](const auto& cell)
+                             {
+                               dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
+                             });
+      apply_relaxation();
+      update_geometry();
+    }
+
     // Apply the numerical scheme without relaxation
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
@@ -600,37 +620,35 @@ void TwoScaleCapillarity<dim>::run() {
     samurai::update_ghost_mr(conserved_variables);
     auto flux_st = numerical_flux_st(conserved_variables);
     #ifdef ORDER_2
-      conserved_variables_tmp_2.resize();
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+      conserved_variables_tmp = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
     #else
       conserved_variables_np1 = conserved_variables - dt*flux_st;
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
 
-    // Apply relaxation
-    if(apply_relax) {
-      // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
-      // concerns next time step, rho_alpha1 (as well as grad_alpha1)
-      dalpha1.resize();
-      samurai::for_each_cell(mesh,
-                             [&](const auto& cell)
-                             {
-                               dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
-                             });
-      apply_relaxation();
-      update_geometry();
-    }
-
-    // Consider the second stage for the second order
+    /*--- Consider the second stage for the second order ---*/
     #ifdef ORDER_2
+      // Apply the relaxation
+      if(apply_relax) {
+        // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
+        // concerns next time step, rho_alpha1
+        samurai::for_each_cell(mesh,
+                               [&](const auto& cell)
+                               {
+                                 dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
+                               });
+        apply_relaxation();
+        update_geometry();
+      }
+
       // Apply the numerical scheme
       // Convective operator
       samurai::update_ghost_mr(conserved_variables);
       try {
         auto flux_hyp = numerical_flux_hyp(conserved_variables);
-        conserved_variables_tmp_2 = conserved_variables - dt*flux_hyp;
-        std::swap(conserved_variables.array(), conserved_variables_tmp_2.array());
+        conserved_variables_tmp = conserved_variables - dt*flux_hyp;
+        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
       }
       catch(std::exception& e) {
         std::cerr << e.what() << std::endl;
@@ -646,23 +664,15 @@ void TwoScaleCapillarity<dim>::run() {
       // Capillarity contribution
       samurai::update_ghost_mr(conserved_variables);
       flux_st = numerical_flux_st(conserved_variables);
-      conserved_variables_tmp_2 = conserved_variables - dt*flux_st;
+      conserved_variables_tmp = conserved_variables - dt*flux_st;
+
+      // Complete evaluation
       conserved_variables_np1.resize();
-      conserved_variables_np1 = 0.5*(conserved_variables_tmp + conserved_variables_tmp_2);
+      conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables_tmp);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
-      // Apply the relaxation
-      if(apply_relax) {
-        // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
-        // concerns next time step, rho_alpha1
-        samurai::for_each_cell(mesh,
-                               [&](const auto& cell)
-                               {
-                                 dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
-                               });
-        apply_relaxation();
-        update_geometry();
-      }
+      // Recompute volume fraction gradient and curvature for the next time step
+      update_geometry();
     #endif
 
     // Compute updated time step

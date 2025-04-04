@@ -14,25 +14,24 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to mesh, final time and Courant ---*/
   Simulation_Paramaters sim_param;
 
-  sim_param.xL = 0.0;
-  sim_param.xR = 0.75;
-  sim_param.yL = 0.0;
-  sim_param.yR = 0.75;
-  sim_param.L  = 0.75;
+  sim_param.xL = -1.0;
+  sim_param.xR = 1.0;
+  sim_param.yL = -1.0;
+  sim_param.yR = 1.0;
 
-  sim_param.min_level     = 7;
-  sim_param.max_level     = 7;
+  sim_param.min_level     = 5;
+  sim_param.max_level     = 5;
   sim_param.MR_param      = 1e-2;
   sim_param.MR_regularity = 0;
 
-  sim_param.Tf      = 1.0;
+  sim_param.Tf      = 200.0;
   sim_param.Courant = 0.4;
 
   sim_param.nfiles = 10;
 
-  sim_param.R           = 0.15;
-  sim_param.eps_over_R  = 0.6;
-  sim_param.sigma       = 30.0;
+  sim_param.R           = 0.4;
+  sim_param.eps_over_R  = 0.1;
+  sim_param.sigma       = 0.6144;
   sim_param.sigma_relax = sim_param.sigma;
 
   sim_param.apply_relaxation        = true;
@@ -45,7 +44,6 @@ int main(int argc, char* argv[]) {
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--yL", sim_param.yL, "y Bottom-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--yR", sim_param.yR, "y Top-end of the domain")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--L", sim_param.L, "Length of the square domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--R", sim_param.R, "Radius of the bubble")->capture_default_str()->group("Simulation parameters");
   app.add_option("--eps_over_R", sim_param.eps_over_R, "Interface thickness with respect to bubble radius")->capture_default_str()->group("Simulation parameters");
   app.add_option("--sigma", sim_param.sigma, "Surface tension coefficient")->capture_default_str()->group("Simulation parameters");
@@ -64,13 +62,13 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters eos_param;
 
-  eos_param.p0_phase1   = 1e5;
-  eos_param.rho0_phase1 = 1e3;
-  eos_param.c0_phase1   = 48.0;
+  eos_param.p0_phase1   = 1.0;
+  eos_param.rho0_phase1 = 1.0;
+  eos_param.c0_phase1   = 46.28;
 
-  eos_param.p0_phase2   = 1e5;
+  eos_param.p0_phase2   = 1.0;
   eos_param.rho0_phase2 = 1.0;
-  eos_param.c0_phase2   = 374.0;
+  eos_param.c0_phase2   = 1.18;
 
   app.add_option("--p0_phase1", eos_param.p0_phase1, "p0_phase1")->capture_default_str()->group("EOS parameters");
   app.add_option("--rho0_phase1", eos_param.p0_phase1, "rho0_phase1")->capture_default_str()->group("EOS parameters");

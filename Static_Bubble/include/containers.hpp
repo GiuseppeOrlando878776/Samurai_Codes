@@ -13,11 +13,10 @@ struct Simulation_Paramaters {
   double xR;
   double yL;
   double yR;
-  double L;
 
-  std::size_t min_level;
-  std::size_t max_level;
-  double MR_param;
+  std::size_t  min_level;
+  std::size_t  max_level;
+  double       MR_param;
   unsigned int MR_regularity;
 
   double R;
@@ -30,9 +29,10 @@ struct Simulation_Paramaters {
 
   std::size_t nfiles;
 
-  bool apply_relaxation;
   double eps_nan;
   double mod_grad_alpha1_bar_min;
+
+  bool apply_relaxation;
 };
 
 // Declare a struct with EOS parameters

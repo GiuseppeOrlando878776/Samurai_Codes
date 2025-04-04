@@ -363,14 +363,24 @@ namespace samurai {
     const auto rho = (*conserved_variables)(M1_INDEX)
                    + (*conserved_variables)(M2_INDEX)
                    + (*conserved_variables)(M1_D_INDEX);
-    typename Field::value_type H_lim;
+
+    // Compute first ordrer integral reminder "specific enthalpy"
+    const auto p_bar                 = alpha1_bar*p1 + (1.0 - alpha1_bar)*p2;
+    const auto p2_minus_p1_times_h   = rho1/(1.0 - alpha1_bar)*
+                                       (phase1.e_value(rho1d) - phase1.e_value(rho1) +
+                                       p_bar/rho1d - p1/rho1)
+                                     - (p2 - p1);
+    typename Field::value_type H_lim = std::min(H_bar, Hmax);
+    const auto fac_Ru                = sigma*(3.0*H_lim/(kappa*rho1d))*(rho1/(1.0 - alpha1_bar)) -
+                                       sigma*H_lim/(1.0 - (*conserved_variables)(ALPHA1_D_INDEX)) +
+                                       p2_minus_p1_times_h;
     if(mass_transfer_NR) {
-      if(3.0/(kappa*rho1d)*rho1 - (1.0 - alpha1_bar)/(1.0 - (*conserved_variables)(ALPHA1_D_INDEX)) > 0.0 &&
+      if(fac_Ru > 0.0 &&
          alpha1_bar > alpha1_bar_min && alpha1_bar < alpha1_bar_max &&
          -grad_alpha1_bar[0]*(*conserved_variables)(RHO_U_INDEX)
          -grad_alpha1_bar[1]*(*conserved_variables)(RHO_U_INDEX + 1) > 0.0 &&
          (*conserved_variables)(ALPHA1_D_INDEX) < alpha1d_max) {
-        H_lim = std::min(H_bar, Hmax);
+        ;
       }
       else {
         H_lim = H_bar;
@@ -380,10 +390,7 @@ namespace samurai {
       H_lim = H_bar;
     }
 
-    const auto dH = H_bar - H_lim;  //TODO: Initialize this outside and check if the maximum of dH
-                                    //at previous iteration is greater than a tolerance (1e-7 in Arthur's code).
-                                    //On the other hand, update geometry should in principle always be necessary,
-                                    //but seems to lead to issues if called at every Newton iteration
+    const auto dH = H_bar - H_lim;
 
     // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
     const auto F = (1.0 - (*conserved_variables)(ALPHA1_D_INDEX))*(p1 - p2)
@@ -411,24 +418,20 @@ namespace samurai {
         }
 
         // Bound preserving for the velocity
-        const auto mom_dot_vel = ((*conserved_variables)(RHO_U_INDEX)*(*conserved_variables)(RHO_U_INDEX) +
-                                  (*conserved_variables)(RHO_U_INDEX + 1)*(*conserved_variables)(RHO_U_INDEX + 1))/rho;
-        const auto fac         = std::max(3.0/(kappa*rho1d)*(rho1/(1.0 - alpha1_bar)) -
-                                          1.0/(1.0 - (*conserved_variables)(ALPHA1_D_INDEX)), 0.0);
-        if(fac > 0.0) {
-          auto dtau_ov_epsilon_tmp = mom_dot_vel/(Hmax*dH*fac*sigma*sigma);
-          dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-          if(dtau_ov_epsilon < 0.0) {
-            throw std::runtime_error("Negative time step found after relaxation of velocity");
-            exit(1);
-          }
+        const auto mom_dot_vel   = ((*conserved_variables)(RHO_U_INDEX)*(*conserved_variables)(RHO_U_INDEX) +
+                                    (*conserved_variables)(RHO_U_INDEX + 1)*(*conserved_variables)(RHO_U_INDEX + 1))/rho;
+        auto dtau_ov_epsilon_tmp = mom_dot_vel/(dH*fac_Ru*sigma);
+        dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
+        if(dtau_ov_epsilon < 0.0) {
+          throw std::runtime_error("Negative time step found after relaxation of velocity");
+          exit(1);
         }
 
         // Bound preserving for the small-scale volume fraction
-        auto dtau_ov_epsilon_tmp = lambda*(alpha1d_max - (*conserved_variables)(ALPHA1_D_INDEX))*(1.0 - alpha1_bar)*rho1d/
-                                   (rho1*sigma*dH);
-        dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-        if((*conserved_variables)(ALPHA1_D_INDEX) > 0.0 && (*conserved_variables)(ALPHA1_D_INDEX) < alpha1d_max) {
+        dtau_ov_epsilon_tmp = lambda*(alpha1d_max - (*conserved_variables)(ALPHA1_D_INDEX))*(1.0 - alpha1_bar)*rho1d/
+                              (rho1*sigma*dH);
+        dtau_ov_epsilon     = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
+        if((*conserved_variables)(ALPHA1_D_INDEX) > 0.0) {
           dtau_ov_epsilon_tmp = (*conserved_variables)(ALPHA1_D_INDEX)*(1.0 - alpha1_bar)*rho1d/
                                 (rho1*sigma*dH);
 
@@ -436,6 +439,7 @@ namespace samurai {
         }
         if(dtau_ov_epsilon < 0.0) {
           throw std::runtime_error("Negative time step found after relaxation of small-scale volume fraction");
+          exit(1);
         }
       }
 
@@ -481,6 +485,7 @@ namespace samurai {
         // If we are in this branch we do not have mass transfer
         // and we do not have other restrictions on the bounds of large scale volume fraction
         dalpha1_bar = -F/dF_dalpha1_bar;
+
         /*if(dalpha1_bar > 0.0) {
           dalpha1_bar = std::min(-F/dF_dalpha1_bar, lambda*(1.0 - alpha1_bar));
         }
@@ -530,19 +535,16 @@ namespace samurai {
       }
 
       if(dH > 0.0) {
-        const auto fac = std::max(3.0/(kappa*rho1d)*(rho1/(1.0 - alpha1_bar)) -
-                                  1.0/(1.0 - (*conserved_variables)(ALPHA1_D_INDEX)), 0.0);
-
-        double drho_fac = 0.0;
+        double drho_fac_Ru = 0.0;
         const auto mom_squared = (*conserved_variables)(RHO_U_INDEX)*(*conserved_variables)(RHO_U_INDEX)
                                + (*conserved_variables)(RHO_U_INDEX + 1)*(*conserved_variables)(RHO_U_INDEX + 1);
         if(mom_squared > 0.0) {
-           drho_fac = dtau_ov_epsilon*
-                      sigma*sigma*dH*fac*H_lim*rho/mom_squared;
+          drho_fac_Ru = dtau_ov_epsilon*
+                        sigma*dH*fac_Ru*rho/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
         }
 
         for(std::size_t d = 0; d < Field::dim; ++d) {
-          (*conserved_variables)(RHO_U_INDEX + d) -= drho_fac*(*conserved_variables)(RHO_U_INDEX + d);
+          (*conserved_variables)(RHO_U_INDEX + d) -= drho_fac_Ru*(*conserved_variables)(RHO_U_INDEX + d);
         }
       }
     }
