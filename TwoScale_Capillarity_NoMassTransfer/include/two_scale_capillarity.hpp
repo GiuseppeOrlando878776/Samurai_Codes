@@ -101,8 +101,9 @@ private:
 
   const double sigma; /*--- Surface tension coefficient ---*/
 
-  const double eps_residual;        /*--- Residual volume fraction phase ---*/
   const double mod_grad_alpha1_min; /*--- Minimum threshold for which not computing anymore the unit normal ---*/
+
+  std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
   LinearizedBarotropicEOS<typename Field::value_type> EOS_phase1,
                                                       EOS_phase2; /*--- The two variables which take care of the
@@ -123,8 +124,9 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
 
-  void init_variables(const double R, const double eps_over_R); /*--- Routine to initialize the variables
-                                                                      (both conserved and auxiliary, this is problem dependent) ---*/
+  void init_variables(const double R, const double eps_over_R,
+                      const double alpha_residual); /*--- Routine to initialize the variables
+                                                          (both conserved and auxiliary, this is problem dependent) ---*/
 
   double get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
 
@@ -149,15 +151,20 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   cfl(sim_param.Courant), nfiles(sim_param.nfiles),
   gradient(samurai::make_gradient_order2<decltype(alpha1)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>()),
-  sigma(sim_param.sigma), eps_residual(sim_param.eps_residual), mod_grad_alpha1_min(sim_param.mod_grad_alpha1_min),
+  sigma(sim_param.sigma), mod_grad_alpha1_min(sim_param.mod_grad_alpha1_min),
+  max_Newton_iters(sim_param.max_Newton_iters),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min),
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
+                 sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min),
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
+                 sim_param.lambda, sim_param.tol_Newton, max_Newton_iters,
+                 sim_param.tol_Newton_p_star),
   #endif
-  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min),
+  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
+                      sim_param.lambda, sim_param.tol_Newton, max_Newton_iters),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
     int rank;
@@ -166,7 +173,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << "Initializing variables " << std::endl;
       std::cout << std::endl;
     }
-    init_variables(sim_param.R, sim_param.eps_over_R);
+    init_variables(sim_param.R, sim_param.eps_over_R, sim_param.alpha_residual);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -198,7 +205,7 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_over_R) {
+void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_over_R, const double alpha_residual) {
   /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
@@ -235,7 +242,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
                                                               (((r - R)*(r - R)/(eps_R*eps_R) - 1.0)*((r - R)*(r - R)/(eps_R*eps_R) - 1.0))), 0.0) :
                                             ((r < R) ? 1.0 : 0.0);
 
-                           alpha1[cell] = std::min(std::max(eps_residual, w), 1.0 - eps_residual);
+                           alpha1[cell] = std::min(std::max(alpha_residual, w), 1.0 - alpha_residual);
                          });
 
   /*--- Compute the geometrical quantities ---*/
@@ -292,7 +299,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
   const samurai::DirectionVector<dim> left  = {-1, 0};
   const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<Default>(conserved_variables,
-                            Inlet(conserved_variables, U_0, 0.0, eps_residual))->on(left);
+                            Inlet(conserved_variables, U_0, 0.0, alpha_residual))->on(left);
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
 }
 
@@ -425,9 +432,6 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::apply_relaxation() {
-  const double tol    = 1e-12; // Tolerance of the Newton method
-  const double lambda = 0.9;   // Parameter for bound preserving strategy
-
   /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
         over each cell would be more logic, but this would lead to issues to call 'update_geometry' ---*/
   std::size_t Newton_iter = 0;
@@ -443,19 +447,19 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              #ifdef RUSANOV_FLUX
                                 Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                             H[cell], dalpha1[cell], alpha1[cell],
-                                                                            relaxation_applied, tol, lambda);
+                                                                            relaxation_applied);
                              #elifdef GODUNOV_FLUX
                                 Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                             H[cell], dalpha1[cell], alpha1[cell],
-                                                                            relaxation_applied, tol, lambda);
+                                                                            relaxation_applied);
                              #endif
                            });
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
-    //update_geometry();
+    update_geometry();
 
     // Newton cycle diverged
-    if(Newton_iter > 60) {
+    if(Newton_iter > max_Newton_iters) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
            conserved_variables, alpha1, grad_alpha1, normal, H);

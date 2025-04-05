@@ -155,8 +155,8 @@ private:
   void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
 
   void init_variables(const double R, const double eps_over_R,
-                      const double eps_residual); /*--- Routine to initialize the variables
-                                                        (both conserved and auxiliary, this is problem dependent) ---*/
+                      const double alpha_residual); /*--- Routine to initialize the variables
+                                                          (both conserved and auxiliary, this is problem dependent) ---*/
 
   double get_max_lambda(); /*--- Compute the estimate of the maximum eigenvalue ---*/
 
@@ -198,7 +198,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
                  sigma, mod_grad_alpha1_bar_min,
                  mass_transfer, sim_param.kappa, sim_param.Hmax,
                  sim_param.alpha1d_max, sim_param.alpha1_bar_min, sim_param.alpha1_bar_max,
-                 sim_param.lambda, sim_param.tol_Newton, max_Newton_iters, sim_param.tol_Newton_p_star),
+                 sim_param.lambda, sim_param.tol_Newton, max_Newton_iters,
+                 sim_param.tol_Newton_p_star, sim_param.tol_Newton_alpha1_d),
   #endif
   SurfaceTension_flux(EOS_phase1, EOS_phase2,
                       sigma, mod_grad_alpha1_bar_min,
@@ -215,7 +216,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << "Initializing variables " << std::endl;
       std::cout << std::endl;
     }
-    init_variables(sim_param.R, sim_param.eps_over_R, sim_param.eps_residual);
+    init_variables(sim_param.R, sim_param.eps_over_R, sim_param.alpha_residual);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -247,7 +248,7 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_over_R, const double eps_residual) {
+void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_over_R, const double alpha_residual) {
   /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
@@ -297,7 +298,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
                                                               (((r - R)*(r - R)/(eps_R*eps_R) - 1.0)*((r - R)*(r - R)/(eps_R*eps_R) - 1.0))), 0.0) :
                                             ((r < R) ? 1.0 : 0.0);
 
-                           alpha1_bar[cell] = std::min(std::max(eps_residual, w), 1.0 - eps_residual);;
+                           alpha1_bar[cell] = std::min(std::max(alpha_residual, w), 1.0 - alpha_residual);
                          });
 
   /*--- Compute the geometrical quantities ---*/
@@ -378,13 +379,14 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
   /*--- Apply bcs ---*/
   const samurai::DirectionVector<dim> left = {-1, 0};
   samurai::make_bc<Default>(conserved_variables,
-                            Inlet(conserved_variables, U_0, 0.0, eps_residual, 0.0, EOS_phase1.get_rho0(), 0.0))->on(left);
-  /*samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, eps_residual*EOS_phase1.get_rho0(),
-                                                               (1.0 - eps_residual)*EOS_phase2.get_rho0(),
+                            Inlet(conserved_variables, U_0, 0.0, alpha_residual, 0.0, EOS_phase1.get_rho0(), 0.0))->on(left);
+  /*samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, alpha_residual*EOS_phase1.get_rho0(),
+                                                               (1.0 - alpha_residual)*EOS_phase2.get_rho0(),
                                                                0.0, 0.0, 0.0,
-                                                               (eps_residual*EOS_phase1.get_rho0() + (1.0 - eps_residual)*EOS_phase2.get_rho0())*
-                                                               eps_residual,
-                                                               (eps_residual*EOS_phase1.get_rho0() + (1.0 - eps_residual)*EOS_phase2.get_rho0())*U_0, 0.0)->on(left);*/
+                                                               (alpha_residual*EOS_phase1.get_rho0() + (1.0 - alpha_residual)*EOS_phase2.get_rho0())*
+                                                               alpha_residual,
+                                                               (alpha_residual*EOS_phase1.get_rho0() +
+                                                                (1.0 - alpha_residual)*EOS_phase2.get_rho0())*U_0, 0.0)->on(left);*/
 
   const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);

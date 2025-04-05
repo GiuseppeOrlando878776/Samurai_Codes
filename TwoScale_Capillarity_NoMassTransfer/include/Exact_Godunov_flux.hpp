@@ -21,7 +21,11 @@ namespace samurai {
     GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
                 const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                 const double sigma_,
-                const double mod_grad_alpha1_min_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+                const double mod_grad_alpha1_min_,
+                const double lambda_ = 0.9,
+                const double tol_Newton_ = 1e-12,
+                const std::size_t max_Newton_iters_ = 60,
+                const double tol_Newton_p_star_ = 1e-8); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Field_Scalar>
@@ -31,6 +35,8 @@ namespace samurai {
     #endif
 
   private:
+    const double tol_Newton_p_star; /*--- Tolerance of the Newton method to compute p_star ---*/
+
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                const std::size_t curr_d); /*--- Godunov flux for the along direction curr_d ---*/
@@ -50,8 +56,13 @@ namespace samurai {
   GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
                                   const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                                   const double sigma_,
-                                  const double grad_alpha1_min_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, grad_alpha1_min_) {}
+                                  const double mod_grad_alpha1_min_,
+                                  const double lambda_,
+                                  const double tol_Newton_,
+                                  const std::size_t max_Newton_iters_,
+                                  const double tol_Newton_p_star_):
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, mod_grad_alpha1_min_, lambda_, tol_Newton_, max_Newton_iters_),
+    tol_Newton_p_star(tol_Newton_p_star_) {}
 
   // Compute p* through Newton-Rapson method
   //
@@ -63,10 +74,6 @@ namespace samurai {
                                         const typename Field::value_type p0_L,
                                         const typename Field::value_type p0_R,
                                         typename Field::value_type& p_star) {
-    const double tol            = 1e-8; // Tolerance of the Newton method
-    const double lambda         = 0.9;  // Parameter for bound preserving strategy
-    const std::size_t max_iters = 100;  // Maximum number of Newton iterations
-
     typename Field::value_type dp_star = std::numeric_limits<typename Field::value_type>::infinity();
 
     /*--- Left state useful variables ---*/
@@ -111,7 +118,8 @@ namespace samurai {
 
     /*--- Loop of Newton method to compute p* ---*/
     std::size_t Newton_iter = 0;
-    while(Newton_iter < max_iters && std::abs(F_p_star) > tol*std::abs(vel_d_L) && std::abs(dp_star/p_star) > tol) {
+    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->tol_Newton_p_star*(1.0 + std::abs(vel_d_L)) &&
+          std::abs(dp_star) > this->tol_Newton_p_star*(1.0 + std::abs(p_star))) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment
@@ -133,7 +141,7 @@ namespace samurai {
       dp_star = -F_p_star/dF_p_star;
 
       // Bound preserving increment
-      dp_star = std::max(dp_star, lambda*(std::max(p0_L, p0_R) - p_star));
+      dp_star = std::max(dp_star, this->lambda*(std::max(p0_L, p0_R) - p_star));
 
       if(p_star + dp_star <= p0_L) {
         throw std::runtime_error("Non-admissible value for the pressure in the Newton method to compute p* in Godunov solver");
@@ -143,7 +151,7 @@ namespace samurai {
       }
 
       // Newton cycle diverged
-      if(Newton_iter == max_iters) {
+      if(Newton_iter == this->max_Newton_iters) {
         throw std::runtime_error("Netwon method not converged to compute p* in the Godunov solver");
       }
 

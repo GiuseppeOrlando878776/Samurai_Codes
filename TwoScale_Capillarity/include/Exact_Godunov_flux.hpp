@@ -29,7 +29,8 @@ namespace samurai {
                 const double lambda_ = 0.9,
                 const double tol_Newton_ = 1e-12,
                 const std::size_t max_Newton_iters_ = 60,
-                const double tol_Newton_p_star_ = 1e-8); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+                const double tol_Newton_p_star_ = 1e-8,
+                const double tol_Newton_alpha1_d_ = 1e-8); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Gradient, typename Field_Scalar>
@@ -40,7 +41,8 @@ namespace samurai {
     #endif
 
   private:
-    const double tol_Newton_p_star; /*--- Tolerance of the Newton method to compute p_star ---*/
+    const double tol_Newton_p_star;   /*--- Tolerance of the Newton method to compute p_star ---*/
+    const double tol_Newton_alpha1_d; /*--- Tolerance of the Newton method to compute alpha1_d ---*/
 
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
@@ -74,12 +76,14 @@ namespace samurai {
                                   const double lambda_,
                                   const double tol_Newton_,
                                   const std::size_t max_Newton_iters_,
-                                  const double tol_Newton_p_star_):
+                                  const double tol_Newton_p_star_,
+                                  const double tol_Newton_alpha1_d_):
     Flux<Field>(EOS_phase1, EOS_phase2,
                 sigma_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
-                lambda_, tol_Newton_, max_Newton_iters_), tol_Newton_p_star(tol_Newton_p_star_) {}
+                lambda_, tol_Newton_, max_Newton_iters_),
+                tol_Newton_p_star(tol_Newton_p_star_), tol_Newton_alpha1_d(tol_Newton_alpha1_d_) {}
 
   // Compute small-scale volume fraction for the fan through Newton-Rapson method
   //
@@ -94,7 +98,7 @@ namespace samurai {
     /*--- Loop of Newton method ---*/
     std::size_t Newton_iter = 0;
     while(Newton_iter < this->max_Newton_iters && alpha1_d > 0.0 && 1.0 - alpha1_d > 0.0 &&
-          std::abs(F_alpha1_d - rhs) > this->tol_Newton*std::abs(rhs) && std::abs(dalpha1_d)/alpha1_d > this->tol_Newton) {
+          std::abs(dalpha1_d)/alpha1_d > this->tol_Newton_alpha1_d) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment
@@ -180,8 +184,8 @@ namespace samurai {
 
     /*--- Loop of Newton method ---*/
     std::size_t Newton_iter = 0;
-    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->tol_Newton_p_star*std::abs(vel_d_L) &&
-          std::abs(dp_star/p_star) > this->tol_Newton_p_star) {
+    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->tol_Newton_p_star*(1.0 + std::abs(vel_d_L)) &&
+          std::abs(dp_star) > this->tol_Newton_p_star*(1.0 + std::abs(p_star))) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment
@@ -273,8 +277,8 @@ namespace samurai {
     const auto p_bar_L = alpha1_bar_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->phase2.pres_value(rho2_L);
     const auto p_bar_R = alpha1_bar_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->phase2.pres_value(rho2_R);
 
-    const auto p0_L = p_bar_L - rho_L*c_L*c_L;
-    const auto p0_R = p_bar_R - rho_R*c_R*c_R;
+    const auto p0_L = p_bar_L - rho_L*c_L*c_L*(1.0 - qL(ALPHA1_D_INDEX));
+    const auto p0_R = p_bar_R - rho_R*c_R*c_R*(1.0 - qR(ALPHA1_D_INDEX));
 
     auto p_star = std::max(0.5*(p_bar_L + p_bar_R),
                            std::max(p0_L, p0_R) + 0.1*std::abs(std::max(p0_L, p0_R)));
@@ -323,7 +327,7 @@ namespace samurai {
           }
         }
       }
-      // 3-waves left fan
+      // 3-wave left fan
       else {
         // Left of the left fan is qL, already assigned. Now we need to check if we are in
         // the left fan or at the right of the left fan
@@ -425,7 +429,7 @@ namespace samurai {
           }
         }
       }
-      // 3-waves right fan
+      // 3-wave right fan
       else {
         auto alpha1_d_R_star = 1.0;
         const auto sH_R      = vel_d_R + c_R;

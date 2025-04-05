@@ -62,18 +62,20 @@ namespace samurai {
     Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
          const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
          const double sigma_,
-         const double mod_grad_alpha1_min_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+         const double mod_grad_alpha1_min_,
+         const double lambda_ = 0.9,
+         const double tol_Newton_ = 1e-12,
+         const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename State>
     void perform_Newton_step_relaxation(std::unique_ptr<State> conserved_variables,
                                         const typename Field::value_type H,
                                         typename Field::value_type& dalpha1,
                                         typename Field::value_type& alpha1,
-                                        bool& relaxation_applied,
-                                        const double tol = 1e-12, const double lambda = 0.9); /*--- Perform a Newton step relaxation for a state vector
-                                                                                                    (it is not a real space dependent procedure,
-                                                                                                    but I would need to be able to do it inside the flux location
-                                                                                                    for MUSCL reconstruction) ---*/
+                                        bool& relaxation_applied); /*--- Perform a Newton step relaxation for a state vector
+                                                                         (it is not a real space dependent procedure,
+                                                                          but I would need to be able to do it inside the flux location
+                                                                          for MUSCL reconstruction) ---*/
 
   protected:
     const LinearizedBarotropicEOS<typename Field::value_type>& phase1;
@@ -82,6 +84,10 @@ namespace samurai {
     const double sigma; /*--- Surface tension coefficient ---*/
 
     const double mod_grad_alpha1_min; /*--- Tolerance to compute the unit normal ---*/
+
+    const double lambda;                /*--- Parameter for bound preserving strategy ---*/
+    const double tol_Newton;            /*--- Tolerance Newton method relaxation ---*/
+    const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
     template<typename Gradient>
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
@@ -121,9 +127,13 @@ namespace samurai {
   Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
                     const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                     const double sigma_,
-                    const double mod_grad_alpha1_min_):
+                    const double mod_grad_alpha1_min_,
+                    const double lambda_,
+                    const double tol_Newton_,
+                    const std::size_t max_Newton_iters_):
     phase1(EOS_phase1), phase2(EOS_phase2),
-    sigma(sigma_), mod_grad_alpha1_min(mod_grad_alpha1_min_) {}
+    sigma(sigma_), mod_grad_alpha1_min(mod_grad_alpha1_min_),
+    lambda(lambda_), tol_Newton(tol_Newton_), max_Newton_iters(max_Newton_iters_) {}
 
   // Evaluate the 'continuous flux'
   //
@@ -296,8 +306,7 @@ namespace samurai {
                                                    const typename Field::value_type H,
                                                    typename Field::value_type& dalpha1,
                                                    typename Field::value_type& alpha1,
-                                                   bool& relaxation_applied,
-                                                   const double tol, const double lambda) {
+                                                   bool& relaxation_applied) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto rho1 = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1   = phase1.pres_value(rho1);
@@ -309,7 +318,7 @@ namespace samurai {
     const auto F = p1 - p2 - sigma*H;
 
     /*--- Perform the relaxation only where really needed ---*/
-    if(!std::isnan(F) && std::abs(F) > tol*std::min(phase1.get_p0(), sigma*H) && std::abs(dalpha1) > tol) {
+    if(!std::isnan(F) && std::abs(F) > tol_Newton*(1.0 + std::min(phase1.get_p0(), sigma*std::abs(H))) && std::abs(dalpha1) > tol_Newton) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
@@ -351,8 +360,6 @@ namespace samurai {
       void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q,
                                              const typename Field::value_type H) {
         /*--- Declare and set relevant parameters ---*/
-        const double tol        = 1e-12; // Tolerance of the Newton method
-        const double lambda     = 0.9;   // Parameter for bound preserving strategy
         std::size_t Newton_iter = 0;
         bool relaxation_applied = true;
 
@@ -365,10 +372,10 @@ namespace samurai {
           Newton_iter++;
 
           this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
-                                               H, dalpha1, alpha1, relaxation_applied, tol, lambda);
+                                               H, dalpha1, alpha1, relaxation_applied);
 
           // Newton cycle diverged
-          if(Newton_iter > 60) {
+          if(Newton_iter > max_Newton_iters) {
             std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }

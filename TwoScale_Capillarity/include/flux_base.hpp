@@ -397,7 +397,7 @@ namespace samurai {
                  - sigma*H_lim;
 
     // Perform the relaxation only where really needed
-    if(!std::isnan(F) && std::abs(F) > tol_Newton*std::min(phase1.get_p0(), sigma*H_lim) && std::abs(dalpha1_bar) > tol_Newton) {
+    if(!std::isnan(F) && std::abs(F) > tol_Newton*(1.0 + std::min(phase1.get_p0(), sigma*std::abs(H_lim))) && std::abs(dalpha1_bar) > tol_Newton) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2

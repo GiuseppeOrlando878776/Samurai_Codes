@@ -29,10 +29,16 @@ struct Simulation_Paramaters {
 
   std::size_t nfiles;
 
-  double eps_nan;
+  double alpha_residual;
   double mod_grad_alpha1_bar_min;
 
-  bool apply_relaxation;
+  bool        apply_relaxation;
+  double      lambda;
+  double      tol_Newton;
+  std::size_t max_Newton_iters;
+
+  double tol_Newton_p_star;
+  double tol_Newton_alpha1_d;
 };
 
 // Declare a struct with EOS parameters

@@ -20,8 +20,10 @@ namespace samurai {
                 const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                 const double sigma_,
                 const double sigma_relax_,
-                const double eps_nan_,
-                const double mod_grad_alpha1_bar_min_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+                const double mod_grad_alpha1_bar_min_,
+                const double lambda_,
+                const double tol_Newton_,
+                const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Field_Scalar>
@@ -43,9 +45,14 @@ namespace samurai {
                                   const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
                                   const double sigma_,
                                   const double sigma_relax_,
-                                  const double eps_nan_,
-                                  const double mod_grad_alpha1_bar_min_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, sigma_relax_, eps_nan_, mod_grad_alpha1_bar_min_) {}
+                                  const double mod_grad_alpha1_bar_min_,
+                                  const double lambda_,
+                                  const double tol_Newton_,
+                                  const std::size_t max_Newton_iters_,
+                                  const double lambda_,
+                                  const double tol_Newton_,
+                                  const std::size_t max_Newton_iters_):
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, sigma_relax_, mod_grad_alpha1_bar_min_, lambda_, tol_Newton_, max_Newton_iters_) {}
 
   // Implementation of a Rusanov flux
   //
@@ -59,9 +66,9 @@ namespace samurai {
 
     const auto alpha1_bar_L = qL(RHO_ALPHA1_BAR_INDEX)/rho_L;
     const auto alpha1_L     = alpha1_bar_L*(1.0 - qL(ALPHA1_D_INDEX));
-    const auto rho1_L       = (alpha1_L > this->eps_nan) ? qL(M1_INDEX)/alpha1_L : nan("");
+    const auto rho1_L       = qL(M1_INDEX)/alpha1_L;
     const auto alpha2_L     = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
-    const auto rho2_L       = (alpha2_L > this->eps_nan) ? qL(M2_INDEX)/alpha2_L : nan("");
+    const auto rho2_L       = qL(M2_INDEX)/alpha2_L;
     const auto c_squared_L  = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
                             + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
     const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
@@ -72,9 +79,9 @@ namespace samurai {
 
     const auto alpha1_bar_R = qR(RHO_ALPHA1_BAR_INDEX)/rho_R;
     const auto alpha1_R     = alpha1_bar_R*(1.0 - qR(ALPHA1_D_INDEX));
-    const auto rho1_R       = (alpha1_R > this->eps_nan) ? qR(M1_INDEX)/alpha1_R : nan("");
+    const auto rho1_R       = qR(M1_INDEX)/alpha1_R;
     const auto alpha2_R     = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
-    const auto rho2_R       = (alpha2_R > this->eps_nan) ? qR(M2_INDEX)/alpha2_R : nan("");
+    const auto rho2_R       = qR(M2_INDEX)/alpha2_R;
     const auto c_squared_R  = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
                             + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
     const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));

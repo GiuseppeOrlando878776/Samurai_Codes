@@ -19,6 +19,11 @@ int main(int argc, char* argv[]) {
   sim_param.yL = -1.0;
   sim_param.yR = 1.0;
 
+  sim_param.R           = 0.4;
+  sim_param.eps_over_R  = 0.1;
+  sim_param.sigma       = 0.6144;
+  sim_param.sigma_relax = sim_param.sigma;
+
   sim_param.min_level     = 5;
   sim_param.max_level     = 5;
   sim_param.MR_param      = 1e-2;
@@ -29,35 +34,50 @@ int main(int argc, char* argv[]) {
 
   sim_param.nfiles = 10;
 
-  sim_param.R           = 0.4;
-  sim_param.eps_over_R  = 0.1;
-  sim_param.sigma       = 0.6144;
-  sim_param.sigma_relax = sim_param.sigma;
-
-  sim_param.apply_relaxation        = true;
-  sim_param.eps_nan                 = 1e-20;
+  sim_param.alpha_residual          = 1e-8;
   sim_param.mod_grad_alpha1_bar_min = 0.0;
 
-  app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
+  sim_param.apply_relaxation    = true;
+  sim_param.lambda              = 0.9;
+  sim_param.tol_Newton          = 1e-12;
+  sim_param.max_Newton_iters    = 60;
+
+  sim_param.tol_Newton_p_star   = 1e-8;
+  sim_param.tol_Newton_alpha1_d = 1e-8;
+
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--yL", sim_param.yL, "y Bottom-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--yR", sim_param.yR, "y Top-end of the domain")->capture_default_str()->group("Simulation parameters");
+
   app.add_option("--R", sim_param.R, "Radius of the bubble")->capture_default_str()->group("Simulation parameters");
   app.add_option("--eps_over_R", sim_param.eps_over_R, "Interface thickness with respect to bubble radius")->capture_default_str()->group("Simulation parameters");
   app.add_option("--sigma", sim_param.sigma, "Surface tension coefficient")->capture_default_str()->group("Simulation parameters");
   app.add_option("--sigma_relax", sim_param.sigma_relax,
                  "Surface tension coefficient for the relaxation")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Simulation_Paramaters");
-  app.add_option("--eps_nan", sim_param.eps_nan, "Tolerance for zero volume fraction")->capture_default_str()->group("Simulation_Paramaters");
-  app.add_option("--mod_grad_alpha1_bar_min", sim_param.mod_grad_alpha1_bar_min,
-                 "Tolerance for zero gradient volume fraction")->capture_default_str()->group("Simulation_Paramaters");
+
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--MR_param", sim_param.MR_param, "MR parameter for adaptation")->capture_default_str()->group("AMR parameter");
   app.add_option("--MR_regularity", sim_param.MR_regularity, "MR parameter for mesh regularity")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
+
+  app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Numerical paramaters");
+  app.add_option("--alpha_residual", sim_param.alpha_residual, "Residual large scale volume fraction")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--mod_grad_alpha1_bar_min", sim_param.mod_grad_alpha1_bar_min,
+                 "Tolerance for zero gradient volume fraction")->capture_default_str()->group("Numerical paramaters");
+  app.add_option("--lambda", sim_param.lambda,
+                 "Parameter for bound preserving strategy")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--tol_Newton", sim_param.tol_Newton,
+                 "Tolerance of Newton method for the relaxation")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--max_Newton_iters", sim_param.max_Newton_iters,
+                 "Maximum number of Newton iterations")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--tol_Newton_p_star", sim_param.tol_Newton_p_star,
+                 "Tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--tol_Newton_alpha1_d", sim_param.tol_Newton_alpha1_d,
+                 "Tolerance of Newton method to compute small-scale volume fraction for the exact solver")->capture_default_str()->group("Numerical parameters");
 
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters eos_param;
