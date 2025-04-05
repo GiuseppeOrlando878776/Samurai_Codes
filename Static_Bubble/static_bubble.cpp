@@ -4,46 +4,53 @@
 //
 #include <CLI/CLI.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include "include/two_scale_capillarity.hpp"
 
 // Main function to run the program
 //
 int main(int argc, char* argv[]) {
+  using json = nlohmann::json;
+
   auto& app = samurai::initialize("Finite volume example for the two-phase static bubble using multiresolution", argc, argv);
+
+  std::ifstream ifs("input.json"); // Read a JSON file
+  json input = json::parse(ifs);
 
   /*--- Set and declare simulation parameters related to mesh, final time and Courant ---*/
   Simulation_Paramaters sim_param;
 
-  sim_param.xL = -1.0;
-  sim_param.xR = 1.0;
-  sim_param.yL = -1.0;
-  sim_param.yR = 1.0;
+  sim_param.xL = input.value("xL", -1.0);
+  sim_param.xR = input.value("xR", 1.0);
+  sim_param.yL = input.value("yL", -1.0);
+  sim_param.yR = input.value("yR", 1.0);
 
-  sim_param.R           = 0.4;
-  sim_param.eps_over_R  = 0.1;
-  sim_param.sigma       = 0.6144;
-  sim_param.sigma_relax = sim_param.sigma;
+  sim_param.R           = input.value("R", 0.4);
+  sim_param.eps_over_R  = input.value("eps_over_R", 0.1);
+  sim_param.sigma       = input.value("sigma", 0.6144);
+  sim_param.sigma_relax = input.value("sigma_relax", 0.6144);
 
-  sim_param.min_level     = 5;
-  sim_param.max_level     = 5;
-  sim_param.MR_param      = 1e-2;
-  sim_param.MR_regularity = 0;
+  sim_param.min_level     = input.value("min-level", 5);
+  sim_param.max_level     = input.value("max-level", 5);
+  sim_param.MR_param      = input.value("MR_param", 1e-2);
+  sim_param.MR_regularity = input.value("MR_regularity", 0);
 
-  sim_param.Tf      = 200.0;
-  sim_param.Courant = 0.4;
+  sim_param.Tf      = input.value("Tf", 200.0);
+  sim_param.Courant = input.value("cfl", 0.4);
 
-  sim_param.nfiles = 10;
+  sim_param.nfiles = input.value("nfiles", 10);
 
-  sim_param.alpha_residual          = 1e-8;
-  sim_param.mod_grad_alpha1_bar_min = 0.0;
+  sim_param.alpha_residual          = input.value("alpha_residual", 1e-8);
+  sim_param.mod_grad_alpha1_bar_min = input.value("mod_grad_alpha1_bar_min", 0.0);
 
-  sim_param.apply_relaxation    = true;
-  sim_param.lambda              = 0.9;
-  sim_param.tol_Newton          = 1e-12;
-  sim_param.max_Newton_iters    = 60;
+  sim_param.apply_relaxation    = input.value("apply_relaxation", true);
+  sim_param.lambda              = input.value("lambda", 0.9);
+  sim_param.tol_Newton          = input.value("tol_Newton", 1e-12);
+  sim_param.max_Newton_iters    = input.value("max_Newton_iters", 60);
 
-  sim_param.tol_Newton_p_star   = 1e-8;
-  sim_param.tol_Newton_alpha1_d = 1e-8;
+  sim_param.tol_Newton_p_star   = input.value("tol_Newton_p_star", 1e-8);
+  sim_param.tol_Newton_alpha1_d = input.value("tol_Newton_alpha1_d", 1e-8);
 
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
@@ -82,13 +89,13 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters eos_param;
 
-  eos_param.p0_phase1   = 1.0;
-  eos_param.rho0_phase1 = 1.0;
-  eos_param.c0_phase1   = 46.28;
+  eos_param.p0_phase1   = input.value("p0_phase1", 1.0);
+  eos_param.rho0_phase1 = input.value("rho0_phase1", 1.0);
+  eos_param.c0_phase1   = input.value("c0_phase1", 46.28);
 
-  eos_param.p0_phase2   = 1.0;
-  eos_param.rho0_phase2 = 1.0;
-  eos_param.c0_phase2   = 1.18;
+  eos_param.p0_phase2   = input.value("p0_phase2", 1.0);
+  eos_param.rho0_phase2 = input.value("rho0_phase2", 1.0);
+  eos_param.c0_phase2   = input.value("c0_phase2", 1.18);
 
   app.add_option("--p0_phase1", eos_param.p0_phase1, "p0_phase1")->capture_default_str()->group("EOS parameters");
   app.add_option("--rho0_phase1", eos_param.p0_phase1, "rho0_phase1")->capture_default_str()->group("EOS parameters");
