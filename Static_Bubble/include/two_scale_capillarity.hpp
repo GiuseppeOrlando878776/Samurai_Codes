@@ -92,7 +92,8 @@ private:
                p_bar;
 
   Field_Vect normal,
-             grad_alpha1_bar;
+             grad_alpha1_bar,
+             vel;
 
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1_bar)>());
   gradient_type gradient;
@@ -224,6 +225,8 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
   p2              = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
   p_bar           = samurai::make_field<typename Field::value_type, 1>("p_bar", mesh);
 
+  vel             = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
+
   /*--- Declare some constant parameters associated to the grid and to the
         initial state ---*/
   const double eps_R = eps_over_R*R;
@@ -300,6 +303,10 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
 
                            // Set mixture pressure for output
                            p_bar[cell] = alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell];
+
+                           // Set velocity for output
+                           vel[cell][0] = conserved_variables[cell][RHO_U_INDEX]/rho;
+                           vel[cell][1] = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
                          });
 
   /*--- Compute the geometrical quantities ---*/
@@ -322,11 +329,11 @@ double StaticBubble<dim>::get_max_lambda(const double time) {
                          [&](const auto& cell)
                          {
                            /*--- Compute the velocity along both horizontal and vertical direction ---*/
-                           const auto rho   = conserved_variables[cell][M1_INDEX]
-                                            + conserved_variables[cell][M2_INDEX]
-                                            + conserved_variables[cell][M1_D_INDEX];
-                           const auto vel_x = conserved_variables[cell][RHO_U_INDEX]/rho;
-                           const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
+                           const auto rho = conserved_variables[cell][M1_INDEX]
+                                          + conserved_variables[cell][M2_INDEX]
+                                          + conserved_variables[cell][M1_D_INDEX];
+                           vel[cell][0]   = conserved_variables[cell][RHO_U_INDEX]/rho;
+                           vel[cell][1]   = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
 
                            /*--- Compute frozen speed of sound ---*/
                            const auto alpha1    = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
@@ -341,12 +348,12 @@ double StaticBubble<dim>::get_max_lambda(const double time) {
                            const double r = sigma*std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())/(rho*c*c);
 
                            /*--- Update eigenvalue estimate ---*/
-                           res = std::max(std::max(std::abs(vel_x) + c*(1.0 + 0.125*r),
-                                                   std::abs(vel_y) + c*(1.0 + 0.125*r)),
+                           res = std::max(std::max(std::abs(vel[cell][0]) + c*(1.0 + 0.125*r),
+                                                   std::abs(vel[cell][1]) + c*(1.0 + 0.125*r)),
                                           res);
 
                            /*--- Maximum absolute value of the velocity ---*/
-                           max_abs_u = std::max(std::sqrt(vel_x*vel_x + vel_y*vel_y), max_abs_u);
+                           max_abs_u = std::max(std::sqrt(vel[cell][0]*vel[cell][0] + vel[cell][1]*vel[cell][1]), max_abs_u);
                          });
 
   /*--- Save in output max velocity ---*/
@@ -401,16 +408,36 @@ void StaticBubble<dim>::check_data(unsigned int flag) {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
+                             // Sanity check for alpha1_bar
+                             if(alpha1_bar[cell] < 0.0) {
+                               std::cerr << cell << std::endl;
+                               std::cerr << "Negative large-scale volume fraction of phase 1 " + op << std::endl;
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                               exit(1);
+                             }
+                             else if(alpha1_bar[cell] > 1.0) {
+                               std::cerr << cell << std::endl;
+                               std::cerr << "Exceeding large-scale volume fraction of phase 1 " + op << std::endl;
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                               exit(1);
+                             }
+                             else if(std::isnan(alpha1_bar[cell])) {
+                               std::cerr << cell << std::endl;
+                               std::cerr << "NaN large-scale volume fraction of phase 1 " + op << std::endl;
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                               exit(1);
+                             }
+
                              // Sanity check for m1
                              if(conserved_variables[cell][M1_INDEX] < 0.0) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "Negative large-scale mass for phase 1 " + op << std::endl;
+                               std::cerr << "Negative large-scale mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              else if(std::isnan(conserved_variables[cell][M1_INDEX])) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "NaN large-scale mass for phase 1 " + op << std::endl;
+                               std::cerr << "NaN large-scale mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
@@ -418,13 +445,13 @@ void StaticBubble<dim>::check_data(unsigned int flag) {
                              // Sanity check for m2
                              if(conserved_variables[cell][M2_INDEX] < 0.0) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "Negative mass for phase 2 " + op << std::endl;
+                               std::cerr << "Negative mass of phase 2 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              else if(std::isnan(conserved_variables[cell][M2_INDEX])) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "NaN large-scale mass for phase 2 " + op << std::endl;
+                               std::cerr << "NaN large-scale mass of phase 2 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
@@ -432,13 +459,13 @@ void StaticBubble<dim>::check_data(unsigned int flag) {
                              // Sanity check for m1_d
                              if(conserved_variables[cell][M1_D_INDEX] < 0.0) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "Negative small-scale mass for phase 1 " + op << std::endl;
+                               std::cerr << "Negative small-scale mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              else if(std::isnan(conserved_variables[cell][M1_D_INDEX])) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "NaN small-scale mass for phase 1 " + op << std::endl;
+                               std::cerr << "NaN small-scale mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
@@ -446,7 +473,7 @@ void StaticBubble<dim>::check_data(unsigned int flag) {
                              // Sanity check for alpha1_d
                              if(conserved_variables[cell][ALPHA1_D_INDEX] > 1.0) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "Exceding value for small-scale volume fraction " + op << std::endl;
+                               std::cerr << "Exceding value of small-scale volume fraction " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
@@ -474,6 +501,23 @@ void StaticBubble<dim>::check_data(unsigned int flag) {
                                std::cerr << cell << std::endl;
                                std::cerr << "NaN small-scale interfacial area " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                               exit(1);
+                             }
+
+                             // Check data for mixture pressure
+                             const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
+                             const auto rho1   = conserved_variables[cell][M1_INDEX]/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                             p1[cell]          = EOS_phase1.pres_value(rho1);
+
+                             const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
+                             const auto rho2   = conserved_variables[cell][M2_INDEX]/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                             p2[cell]          = EOS_phase2.pres_value(rho2);
+
+                             p_bar[cell]       = alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell];
+                             if(std::isnan(p_bar[cell])) {
+                               std::cerr << cell << std::endl;
+                               std::cerr << "NaN mxiture pressure " + op << std::endl;
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar, p_bar);
                                exit(1);
                              }
                           });
@@ -638,7 +682,7 @@ void StaticBubble<dim>::run() {
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar);
+  save(path, suffix_init, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar, vel);
   pressure_data.open("pressure_data.dat", std::ofstream::out);
   double t = 0.0;
   execute_postprocess_pressure_jump(t);
@@ -760,7 +804,7 @@ void StaticBubble<dim>::run() {
     // Save the results
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar);
+      save(path, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar, vel);
     }
   } /*--- end of the time loop ---*/
 

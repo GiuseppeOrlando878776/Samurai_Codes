@@ -402,25 +402,25 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            {
                              // Sanity check for alpha1
                              if(alpha1[cell] < 0.0) {
-                               std::cerr << "Negative volume fraction for phase 1 " + op << std::endl;
+                               std::cerr << "Negative volume fraction of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                                exit(1);
                              }
                              else if(alpha1[cell] > 1.0) {
-                               std::cerr << "Exceeding volume fraction for phase 1 " + op << std::endl;
+                               std::cerr << "Exceeding volume fraction of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                                exit(1);
                              }
 
                              // Sanity check for m1
                              if(conserved_variables[cell][M1_INDEX] < 0.0) {
-                               std::cerr << "Negative mass for phase 1 " + op << std::endl;
+                               std::cerr << "Negative mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                                exit(1);
                              }
                              // Sanity check for m2
                              if(conserved_variables[cell][M2_INDEX] < 0.0) {
-                               std::cerr << "Negative mass for phase 2 " + op << std::endl;
+                               std::cerr << "Negative mass of phase 2 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                                exit(1);
                              }

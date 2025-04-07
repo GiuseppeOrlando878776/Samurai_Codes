@@ -498,16 +498,36 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
+                             // Sanity check for alpha1_bar
+                             if(alpha1_bar[cell] < 0.0) {
+                               std::cerr << cell << std::endl;
+                               std::cerr << "Negative large-scale volume fraction of phase 1 " + op << std::endl;
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                               exit(1);
+                             }
+                             else if(alpha1_bar[cell] > 1.0) {
+                               std::cerr << cell << std::endl;
+                               std::cerr << "Exceeding large-scale volume fraction of phase 1 " + op << std::endl;
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                               exit(1);
+                             }
+                             else if(std::isnan(alpha1_bar[cell])) {
+                               std::cerr << cell << std::endl;
+                               std::cerr << "NaN large-scale volume fraction of phase 1 " + op << std::endl;
+                               save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                               exit(1);
+                             }
+
                              // Sanity check for m1
                              if(conserved_variables[cell][M1_INDEX] < 0.0) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "Negative large-scale mass for phase 1 " + op << std::endl;
+                               std::cerr << "Negative large-scale mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              else if(std::isnan(conserved_variables[cell][M1_INDEX])) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "NaN large-scale mass for phase 1 " + op << std::endl;
+                               std::cerr << "NaN large-scale mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
@@ -515,13 +535,13 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                              // Sanity check for m2
                              if(conserved_variables[cell][M2_INDEX] < 0.0) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "Negative mass for phase 2 " + op << std::endl;
+                               std::cerr << "Negative mass of phase 2 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              else if(std::isnan(conserved_variables[cell][M2_INDEX])) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "NaN large-scale mass for phase 2 " + op << std::endl;
+                               std::cerr << "NaN large-scale mass of phase 2 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
@@ -529,13 +549,13 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                              // Sanity check for m1_d
                              if(conserved_variables[cell][M1_D_INDEX] < 0.0) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "Negative small-scale mass for phase 1 " + op << std::endl;
+                               std::cerr << "Negative small-scale mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
                              else if(std::isnan(conserved_variables[cell][M1_D_INDEX])) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "NaN small-scale mass for phase 1 " + op << std::endl;
+                               std::cerr << "NaN small-scale mass of phase 1 " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
@@ -543,7 +563,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                              // Sanity check for alpha1_d
                              if(conserved_variables[cell][ALPHA1_D_INDEX] > 1.0) {
                                std::cerr << cell << std::endl;
-                               std::cerr << "Exceding value for small-scale volume fraction " + op << std::endl;
+                               std::cerr << "Exceding value of small-scale volume fraction " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
                              }
