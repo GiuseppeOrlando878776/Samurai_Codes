@@ -7,6 +7,8 @@
 
 #include "flux_base.hpp"
 
+//#define VERBOSE_FLUX
+
 namespace samurai {
   using namespace EquationData;
 
@@ -17,15 +19,27 @@ namespace samurai {
   class GodunovFlux: public Flux<Field> {
   public:
     GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input
-                                                                                              the equations of state of the two phases ---*/
+                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+                const double sigma_,
+                const double mod_grad_alpha1_min_,
+                const double lambda_ = 0.9,
+                const double tol_Newton_ = 1e-12,
+                const std::size_t max_Newton_iters_ = 60,
+                const double tol_Newton_p_star_ = 1e-8); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
-    auto make_flux(); /*--- Compute the flux along all the directions ---*/
+    #ifdef ORDER_2
+      template<typename Field_Scalar>
+      auto make_flux(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
+    #else
+      auto make_flux(); /*--- Compute the flux over all the directions ---*/
+    #endif
 
   private:
+    const double tol_Newton_p_star; /*--- Tolerance of the Newton method to compute p_star ---*/
+
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d); /*--- Godunov flux along direction curr_d ---*/
+                                                               const std::size_t curr_d); /*--- Godunov flux for the along direction curr_d ---*/
 
     void solve_p_star(const FluxValue<typename Flux<Field>::cfg>& qL,
                       const FluxValue<typename Flux<Field>::cfg>& qR,
@@ -40,8 +54,15 @@ namespace samurai {
   //
   template<class Field>
   GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2):
-    Flux<Field>(EOS_phase1, EOS_phase2) {}
+                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+                                  const double sigma_,
+                                  const double mod_grad_alpha1_min_,
+                                  const double lambda_,
+                                  const double tol_Newton_,
+                                  const std::size_t max_Newton_iters_,
+                                  const double tol_Newton_p_star_):
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, mod_grad_alpha1_min_, lambda_, tol_Newton_, max_Newton_iters_),
+    tol_Newton_p_star(tol_Newton_p_star_) {}
 
   // Compute p* through Newton-Rapson method
   //
@@ -53,10 +74,6 @@ namespace samurai {
                                         const typename Field::value_type p0_L,
                                         const typename Field::value_type p0_R,
                                         typename Field::value_type& p_star) {
-    const double tol            = 1e-8; // Tolerance of the Newton method
-    const double lambda         = 0.9;  // Parameter for bound preserving strategy
-    const std::size_t max_iters = 100;  // Maximum number of Newton iterations
-
     typename Field::value_type dp_star = std::numeric_limits<typename Field::value_type>::infinity();
 
     /*--- Left state useful variables ---*/
@@ -101,7 +118,8 @@ namespace samurai {
 
     /*--- Loop of Newton method to compute p* ---*/
     std::size_t Newton_iter = 0;
-    while(Newton_iter < max_iters && std::abs(F_p_star) > tol*std::abs(vel_d_L) && std::abs(dp_star/p_star) > tol) {
+    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->tol_Newton_p_star*(1.0 + std::abs(vel_d_L)) &&
+          std::abs(dp_star) > this->tol_Newton_p_star*(1.0 + std::abs(p_star))) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment
@@ -123,7 +141,7 @@ namespace samurai {
       dp_star = -F_p_star/dF_p_star;
 
       // Bound preserving increment
-      dp_star = std::max(dp_star, lambda*(std::max(p0_L, p0_R) - p_star));
+      dp_star = std::max(dp_star, this->lambda*(std::max(p0_L, p0_R) - p_star));
 
       if(p_star + dp_star <= p0_L) {
         throw std::runtime_error("Non-admissible value for the pressure in the Newton method to compute p* in Godunov solver");
@@ -133,20 +151,18 @@ namespace samurai {
       }
 
       // Newton cycle diverged
-      if(Newton_iter == max_iters) {
+      if(Newton_iter == this->max_Newton_iters) {
         throw std::runtime_error("Netwon method not converged to compute p* in the Godunov solver");
       }
 
       // Update function for which we seek the zero
       F_p_star = dvel_d;
-
       if(p_star <= p_L) {
         F_p_star += c_L*std::log((p_L - p0_L)/(p_star - p0_L));
       }
       else {
         F_p_star -= (p_star - p_L)/std::sqrt(rho_L*(p_star - p0_L));
       }
-
       if(p_star <= p_R) {
         F_p_star += c_R*std::log((p_R - p0_R)/(p_star - p0_R));
       }
@@ -178,7 +194,7 @@ namespace samurai {
     // Right state useful variables
     const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
     const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
-    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;;
+    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
     const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho2_R      = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
@@ -223,10 +239,15 @@ namespace samurai {
         // If left of left shock, q* = qL, already assigned.
         // If right of left shock, is the computed state
         if(!std::isnan(s_L) && s_L < 0.0) {
-          q_star(M1_INDEX)         = m1_L_star;
-          q_star(M2_INDEX)         = m2_L_star;
-          q_star(RHO_ALPHA1_INDEX) = rho_L_star*alpha1_L;
-          q_star(RHO_U_INDEX)      = rho_L_star*u_star;
+          q_star(M1_INDEX)             = m1_L_star;
+          q_star(M2_INDEX)             = m2_L_star;
+          q_star(RHO_ALPHA1_INDEX)     = rho_L_star*alpha1_L;
+          q_star(RHO_U_INDEX + curr_d) = rho_L_star*u_star;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
+            }
+          }
         }
       }
       // 3-wave left fan
@@ -242,10 +263,15 @@ namespace samurai {
           const auto m2_L_fan  = qL(M2_INDEX)*std::exp((vel_d_L - c_L)/c_L);
           const auto rho_L_fan = m1_L_fan + m2_L_fan;
 
-          q_star(M1_INDEX)         = m1_L_fan;
-          q_star(M2_INDEX)         = m2_L_fan;
-          q_star(RHO_ALPHA1_INDEX) = rho_L_fan*alpha1_L;
-          q_star(RHO_U_INDEX)      = rho_L_fan*c_L;
+          q_star(M1_INDEX)             = m1_L_fan;
+          q_star(M2_INDEX)             = m2_L_fan;
+          q_star(RHO_ALPHA1_INDEX)     = rho_L_fan*alpha1_L;
+          q_star(RHO_U_INDEX + curr_d) = rho_L_fan*c_L;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_fan*(qL(RHO_U_INDEX + d)/rho_L);
+            }
+          }
         }
         // Right of the left fan. Compute the state
         else if(sH_L < 0.0 && sT_L <= 0.0) {
@@ -253,10 +279,15 @@ namespace samurai {
           const auto m2_L_star  = qL(M2_INDEX)*std::exp((vel_d_L - u_star)/c_L);
           const auto rho_L_star = m1_L_star + m2_L_star;
 
-          q_star(M1_INDEX)         = m1_L_star;
-          q_star(M2_INDEX)         = m2_L_star;
-          q_star(RHO_ALPHA1_INDEX) = rho_L_star*alpha1_L;
-          q_star(RHO_U_INDEX)      = rho_L_star*u_star;
+          q_star(M1_INDEX)             = m1_L_star;
+          q_star(M2_INDEX)             = m2_L_star;
+          q_star(RHO_ALPHA1_INDEX)     = rho_L_star*alpha1_L;
+          q_star(RHO_U_INDEX + curr_d) = rho_L_star*u_star;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_L_star*(qL(RHO_U_INDEX + d)/rho_L);
+            }
+          }
         }
       }
     }
@@ -284,10 +315,15 @@ namespace samurai {
         }
         // Left of right shock, compute the state
         else {
-          q_star(M1_INDEX)         = m1_R_star;
-          q_star(M2_INDEX)         = m2_R_star;
-          q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
-          q_star(RHO_U_INDEX)      = rho_R_star*u_star;
+          q_star(M1_INDEX)             = m1_R_star;
+          q_star(M2_INDEX)             = m2_R_star;
+          q_star(RHO_ALPHA1_INDEX)     = rho_R_star*alpha1_R;
+          q_star(RHO_U_INDEX + curr_d) = rho_R_star*u_star;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
+            }
+          }
         }
       }
       // 3-wave right fan
@@ -308,33 +344,49 @@ namespace samurai {
           const auto m2_R_fan  = qR(M2_INDEX)*std::exp(-(vel_d_R + c_R)/c_R);
           const auto rho_R_fan = m1_R_fan + m2_R_fan;
 
-          q_star(M1_INDEX)         = m1_R_fan;
-          q_star(M2_INDEX)         = m2_R_fan;
-          q_star(RHO_ALPHA1_INDEX) = rho_R_fan*alpha1_R;
-          q_star(RHO_U_INDEX)      = -rho_R_fan*c_R;
+          q_star(M1_INDEX)             = m1_R_fan;
+          q_star(M2_INDEX)             = m2_R_fan;
+          q_star(RHO_ALPHA1_INDEX)     = rho_R_fan*alpha1_R;
+          q_star(RHO_U_INDEX + curr_d) = -rho_R_fan*c_R;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_fan*(qR(RHO_U_INDEX + d)/rho_R);
+            }
+          }
         }
         // Compute state at the left of the right fan
         else {
           const auto m1_R_star  = qR(M1_INDEX)*std::exp(-(vel_d_R - u_star)/c_R);
           const auto m2_R_star  = qR(M2_INDEX)*std::exp(-(vel_d_R - u_star)/c_R);
-          const auto rho_R_star = m1_R_star + m2_R_star;
+          const auto rho_R_star = m1_R_star + m2_R_star ;
 
-          q_star(M1_INDEX)         = m1_R_star;
-          q_star(M2_INDEX)         = m2_R_star;
-          q_star(RHO_ALPHA1_INDEX) = rho_R_star*alpha1_R;
-          q_star(RHO_U_INDEX)      = rho_R_star*u_star;
+          q_star(M1_INDEX)             = m1_R_star;
+          q_star(M2_INDEX)             = m2_R_star;
+          q_star(RHO_ALPHA1_INDEX)     = rho_R_star*alpha1_R;
+          q_star(RHO_U_INDEX + curr_d) = rho_R_star*u_star;
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            if(d != curr_d) {
+              q_star(RHO_U_INDEX + d) = rho_R_star*(qR(RHO_U_INDEX + d)/rho_R);
+            }
+          }
         }
       }
     }
 
     /*--- Compute the hyperbolic contribution to the flux ---*/
-    return this->evaluate_continuous_flux(q_star, curr_d);
+    return this->evaluate_hyperbolic_operator(q_star, curr_d);
   }
 
   // Implement the contribution of the discrete flux for all the directions.
   //
   template<class Field>
-  auto GodunovFlux<Field>::make_flux() {
+  #ifdef ORDER_2
+    template<typename Field_Scalar>
+    auto GodunovFlux<Field>::make_flux(const Field_Scalar& H)
+  #else
+    auto GodunovFlux<Field>::make_flux()
+  #endif
+  {
     FluxDefinition<typename Flux<Field>::cfg> Godunov_f;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
@@ -345,7 +397,7 @@ namespace samurai {
 
         // Compute now the "discrete" flux function, in this case a Godunov flux
         Godunov_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
-                                              const StencilData<typename Flux<Field>::cfg>& /*data*/,
+                                              const StencilData<typename Flux<Field>::cfg>& data,
                                               const StencilValues<typename Flux<Field>::cfg> field)
                                               {
                                                 #ifdef ORDER_2
@@ -364,15 +416,15 @@ namespace samurai {
                                                   FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
                                                   #ifdef RELAX_RECONSTRUCTION
-                                                    this->relax_reconstruction(qL);
-                                                    this->relax_reconstruction(qR);
+                                                    this->relax_reconstruction(qL, H[data.cells[1]]);
+                                                    this->relax_reconstruction(qR, H[data.cells[2]]);
                                                   #endif
                                                 #else
+                                                  // Compute the stencil and extract state
                                                   const FluxValue<typename Flux<Field>::cfg> qL = field[0];
                                                   const FluxValue<typename Flux<Field>::cfg> qR = field[1];
                                                 #endif
 
-                                                // Compute the numerical flux
                                                 flux = compute_discrete_flux(qL, qR, d);
                                               };
     });

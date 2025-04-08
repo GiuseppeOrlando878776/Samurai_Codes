@@ -11,22 +11,28 @@
 struct Simulation_Parameters {
   double xL;
   double xR;
-  double yL;
-  double yR;
 
-  std::size_t min_level;
-  std::size_t max_level;
-  double MR_param;
-  double MR_regularity;
+  std::size_t  min_level;
+  std::size_t  max_level;
+  double       MR_param;
+  unsigned int MR_regularity;
+
+  double eps_interface_over_dx;
+  double sigma;
 
   double Tf;
   double Courant;
 
   std::size_t nfiles;
 
-  bool apply_relaxation;
+  double mod_grad_alpha1_min;
 
-  double eps_interface_over_dx;
+  bool        apply_relaxation;
+  double      lambda;
+  double      tol_Newton;
+  std::size_t max_Newton_iters;
+
+  double tol_Newton_p_star;
 };
 
 // Declare a struct with EOS parameters
