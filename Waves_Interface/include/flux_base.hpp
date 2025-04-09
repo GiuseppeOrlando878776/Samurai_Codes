@@ -11,7 +11,7 @@
 #include "barotropic_eos.hpp"
 
 /*--- Preprocessor to define whether order 2 is desired ---*/
-//#define ORDER_2
+#define ORDER_2
 
 /*--- Preprocessor to define whether relaxation is desired after reconstruction for order 2 ---*/
 #ifdef ORDER_2
@@ -32,6 +32,9 @@ namespace EquationData {
   static constexpr std::size_t RHO_U_INDEX      = 3;
 
   static constexpr std::size_t ALPHA1_INDEX = RHO_ALPHA1_INDEX;
+  static constexpr std::size_t P1_INDEX     = M1_INDEX;
+  static constexpr std::size_t P2_INDEX     = M2_INDEX;
+  static constexpr std::size_t U_INDEX      = RHO_U_INDEX;
 
   /*--- Save also the total number of (scalar) variables ---*/
   static constexpr std::size_t NVARS = 3 + dim;
@@ -59,12 +62,13 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& phase1,
+         const LinearizedBarotropicEOS<typename Field::value_type>& phase2,
          const double sigma_,
          const double mod_grad_alpha1_min_,
          const double lambda_ = 0.9,
-         const double tol_Newton_ = 1e-12,
+         const double atol_Newton_ = 1e-12,
+         const double rtol_Newton_ = 1e-10,
          const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename State>
@@ -86,7 +90,8 @@ namespace samurai {
     const double mod_grad_alpha1_min; /*--- Tolerance to compute the unit normal ---*/
 
     const double lambda;                /*--- Parameter for bound preserving strategy ---*/
-    const double tol_Newton;            /*--- Tolerance Newton method relaxation ---*/
+    const double atol_Newton;           /*--- Absolute tolerance Newton method relaxation ---*/
+    const double rtol_Newton;           /*--- Relative tolerance Newton method relaxation ---*/
     const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
     template<typename Gradient>
@@ -124,16 +129,18 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-                    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& phase1,
+                    const LinearizedBarotropicEOS<typename Field::value_type>& phase2,
                     const double sigma_,
                     const double mod_grad_alpha1_min_,
                     const double lambda_,
-                    const double tol_Newton_,
+                    const double atol_Newton_,
+                    const double rtol_Newton_,
                     const std::size_t max_Newton_iters_):
-    phase1(EOS_phase1), phase2(EOS_phase2),
+    phase1(phase1), phase2(phase2),
     sigma(sigma_), mod_grad_alpha1_min(mod_grad_alpha1_min_),
-    lambda(lambda_), tol_Newton(tol_Newton_), max_Newton_iters(max_Newton_iters_) {}
+    lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
+    max_Newton_iters(max_Newton_iters_) {}
 
   // Evaluate the 'continuous flux'
   //
@@ -226,9 +233,14 @@ namespace samurai {
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
 
-    FluxValue<cfg> prim = cons;
+    FluxValue<cfg> prim;
 
     prim(ALPHA1_INDEX) = cons(RHO_ALPHA1_INDEX)/(cons(M1_INDEX) + cons(M2_INDEX));
+    prim(P1_INDEX) = phase1.pres_value(cons(M1_INDEX)/prim(ALPHA1_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    prim(P2_INDEX) = phase2.pres_value(cons(M2_INDEX)/(1.0 - prim(ALPHA1_INDEX))); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/(cons(M1_INDEX) + cons(M2_INDEX));
+    }
 
     return prim;
   }
@@ -238,9 +250,14 @@ namespace samurai {
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
 
-    FluxValue<cfg> cons = prim;
+    FluxValue<cfg> cons;
 
-    cons(RHO_ALPHA1_INDEX) = (prim(M1_INDEX) + prim(M2_INDEX))*prim(ALPHA1_INDEX);
+    cons(M1_INDEX)         = prim(ALPHA1_INDEX)*phase1.rho_value(prim(P1_INDEX));
+    cons(M2_INDEX)         = (1.0 - prim(ALPHA1_INDEX))*phase2.rho_value(prim(P2_INDEX));
+    cons(RHO_ALPHA1_INDEX) = (cons(M1_INDEX) + cons(M2_INDEX))*prim(ALPHA1_INDEX);
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      cons(RHO_U_INDEX + d) = (cons(M1_INDEX) + cons(M2_INDEX))*prim(U_INDEX + d);
+    }
 
     return cons;
   }
@@ -311,7 +328,7 @@ namespace samurai {
     const auto F = p1 - p2 - sigma*H;
 
     /*--- Perform the relaxation only where really needed ---*/
-    if(!std::isnan(F) && std::abs(F) > tol_Newton*(1.0 + std::min(phase1.get_p0(), sigma*std::abs(H))) && std::abs(dalpha1) > tol_Newton) {
+    if(!std::isnan(F) && std::abs(F) > atol_Newton + rtol_Newton*phase1.get_p0() && std::abs(dalpha1) > atol_Newton) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
@@ -363,8 +380,14 @@ namespace samurai {
           relaxation_applied = false;
           Newton_iter++;
 
-          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
-                                               H, dalpha1, alpha1, relaxation_applied);
+          try {
+            this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
+                                                 H, dalpha1, alpha1, relaxation_applied);
+          }
+          catch(std::exception& e) {
+            std::cerr << e.what() << std::endl;
+            exit(1);
+          }
 
           // Newton cycle diverged
           if(Newton_iter > max_Newton_iters) {

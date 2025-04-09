@@ -23,9 +23,11 @@ namespace samurai {
                 const double sigma_,
                 const double mod_grad_alpha1_min_,
                 const double lambda_ = 0.9,
-                const double tol_Newton_ = 1e-12,
+                const double atol_Newton_ = 1e-12,
+                const double rtol_Newton_ = 1e-10,
                 const std::size_t max_Newton_iters_ = 60,
-                const double tol_Newton_p_star_ = 1e-8); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+                const double atol_Newton_p_star_ = 1e-6,
+                const double rtol_Newton_p_star_ = 1e-3); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Field_Scalar>
@@ -35,7 +37,8 @@ namespace samurai {
     #endif
 
   private:
-    const double tol_Newton_p_star; /*--- Tolerance of the Newton method to compute p_star ---*/
+    const double atol_Newton_p_star; /*--- Absolute tolerance of the Newton method to compute p_star ---*/
+    const double rtol_Newton_p_star; /*--- Relative tolerance of the Newton method to compute p_star ---*/
 
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
@@ -58,11 +61,13 @@ namespace samurai {
                                   const double sigma_,
                                   const double mod_grad_alpha1_min_,
                                   const double lambda_,
-                                  const double tol_Newton_,
+                                  const double atol_Newton_,
+                                  const double rtol_Newton_,
                                   const std::size_t max_Newton_iters_,
-                                  const double tol_Newton_p_star_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, mod_grad_alpha1_min_, lambda_, tol_Newton_, max_Newton_iters_),
-    tol_Newton_p_star(tol_Newton_p_star_) {}
+                                  const double atol_Newton_p_star_,
+                                  const double rtol_Newton_p_star_):
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, mod_grad_alpha1_min_, lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_),
+    atol_Newton_p_star(atol_Newton_p_star_), rtol_Newton_p_star(rtol_Newton_p_star_) {}
 
   // Compute p* through Newton-Rapson method
   //
@@ -118,8 +123,8 @@ namespace samurai {
 
     /*--- Loop of Newton method to compute p* ---*/
     std::size_t Newton_iter = 0;
-    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->tol_Newton_p_star*(1.0 + std::abs(vel_d_L)) &&
-          std::abs(dp_star) > this->tol_Newton_p_star*(1.0 + std::abs(p_star))) {
+    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->atol_Newton_p_star + this->rtol_Newton_p_star*std::abs(vel_d_L) &&
+          std::abs(dp_star) > this->atol_Newton_p_star + this->rtol_Newton_p_star*std::abs(p_star)) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment

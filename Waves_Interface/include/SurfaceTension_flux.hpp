@@ -21,7 +21,8 @@ namespace samurai {
                        const double sigma_,
                        const double mod_grad_alpha1_min_,
                        const double lambda_ = 0.9,
-                       const double tol_Newton_ = 1e-12,
+                       const double atol_Newton_ = 1e-12,
+                       const double rtol_Newton_ = 1e-10,
                        const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Gradient>
@@ -42,9 +43,10 @@ namespace samurai {
                                                 const double sigma_,
                                                 const double mod_grad_alpha1_min_,
                                                 const double lambda_,
-                                                const double tol_Newton_,
+                                                const double atol_Newton_,
+                                                const double rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, mod_grad_alpha1_min_, lambda_, tol_Newton_, max_Newton_iters_) {}
+    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, mod_grad_alpha1_min_, lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
   // Implementation of the surface tension contribution
   //
