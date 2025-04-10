@@ -436,11 +436,17 @@ namespace samurai {
           relaxation_applied = false;
           Newton_iter++;
 
-          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q), H_bar, dalpha1_bar, alpha1_bar,
-                                               relaxation_applied);
+          try {
+            this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q), H_bar, dalpha1_bar, alpha1_bar,
+                                                 relaxation_applied);
+          }
+          catch(std::exception& e) {
+            std::cerr << e.what() << std::endl;
+            exit(1);
+          }
 
           // Newton cycle diverged
-          if(Newton_iter > max_Newton_iters) {
+          if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
             std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }

@@ -33,10 +33,12 @@ struct Simulation_Paramaters {
 
   bool        apply_relaxation;
   double      lambda;
-  double      tol_Newton;
+  double      atol_Newton;
+  double      rtol_Newton;
   std::size_t max_Newton_iters;
 
-  double tol_Newton_p_star;
+  double atol_Newton_p_star;
+  double rtol_Newton_p_star;
 };
 
 // Declare a struct with EOS parameters

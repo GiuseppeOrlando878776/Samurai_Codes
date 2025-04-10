@@ -555,7 +555,7 @@ void StaticBubble<dim>::apply_relaxation() {
                            });
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
-    //update_geometry();
+    update_geometry();
 
     // Newton cycle diverged
     if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
