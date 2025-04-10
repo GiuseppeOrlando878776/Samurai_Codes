@@ -11,22 +11,23 @@ namespace samurai {
   using namespace EquationData;
 
   /**
-    * Implementation of the surface tensino contribution
+    * Implementation of the surface tension contribution
     */
   template<class Field>
   class SurfaceTensionFlux: public Flux<Field> {
   public:
-    SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-                       const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+    SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                       const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                        const double sigma_,
                        const double sigma_relax_,
                        const double mod_grad_alpha1_bar_min_,
                        const double lambda_,
-                       const double tol_Newton_,
+                       const double atol_Newton_,
+                       const double rtol_Newton_,
                        const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Gradient>
-    auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); /*--- Compute the flux over all the directions ---*/
+    auto make_flux_capillarity(const Gradient& grad_alpha1_bar); /*--- Compute the flux over all the directions ---*/
 
   private:
     template<typename Gradient>
@@ -38,15 +39,17 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-                                                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                                                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                                                 const double sigma_,
                                                 const double sigma_relax_,
                                                 const double mod_grad_alpha1_bar_min_,
                                                 const double lambda_,
-                                                const double tol_Newton_,
+                                                const double atol_Newton_,
+                                                const double rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, sigma_relax_, mod_grad_alpha1_bar_min_, lambda_, tol_Newton_, max_Newton_iters_) {}
+    Flux<Field>(EOS_phase1_, EOS_phase2_, sigma_, sigma_relax_, mod_grad_alpha1_bar_min_,
+                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
   // Implementation of the surface tension contribution
   //
@@ -63,7 +66,7 @@ namespace samurai {
   //
   template<class Field>
   template<typename Gradient>
-  auto SurfaceTensionFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar) {
+  auto SurfaceTensionFlux<Field>::make_flux_capillarity(const Gradient& grad_alpha1_bar) {
     FluxDefinition<typename Flux<Field>::cfg> SurfaceTension_f;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/

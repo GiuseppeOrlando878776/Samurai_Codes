@@ -41,8 +41,8 @@ int main(int argc, char* argv[]) {
 
   sim_param.apply_relaxation = input.value("apply_relaxation", true);
   sim_param.lambda           = input.value("lambda", 0.9);
-  sim_param.atol_Newton      = input.value("atol_Newton", 1e-12);
-  sim_param.rtol_Newton      = input.value("rtol_Newton", 1e-10);
+  sim_param.atol_Newton      = input.value("atol_Newton", 1e-14);
+  sim_param.rtol_Newton      = input.value("rtol_Newton", 1e-12);
   sim_param.max_Newton_iters = input.value("max_Newton_iters", 60);
 
   sim_param.atol_Newton_p_star = input.value("atol_Newton_p_star", 1e-10);

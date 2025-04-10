@@ -6,7 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "include/two_scale_capillarity.hpp"
+#include "include/static_bubble.hpp"
 
 // Main function to run the program
 //
@@ -46,10 +46,12 @@ int main(int argc, char* argv[]) {
 
   sim_param.apply_relaxation    = input.value("apply_relaxation", true);
   sim_param.lambda              = input.value("lambda", 0.9);
-  sim_param.tol_Newton          = input.value("tol_Newton", 1e-12);
+  sim_param.atol_Newton         = input.value("atol_Newton", 1e-14);
+  sim_param.rtol_Newton         = input.value("rtol_Newton", 1e-12);
   sim_param.max_Newton_iters    = input.value("max_Newton_iters", 60);
 
-  sim_param.tol_Newton_p_star   = input.value("tol_Newton_p_star", 1e-8);
+  sim_param.atol_Newton_p_star  = input.value("atol_Newton_p_star", 1e-6);
+  sim_param.rtol_Newton_p_star  = input.value("rtol_Newton_p_star", 1e-3);
   sim_param.tol_Newton_alpha1_d = input.value("tol_Newton_alpha1_d", 1e-8);
 
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
@@ -77,12 +79,16 @@ int main(int argc, char* argv[]) {
                  "Tolerance for zero gradient volume fraction")->capture_default_str()->group("Numerical paramaters");
   app.add_option("--lambda", sim_param.lambda,
                  "Parameter for bound preserving strategy")->capture_default_str()->group("Numerical parameters");
-  app.add_option("--tol_Newton", sim_param.tol_Newton,
-                 "Tolerance of Newton method for the relaxation")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--atol_Newton", sim_param.atol_Newton,
+                 "Absolute tolerance of Newton method for the relaxation")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--rtol_Newton", sim_param.rtol_Newton,
+                 "Relative tolerance of Newton method for the relaxation")->capture_default_str()->group("Numerical parameters");
   app.add_option("--max_Newton_iters", sim_param.max_Newton_iters,
                  "Maximum number of Newton iterations")->capture_default_str()->group("Numerical parameters");
-  app.add_option("--tol_Newton_p_star", sim_param.tol_Newton_p_star,
-                 "Tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--atol_Newton_p_star", sim_param.atol_Newton_p_star,
+                 "Absolute tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--rtol_Newton_p_star", sim_param.rtol_Newton_p_star,
+                 "Relative tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
   app.add_option("--tol_Newton_alpha1_d", sim_param.tol_Newton_alpha1_d,
                  "Tolerance of Newton method to compute small-scale volume fraction for the exact solver")->capture_default_str()->group("Numerical parameters");
 

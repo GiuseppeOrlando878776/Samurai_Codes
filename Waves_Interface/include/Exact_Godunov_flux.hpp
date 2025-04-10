@@ -18,14 +18,14 @@ namespace samurai {
   template<class Field>
   class GodunovFlux: public Flux<Field> {
   public:
-    GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+    GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                 const double sigma_,
                 const double mod_grad_alpha1_min_,
-                const double lambda_ = 0.9,
-                const double atol_Newton_ = 1e-12,
-                const double rtol_Newton_ = 1e-10,
-                const std::size_t max_Newton_iters_ = 60,
+                const double lambda_,
+                const double atol_Newton_,
+                const double rtol_Newton_,
+                const std::size_t max_Newton_iters_,
                 const double atol_Newton_p_star_ = 1e-6,
                 const double rtol_Newton_p_star_ = 1e-3); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
@@ -56,8 +56,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+  GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                                   const double sigma_,
                                   const double mod_grad_alpha1_min_,
                                   const double lambda_,
@@ -66,7 +66,7 @@ namespace samurai {
                                   const std::size_t max_Newton_iters_,
                                   const double atol_Newton_p_star_,
                                   const double rtol_Newton_p_star_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, mod_grad_alpha1_min_, lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_),
+    Flux<Field>(EOS_phase1_, EOS_phase2_, sigma_, mod_grad_alpha1_min_, lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_),
     atol_Newton_p_star(atol_Newton_p_star_), rtol_Newton_p_star(rtol_Newton_p_star_) {}
 
   // Compute p* through Newton-Rapson method
@@ -86,22 +86,22 @@ namespace samurai {
     const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
     const auto rho1_L      = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho2_L      = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
-                           + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
+    const auto c_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                           + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     const auto c_L         = std::sqrt(c_squared_L/rho_L);
-    const auto p_L         = alpha1_L*this->phase1.pres_value(rho1_L)
-                           + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L);
+    const auto p_L         = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
+                           + (1.0 - alpha1_L)*this->EOS_phase2.pres_value(rho2_L);
 
     /*--- Right state useful variables ---*/
     const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
     const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
     const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho2_R      = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
-                           + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
+    const auto c_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                           + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     const auto c_R         = std::sqrt(c_squared_R/rho_R);
-    const auto p_R         = alpha1_R*this->phase1.pres_value(rho1_R)
-                           + (1.0 - alpha1_R)*this->phase2.pres_value(rho2_R);
+    const auto p_R         = alpha1_R*this->EOS_phase1.pres_value(rho1_R)
+                           + (1.0 - alpha1_R)*this->EOS_phase2.pres_value(rho2_R);
 
     if(p_star <= p0_L || p_L <= p0_L) {
       throw std::runtime_error("Non-admissible value for the pressure at the beginning of the Newton method to compute p* in Godunov solver");
@@ -192,8 +192,8 @@ namespace samurai {
     const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
     const auto rho1_L      = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho2_L      = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
-                           + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
+    const auto c_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                           + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     const auto c_L         = std::sqrt(c_squared_L/rho_L);
 
     // Right state useful variables
@@ -202,15 +202,15 @@ namespace samurai {
     const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
     const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho2_R      = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
-                           + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
+    const auto c_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                           + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     const auto c_R         = std::sqrt(c_squared_R/rho_R);
 
     // Compute p*
-    const auto p_L = alpha1_L*this->phase1.pres_value(rho1_L)
-                   + (1.0 - alpha1_L)*this->phase2.pres_value(rho2_L);
-    const auto p_R = alpha1_R*this->phase1.pres_value(rho1_R)
-                   + (1.0 - alpha1_R)*this->phase2.pres_value(rho2_R);
+    const auto p_L = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
+                   + (1.0 - alpha1_L)*this->EOS_phase2.pres_value(rho2_L);
+    const auto p_R = alpha1_R*this->EOS_phase1.pres_value(rho1_R)
+                   + (1.0 - alpha1_R)*this->EOS_phase2.pres_value(rho2_R);
 
     const auto p0_L = p_L - c_squared_L;
     const auto p0_R = p_R - c_squared_R;

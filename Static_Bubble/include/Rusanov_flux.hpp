@@ -16,20 +16,21 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type& EOS_phase1,
-                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+    RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                 const double sigma_,
                 const double sigma_relax_,
                 const double mod_grad_alpha1_bar_min_,
                 const double lambda_,
-                const double tol_Newton_,
+                const double atol_Newton_,
+                const double rtol_Newton_,
                 const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Field_Scalar>
-      auto make_two_scale_capillarity(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
+      auto make_flux(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
     #else
-      auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
+      auto make_flux(); /*--- Compute the flux over all the directions ---*/
     #endif
 
   private:
@@ -47,12 +48,11 @@ namespace samurai {
                                   const double sigma_relax_,
                                   const double mod_grad_alpha1_bar_min_,
                                   const double lambda_,
-                                  const double tol_Newton_,
-                                  const std::size_t max_Newton_iters_,
-                                  const double lambda_,
-                                  const double tol_Newton_,
+                                  const double atol_Newton_,
+                                  const double rtol_Newton_,
                                   const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase1, EOS_phase2, sigma_, sigma_relax_, mod_grad_alpha1_bar_min_, lambda_, tol_Newton_, max_Newton_iters_) {}
+    Flux<Field>(EOS_phase1_, EOS_phase2_, sigma_, sigma_relax_, mod_grad_alpha1_bar_min_,
+                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
   // Implementation of a Rusanov flux
   //
@@ -69,8 +69,8 @@ namespace samurai {
     const auto rho1_L       = qL(M1_INDEX)/alpha1_L;
     const auto alpha2_L     = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
     const auto rho2_L       = qL(M2_INDEX)/alpha2_L;
-    const auto c_squared_L  = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
-                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
+    const auto c_squared_L  = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                            + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
@@ -82,8 +82,8 @@ namespace samurai {
     const auto rho1_R       = qR(M1_INDEX)/alpha1_R;
     const auto alpha2_R     = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
     const auto rho2_R       = qR(M2_INDEX)/alpha2_R;
-    const auto c_squared_R  = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
-                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
+    const auto c_squared_R  = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                            + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
     /*--- Compute the estimate of the eigenvalue considering also the surface tension contribution ---*/
@@ -100,9 +100,9 @@ namespace samurai {
   template<class Field>
   #ifdef ORDER_2
     template<typename Field_Scalar>
-    auto RusanovFlux<Field>::make_two_scale_capillarity(const Field_Scalar& H)
+    auto RusanovFlux<Field>::make_flux(const Field_Scalar& H)
   #else
-    auto RusanovFlux<Field>::make_two_scale_capillarity()
+    auto RusanovFlux<Field>::make_flux()
   #endif
   {
     FluxDefinition<typename Flux<Field>::cfg> Rusanov_f;

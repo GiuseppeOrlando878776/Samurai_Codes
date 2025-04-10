@@ -148,9 +148,7 @@ private:
 
   double get_max_lambda(); /*--- Compute the estimate of the maximum eigenvalue ---*/
 
-  #ifdef VERBOSE
-    void check_data(unsigned int flag = 0); /*--- Check if small negative values arise ---*/
-  #endif
+  void check_data(unsigned int flag = 0); /*--- Check if small negative values arise ---*/
 
   void perform_mesh_adaptation(); /*--- Perform the mesh adaptation ---*/
 
@@ -338,6 +336,11 @@ double WaveInterface<dim>::get_max_lambda() {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
+                           #ifndef RELAX_RECONSTRUCTION
+                              rho[cell]    = conserved_variables[cell][M1_INDEX]
+                                           + conserved_variables[cell][M2_INDEX];
+                              alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell];
+                           #endif
                            /*--- Compute the velocity ---*/
                            u[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
 
@@ -371,15 +374,18 @@ void WaveInterface<dim>::perform_mesh_adaptation() {
   MRadaptation(MR_param, MR_regularity, conserved_variables);
 
   /*--- Sanity check after mesh adaptation ---*/
+  rho.resize();
+  alpha1.resize();
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                         {
+                           rho[cell]    = conserved_variables[cell][M1_INDEX]
+                                        + conserved_variables[cell][M2_INDEX];
+                           alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell];
+                         });
   #ifdef VERBOSE
     check_data(1);
   #endif
-
-  /*--- Recompute geoemtrical quantities ---*/
-  normal.resize();
-  H.resize();
-  grad_alpha1.resize();
-  update_geometry();
 }
 
 // Numerical artefact to avoid small negative values
@@ -400,11 +406,13 @@ void WaveInterface<dim>::check_data(unsigned int flag) {
                          {
                            // Sanity check for alpha1
                            if(alpha1[cell] < 0.0) {
+                             std::cerr << cell << std::endl;
                              std::cerr << "Negative volume fraction of phase 1 " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
                            else if(alpha1[cell] > 1.0) {
+                             std::cerr << cell << std::endl;
                              std::cerr << "Exceeding volume fraction of phase 1 " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
@@ -418,11 +426,13 @@ void WaveInterface<dim>::check_data(unsigned int flag) {
 
                            // Sanity rho_alpha1
                            if(conserved_variables[cell][RHO_ALPHA1_INDEX] < 0.0) {
+                             std::cerr << cell << std::endl;
                              std::cerr << " Negative volume fraction " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
                            else if(std::isnan(conserved_variables[cell][RHO_ALPHA1_INDEX]) < 0.0) {
+                             std::cerr << cell << std::endl;
                              std::cerr << " NaN volume fraction " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
@@ -430,6 +440,7 @@ void WaveInterface<dim>::check_data(unsigned int flag) {
 
                            // Sanity check for m1
                            if(conserved_variables[cell][M1_INDEX] < 0.0) {
+                             std::cerr << cell << std::endl;
                              std::cerr << "Negative mass of phase 1 " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
@@ -443,6 +454,7 @@ void WaveInterface<dim>::check_data(unsigned int flag) {
 
                            // Sanity check for m2
                            if(conserved_variables[cell][M2_INDEX] < 0.0) {
+                             std::cerr << cell << std::endl;
                              std::cerr << "Negative mass of phase 2 " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables);
                              exit(1);
@@ -492,7 +504,7 @@ void WaveInterface<dim>::apply_relaxation() {
                            });
 
     // Newton cycle diverged
-    if(Newton_iter > max_Newton_iters) {
+    if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
            conserved_variables, alpha1, rho);
@@ -638,10 +650,6 @@ void WaveInterface<dim>::run() {
     }
 
     // Check if spurious negative values arise and recompute geometrical quantities
-    #ifdef VERBOSE
-      check_data();
-    #endif
-    rho.resize();
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
@@ -649,6 +657,12 @@ void WaveInterface<dim>::run() {
                                           + conserved_variables[cell][M2_INDEX];
                              alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell];
                            });
+    #ifdef VERBOSE
+      check_data();
+    #endif
+    normal.resize();
+    H.resize();
+    grad_alpha1.resize();
     update_geometry();
 
     // Capillarity contribution
@@ -673,7 +687,9 @@ void WaveInterface<dim>::run() {
                                dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                              });
       apply_relaxation();
-      update_geometry();
+      #ifdef RELAX_RECONSTRUCTION
+        update_geometry();
+      #endif
     }
 
     /*--- Consider the second stage for the second order ---*/
@@ -694,9 +710,6 @@ void WaveInterface<dim>::run() {
       }
 
       // Check if spurious negative values arise and recompute geometrical quantities
-      #ifdef VERBOSE
-        check_data();
-      #endif
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
@@ -704,6 +717,9 @@ void WaveInterface<dim>::run() {
                                             + conserved_variables[cell][M2_INDEX];
                                alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell];
                              });
+      #ifdef VERBOSE
+        check_data();
+      #endif
       update_geometry();
 
       // Capillarity contribution
@@ -722,7 +738,9 @@ void WaveInterface<dim>::run() {
                                  dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                                });
         apply_relaxation();
-        update_geometry();
+        #ifdef RELAX_RECONSTRUCTION
+          update_geometry();
+        #endif
       }
 
       // Complete evaluation
@@ -730,15 +748,17 @@ void WaveInterface<dim>::run() {
       conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
-      // Recompute volume fraction gradient and curvature for the next time step
-      samurai::for_each_cell(mesh,
-                             [&](const auto& cell)
-                             {
-                               rho[cell]    = conserved_variables[cell][M1_INDEX]
-                                            + conserved_variables[cell][M2_INDEX];
-                               alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell];
-                             });
-      update_geometry();
+      // Recompute volume fraction gradient and curvature for the next time step (if needed)
+      #ifdef RELAX_RECONSTRUCTION
+        samurai::for_each_cell(mesh,
+                               [&](const auto& cell)
+                               {
+                                 rho[cell]    = conserved_variables[cell][M1_INDEX]
+                                              + conserved_variables[cell][M2_INDEX];
+                                 alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell];
+                               });
+        update_geometry();
+      #endif
     #endif
 
     // Compute updated time step

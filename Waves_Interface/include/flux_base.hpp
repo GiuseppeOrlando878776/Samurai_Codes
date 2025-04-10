@@ -11,7 +11,7 @@
 #include "barotropic_eos.hpp"
 
 /*--- Preprocessor to define whether order 2 is desired ---*/
-#define ORDER_2
+//#define ORDER_2
 
 /*--- Preprocessor to define whether relaxation is desired after reconstruction for order 2 ---*/
 #ifdef ORDER_2
@@ -62,13 +62,13 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& phase1,
-         const LinearizedBarotropicEOS<typename Field::value_type>& phase2,
+    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
          const double sigma_,
          const double mod_grad_alpha1_min_,
          const double lambda_ = 0.9,
-         const double atol_Newton_ = 1e-12,
-         const double rtol_Newton_ = 1e-10,
+         const double atol_Newton_ = 1e-14,
+         const double rtol_Newton_ = 1e-12,
          const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename State>
@@ -82,8 +82,8 @@ namespace samurai {
                                                                           for MUSCL reconstruction) ---*/
 
   protected:
-    const LinearizedBarotropicEOS<typename Field::value_type>& phase1;
-    const LinearizedBarotropicEOS<typename Field::value_type>& phase2;
+    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1;
+    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2;
 
     const double sigma; /*--- Surface tension coefficient ---*/
 
@@ -129,15 +129,15 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& phase1,
-                    const LinearizedBarotropicEOS<typename Field::value_type>& phase2,
+  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                     const double sigma_,
                     const double mod_grad_alpha1_min_,
                     const double lambda_,
                     const double atol_Newton_,
                     const double rtol_Newton_,
                     const std::size_t max_Newton_iters_):
-    phase1(phase1), phase2(phase2),
+    EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_),
     sigma(sigma_), mod_grad_alpha1_min(mod_grad_alpha1_min_),
     lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
     max_Newton_iters(max_Newton_iters_) {}
@@ -184,10 +184,10 @@ namespace samurai {
     /*--- Compute and add the contribution due to the pressure ---*/
     const auto alpha1 = q(RHO_ALPHA1_INDEX)/rho;
     const auto rho1   = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p1     = phase1.pres_value(rho1);
+    const auto p1     = EOS_phase1.pres_value(rho1);
 
     const auto rho2   = q(M2_INDEX)/(1.0 - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p2     = phase2.pres_value(rho2);
+    const auto p2     = EOS_phase2.pres_value(rho2);
 
     const auto p      = alpha1*p1 + (1.0 - alpha1)*p2;
 
@@ -232,12 +232,11 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
-
     FluxValue<cfg> prim;
 
     prim(ALPHA1_INDEX) = cons(RHO_ALPHA1_INDEX)/(cons(M1_INDEX) + cons(M2_INDEX));
-    prim(P1_INDEX) = phase1.pres_value(cons(M1_INDEX)/prim(ALPHA1_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    prim(P2_INDEX) = phase2.pres_value(cons(M2_INDEX)/(1.0 - prim(ALPHA1_INDEX))); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    prim(P1_INDEX)     = EOS_phase1.pres_value(cons(M1_INDEX)/prim(ALPHA1_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    prim(P2_INDEX)     = EOS_phase2.pres_value(cons(M2_INDEX)/(1.0 - prim(ALPHA1_INDEX))); /*--- TODO: Add a check in case of zero volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
       prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/(cons(M1_INDEX) + cons(M2_INDEX));
     }
@@ -249,11 +248,10 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
-
     FluxValue<cfg> cons;
 
-    cons(M1_INDEX)         = prim(ALPHA1_INDEX)*phase1.rho_value(prim(P1_INDEX));
-    cons(M2_INDEX)         = (1.0 - prim(ALPHA1_INDEX))*phase2.rho_value(prim(P2_INDEX));
+    cons(M1_INDEX)         = prim(ALPHA1_INDEX)*EOS_phase1.rho_value(prim(P1_INDEX));
+    cons(M2_INDEX)         = (1.0 - prim(ALPHA1_INDEX))*EOS_phase2.rho_value(prim(P2_INDEX));
     cons(RHO_ALPHA1_INDEX) = (cons(M1_INDEX) + cons(M2_INDEX))*prim(ALPHA1_INDEX);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = (cons(M1_INDEX) + cons(M2_INDEX))*prim(U_INDEX + d);
@@ -319,23 +317,23 @@ namespace samurai {
                                                    bool& relaxation_applied) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto rho1 = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p1   = phase1.pres_value(rho1);
+    const auto p1   = EOS_phase1.pres_value(rho1);
 
     const auto rho2 = (*conserved_variables)(M2_INDEX)/(1.0 - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p2   = phase2.pres_value(rho2);
+    const auto p2   = EOS_phase2.pres_value(rho2);
 
     /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
     const auto F = p1 - p2 - sigma*H;
 
     /*--- Perform the relaxation only where really needed ---*/
-    if(!std::isnan(F) && std::abs(F) > atol_Newton + rtol_Newton*phase1.get_p0() && std::abs(dalpha1) > atol_Newton) {
+    if(!std::isnan(F) && std::abs(F) > atol_Newton + rtol_Newton*EOS_phase1.get_p0() && std::abs(dalpha1) > atol_Newton) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
       const auto dF_dalpha1 = -(*conserved_variables)(M1_INDEX)/(alpha1*alpha1)*
-                                phase1.c_value(rho1)*phase1.c_value(rho1)
+                                EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                               -(*conserved_variables)(M2_INDEX)/((1.0 - alpha1)*(1.0 - alpha1))*
-                                phase2.c_value(rho2)*phase2.c_value(rho2);
+                                EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
 
       // Compute the large-scale volume fraction update
       dalpha1 = -F/dF_dalpha1;
