@@ -341,6 +341,7 @@ double WaveInterface<dim>::get_max_lambda() {
                                            + conserved_variables[cell][M2_INDEX];
                               alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell];
                            #endif
+
                            /*--- Compute the velocity ---*/
                            u[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
 
@@ -504,7 +505,7 @@ void WaveInterface<dim>::apply_relaxation() {
                            });
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
-    update_geometry();
+    //update_geometry();
 
     // Newton cycle diverged
     if(Newton_iter > max_Newton_iters && relaxation_applied == true) {

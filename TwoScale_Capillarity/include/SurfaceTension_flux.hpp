@@ -16,19 +16,20 @@ namespace samurai {
   template<class Field>
   class SurfaceTensionFlux: public Flux<Field> {
   public:
-    SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                       const LinearizedBarotropicEOS<>& EOS_phase2,
+    SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
+                       const LinearizedBarotropicEOS<>& EOS_phase2_,
                        const double sigma_,
                        const double mod_grad_alpha1_bar_min_,
                        const bool mass_transfer_,
                        const double kappa_,
                        const double Hmax_,
-                       const double alpha1d_max_ = 0.5,
-                       const double alpha1_bar_min_ = 0.01,
-                       const double alpha1_bar_max_ = 0.1,
-                       const double lambda_ = 0.9,
-                       const double tol_Newton_ = 1e-12,
-                       const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+                       const double alpha1d_max_,
+                       const double alpha1_bar_min_,
+                       const double alpha1_bar_max_,
+                       const double lambda_,
+                       const double atol_Newton_,
+                       const double rtol_Newton_,
+                       const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Gradient>
     auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar); /*--- Compute the flux over all the directions ---*/
@@ -43,8 +44,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                                                const LinearizedBarotropicEOS<>& EOS_phase2,
+  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
+                                                const LinearizedBarotropicEOS<>& EOS_phase2_,
                                                 const double sigma_,
                                                 const double mod_grad_alpha1_bar_min_,
                                                 const bool mass_transfer_,
@@ -54,13 +55,14 @@ namespace samurai {
                                                 const double alpha1_bar_min_,
                                                 const double alpha1_bar_max_,
                                                 const double lambda_,
-                                                const double tol_Newton_,
+                                                const double atol_Newton_,
+                                                const double rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase1, EOS_phase2,
+    Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
-                lambda_, tol_Newton_, max_Newton_iters_) {}
+                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
   // Implementation of the surface tension contribution
   //

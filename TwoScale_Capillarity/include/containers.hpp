@@ -14,10 +14,10 @@ struct Simulation_Paramaters {
   double yL;
   double yR;
 
-  std::size_t min_level;
-  std::size_t max_level;
-  double      MR_param;
-  double      MR_regularity;
+  std::size_t  min_level;
+  std::size_t  max_level;
+  double       MR_param;
+  unsigned int MR_regularity;
 
   double R;
   double eps_over_R;
@@ -33,10 +33,12 @@ struct Simulation_Paramaters {
 
   bool        apply_relaxation;
   double      lambda;
-  double      tol_Newton;
+  double      atol_Newton;
+  double      rtol_Newton;
   std::size_t max_Newton_iters;
 
-  double tol_Newton_p_star;
+  double atol_Newton_p_star;
+  double rtol_Newton_p_star;
   double tol_Newton_alpha1_d;
 
   bool   mass_transfer;

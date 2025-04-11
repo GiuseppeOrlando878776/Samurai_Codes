@@ -332,6 +332,13 @@ double StaticBubble<dim>::get_max_lambda(const double time) {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
+                           #ifndef RELAX_RECONSTRUCTION
+                             alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
+                                                (conserved_variables[cell][M1_INDEX] +
+                                                 conserved_variables[cell][M2_INDEX] +
+                                                 conserved_variables[cell][M1_D_INDEX]);
+                           #endif
+
                            /*--- Compute the velocity along both horizontal and vertical direction ---*/
                            const auto rho = conserved_variables[cell][M1_INDEX]
                                           + conserved_variables[cell][M2_INDEX]
@@ -555,7 +562,7 @@ void StaticBubble<dim>::apply_relaxation() {
                            });
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
-    update_geometry();
+    //update_geometry();
 
     // Newton cycle diverged
     if(Newton_iter > max_Newton_iters && relaxation_applied == true) {

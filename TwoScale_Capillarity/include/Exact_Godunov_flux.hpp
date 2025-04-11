@@ -16,20 +16,22 @@ namespace samurai {
   template<class Field>
   class GodunovFlux: public Flux<Field> {
   public:
-    GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                const LinearizedBarotropicEOS<>& EOS_phase2,
+    GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
+                const LinearizedBarotropicEOS<>& EOS_phase2_,
                 const double sigma_,
                 const double mod_grad_alpha1_bar_min_,
                 const bool mass_transfer_,
                 const double kappa_,
                 const double Hmax_,
-                const double alpha1d_max_ = 0.5,
-                const double alpha1_bar_min_ = 0.01,
-                const double alpha1_bar_max_ = 0.1,
-                const double lambda_ = 0.9,
-                const double tol_Newton_ = 1e-12,
-                const std::size_t max_Newton_iters_ = 60,
-                const double tol_Newton_p_star_ = 1e-8,
+                const double alpha1d_max_,
+                const double alpha1_bar_min_,
+                const double alpha1_bar_max_,
+                const double lambda_,
+                const double atol_Newton_,
+                const double rtol_Newton_,
+                const std::size_t max_Newton_iters_,
+                const double atol_Newton_p_star_ = 1e-10,
+                const double rtol_Newton_p_star_ = 1e-8,
                 const double tol_Newton_alpha1_d_ = 1e-8); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
@@ -41,7 +43,8 @@ namespace samurai {
     #endif
 
   private:
-    const double tol_Newton_p_star;   /*--- Tolerance of the Newton method to compute p_star ---*/
+    const double atol_Newton_p_star;  /*--- Absolute tolerance of the Newton method to compute p_star ---*/
+    const double rtol_Newton_p_star;  /*--- Relative tolerance of the Newton method to compute p_star ---*/
     const double tol_Newton_alpha1_d; /*--- Tolerance of the Newton method to compute alpha1_d ---*/
 
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
@@ -63,8 +66,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1,
-                                  const LinearizedBarotropicEOS<>& EOS_phase2,
+  GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
+                                  const LinearizedBarotropicEOS<>& EOS_phase2_,
                                   const double sigma_,
                                   const double mod_grad_alpha1_bar_min_,
                                   const bool mass_transfer_,
@@ -74,16 +77,19 @@ namespace samurai {
                                   const double alpha1_bar_min_,
                                   const double alpha1_bar_max_,
                                   const double lambda_,
-                                  const double tol_Newton_,
+                                  const double atol_Newton_,
+                                  const double rtol_Newton_,
                                   const std::size_t max_Newton_iters_,
-                                  const double tol_Newton_p_star_,
+                                  const double atol_Newton_p_star_,
+                                  const double rtol_Newton_p_star_,
                                   const double tol_Newton_alpha1_d_):
-    Flux<Field>(EOS_phase1, EOS_phase2,
+    Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_bar_min_,
                 mass_transfer_, kappa_, Hmax_,
                 alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
-                lambda_, tol_Newton_, max_Newton_iters_),
-                tol_Newton_p_star(tol_Newton_p_star_), tol_Newton_alpha1_d(tol_Newton_alpha1_d_) {}
+                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_),
+                atol_Newton_p_star(atol_Newton_p_star_), rtol_Newton_p_star(rtol_Newton_p_star_),
+                tol_Newton_alpha1_d(tol_Newton_alpha1_d_) {}
 
   // Compute small-scale volume fraction for the fan through Newton-Rapson method
   //
@@ -145,10 +151,10 @@ namespace samurai {
     const auto rho1_L       = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_L     = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
     const auto rho2_L       = qL(M2_INDEX)/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L  = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
-                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
+    const auto c_squared_L  = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                            + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
-    const auto p_bar_L      = alpha1_bar_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->phase2.pres_value(rho2_L);
+    const auto p_bar_L      = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
 
     /*--- Right state useful variables ---*/
     const auto rho_R        = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
@@ -157,15 +163,14 @@ namespace samurai {
     const auto rho1_R       = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_R     = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
     const auto rho2_R       = qR(M2_INDEX)/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R  = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
-                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
+    const auto c_squared_R  = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                            + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
-    const auto p_bar_R      = alpha1_bar_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->phase2.pres_value(rho2_R);
+    const auto p_bar_R      = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
 
     if(p_star <= p0_L || p_bar_L <= p0_L) {
-      std::cerr << "Non-admissible value for the pressure at the beginning of the Newton method to compute p* in Godunov solver" << std::endl;
-      exit(1);
+      throw std::runtime_error("Non-admissible value for the pressure at the beginning of the Newton method to compute p* in Godunov solver");
     }
 
     auto F_p_star = dvel_d;
@@ -184,8 +189,8 @@ namespace samurai {
 
     /*--- Loop of Newton method ---*/
     std::size_t Newton_iter = 0;
-    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->tol_Newton_p_star*(1.0 + std::abs(vel_d_L)) &&
-          std::abs(dp_star) > this->tol_Newton_p_star*(1.0 + std::abs(p_star))) {
+    while(Newton_iter < this->max_Newton_iters && std::abs(F_p_star) > this->atol_Newton_p_star + this->rtol_Newton_p_star*std::abs(vel_d_L) &&
+          std::abs(dp_star) > this->atol_Newton_p_star + this->rtol_Newton_p_star*std::abs(p_star)) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment
@@ -210,8 +215,7 @@ namespace samurai {
       dp_star = std::max(dp_star, this->lambda*(std::max(p0_L, p0_R) - p_star));
 
       if(p_star + dp_star <= p0_L) {
-        std::cerr << "Non-admissible value for the pressure in the Newton method to compute p* in Godunov solver" << std::endl;
-        exit(1);
+        throw std::runtime_error("Non-admissible value for the pressure in the Newton method to compute p* in Godunov solver");
       }
       else {
         p_star += dp_star;
@@ -219,8 +223,7 @@ namespace samurai {
 
       // Newton cycle diverged
       if(Newton_iter == this->max_Newton_iters) {
-        std::cout << "Netwon method not converged to compute p* in the Godunov solver" << std::endl;
-        exit(1);
+        throw std::runtime_error("Netwon method not converged to compute p* in the Godunov solver");
       }
 
       // Update function for which we seek the zero
@@ -257,8 +260,8 @@ namespace samurai {
     const auto rho1_L       = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_L     = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
     const auto rho2_L       = qL(M2_INDEX)/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L  = qL(M1_INDEX)*this->phase1.c_value(rho1_L)*this->phase1.c_value(rho1_L)
-                            + qL(M2_INDEX)*this->phase2.c_value(rho2_L)*this->phase2.c_value(rho2_L);
+    const auto c_squared_L  = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                            + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
 
     // Right state useful variables
@@ -269,13 +272,13 @@ namespace samurai {
     const auto rho1_R       = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_R     = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
     const auto rho2_R       = qR(M2_INDEX)/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R  = qR(M1_INDEX)*this->phase1.c_value(rho1_R)*this->phase1.c_value(rho1_R)
-                            + qR(M2_INDEX)*this->phase2.c_value(rho2_R)*this->phase2.c_value(rho2_R);
+    const auto c_squared_R  = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                            + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
     // Compute p*
-    const auto p_bar_L = alpha1_bar_L*this->phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->phase2.pres_value(rho2_L);
-    const auto p_bar_R = alpha1_bar_R*this->phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->phase2.pres_value(rho2_R);
+    const auto p_bar_L = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
+    const auto p_bar_R = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
 
     const auto p0_L = p_bar_L - rho_L*c_L*c_L*(1.0 - qL(ALPHA1_D_INDEX));
     const auto p0_R = p_bar_R - rho_R*c_R*c_R*(1.0 - qR(ALPHA1_D_INDEX));
@@ -496,7 +499,7 @@ namespace samurai {
       }
     }
 
-    // Compute the hyperbolic contribution to the flux
+    /*--- Compute the hyperbolic contribution to the flux ---*/
     return this->evaluate_hyperbolic_operator(q_star, curr_d);
   }
 
