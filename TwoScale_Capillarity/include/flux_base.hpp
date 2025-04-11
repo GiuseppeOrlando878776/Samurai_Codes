@@ -39,6 +39,9 @@ namespace EquationData {
 
   /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
   static constexpr std::size_t ALPHA1_BAR_INDEX = RHO_ALPHA1_BAR_INDEX;
+  static constexpr std::size_t P1_INDEX         = M1_INDEX;
+  static constexpr std::size_t P2_INDEX         = M2_INDEX;
+  static constexpr std::size_t U_INDEX          = RHO_U_INDEX;
 }
 
 namespace samurai {
@@ -63,8 +66,8 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
          const double sigma_,
          const double mod_grad_alpha1_bar_min_,
          const bool mass_transfer_,
@@ -74,7 +77,8 @@ namespace samurai {
          const double alpha1_bar_min_ = 0.01,
          const double alpha1_bar_max_ = 0.1,
          const double lambda_ = 0.9,
-         const double tol_Newton_ = 1e-12,
+         const double atol_Newton_ = 1e-14,
+         const double rtol_Newton_ = 1e-12,
          const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename State, typename Gradient>
@@ -89,8 +93,8 @@ namespace samurai {
                                                                                                       for MUSCL reconstruction) ---*/
 
   protected:
-    const LinearizedBarotropicEOS<typename Field::value_type>& phase1;
-    const LinearizedBarotropicEOS<typename Field::value_type>& phase2;
+    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1;
+    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2;
 
     const double sigma; /*--- Surface tension parameter ---*/
 
@@ -105,7 +109,8 @@ namespace samurai {
     const double alpha1_bar_max; /*--- Maximum effective volume fraction for the interface ---*/
 
     const double lambda;                /*--- Parameter for bound preserving strategy ---*/
-    const double tol_Newton;            /*--- Tolerance Newton method relaxation ---*/
+    const double atol_Newton;           /*--- Absolute tolerance Newton method relaxation ---*/
+    const double rtol_Newton;           /*--- Relative tolerance Newton method relaxation ---*/
     const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
     template<typename Gradient>
@@ -144,8 +149,8 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1,
-                    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2,
+  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                     const double sigma_,
                     const double mod_grad_alpha1_bar_min_,
                     const bool mass_transfer_,
@@ -155,13 +160,15 @@ namespace samurai {
                     const double alpha1_bar_min_,
                     const double alpha1_bar_max_,
                     const double lambda_,
-                    const double tol_Newton_,
+                    const double atol_Newton_,
+                    const double rtol_Newton_,
                     const std::size_t max_Newton_iters_):
-    phase1(EOS_phase1), phase2(EOS_phase2),
+    EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_),
     sigma(sigma_), mod_grad_alpha1_bar_min(mod_grad_alpha1_bar_min_),
     mass_transfer(mass_transfer_), kappa(kappa_), Hmax(Hmax_),
     alpha1d_max(alpha1d_max_), alpha1_bar_min(alpha1_bar_min_), alpha1_bar_max(alpha1_bar_max_),
-    lambda(lambda_), tol_Newton(tol_Newton_), max_Newton_iters(max_Newton_iters_) {}
+    lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
+    max_Newton_iters(max_Newton_iters_) {}
 
   // Evaluate the 'continuous flux'
   //
@@ -209,11 +216,11 @@ namespace samurai {
     const auto alpha1_bar = q(RHO_ALPHA1_BAR_INDEX)/rho;
     const auto alpha1     = alpha1_bar*(1.0 - q(ALPHA1_D_INDEX));
     const auto rho1       = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p1         = phase1.pres_value(rho1);
+    const auto p1         = EOS_phase1.pres_value(rho1);
 
     const auto alpha2     = 1.0 - alpha1 - q(ALPHA1_D_INDEX);
     const auto rho2       = q(M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p2         = phase2.pres_value(rho2);
+    const auto p2         = EOS_phase2.pres_value(rho2);
 
     const auto p_bar      = alpha1_bar*p1 + (1.0 - alpha1_bar)*p2;
 
@@ -268,12 +275,19 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
-    /*--- Create a copy of the state to save the output ---*/
-    FluxValue<cfg> prim = cons;
+    FluxValue<cfg> prim;
 
-    // Apply conversion only to the large-scale volume fraction
     prim(ALPHA1_BAR_INDEX) = cons(RHO_ALPHA1_BAR_INDEX)/
                              (cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX));
+    const auto alpha1      = prim(ALPHA1_BAR_INDEX)*(1.0 - cons(ALPHA1_D_INDEX));
+    prim(P1_INDEX)         = EOS_phase1.pres_value(cons(M1_INDEX)/alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    prim(P2_INDEX)         = EOS_phase2.pres_value(cons(M2_INDEX)/(1.0 - alpha1 - cons(ALPHA1_D_INDEX))); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/(cons(M1_INDEX) + cons(M2_INDEX));
+    }
+    prim(M1_D_INDEX)       = cons(M1_D_INDEX);
+    prim(ALPHA1_D_INDEX)   = cons(ALPHA1_D_INDEX);
+    prim(SIGMA_D_INDEX)    = cons(SIGMA_D_INDEX);
 
     return prim;
   }
@@ -282,11 +296,20 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
-    /*--- Create a copy of the state to save the output ---*/
-    FluxValue<cfg> cons = prim;
+    FluxValue<cfg> cons;
 
-    /*--- Apply conversion only to the mixture density times volume fraction ---*/
-    cons(RHO_ALPHA1_BAR_INDEX) = (prim(M1_INDEX) + prim(M2_INDEX) + prim(M1_D_INDEX))*prim(ALPHA1_BAR_INDEX);
+    const auto alpha1          = prim(ALPHA1_BAR_INDEX)*(1.0 - prim(ALPHA1_D_INDEX));
+    cons(M1_INDEX)             = alpha1*EOS_phase1.rho_value(prim(P1_INDEX));
+    cons(M2_INDEX)             = (1.0 - alpha1 - prim(ALPHA1_D_INDEX))*EOS_phase2.rho_value(prim(P2_INDEX));
+    cons(M1_D_INDEX)           = prim(M1_D_INDEX);
+    cons(RHO_ALPHA1_BAR_INDEX) = (cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX))*
+                                 prim(ALPHA1_BAR_INDEX);
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      cons(RHO_U_INDEX + d) = (cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX))*
+                              prim(U_INDEX + d);
+    }
+    cons(ALPHA1_D_INDEX)       = prim(ALPHA1_D_INDEX);
+    cons(SIGMA_D_INDEX)        = prim(SIGMA_D_INDEX);
 
     return cons;
   }
@@ -350,14 +373,14 @@ namespace samurai {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto alpha1 = alpha1_bar*(1.0 - (*conserved_variables)(ALPHA1_D_INDEX));
     const auto rho1   = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p1     = phase1.pres_value(rho1);
+    const auto p1     = EOS_phase1.pres_value(rho1);
 
     const auto alpha2 = 1.0 - alpha1 - (*conserved_variables)(ALPHA1_D_INDEX);
     const auto rho2   = (*conserved_variables)(M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p2     = phase2.pres_value(rho2);
+    const auto p2     = EOS_phase2.pres_value(rho2);
 
     const auto rho1d  = ((*conserved_variables)(M1_D_INDEX) > 0.0 && (*conserved_variables)(ALPHA1_D_INDEX) > 0.0) ?
-                        (*conserved_variables)(M1_D_INDEX)/(*conserved_variables)(ALPHA1_D_INDEX) : phase1.get_rho0();
+                        (*conserved_variables)(M1_D_INDEX)/(*conserved_variables)(ALPHA1_D_INDEX) : EOS_phase1.get_rho0();
 
     /*--- Prepare for mass transfer if desired ---*/
     const auto rho = (*conserved_variables)(M1_INDEX)
@@ -365,11 +388,18 @@ namespace samurai {
                    + (*conserved_variables)(M1_D_INDEX);
 
     // Compute first ordrer integral reminder "specific enthalpy"
-    const auto p_bar                 = alpha1_bar*p1 + (1.0 - alpha1_bar)*p2;
-    const auto p2_minus_p1_times_h   = rho1/(1.0 - alpha1_bar)*
-                                       (phase1.e_value(rho1d) - phase1.e_value(rho1) +
-                                       p_bar/rho1d - p1/rho1)
-                                     - (p2 - p1);
+    const auto p_bar = alpha1_bar*p1 + (1.0 - alpha1_bar)*p2;
+    typename Field::value_type p2_minus_p1_times_h;
+    try {
+      p2_minus_p1_times_h = rho1/(1.0 - alpha1_bar)*
+                            (EOS_phase1.e_value(rho1d) - EOS_phase1.e_value(rho1) +
+                            p_bar/rho1d - p1/rho1) -
+                            (p2 - p1);
+    }
+    catch(std::exception& e) {
+      std::cerr << e.what() << std::endl;
+      exit(1);
+    }
     typename Field::value_type H_lim = std::min(H_bar, Hmax);
     const auto fac_Ru                = sigma*(3.0*H_lim/(kappa*rho1d))*(rho1/(1.0 - alpha1_bar)) -
                                        sigma*H_lim/(1.0 - (*conserved_variables)(ALPHA1_D_INDEX)) +
@@ -397,14 +427,15 @@ namespace samurai {
                  - sigma*H_lim;
 
     // Perform the relaxation only where really needed
-    if(!std::isnan(F) && std::abs(F) > tol_Newton*(1.0 + std::min(phase1.get_p0(), sigma*std::abs(H_lim))) && std::abs(dalpha1_bar) > tol_Newton) {
+    if(!std::isnan(F) && std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
+       std::abs(dalpha1_bar) > atol_Newton) {
       relaxation_applied = true;
 
       // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
       const auto dF_dalpha1_bar = -(*conserved_variables)(M1_INDEX)/(alpha1_bar*alpha1_bar)*
-                                   phase1.c_value(rho1)*phase1.c_value(rho1)
+                                   EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                                   -(*conserved_variables)(M2_INDEX)/((1.0 - alpha1_bar)*(1.0 - alpha1_bar))*
-                                   phase2.c_value(rho2)*phase2.c_value(rho2);
+                                   EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
 
       // Compute the pseudo time step starting as initial guess from the ideal unmodified Newton method
       auto dtau_ov_epsilon = std::numeric_limits<typename Field::value_type>::infinity();
@@ -424,7 +455,6 @@ namespace samurai {
         dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
         if(dtau_ov_epsilon < 0.0) {
           throw std::runtime_error("Negative time step found after relaxation of velocity");
-          exit(1);
         }
 
         // Bound preserving for the small-scale volume fraction
@@ -439,15 +469,14 @@ namespace samurai {
         }
         if(dtau_ov_epsilon < 0.0) {
           throw std::runtime_error("Negative time step found after relaxation of small-scale volume fraction");
-          exit(1);
         }
       }
 
       // Bound preserving condition for large-scale volume fraction
       const auto dF_dalpha1d   = p2 - p1
-                               + phase1.c_value(rho1)*phase1.c_value(rho1)*rho1
-                               - phase2.c_value(rho2)*phase2.c_value(rho2)*rho2;
-      const auto dF_dm1        = phase1.c_value(rho1)*phase1.c_value(rho1)/alpha1_bar;
+                               + EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)*rho1
+                               - EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2)*rho2;
+      const auto dF_dm1        = EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)/alpha1_bar;
       const auto R             = dF_dalpha1d/rho1d - dF_dm1;
       const auto a             = rho1*sigma*dH*R/
                                  ((1.0 - alpha1_bar)*(1.0 - (*conserved_variables)(ALPHA1_D_INDEX)));
@@ -477,7 +506,6 @@ namespace samurai {
       dtau_ov_epsilon = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
       if(dtau_ov_epsilon < 0.0) {
         throw std::runtime_error("Negative time step found after relaxation of large-scale volume fraction");
-        exit(1);
       }
 
       // Compute the effective variation of the variables
@@ -573,17 +601,23 @@ namespace samurai {
         typename Field::value_type alpha1_bar  = q(RHO_ALPHA1_BAR_INDEX)/
                                                  (q(M1_INDEX) + q(M2_INDEX) + q(M1_D_INDEX));
 
-        // Apply Newton method
+        /*--- Apply Newton method ---*/
         while(relaxation_applied == true) {
           relaxation_applied = false;
           Newton_iter++;
 
-          this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
-                                               H_bar, dalpha1_bar, alpha1_bar, grad_alpha1_bar,
-                                               relaxation_applied, mass_transfer_NR);
+          try {
+            this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
+                                                 H_bar, dalpha1_bar, alpha1_bar, grad_alpha1_bar,
+                                                 relaxation_applied, mass_transfer_NR);
+          }
+          catch(std::exception& e) {
+            std::cerr << e.what() << std::endl;
+            exit(1);
+          }
 
           // Newton cycle diverged
-          if(Newton_iter > max_Newton_iters) {
+          if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
             std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }

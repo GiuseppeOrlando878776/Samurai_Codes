@@ -111,7 +111,12 @@ T LinearizedBarotropicEOS<T>::e_value(const T& rho) const {
     return nan("");
   }
 
-  return c0*c0*std::log(rho) - p0/rho;
+  if(rho > 1e-10) {
+    return c0*c0*std::log(rho) - p0/rho;
+  }
+  else {
+    throw std::runtime_error("Zero density when computing internal energy");
+  }
 }
 
 // Implement the getter of the speed of sound
