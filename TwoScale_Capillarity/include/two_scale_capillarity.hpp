@@ -24,11 +24,14 @@ namespace fs = std::filesystem;
 /*--- Include the headers with the numerical fluxes ---*/
 //#define RUSANOV_FLUX
 #define GODUNOV_FLUX
+//#define HLLC_FLUX
 
 #ifdef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
 #elifdef GODUNOV_FLUX
   #include "Exact_Godunov_flux.hpp"
+#elifdef HLLC_FLUX
+  #include "HLLC_flux.hpp"
 #endif
 #include "SurfaceTension_flux.hpp"
 
@@ -131,6 +134,8 @@ private:
     samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
   #elifdef GODUNOV_FLUX
     samurai::GodunovFlux<Field> Godunov_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
+  #elifdef HLLC_FLUX
+    samurai::HLLCFlux<Field> HLLC_flux; /*--- Auxiliary variable to compute the flux ---*/
   #endif
   samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
 
@@ -205,6 +210,13 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
                  sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
                  max_Newton_iters, sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star,
                  sim_param.tol_Newton_alpha1_d),
+  #elifdef HLLC_FLUX
+    HLLC_flux(EOS_phase1, EOS_phase2,
+              sigma, mod_grad_alpha1_bar_min,
+              mass_transfer, kappa, Hmax,
+              alpha1d_max, alpha1_bar_min, alpha1_bar_max,
+              sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
+              max_Newton_iters),
   #endif
   SurfaceTension_flux(EOS_phase1, EOS_phase2,
                       sigma, mod_grad_alpha1_bar_min,
@@ -611,6 +623,10 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                  Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
                                                                              relaxation_applied, mass_transfer_NR);
+                               #elifdef HLLC_FLUX
+                                 HLLC_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                          H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
+                                                                          relaxation_applied, mass_transfer_NR);
                                #endif
                              }
                              catch(std::exception& e) {
@@ -772,6 +788,8 @@ void TwoScaleCapillarity<dim>::run() {
     filename += "_Rusanov";
   #elifdef GODUNOV_FLUX
     filename += "_Godunov";
+  #elifdef HLLC_FLUX
+    filename += "_HLLC";
   #endif
 
   #ifdef ORDER_2
@@ -809,6 +827,12 @@ void TwoScaleCapillarity<dim>::run() {
       auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity(grad_alpha1_bar, H_bar);
     #else
       auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
+    #endif
+  #elifdef HLLC_FLUX
+    #ifdef ORDER_2
+      auto numerical_flux_hyp = HLLC_flux.make_two_scale_capillarity(grad_alpha1_bar, H_bar);
+    #else
+      auto numerical_flux_hyp = HLLC_flux.make_two_scale_capillarity();
     #endif
   #endif
   auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha1_bar);
