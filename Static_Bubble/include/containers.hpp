@@ -30,7 +30,7 @@ struct Simulation_Paramaters {
   std::size_t nfiles;
 
   double alpha_residual;
-  double mod_grad_alpha1_bar_min;
+  double mod_grad_alpha1_min;
 
   bool        apply_relaxation;
   double      lambda;

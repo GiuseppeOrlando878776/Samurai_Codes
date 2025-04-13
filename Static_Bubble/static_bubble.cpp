@@ -41,8 +41,8 @@ int main(int argc, char* argv[]) {
 
   sim_param.nfiles = input.value("nfiles", 10);
 
-  sim_param.alpha_residual          = input.value("alpha_residual", 1e-8);
-  sim_param.mod_grad_alpha1_bar_min = input.value("mod_grad_alpha1_bar_min", 0.0);
+  sim_param.alpha_residual      = input.value("alpha_residual", 1e-8);
+  sim_param.mod_grad_alpha1_min = input.value("mod_grad_alpha1_min", 0.0);
 
   sim_param.apply_relaxation = input.value("apply_relaxation", true);
   sim_param.lambda           = input.value("lambda", 0.9);
@@ -50,9 +50,8 @@ int main(int argc, char* argv[]) {
   sim_param.rtol_Newton      = input.value("rtol_Newton", 1e-12);
   sim_param.max_Newton_iters = input.value("max_Newton_iters", 60);
 
-  sim_param.atol_Newton_p_star  = input.value("atol_Newton_p_star", 1e-6);
-  sim_param.rtol_Newton_p_star  = input.value("rtol_Newton_p_star", 1e-3);
-  sim_param.tol_Newton_alpha1_d = input.value("tol_Newton_alpha1_d", 1e-8);
+  sim_param.atol_Newton_p_star = input.value("atol_Newton_p_star", 1e-6);
+  sim_param.rtol_Newton_p_star = input.value("rtol_Newton_p_star", 1e-3);
 
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
@@ -75,7 +74,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Numerical parameters");
   app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Numerical paramaters");
   app.add_option("--alpha_residual", sim_param.alpha_residual, "Residual large scale volume fraction")->capture_default_str()->group("Numerical parameters");
-  app.add_option("--mod_grad_alpha1_bar_min", sim_param.mod_grad_alpha1_bar_min,
+  app.add_option("--mod_grad_alpha1_min", sim_param.mod_grad_alpha1_min,
                  "Tolerance for zero gradient volume fraction")->capture_default_str()->group("Numerical paramaters");
   app.add_option("--lambda", sim_param.lambda,
                  "Parameter for bound preserving strategy")->capture_default_str()->group("Numerical parameters");
@@ -89,8 +88,6 @@ int main(int argc, char* argv[]) {
                  "Absolute tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
   app.add_option("--rtol_Newton_p_star", sim_param.rtol_Newton_p_star,
                  "Relative tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
-  app.add_option("--tol_Newton_alpha1_d", sim_param.tol_Newton_alpha1_d,
-                 "Tolerance of Newton method to compute small-scale volume fraction for the exact solver")->capture_default_str()->group("Numerical parameters");
 
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters eos_param;

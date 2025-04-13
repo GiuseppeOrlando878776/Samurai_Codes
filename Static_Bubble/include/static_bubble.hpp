@@ -81,18 +81,18 @@ private:
 
   /*--- Now we declare a bunch of fields which depend from the state, but it is useful
         to have it so as to avoid recomputation ---*/
-  Field_Scalar alpha1_bar,
-               H_bar,
-               dalpha1_bar,
+  Field_Scalar alpha1,
+               H,
+               dalpha1,
                p1,
                p2,
-               p_bar;
+               p;
 
   Field_Vect normal,
-             grad_alpha1_bar,
+             grad_alpha1,
              vel;
 
-  using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1_bar)>());
+  using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1)>());
   gradient_type gradient;
 
   using divergence_type = decltype(samurai::make_divergence_order2<decltype(normal)>());
@@ -101,7 +101,7 @@ private:
   const double R; /*--- Bubble radius ---*/
   const double sigma; /*--- Surface tension coefficient ---*/
 
-  const double mod_grad_alpha1_bar_min; /*--- Minimum threshold for which not computing anymore the unit normal ---*/
+  const double mod_grad_alpha1_min; /*--- Minimum threshold for which not computing anymore the unit normal ---*/
 
   std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
@@ -153,23 +153,22 @@ StaticBubble<dim>::StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{true, true}}),
   apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf),
   cfl(sim_param.Courant), nfiles(sim_param.nfiles),
-  gradient(samurai::make_gradient_order2<decltype(alpha1_bar)>()),
+  gradient(samurai::make_gradient_order2<decltype(alpha1)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>()),
   R(sim_param.R), sigma(sim_param.sigma),
-  mod_grad_alpha1_bar_min(sim_param.mod_grad_alpha1_bar_min),
+  mod_grad_alpha1_min(sim_param.mod_grad_alpha1_min),
   max_Newton_iters(sim_param.max_Newton_iters),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, mod_grad_alpha1_bar_min,
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, mod_grad_alpha1_min,
                  sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton, max_Newton_iters),
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, mod_grad_alpha1_bar_min,
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, mod_grad_alpha1_min,
                  sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton, max_Newton_iters,
-                 sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star,
-                 sim_param.tol_Newton_alpha1_d),
+                 sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star),
   #endif
-  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, mod_grad_alpha1_bar_min,
+  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, sim_param.sigma_relax, mod_grad_alpha1_min,
                       sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton, max_Newton_iters),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
@@ -188,17 +187,17 @@ StaticBubble<dim>::StaticBubble(const xt::xtensor_fixed<double, xt::xshape<dim>>
 //
 template<std::size_t dim>
 void StaticBubble<dim>::update_geometry() {
-  samurai::update_ghost_mr(alpha1_bar);
+  samurai::update_ghost_mr(alpha1);
 
-  grad_alpha1_bar = gradient(alpha1_bar);
+  grad_alpha1 = gradient(alpha1);
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           const auto mod_grad_alpha1_bar = std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])());
+                           const auto mod_grad_alpha1 = std::sqrt(xt::sum(grad_alpha1[cell]*grad_alpha1[cell])());
 
-                           if(mod_grad_alpha1_bar > mod_grad_alpha1_bar_min) {
-                             normal[cell] = grad_alpha1_bar[cell]/mod_grad_alpha1_bar;
+                           if(mod_grad_alpha1 > mod_grad_alpha1_min) {
+                             normal[cell] = grad_alpha1[cell]/mod_grad_alpha1;
                            }
                            else {
                              for(std::size_t d = 0; d < dim; ++d) {
@@ -207,7 +206,7 @@ void StaticBubble<dim>::update_geometry() {
                            }
                          });
   samurai::update_ghost_mr(normal);
-  H_bar = -divergence(normal);
+  H = -divergence(normal);
 }
 
 // Initialization of conserved and auxiliary variables
@@ -218,18 +217,18 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
   /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  alpha1_bar      = samurai::make_field<typename Field::value_type, 1>("alpha1_bar", mesh);
-  grad_alpha1_bar = samurai::make_field<typename Field::value_type, dim>("grad_alpha1_bar", mesh);
-  normal          = samurai::make_field<typename Field::value_type, dim>("normal", mesh);
-  H_bar           = samurai::make_field<typename Field::value_type, 1>("H_bar", mesh);
+  alpha1      = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
+  grad_alpha1 = samurai::make_field<typename Field::value_type, dim>("grad_alpha1", mesh);
+  normal      = samurai::make_field<typename Field::value_type, dim>("normal", mesh);
+  H           = samurai::make_field<typename Field::value_type, 1>("H", mesh);
 
-  dalpha1_bar     = samurai::make_field<typename Field::value_type, 1>("dalpha1_bar", mesh);
+  dalpha1     = samurai::make_field<typename Field::value_type, 1>("dalpha1", mesh);
 
-  p1              = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
-  p2              = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
-  p_bar           = samurai::make_field<typename Field::value_type, 1>("p_bar", mesh);
+  p1          = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
+  p2          = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
+  p           = samurai::make_field<typename Field::value_type, 1>("p", mesh);
 
-  vel             = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
+  vel         = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
 
   /*--- Declare some constant parameters associated to the grid and to the
         initial state ---*/
@@ -254,7 +253,7 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
                                             0.5*(1.0 + std::tanh(-8.0*((r - R + 0.5*eps_R)/eps_R - 0.5))) :
                                             ((r < R - 0.5*eps_R) ? 1.0 : 0.0);
 
-                           alpha1_bar[cell] = std::min(std::max(alpha_residual, w), 1.0 - alpha_residual);
+                           alpha1[cell] = std::min(std::max(alpha_residual, w), 1.0 - alpha_residual);
                          });
 
   /*--- Compute the geometrical quantities ---*/
@@ -263,11 +262,6 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Set small-scale variables
-                           conserved_variables[cell][ALPHA1_D_INDEX] = 0.0;
-                           conserved_variables[cell][SIGMA_D_INDEX]  = 0.0;
-                           conserved_variables[cell][M1_D_INDEX]     = conserved_variables[cell][ALPHA1_D_INDEX]*EOS_phase1.get_rho0();
-
                            // Recompute geometric locations to set partial masses
                            const auto center = cell.center();
                            const double x    = center[0];
@@ -278,8 +272,8 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
                            // Set mass large-scale phase 1
                            p1[cell] = EOS_phase2.get_p0();
                            if(r < R + eps_R) {
-                             if(r >= R && r < R + eps_R && !std::isnan(H_bar[cell])) {
-                               p1[cell] += sigma*H_bar[cell];
+                             if(r >= R && r < R + eps_R && !std::isnan(H[cell])) {
+                               p1[cell] += sigma*H[cell];
                              }
                              else {
                                p1[cell] += sigma/R;
@@ -287,27 +281,26 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
                            }
                            const auto rho1 = EOS_phase1.rho_value(p1[cell]);
 
-                           conserved_variables[cell][M1_INDEX] = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho1;
+                           conserved_variables[cell][M1_INDEX] = alpha1[cell]*rho1;
 
                            // Set mass phase 2
                            p2[cell]        = EOS_phase2.get_p0();
                            const auto rho2 = EOS_phase2.rho_value(p2[cell]);
 
-                           conserved_variables[cell][M2_INDEX] = (1.0 - alpha1_bar[cell])*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX])*rho2;
+                           conserved_variables[cell][M2_INDEX] = (1.0 - alpha1[cell])*rho2;
 
                            // Set conserved variable associated to large-scale volume fraction
                            const auto rho = conserved_variables[cell][M1_INDEX]
-                                          + conserved_variables[cell][M2_INDEX]
-                                          + conserved_variables[cell][M1_D_INDEX];
+                                          + conserved_variables[cell][M2_INDEX];
 
-                           conserved_variables[cell][RHO_ALPHA1_BAR_INDEX] = rho*alpha1_bar[cell];
+                           conserved_variables[cell][RHO_ALPHA1_INDEX] = rho*alpha1[cell];
 
                            // Set momentum
                            conserved_variables[cell][RHO_U_INDEX]     = conserved_variables[cell][M1_INDEX]*U_1 + conserved_variables[cell][M2_INDEX]*U_0;
                            conserved_variables[cell][RHO_U_INDEX + 1] = rho*V;
 
                            // Set mixture pressure for output
-                           p_bar[cell] = alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell];
+                           p[cell] = alpha1[cell]*p1[cell] + (1.0 - alpha1[cell])*p2[cell];
 
                            // Set velocity for output
                            vel[cell][0] = conserved_variables[cell][RHO_U_INDEX]/rho;
@@ -331,30 +324,26 @@ double StaticBubble<dim>::get_max_lambda(const double time) {
                          [&](const auto& cell)
                          {
                            #ifndef RELAX_RECONSTRUCTION
-                             alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                (conserved_variables[cell][M1_INDEX] +
-                                                 conserved_variables[cell][M2_INDEX] +
-                                                 conserved_variables[cell][M1_D_INDEX]);
+                             alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                            (conserved_variables[cell][M1_INDEX] +
+                                             conserved_variables[cell][M2_INDEX]);
                            #endif
 
                            /*--- Compute the velocity along both horizontal and vertical direction ---*/
                            const auto rho = conserved_variables[cell][M1_INDEX]
-                                          + conserved_variables[cell][M2_INDEX]
-                                          + conserved_variables[cell][M1_D_INDEX];
+                                          + conserved_variables[cell][M2_INDEX];
                            vel[cell][0]   = conserved_variables[cell][RHO_U_INDEX]/rho;
                            vel[cell][1]   = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
 
                            /*--- Compute frozen speed of sound ---*/
-                           const auto alpha1    = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           const auto alpha2    = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
-                           const auto rho2      = conserved_variables[cell][M2_INDEX]/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto rho2      = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
                            const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
                                                 + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
-                           const auto c         = std::sqrt(c_squared/rho)/(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
+                           const auto c         = std::sqrt(c_squared/rho);
 
                            /*--- Add term due to surface tension ---*/
-                           const double r = sigma*std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())/(rho*c*c);
+                           const double r = sigma*std::sqrt(xt::sum(grad_alpha1[cell]*grad_alpha1[cell])())/(rho*c*c);
 
                            /*--- Update eigenvalue estimate ---*/
                            res = std::max(std::max(std::abs(vel[cell][0]) + c*(1.0 + 0.125*r),
@@ -375,19 +364,18 @@ double StaticBubble<dim>::get_max_lambda(const double time) {
 //
 template<std::size_t dim>
 void StaticBubble<dim>::perform_mesh_adaptation() {
-  samurai::update_ghost_mr(grad_alpha1_bar);
-  auto MRadaptation = samurai::make_MRAdapt(grad_alpha1_bar);
+  samurai::update_ghost_mr(grad_alpha1);
+  auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
   MRadaptation(MR_param, MR_regularity, conserved_variables);
 
-  /*--- Sanity check (and numerical artefacts to clear data) after mesh adaptation ---*/
-  alpha1_bar.resize();
+  /*--- Sanity check after mesh adaptation ---*/
+  alpha1.resize();
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                            alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                               (conserved_variables[cell][M1_INDEX] +
-                                                conserved_variables[cell][M2_INDEX] +
-                                                conserved_variables[cell][M1_D_INDEX]);
+                            alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                           (conserved_variables[cell][M1_INDEX] +
+                                            conserved_variables[cell][M2_INDEX]);
                          });
   #ifdef VERBOSE
     check_data(1);
@@ -409,23 +397,23 @@ void StaticBubble<dim>::check_data(unsigned int flag) {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           // Sanity check for alpha1_bar
-                           if(alpha1_bar[cell] < 0.0) {
+                           // Sanity check for alpha1
+                           if(alpha1[cell] < 0.0) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative large-scale volume fraction of phase 1 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
-                           else if(alpha1_bar[cell] > 1.0) {
+                           else if(alpha1[cell] > 1.0) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Exceeding large-scale volume fraction of phase 1 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
-                           else if(std::isnan(alpha1_bar[cell])) {
+                           else if(std::isnan(alpha1[cell])) {
                              std::cerr << cell << std::endl;
                              std::cerr << "NaN large-scale volume fraction of phase 1 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
 
@@ -433,13 +421,13 @@ void StaticBubble<dim>::check_data(unsigned int flag) {
                            if(conserved_variables[cell][M1_INDEX] < 0.0) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative large-scale mass of phase 1 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
                            else if(std::isnan(conserved_variables[cell][M1_INDEX])) {
                              std::cerr << cell << std::endl;
                              std::cerr << "NaN large-scale mass of phase 1 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
 
@@ -447,78 +435,28 @@ void StaticBubble<dim>::check_data(unsigned int flag) {
                            if(conserved_variables[cell][M2_INDEX] < 0.0) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative mass of phase 2 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
                            else if(std::isnan(conserved_variables[cell][M2_INDEX])) {
                              std::cerr << cell << std::endl;
                              std::cerr << "NaN large-scale mass of phase 2 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
-                             exit(1);
-                           }
-
-                           // Sanity check for m1_d
-                           if(conserved_variables[cell][M1_D_INDEX] < 0.0) {
-                             std::cerr << cell << std::endl;
-                             std::cerr << "Negative small-scale mass of phase 1 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
-                             exit(1);
-                           }
-                           else if(std::isnan(conserved_variables[cell][M1_D_INDEX])) {
-                             std::cerr << cell << std::endl;
-                             std::cerr << "NaN small-scale mass of phase 1 " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
-                             exit(1);
-                           }
-
-                           // Sanity check for alpha1_d
-                           if(conserved_variables[cell][ALPHA1_D_INDEX] > 1.0) {
-                             std::cerr << cell << std::endl;
-                             std::cerr << "Exceding value of small-scale volume fraction " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
-                             exit(1);
-                           }
-                           else if(conserved_variables[cell][ALPHA1_D_INDEX] < 0.0) {
-                             std::cerr << cell << std::endl;
-                             std::cerr << "Negative small-scale volume fraction " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
-                             exit(1);
-                           }
-                           else if(std::isnan(conserved_variables[cell][ALPHA1_D_INDEX])) {
-                             std::cerr << cell << std::endl;
-                             std::cerr << "NaN small-scale volume fraction " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
-                             exit(1);
-                           }
-
-                           // Sanity check for Sigma_d
-                           if(conserved_variables[cell][SIGMA_D_INDEX] < 0.0) {
-                             std::cerr << cell << std::endl;
-                             std::cerr << "Negative small-scale interfacial area" + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
-                             exit(1);
-                           }
-                           else if(std::isnan(conserved_variables[cell][SIGMA_D_INDEX])) {
-                             std::cerr << cell << std::endl;
-                             std::cerr << "NaN small-scale interfacial area " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
 
                            // Check data for mixture pressure
-                           const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1   = conserved_variables[cell][M1_INDEX]/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           p1[cell]          = EOS_phase1.pres_value(rho1);
+                           const auto rho1 = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           p1[cell]        = EOS_phase1.pres_value(rho1);
 
-                           const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
-                           const auto rho2   = conserved_variables[cell][M2_INDEX]/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           p2[cell]          = EOS_phase2.pres_value(rho2);
+                           const auto rho2 = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           p2[cell]        = EOS_phase2.pres_value(rho2);
 
-                           p_bar[cell]       = alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell];
-                           if(std::isnan(p_bar[cell])) {
+                           p[cell]         = alpha1[cell]*p1[cell] + (1.0 - alpha1[cell])*p2[cell];
+                           if(std::isnan(p[cell])) {
                              std::cerr << cell << std::endl;
                              std::cerr << "NaN mxiture pressure " + op << std::endl;
-                             save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar, p_bar);
+                             save(fs::current_path(), "_diverged", conserved_variables, alpha1, p);
                              exit(1);
                            }
                        });
@@ -543,18 +481,18 @@ void StaticBubble<dim>::apply_relaxation() {
                              try {
                                #ifdef RUSANOV_FLUX
                                  Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                             H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
+                                                                             H[cell], dalpha1[cell], alpha1[cell],
                                                                              relaxation_applied);
                                #elifdef GODUNOV_FLUX
                                  Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                                             H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
+                                                                             H[cell], dalpha1[cell], alpha1[cell],
                                                                              relaxation_applied);
                                #endif
                              }
                              catch(std::exception& e) {
                                std::cerr << e.what() << std::endl;
                                save(fs::current_path(), "_diverged",
-                                    conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar);
+                                    conserved_variables, alpha1, grad_alpha1, normal, H);
                                exit(1);
                              }
                            });
@@ -566,7 +504,7 @@ void StaticBubble<dim>::apply_relaxation() {
     if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
-           conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar);
+           conserved_variables, alpha1, grad_alpha1, normal, H);
       exit(1);
     }
   }
@@ -601,19 +539,17 @@ void StaticBubble<dim>::execute_postprocess_pressure_jump(const double time) {
   /*--- Compute pressure fields and maximum velocity ---*/
   p1.resize();
   p2.resize();
-  p_bar.resize();
+  p.resize();
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           const auto alpha1 = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1   = conserved_variables[cell][M1_INDEX]/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           p1[cell]          = EOS_phase1.pres_value(rho1);
+                           const auto rho1 = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           p1[cell]        = EOS_phase1.pres_value(rho1);
 
-                           const auto alpha2 = 1.0 - alpha1 - conserved_variables[cell][ALPHA1_D_INDEX];
-                           const auto rho2   = conserved_variables[cell][M2_INDEX]/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           p2[cell]          = EOS_phase2.pres_value(rho2);
+                           const auto rho2 = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           p2[cell]        = EOS_phase2.pres_value(rho2);
 
-                           p_bar[cell]       = alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell];
+                           p[cell]         = alpha1[cell]*p1[cell] + (1.0 - alpha1[cell])*p2[cell];
                          });
 
   /*--- Threshold to define internal pressure ---*/
@@ -625,8 +561,8 @@ void StaticBubble<dim>::execute_postprocess_pressure_jump(const double time) {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           if(alpha1_bar[cell] > alpha1_int) {
-                             p_in_avg += p_bar[cell]*std::pow(cell.length, dim);
+                           if(alpha1[cell] > alpha1_int) {
+                             p_in_avg += p[cell]*std::pow(cell.length, dim);
                              volume   += std::pow(cell.length, dim);
                            }
                          });
@@ -674,22 +610,22 @@ void StaticBubble<dim>::run() {
   /*--- Create the flux variables ---*/
   #ifdef RUSANOV_FLUX
     #ifdef ORDER_2
-      auto numerical_flux_hyp = Rusanov_flux.make_flux(H_bar);
+      auto numerical_flux_hyp = Rusanov_flux.make_flux(H);
     #else
       auto numerical_flux_hyp = Rusanov_flux.make_flux();
     #endif
   #elifdef GODUNOV_FLUX
     #ifdef ORDER_2
-      auto numerical_flux_hyp = Godunov_flux.make_flux(H_bar);
+      auto numerical_flux_hyp = Godunov_flux.make_flux(H);
     #else
       auto numerical_flux_hyp = Godunov_flux.make_flux();
     #endif
   #endif
-  auto numerical_flux_st = SurfaceTension_flux.make_flux_capillarity(grad_alpha1_bar);
+  auto numerical_flux_st = SurfaceTension_flux.make_flux_capillarity(grad_alpha1);
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar, vel);
+  save(path, suffix_init, conserved_variables, alpha1, grad_alpha1, normal, H, p1, p2, p, vel);
   pressure_data.open("pressure_data.dat", std::ofstream::out);
   double t = 0.0;
   execute_postprocess_pressure_jump(t);
@@ -750,7 +686,7 @@ void StaticBubble<dim>::run() {
     }
     catch(std::exception& e) {
       std::cerr << e.what() << std::endl;
-      save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+      save(fs::current_path(), "_diverged", conserved_variables, alpha1);
       exit(1);
     }
 
@@ -758,21 +694,20 @@ void StaticBubble<dim>::run() {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
-                              alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                 (conserved_variables[cell][M1_INDEX] +
-                                                  conserved_variables[cell][M2_INDEX] +
-                                                  conserved_variables[cell][M1_D_INDEX]);
+                              alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                             (conserved_variables[cell][M1_INDEX] +
+                                              conserved_variables[cell][M2_INDEX]);
                            });
     #ifdef VERBOSE
       check_data();
     #endif
     normal.resize();
-    H_bar.resize();
-    grad_alpha1_bar.resize();
+    H.resize();
+    grad_alpha1.resize();
     update_geometry();
 
     // Capillarity contribution
-    samurai::update_ghost_mr(grad_alpha1_bar);
+    samurai::update_ghost_mr(grad_alpha1);
     auto flux_st = numerical_flux_st(conserved_variables);
     #ifdef ORDER_2
       conserved_variables_tmp = conserved_variables - dt*flux_st;
@@ -786,11 +721,11 @@ void StaticBubble<dim>::run() {
     if(apply_relax) {
       // Apply relaxation if desired, which will modify alpha1 and, consequently, for what
       // concerns next time step, rho_alpha1
-      dalpha1_bar.resize();
+      dalpha1.resize();
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
-                               dalpha1_bar[cell] = std::numeric_limits<typename Field::value_type>::infinity();
+                               dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                              });
       apply_relaxation();
       #ifdef RELAX_RECONSTRUCTION
@@ -810,7 +745,7 @@ void StaticBubble<dim>::run() {
       }
       catch(std::exception& e) {
         std::cerr << e.what() << std::endl;
-        save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
+        save(fs::current_path(), "_diverged", conserved_variables, alpha1);
         exit(1);
       }
 
@@ -818,10 +753,9 @@ void StaticBubble<dim>::run() {
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
-                                alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                   (conserved_variables[cell][M1_INDEX] +
-                                                    conserved_variables[cell][M2_INDEX] +
-                                                    conserved_variables[cell][M1_D_INDEX]);
+                                alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                               (conserved_variables[cell][M1_INDEX] +
+                                                conserved_variables[cell][M2_INDEX]);
                              });
       #ifdef VERBOSE
         check_data();
@@ -829,7 +763,7 @@ void StaticBubble<dim>::run() {
       update_geometry();
 
       // Capillarity contribution
-      samurai::update_ghost_mr(grad_alpha1_bar);
+      samurai::update_ghost_mr(grad_alpha1);
       flux_st = numerical_flux_st(conserved_variables);
       conserved_variables_tmp = conserved_variables - dt*flux_st;
       std::swap(conserved_variables.array(), conserved_variables_tmp.array());
@@ -841,7 +775,7 @@ void StaticBubble<dim>::run() {
         samurai::for_each_cell(mesh,
                                [&](const auto& cell)
                                {
-                                 dalpha1_bar[cell] = std::numeric_limits<typename Field::value_type>::infinity();
+                                 dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                                });
         apply_relaxation();
       }
@@ -852,15 +786,14 @@ void StaticBubble<dim>::run() {
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
       // Recompute volume fraction gradient and curvature for the next time step if needed
+      samurai::for_each_cell(mesh,
+                             [&](const auto& cell)
+                             {
+                               alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                              (conserved_variables[cell][M1_INDEX] +
+                                               conserved_variables[cell][M2_INDEX]);
+                             });
       #ifdef RELAX_RECONSTRUCTION
-        samurai::for_each_cell(mesh,
-                               [&](const auto& cell)
-                               {
-                                 alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                    (conserved_variables[cell][M1_INDEX] +
-                                                     conserved_variables[cell][M2_INDEX] +
-                                                     conserved_variables[cell][M1_D_INDEX]);
-                               });
         update_geometry();
       #endif
     #endif
@@ -874,7 +807,7 @@ void StaticBubble<dim>::run() {
     // Save the results
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar, vel);
+      save(path, suffix, conserved_variables, alpha1, grad_alpha1, normal, H, p1, p2, p, vel);
     }
   } /*--- end of the time loop ---*/
 

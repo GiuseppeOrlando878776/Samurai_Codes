@@ -30,8 +30,8 @@ namespace samurai {
 
   private:
     template<typename Gradient>
-    FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const Gradient& grad_alpha1L,
-                                                               const Gradient& grad_alpha1R,
+    FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const Gradient& grad_alpha1_L,
+                                                               const Gradient& grad_alpha1_R,
                                                                const std::size_t curr_d); /*--- Surface tension contribution along direction curr_d ---*/
   };
 
@@ -52,11 +52,11 @@ namespace samurai {
   //
   template<class Field>
   template<typename Gradient>
-  FluxValue<typename Flux<Field>::cfg> SurfaceTensionFlux<Field>::compute_discrete_flux(const Gradient& grad_alpha1L,
-                                                                                        const Gradient& grad_alpha1R,
+  FluxValue<typename Flux<Field>::cfg> SurfaceTensionFlux<Field>::compute_discrete_flux(const Gradient& grad_alpha1_L,
+                                                                                        const Gradient& grad_alpha1_R,
                                                                                         const std::size_t curr_d) {
-    return 0.5*(this->evaluate_surface_tension_operator(grad_alpha1L, curr_d) +
-                this->evaluate_surface_tension_operator(grad_alpha1R, curr_d));
+    return 0.5*(this->evaluate_surface_tension_operator(grad_alpha1_L, curr_d) +
+                this->evaluate_surface_tension_operator(grad_alpha1_R, curr_d));
   }
 
   // Implement the contribution of the discrete flux for all the directions.
