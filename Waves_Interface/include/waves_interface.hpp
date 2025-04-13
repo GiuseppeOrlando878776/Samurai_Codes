@@ -742,9 +742,6 @@ void WaveInterface<dim>::run() {
                                  dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                                });
         apply_relaxation();
-        #ifdef RELAX_RECONSTRUCTION
-          update_geometry();
-        #endif
       }
 
       // Complete evaluation

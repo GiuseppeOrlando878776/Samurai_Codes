@@ -257,6 +257,7 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
                            alpha1_bar[cell] = std::min(std::max(alpha_residual, w), 1.0 - alpha_residual);
                          });
 
+  /*--- Compute the geometrical quantities ---*/
   update_geometry();
 
   samurai::for_each_cell(mesh,
@@ -312,9 +313,6 @@ void StaticBubble<dim>::init_variables(const double x0, const double y0, const d
                            vel[cell][0] = conserved_variables[cell][RHO_U_INDEX]/rho;
                            vel[cell][1] = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
                          });
-
-  /*--- Compute the geometrical quantities ---*/
-  update_geometry();
 
   /*--- Consider Dirichlet bcs ---*/
   //samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
@@ -834,6 +832,7 @@ void StaticBubble<dim>::run() {
       samurai::update_ghost_mr(grad_alpha1_bar);
       flux_st = numerical_flux_st(conserved_variables);
       conserved_variables_tmp = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
 
       // Apply the relaxation
       if(apply_relax) {
@@ -845,14 +844,11 @@ void StaticBubble<dim>::run() {
                                  dalpha1_bar[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                                });
         apply_relaxation();
-        #ifdef RELAX_RECONSTRUCTION
-          update_geometry();
-        #endif
       }
 
       // Compute evaluation
       conserved_variables_np1.resize();
-      conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables_tmp);
+      conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
       // Recompute volume fraction gradient and curvature for the next time step if needed

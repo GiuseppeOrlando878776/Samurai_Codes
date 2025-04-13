@@ -23,12 +23,15 @@ namespace fs = std::filesystem;
 
 /*--- Include the headers with the numerical fluxes ---*/
 //#define RUSANOV_FLUX
-#define GODUNOV_FLUX
+//#define GODUNOV_FLUX
+#define HLLC_FLUX
 
 #ifdef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
 #elifdef GODUNOV_FLUX
   #include "Exact_Godunov_flux.hpp"
+#elifdef HLLC_FLUX
+ #include "HLLC_flux.hpp"
 #endif
 #include "SurfaceTension_flux.hpp"
 
@@ -112,6 +115,8 @@ private:
     samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux ---*/
   #elifdef GODUNOV_FLUX
     samurai::GodunovFlux<Field> Godunov_flux; /*--- Auxiliary variable to compute the flux ---*/
+  #elifdef HLLC_FLUX
+    samurai::HLLCFlux<Field> HLLC_flux; /*--- Auxiliary variable to compute the flux ---*/
   #endif
   samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
 
@@ -162,6 +167,10 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
     Godunov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
                  sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
                  max_Newton_iters, sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star),
+  #elifdef HLLC_FLUX
+    HLLC_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
+              sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
+              max_Newton_iters),
   #endif
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
                       sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
@@ -461,6 +470,10 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                   Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                               H[cell], dalpha1[cell], alpha1[cell],
                                                                               relaxation_applied);
+                              #elifdef HLLC_FLUX
+                                 HLLC_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                                          H[cell], dalpha1[cell], alpha1[cell],
+                                                                          relaxation_applied);
                               #endif
                              }
                              catch(std::exception& e) {
@@ -517,6 +530,8 @@ void TwoScaleCapillarity<dim>::run() {
     filename += "_Rusanov";
   #elifdef GODUNOV_FLUX
     filename += "_Godunov";
+  #elifdef HLLC_FLUX
+    filename += "_HLLC";
   #endif
 
   #ifdef ORDER_2
@@ -549,6 +564,12 @@ void TwoScaleCapillarity<dim>::run() {
       auto numerical_flux_hyp = Godunov_flux.make_flux(H);
     #else
       auto numerical_flux_hyp = Godunov_flux.make_flux();
+    #endif
+  #elifdef HLLC_FLUX
+    #ifdef ORDER_2
+      auto numerical_flux_hyp = HLLC_flux.make_flux(H);
+    #else
+      auto numerical_flux_hyp = HLLC_flux.make_flux();
     #endif
   #endif
   auto numerical_flux_st = SurfaceTension_flux.make_flux_capillarity(grad_alpha1);
@@ -693,6 +714,7 @@ void TwoScaleCapillarity<dim>::run() {
       samurai::update_ghost_mr(conserved_variables);
       flux_st = numerical_flux_st(conserved_variables);
       conserved_variables_tmp = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
 
       // Apply the relaxation
       if(apply_relax) {
@@ -704,14 +726,11 @@ void TwoScaleCapillarity<dim>::run() {
                                  dalpha1[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                                });
         apply_relaxation();
-        #ifdef RELAX_RECONSTRUCTION
-          update_geometry();
-        #endif
       }
 
       // Complete evaluation
       conserved_variables_np1.resize();
-      conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables_tmp);
+      conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
       // Recompute volume fraction gradient and curvature for the next time step

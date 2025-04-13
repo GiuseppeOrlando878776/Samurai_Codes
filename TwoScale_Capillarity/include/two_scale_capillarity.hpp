@@ -967,6 +967,7 @@ void TwoScaleCapillarity<dim>::run() {
       samurai::update_ghost_mr(conserved_variables);
       flux_st = numerical_flux_st(conserved_variables);
       conserved_variables_tmp = conserved_variables - dt*flux_st;
+      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
 
       // Apply relaxation
       if(apply_relax) {
@@ -978,14 +979,11 @@ void TwoScaleCapillarity<dim>::run() {
                                  dalpha1_bar[cell] = std::numeric_limits<typename Field::value_type>::infinity();
                                });
         apply_relaxation();
-        #ifdef RELAX_RECONSTRUCTION
-          update_geometry();
-        #endif
       }
 
       // Complete evaluation
       conserved_variables_np1.resize();
-      conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables_tmp);
+      conserved_variables_np1 = 0.5*(conserved_variables_old + conserved_variables);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
       // Recompute volume fraction gradient and curvature for the next time step

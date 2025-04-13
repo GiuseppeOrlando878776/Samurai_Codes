@@ -464,7 +464,7 @@ namespace samurai {
                                                     this->relax_reconstruction(qR, H[data.cells[2]]);
                                                   #endif
                                                 #else
-                                                  // Compute the stencil and extract state
+                                                  // Extract the states
                                                   const FluxValue<typename Flux<Field>::cfg> qL = field[0];
                                                   const FluxValue<typename Flux<Field>::cfg> qR = field[1];
                                                 #endif
