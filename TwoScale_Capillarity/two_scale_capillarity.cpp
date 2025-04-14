@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
   sim_param.Hmax           = input.value("Hmax", 40.0);
   sim_param.alpha1d_max    = input.value("alpha1d_max", 0.5);
   sim_param.alpha1_bar_min = input.value("alpha1_bar_min", 0.01);
-  sim_param.alpha1_bar_max = input.value("alpha1_bar_min", 0.1);
+  sim_param.alpha1_bar_max = input.value("alpha1_bar_max", 0.1);
 
   sim_param.R          = input.value("R", 0.15);
   sim_param.eps_over_R = input.value("eps_over_R", 0.2);
