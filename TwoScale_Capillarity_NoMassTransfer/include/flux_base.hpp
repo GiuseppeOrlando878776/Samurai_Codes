@@ -358,7 +358,7 @@ namespace samurai {
             }
 
             if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0) {
-              throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step ");
+              throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step of reconstruction");
             }
             else {
               alpha1 += dalpha1;
