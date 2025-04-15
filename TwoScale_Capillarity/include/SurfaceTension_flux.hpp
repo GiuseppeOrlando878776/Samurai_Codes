@@ -102,7 +102,10 @@ namespace samurai {
                                                     };
     });
 
-    return make_flux_based_scheme(SurfaceTension_f);
+    auto scheme = make_flux_based_scheme(SurfaceTension_f);
+    scheme.set_name("Surface tension operator");
+
+    return scheme;
   }
 
 } // end of namespace

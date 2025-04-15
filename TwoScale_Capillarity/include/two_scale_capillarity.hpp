@@ -601,8 +601,10 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::apply_relaxation() {
+  samurai::times::timers.start("apply_relaxation");
+
   /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
-       over each cell would be more logic, but this would lead to issues to call 'update_geometry' ---*/
+        over each cell would be more logic, but this would lead to issues to call 'update_geometry' ---*/
   std::size_t Newton_iter = 0;
   bool relaxation_applied = true;
   bool mass_transfer_NR   = mass_transfer; // This value can change during the Newton loop, so we create a copy rather modyfing the original
@@ -637,11 +639,6 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              }
                            });
 
-    // Recompute geometric quantities in the case of mass transfer (curvature potentially changed in the Newton loop)
-    if(mass_transfer_NR) {
-      update_geometry();
-    }
-
     // Stop the mass transfer after a sufficient time of Newton iterations for safety
     if(mass_transfer_NR && Newton_iter > max_Newton_iters/2) {
       mass_transfer_NR = false;
@@ -653,6 +650,13 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
       save(fs::current_path(), "_diverged",
            conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar);
       exit(1);
+    }
+
+    samurai::times::timers.stop("apply_relaxation");
+
+    // Recompute geometric quantities in the case of mass transfer (curvature potentially changed in the Newton loop)
+    if(mass_transfer_NR) {
+      update_geometry();
     }
   }
 }

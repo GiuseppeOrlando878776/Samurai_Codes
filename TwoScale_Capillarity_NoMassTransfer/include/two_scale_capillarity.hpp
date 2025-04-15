@@ -95,6 +95,9 @@ private:
   Field_Vect normal,
              grad_alpha1;
 
+  samurai::Field<decltype(mesh), bool, 1, false> to_be_relaxed;
+  samurai::Field<decltype(mesh), std::size_t, 1, false> Newton_iterations;
+
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1)>());
   gradient_type gradient;
 
@@ -132,7 +135,7 @@ private:
                       const double alpha_residual); /*--- Routine to initialize the variables
                                                           (both conserved and auxiliary, this is problem dependent) ---*/
 
-  double get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
+  double get_max_lambda(); /*--- Compute the estimate of the maximum eigenvalue ---*/
 
   void check_data(unsigned int flag = 0); /*--- Auxiliary routine to check if small negative values are present ---*/
 
@@ -184,6 +187,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << std::endl;
     }
     init_variables(sim_param.R, sim_param.eps_over_R, sim_param.alpha_residual);
+    to_be_relaxed     = samurai::make_field<std::size_t, 1>("to_be_relaxed", mesh);
+    Newton_iterations = samurai::make_field<std::size_t, 1>("Newton_iterations", mesh);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -318,7 +323,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-double TwoScaleCapillarity<dim>::get_max_lambda() const {
+double TwoScaleCapillarity<dim>::get_max_lambda() {
   double res = 0.0;
 
   samurai::for_each_cell(mesh,
@@ -449,31 +454,35 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::apply_relaxation() {
+  samurai::times::timers.start("apply_relaxation");
+
   /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
         over each cell would be more logic, but this would lead to issues to call 'update_geometry' ---*/
   std::size_t Newton_iter = 0;
-  bool relaxation_applied = true;
-  while(relaxation_applied == true) {
-    relaxation_applied = false;
+  bool global_relaxation_applied = true;
+  Newton_iterations.fill(max_Newton_iters + 1);
+  while(global_relaxation_applied == true) {
+    global_relaxation_applied = false;
     Newton_iter++;
 
     // Loop over all cells.
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
+                             bool local_relaxation_applied = false;
                              try {
                                #ifdef RUSANOV_FLUX
                                   Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                               H[cell], dalpha1[cell], alpha1[cell],
-                                                                              relaxation_applied);
+                                                                              global_relaxation_applied, local_relaxation_applied);
                               #elifdef GODUNOV_FLUX
                                   Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                               H[cell], dalpha1[cell], alpha1[cell],
-                                                                              relaxation_applied);
+                                                                              global_relaxation_applied, local_relaxation_applied);
                               #elifdef HLLC_FLUX
                                  HLLC_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                           H[cell], dalpha1[cell], alpha1[cell],
-                                                                          relaxation_applied);
+                                                                          global_relaxation_applied, local_relaxation_applied);
                               #endif
                              }
                              catch(std::exception& e) {
@@ -482,18 +491,24 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                     conserved_variables, alpha1, grad_alpha1, normal, H);
                                exit(1);
                              }
+                             to_be_relaxed[cell] = local_relaxation_applied;
+                             if(!to_be_relaxed[cell]) {
+                               Newton_iterations[cell] = Newton_iter;
+                             }
                            });
 
-    // Recompute geometric quantities (curvature potentially changed in the Newton loop)
-    //update_geometry();
-
     // Newton cycle diverged
-    if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+    if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
-           conserved_variables, alpha1, grad_alpha1, normal, H);
+           conserved_variables, alpha1, grad_alpha1, normal, H, to_be_relaxed, Newton_iterations);
       exit(1);
     }
+
+    samurai::times::timers.stop("apply_relaxation");
+
+    // Recompute geometric quantities (curvature potentially changed in the Newton loop)
+    update_geometry();
   }
 }
 
@@ -751,7 +766,7 @@ void TwoScaleCapillarity<dim>::run() {
     // Save the results
     if(t >= static_cast<double>(nsave + 1) * dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, suffix, conserved_variables, alpha1, grad_alpha1, normal, H);
+      save(path, suffix, conserved_variables, alpha1, grad_alpha1, normal, H, Newton_iterations);
     }
   }
 }

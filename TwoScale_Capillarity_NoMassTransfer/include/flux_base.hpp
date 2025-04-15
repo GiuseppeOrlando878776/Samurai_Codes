@@ -76,10 +76,11 @@ namespace samurai {
                                         const typename Field::value_type H,
                                         typename Field::value_type& dalpha1,
                                         typename Field::value_type& alpha1,
-                                        bool& relaxation_applied); /*--- Perform a Newton step relaxation for a state vector
-                                                                         (it is not a real space dependent procedure,
-                                                                          but I would need to be able to do it inside the flux location
-                                                                          for MUSCL reconstruction) ---*/
+                                        bool& global_relaxation_applied,
+                                        bool& local_relaxation_applied); /*--- Perform a Newton step relaxation for a state vector
+                                                                               (it is not a real space dependent procedure,
+                                                                                but I would need to be able to do it inside the flux location
+                                                                                for MUSCL reconstruction) ---*/
 
   protected:
     const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1;
@@ -321,50 +322,55 @@ namespace samurai {
                                                    const typename Field::value_type H,
                                                    typename Field::value_type& dalpha1,
                                                    typename Field::value_type& alpha1,
-                                                   bool& relaxation_applied) {
-    /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-    const auto rho1 = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p1   = EOS_phase1.pres_value(rho1);
+                                                   bool& global_relaxation_applied,
+                                                   bool& local_relaxation_applied) {
+    if(!std::isnan(H)) {
+      /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
+      const auto rho1 = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+      const auto p1   = EOS_phase1.pres_value(rho1);
 
-    const auto rho2 = (*conserved_variables)(M2_INDEX)/(1.0 - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p2   = EOS_phase2.pres_value(rho2);
+      const auto rho2 = (*conserved_variables)(M2_INDEX)/(1.0 - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
+      const auto p2   = EOS_phase2.pres_value(rho2);
 
-    /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
-    const auto F = p1 - p2 - sigma*H;
+      /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
+      const auto F = p1 - p2 - sigma*H;
 
-    /*--- Perform the relaxation only where really needed ---*/
-    if(!std::isnan(F) && std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H)) &&
-       std::abs(dalpha1) > atol_Newton) {
-      relaxation_applied = true;
+      /*--- Perform the relaxation only where really needed ---*/
+      if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H)) &&
+         std::abs(dalpha1) > atol_Newton) {
+        global_relaxation_applied = true;
+        local_relaxation_applied  = true;
 
-      // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-      const auto dF_dalpha1 = -(*conserved_variables)(M1_INDEX)/(alpha1*alpha1)*
-                                EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
-                              -(*conserved_variables)(M2_INDEX)/((1.0 - alpha1)*(1.0 - alpha1))*
-                                EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
+        // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
+        const auto dF_dalpha1 = -(*conserved_variables)(M1_INDEX)/(alpha1*alpha1)*
+                                  EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
+                                -(*conserved_variables)(M2_INDEX)/((1.0 - alpha1)*(1.0 - alpha1))*
+                                  EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
 
-      // Compute the large-scale volume fraction update
-      dalpha1 = -F/dF_dalpha1;
-      if(dalpha1 > 0.0) {
-        dalpha1 = std::min(dalpha1, lambda*(1.0 - alpha1));
+        // Compute the large-scale volume fraction update
+        dalpha1 = -F/dF_dalpha1;
+        if(dalpha1 > 0.0) {
+          dalpha1 = std::min(dalpha1, lambda*(1.0 - alpha1));
+        }
+        else if(dalpha1 < 0.0) {
+          dalpha1 = std::max(dalpha1, -lambda*alpha1);
+        }
+
+        if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0) {
+          throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step ");
+        }
+        else {
+          alpha1 += dalpha1;
+        }
       }
-      else if(dalpha1 < 0.0) {
-        dalpha1 = std::max(dalpha1, -lambda*alpha1);
-      }
 
-      if(alpha1 + dalpha1 < 0.0 || alpha1 + dalpha1 > 1.0) {
-        throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step ");
-      }
-      else {
-        alpha1 += dalpha1;
-      }
+
+      /*--- Update the vector of conserved variables (probably not the optimal choice since I need this update only at the end of the Newton loop,
+            but the most coherent one thinking about the transfer of mass) ---*/
+      const auto rho = (*conserved_variables)(M1_INDEX)
+                     + (*conserved_variables)(M2_INDEX);
+      (*conserved_variables)(RHO_ALPHA1_INDEX) = rho*alpha1;
     }
-
-    /*--- Update the vector of conserved variables (probably not the optimal choice since I need this update only at the end of the Newton loop,
-          but the most coherent one thinking about the transfer of mass) ---*/
-    const auto rho = (*conserved_variables)(M1_INDEX)
-                   + (*conserved_variables)(M2_INDEX);
-    (*conserved_variables)(RHO_ALPHA1_INDEX) = rho*alpha1;
   }
 
   // Relax reconstruction
@@ -375,20 +381,22 @@ namespace samurai {
       void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q,
                                              const typename Field::value_type H) {
         /*--- Declare and set relevant parameters ---*/
-        std::size_t Newton_iter = 0;
-        bool relaxation_applied = true;
+        std::size_t Newton_iter        = 0;
+        bool global_relaxation_applied = true;
 
         typename Field::value_type dalpha1 = std::numeric_limits<typename Field::value_type>::infinity();
         typename Field::value_type alpha1  = q(RHO_ALPHA1_INDEX)/(q(M1_INDEX) + q(M2_INDEX));
 
         /*--- Apply Newton method ---*/
-        while(relaxation_applied == true) {
-          relaxation_applied = false;
+        while(global_relaxation_applied == true) {
+          global_relaxation_applied = false;
           Newton_iter++;
 
           try {
+            bool local_relaxation_applied;
             this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
-                                                 H, dalpha1, alpha1, relaxation_applied);
+                                                 H, dalpha1, alpha1, global_relaxation_applied,
+                                                 local_relaxation_applied);
           }
           catch(std::exception& e) {
             std::cerr << e.what() << std::endl;
@@ -396,7 +404,7 @@ namespace samurai {
           }
 
           // Newton cycle diverged
-          if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+          if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
             std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }

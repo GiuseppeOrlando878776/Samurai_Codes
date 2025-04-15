@@ -234,7 +234,10 @@ namespace samurai {
                                            };
     });
 
-    return make_flux_based_scheme(HLLC_f);
+    auto scheme = make_flux_based_scheme(HLLC_f);
+    scheme.set_name("HLLC");
+
+    return scheme;
   }
 
 } // end of namespace
