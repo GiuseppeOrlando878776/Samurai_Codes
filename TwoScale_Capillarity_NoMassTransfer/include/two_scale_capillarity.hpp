@@ -469,6 +469,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
   samurai::times::timers.start("apply_relaxation");
 
   std::size_t Newton_iter = 0;
+  to_be_relaxed.fill(0);
   Newton_iterations.fill(0);
   dalpha1.fill(std::numeric_limits<typename Field::value_type>::infinity());
   bool relaxation_applied = true;
