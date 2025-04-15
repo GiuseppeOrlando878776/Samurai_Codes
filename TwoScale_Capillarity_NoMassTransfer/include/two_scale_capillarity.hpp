@@ -95,7 +95,7 @@ private:
   Field_Vect normal,
              grad_alpha1;
 
-  samurai::Field<decltype(mesh), bool, 1, false> to_be_relaxed;
+  samurai::Field<decltype(mesh), std::size_t, 1, false> to_be_relaxed;
   samurai::Field<decltype(mesh), std::size_t, 1, false> Newton_iterations;
 
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1)>());
@@ -454,14 +454,14 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::apply_relaxation() {
-  samurai::times::timers.start("apply_relaxation");
-
   /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
         over each cell would be more logic, but this would lead to issues to call 'update_geometry' ---*/
   std::size_t Newton_iter = 0;
   bool global_relaxation_applied = true;
-  Newton_iterations.fill(max_Newton_iters + 1);
+  Newton_iterations.fill(O);
   while(global_relaxation_applied == true) {
+    samurai::times::timers.start("apply_relaxation");
+
     global_relaxation_applied = false;
     Newton_iter++;
 
@@ -492,8 +492,8 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                exit(1);
                              }
                              to_be_relaxed[cell] = local_relaxation_applied;
-                             if(!to_be_relaxed[cell]) {
-                               Newton_iterations[cell] = Newton_iter;
+                             if(to_be_relaxed[cell]) {
+                               Newton_iterations[cell]++;
                              }
                            });
 
