@@ -531,14 +531,14 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                                               bool& local_relaxation_applied) {
   if(!std::isnan(H_loc)) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-    const auto rho1 = (*local_conserved_variables)(M1_INDEX)/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p1   = EOS_phase1.pres_value(rho1);
+    const auto rho1_loc = (*local_conserved_variables)(M1_INDEX)/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto p1_loc   = EOS_phase1.pres_value(rho1_loc);
 
-    const auto rho2 = (*local_conserved_variables)(M2_INDEX)/(1.0 - alpha1_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p2   = EOS_phase2.pres_value(rho2);
+    const auto rho2_loc = (*local_conserved_variables)(M2_INDEX)/(1.0 - alpha1_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto p2_loc   = EOS_phase2.pres_value(rho2_loc);
 
     /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
-    const auto F = p1 - p2 - sigma*H_loc;
+    const auto F = p1_loc - p2_loc - sigma*H_loc;
 
     /*--- Perform the relaxation only where really needed ---*/
     if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_loc)) &&
@@ -549,9 +549,9 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
 
       // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
       const auto dF_dalpha1 = -(*local_conserved_variables)(M1_INDEX)/(alpha1_loc*alpha1_loc)*
-                               EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
+                               EOS_phase1.c_value(rho1_loc)*EOS_phase1.c_value(rho1_loc)
                               -(*local_conserved_variables)(M2_INDEX)/((1.0 - alpha1_loc)*(1.0 - alpha1_loc))*
-                               EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
+                               EOS_phase2.c_value(rho2_loc)*EOS_phase2.c_value(rho2_loc);
 
       // Compute the large-scale volume fraction update
       dalpha1_loc = -F/dF_dalpha1;
@@ -572,9 +572,9 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
 
     /*--- Update the vector of conserved variables (probably not the optimal choice since I need this update only at the end of the Newton loop,
           but the most coherent one thinking about the transfer of mass) ---*/
-    const auto rho = (*local_conserved_variables)(M1_INDEX)
-                   + (*local_conserved_variables)(M2_INDEX);
-    (*local_conserved_variables)(RHO_ALPHA1_INDEX) = rho*alpha1_loc;
+    const auto rho_loc = (*local_conserved_variables)(M1_INDEX)
+                       + (*local_conserved_variables)(M2_INDEX);
+    (*local_conserved_variables)(RHO_ALPHA1_INDEX) = rho_loc*alpha1_loc;
   }
 }
 

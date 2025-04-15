@@ -22,21 +22,14 @@ namespace samurai {
              const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
              const double sigma_,
              const double mod_grad_alpha1_bar_min_,
-             const bool mass_transfer_,
-             const double kappa_,
-             const double Hmax_,
-             const double alpha1d_max_,
-             const double alpha1_bar_min_,
-             const double alpha1_bar_max_,
              const double lambda_,
              const double atol_Newton_,
              const double rtol_Newton_,
              const std::size_t max_Newton_iters_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
-      template<typename Gradient, typename Field_Scalar>
-      auto make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
-                                      const Field_Scalar& H_bar); /*--- Compute the flux over all the directions ---*/
+      template<typename Field_Scalar>
+      auto make_two_scale_capillarity(const Field_Scalar& H_bar); /*--- Compute the flux over all the directions ---*/
     #else
       auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
     #endif
@@ -59,20 +52,12 @@ namespace samurai {
                             const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                             const double sigma_,
                             const double mod_grad_alpha1_bar_min_,
-                            const bool mass_transfer_,
-                            const double kappa_,
-                            const double Hmax_,
-                            const double alpha1d_max_,
-                            const double alpha1_bar_min_,
-                            const double alpha1_bar_max_,
                             const double lambda_,
                             const double atol_Newton_,
                             const double rtol_Newton_,
                             const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_bar_min_,
-                mass_transfer_, kappa_, Hmax_,
-                alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
                 lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
   // Implement the auxliary routine that computes the middle state
@@ -171,9 +156,8 @@ namespace samurai {
   //
   template<class Field>
   #ifdef ORDER_2
-    template<typename Gradient, typename Field_Scalar>
-    auto HLLCFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha1_bar,
-                                                     const Field_Scalar& H_bar)
+    template<typename Field_Scalar>
+    auto HLLCFlux<Field>::make_two_scale_capillarity(const Field_Scalar& H_bar)
   #else
     auto HLLCFlux<Field>::make_two_scale_capillarity()
   #endif
@@ -207,8 +191,8 @@ namespace samurai {
                                                FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
                                                #ifdef RELAX_RECONSTRUCTION
-                                                 this->relax_reconstruction(qL, H_bar[data.cells[1]], grad_alpha1_bar[data.cells[1]]);
-                                                 this->relax_reconstruction(qR, H_bar[data.cells[2]], grad_alpha1_bar[data.cells[2]]);
+                                                 this->relax_reconstruction(qL, H_bar[data.cells[1]]);
+                                                 this->relax_reconstruction(qR, H_bar[data.cells[2]]);
                                                #endif
                                              #else
                                                // Extract the states

@@ -20,12 +20,6 @@ namespace samurai {
                        const LinearizedBarotropicEOS<>& EOS_phase2_,
                        const double sigma_,
                        const double mod_grad_alpha1_bar_min_,
-                       const bool mass_transfer_,
-                       const double kappa_,
-                       const double Hmax_,
-                       const double alpha1d_max_,
-                       const double alpha1_bar_min_,
-                       const double alpha1_bar_max_,
                        const double lambda_,
                        const double atol_Newton_,
                        const double rtol_Newton_,
@@ -48,20 +42,12 @@ namespace samurai {
                                                 const LinearizedBarotropicEOS<>& EOS_phase2_,
                                                 const double sigma_,
                                                 const double mod_grad_alpha1_bar_min_,
-                                                const bool mass_transfer_,
-                                                const double kappa_,
-                                                const double Hmax_,
-                                                const double alpha1d_max_,
-                                                const double alpha1_bar_min_,
-                                                const double alpha1_bar_max_,
                                                 const double lambda_,
                                                 const double atol_Newton_,
                                                 const double rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_bar_min_,
-                mass_transfer_, kappa_, Hmax_,
-                alpha1d_max_, alpha1_bar_min_, alpha1_bar_max_,
                 lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
   // Implementation of the surface tension contribution
