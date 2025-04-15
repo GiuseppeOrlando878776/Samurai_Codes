@@ -87,10 +87,12 @@ namespace samurai {
                                         typename Field::value_type& dalpha1_bar,
                                         typename Field::value_type& alpha1_bar,
                                         const Gradient& grad_alpha1_bar,
-                                        bool& relaxation_applied, const bool mass_transfer_NR); /*--- Perform a Newton step relaxation for a state vector
-                                                                                                      (it is not a real space dependent procedure,
-                                                                                                      but I would need to be able to do it inside the flux location
-                                                                                                      for MUSCL reconstruction) ---*/
+                                        bool& global_relaxation_applied,
+                                        const bool mass_transfer_NR,
+                                        bool& local_relaxation_applied); /*--- Perform a Newton step relaxation for a state vector
+                                                                               (it is not a real space dependent procedure,
+                                                                                but I would need to be able to do it inside the flux location
+                                                                                for MUSCL reconstruction) ---*/
 
   protected:
     const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1;
@@ -369,7 +371,9 @@ namespace samurai {
                                                    typename Field::value_type& dalpha1_bar,
                                                    typename Field::value_type& alpha1_bar,
                                                    const Gradient& grad_alpha1_bar,
-                                                   bool& relaxation_applied, const bool mass_transfer_NR) {
+                                                   bool& global_relaxation_applied,
+                                                   const bool mass_transfer_NR,
+                                                   bool& local_relaxation_applied) {
     if(!std::isnan(H_bar)) {
       /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
       const auto alpha1 = alpha1_bar*(1.0 - (*conserved_variables)(ALPHA1_D_INDEX));
@@ -430,7 +434,8 @@ namespace samurai {
       // Perform the relaxation only where really needed
       if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
          std::abs(dalpha1_bar) > atol_Newton) {
-        relaxation_applied = true;
+        global_relaxation_applied = true;
+        local_relaxation_applied  = true;
 
         // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
         const auto dF_dalpha1_bar = -(*conserved_variables)(M1_INDEX)/(alpha1_bar*alpha1_bar)*
@@ -595,23 +600,25 @@ namespace samurai {
                                              const typename Field::value_type H_bar,
                                              const Gradient& grad_alpha1_bar) {
         /*--- Declare and set relevant parameters ---*/
-        std::size_t Newton_iter = 0;
-        bool relaxation_applied = true;
-        bool mass_transfer_NR   = false;
+        std::size_t Newton_iter        = 0;
+        bool global_relaxation_applied = true;
+        bool mass_transfer_NR          = false;
 
         typename Field::value_type dalpha1_bar = std::numeric_limits<typename Field::value_type>::infinity();
         typename Field::value_type alpha1_bar  = q(RHO_ALPHA1_BAR_INDEX)/
                                                  (q(M1_INDEX) + q(M2_INDEX) + q(M1_D_INDEX));
 
         /*--- Apply Newton method ---*/
-        while(relaxation_applied == true) {
-          relaxation_applied = false;
+        while(global_relaxation_applied == true) {
+          global_relaxation_applied = false;
           Newton_iter++;
 
           try {
+            bool local_relaxation_applied;
             this->perform_Newton_step_relaxation(std::make_unique<FluxValue<cfg>>(q),
                                                  H_bar, dalpha1_bar, alpha1_bar, grad_alpha1_bar,
-                                                 relaxation_applied, mass_transfer_NR);
+                                                 global_relaxation_applied, mass_transfer_NR,
+                                                 local_relaxation_applied);
           }
           catch(std::exception& e) {
             std::cerr << e.what() << std::endl;
@@ -619,7 +626,7 @@ namespace samurai {
           }
 
           // Newton cycle diverged
-          if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+          if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
             std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }

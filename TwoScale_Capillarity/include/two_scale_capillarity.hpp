@@ -107,6 +107,9 @@ private:
              vel,
              grad_alpha1;
 
+  samurai::Field<decltype(mesh), std::size_t, 1, false> to_be_relaxed;
+  samurai::Field<decltype(mesh), std::size_t, 1, false> Newton_iterations;
+
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1_bar)>());
   gradient_type gradient;
 
@@ -233,6 +236,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << std::endl;
     }
     init_variables(sim_param.R, sim_param.eps_over_R, sim_param.alpha_residual);
+    to_be_relaxed     = samurai::make_field<std::size_t, 1>("to_be_relaxed", mesh);
+    Newton_iterations = samurai::make_field<std::size_t, 1>("Newton_iterations", mesh);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -601,34 +606,36 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::apply_relaxation() {
-  samurai::times::timers.start("apply_relaxation");
-
   /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
         over each cell would be more logic, but this would lead to issues to call 'update_geometry' ---*/
   std::size_t Newton_iter = 0;
-  bool relaxation_applied = true;
+  bool global_relaxation_applied = true;
   bool mass_transfer_NR   = mass_transfer; // This value can change during the Newton loop, so we create a copy rather modyfing the original
-  while(relaxation_applied == true) {
-    relaxation_applied = false;
+  Newton_iterations.fill(0);
+  while(global_relaxation_applied == true) {
+    samurai::times::timers.start("apply_relaxation");
+
+    global_relaxation_applied = false;
     Newton_iter++;
 
     // Loop over all cells.
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                            {
+                             bool local_relaxation_applied = false;
                              try {
                                #ifdef RUSANOV_FLUX
                                  Rusanov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                             relaxation_applied, mass_transfer_NR);
+                                                                             global_relaxation_applied, mass_transfer_NR, local_relaxation_applied);
                                #elifdef GODUNOV_FLUX
                                  Godunov_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                             relaxation_applied, mass_transfer_NR);
+                                                                             global_relaxation_applied, mass_transfer_NR, local_relaxation_applied);
                                #elifdef HLLC_FLUX
                                  HLLC_flux.perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                                           H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                                          relaxation_applied, mass_transfer_NR);
+                                                                          global_relaxation_applied, mass_transfer_NR, local_relaxation_applied);
                                #endif
                              }
                              catch(std::exception& e) {
@@ -636,6 +643,11 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                save(fs::current_path(), "_diverged",
                                     conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar);
                                exit(1);
+                             }
+
+                             to_be_relaxed[cell] = local_relaxation_applied;
+                             if(to_be_relaxed[cell]) {
+                               Newton_iterations[cell]++;
                              }
                            });
 
@@ -645,10 +657,11 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
     }
 
     // Newton cycle diverged
-    if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+    if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
-           conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar);
+           conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar,
+           to_be_relaxed, Newton_iterations);
       exit(1);
     }
 
@@ -1070,7 +1083,7 @@ void TwoScaleCapillarity<dim>::run() {
       // Perform the saving
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, suffix, conserved_variables, alpha1_bar, grad_alpha1_bar, normal, H_bar, p1, p2, p_bar,
-                         grad_alpha1_d, vel, div_vel, Dt_alpha1_d, CV_alpha1_d, alpha1, grad_alpha1);
+                         grad_alpha1_d, vel, div_vel, Dt_alpha1_d, CV_alpha1_d, alpha1, grad_alpha1, Newton_iterations);
     }
   }
 

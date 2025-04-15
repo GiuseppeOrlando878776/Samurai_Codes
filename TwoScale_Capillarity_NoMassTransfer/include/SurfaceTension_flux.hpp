@@ -87,7 +87,7 @@ namespace samurai {
     });
 
     auto scheme = make_flux_based_scheme(SurfaceTension_f);
-    scheme.set_name("Surface tension operator");
+    scheme.set_name("Surface tension");
 
     return scheme;
   }
