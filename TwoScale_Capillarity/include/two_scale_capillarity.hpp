@@ -651,11 +651,6 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              }
                            });
 
-    // Stop the mass transfer after a sufficient time of Newton iterations for safety
-    if(mass_transfer_NR && Newton_iter > max_Newton_iters/2) {
-      mass_transfer_NR = false;
-    }
-
     // Newton cycle diverged
     if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
@@ -668,9 +663,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
     samurai::times::timers.stop("apply_relaxation");
 
     // Recompute geometric quantities in the case of mass transfer (curvature potentially changed in the Newton loop)
-    if(mass_transfer_NR) {
-      update_geometry();
-    }
+    update_geometry();
   }
 }
 

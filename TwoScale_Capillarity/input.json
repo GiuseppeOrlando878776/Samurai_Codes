@@ -26,7 +26,7 @@
  "nfiles": 10,
 
  "alpha_residual": 1e-8,
- "mod_grad_alpha1_bar_min": 0.0,
+ "mod_grad_alpha1_bar_min": 1e-3,
 
  "apply_relaxation": true,
  "lambda": 0.9,
