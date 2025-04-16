@@ -258,7 +258,8 @@ namespace samurai {
     prim(P1_INDEX)         = EOS_phase1.pres_value(cons(M1_INDEX)/alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(P2_INDEX)         = EOS_phase2.pres_value(cons(M2_INDEX)/(1.0 - alpha1 - cons(ALPHA1_D_INDEX))); /*--- TODO: Add a check in case of zero volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/(cons(M1_INDEX) + cons(M2_INDEX));
+      prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/
+                          (cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX));
     }
     prim(M1_D_INDEX)       = cons(M1_D_INDEX);
     prim(ALPHA1_D_INDEX)   = cons(ALPHA1_D_INDEX);

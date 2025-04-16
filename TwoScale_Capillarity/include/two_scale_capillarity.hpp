@@ -551,7 +551,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            }
                            else if(std::isnan(conserved_variables[cell][M2_INDEX])) {
                              std::cerr << cell << std::endl;
-                             std::cerr << "NaN large-scale mass of phase 2 " + op << std::endl;
+                             std::cerr << "NaN mass of phase 2 " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                              exit(1);
                            }
@@ -576,7 +576,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                                std::cerr << "Exceding value of small-scale volume fraction " + op << std::endl;
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                                exit(1);
-                             }
+                           }
                            else if(conserved_variables[cell][ALPHA1_D_INDEX] < 0.0) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative small-scale volume fraction " + op << std::endl;
@@ -678,6 +678,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                                               std::size_t& to_be_relaxed_loc,
                                                               std::size_t& Newton_iterations_loc,
                                                               bool& local_relaxation_applied) {
+  to_be_relaxed_loc = 0;
   if(!std::isnan(H_bar_loc)) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto alpha1_loc = alpha1_bar_loc*(1.0 - (*local_conserved_variables)(ALPHA1_D_INDEX));

@@ -440,7 +440,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            }
                            else if(std::isnan(conserved_variables[cell][M1_INDEX])) {
                              std::cerr << cell << std::endl;
-                             std::cerr << "NaN large-scale mass of phase 1 " + op << std::endl;
+                             std::cerr << "NaN mass of phase 1 " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
@@ -454,7 +454,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            }
                            else if(std::isnan(conserved_variables[cell][M2_INDEX])) {
                              std::cerr << cell << std::endl;
-                             std::cerr << "NaN large-scale mass of phase 2 " + op << std::endl;
+                             std::cerr << "NaN mass of phase 2 " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                              exit(1);
                            }
@@ -529,6 +529,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                                               std::size_t& to_be_relaxed_loc,
                                                               std::size_t& Newton_iterations_loc,
                                                               bool& local_relaxation_applied) {
+  to_be_relaxed_loc = 0;
   if(!std::isnan(H_loc)) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto rho1_loc = (*local_conserved_variables)(M1_INDEX)/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/

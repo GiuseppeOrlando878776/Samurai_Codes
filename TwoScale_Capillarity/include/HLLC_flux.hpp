@@ -7,7 +7,7 @@
 
 #include "flux_base.hpp"
 
-//#define VERBOSE_FLUX
+#define VERBOSE_FLUX
 
 namespace samurai {
   using namespace EquationData;
@@ -97,6 +97,41 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> HLLCFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                               const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                               const std::size_t curr_d) {
+    /*--- Verify if left and right state are coherent ---*/
+    #ifdef VERBOSE_FLUX
+      if(qL(M1_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass large-scale phase 1 left state: " + std::to_string(qL(M1_INDEX))));
+      }
+      if(qL(M2_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(qL(M2_INDEX))));
+      }
+      if(qL(M1_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass small-scale phase 1 left state: " + std::to_string(qL(M1_D_INDEX))));
+      }
+      if(qL(RHO_ALPHA1_BAR_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative large-scale volume fraction phase 1 left state: " + std::to_string(qL(RHO_ALPHA1_BAR_INDEX))));
+      }
+      if(qL(ALPHA1_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 left state: " + std::to_string(qL(ALPHA1_D_INDEX))));
+      }
+
+      if(qR(M1_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass large-scale phase 1 right state: " + std::to_string(qR(M1_INDEX))));
+      }
+      if(qR(M2_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(qR(M2_INDEX))));
+      }
+      if(qR(M1_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass small-scale phase 1 right state: " + std::to_string(qR(M1_D_INDEX))));
+      }
+      if(qR(RHO_ALPHA1_BAR_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative large-scale volume fraction phase 1 right state: " + std::to_string(qR(RHO_ALPHA1_BAR_INDEX))));
+      }
+      if(qR(ALPHA1_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 right state: " + std::to_string(qR(ALPHA1_D_INDEX))));
+      }
+    #endif
+
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
     const auto rho_L        = qL(M1_INDEX) + qL(M2_INDEX) + qL(M1_D_INDEX);
     const auto vel_d_L      = qL(RHO_U_INDEX + curr_d)/rho_L;

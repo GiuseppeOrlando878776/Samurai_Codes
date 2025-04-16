@@ -7,6 +7,8 @@
 
 #include "flux_base.hpp"
 
+#define VERBOSE_FLUX
+
 namespace samurai {
   using namespace EquationData;
 
@@ -234,6 +236,41 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> GodunovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                  const std::size_t curr_d) {
+    /*--- Verify if left and right state are coherent ---*/
+    #ifdef VERBOSE_FLUX
+      if(qL(M1_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass large-scale phase 1 left state: " + std::to_string(qL(M1_INDEX))));
+      }
+      if(qL(M2_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(qL(M2_INDEX))));
+      }
+      if(qL(M1_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass small-scale phase 1 left state: " + std::to_string(qL(M1_D_INDEX))));
+      }
+      if(qL(RHO_ALPHA1_BAR_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative large-scale volume fraction phase 1 left state: " + std::to_string(qL(RHO_ALPHA1_BAR_INDEX))));
+      }
+      if(qL(ALPHA1_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 left state: " + std::to_string(qL(ALPHA1_D_INDEX))));
+      }
+
+      if(qR(M1_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass large-scale phase 1 right state: " + std::to_string(qR(M1_INDEX))));
+      }
+      if(qR(M2_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(qR(M2_INDEX))));
+      }
+      if(qR(M1_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative mass small-scale phase 1 right state: " + std::to_string(qR(M1_D_INDEX))));
+      }
+      if(qR(RHO_ALPHA1_BAR_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative large-scale volume fraction phase 1 right state: " + std::to_string(qR(RHO_ALPHA1_BAR_INDEX))));
+      }
+      if(qR(ALPHA1_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 right state: " + std::to_string(qR(ALPHA1_D_INDEX))));
+      }
+    #endif
+
     /*--- Compute the intermediate state (either shock or rarefaction) ---*/
     FluxValue<typename Flux<Field>::cfg> q_star = qL;
 
@@ -262,8 +299,10 @@ namespace samurai {
     const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
     // Compute p*
-    const auto p_bar_L = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
-    const auto p_bar_R = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
+    const auto p_bar_L = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L)
+                       + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
+    const auto p_bar_R = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R)
+                       + (1.0 - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
 
     const auto p0_L = p_bar_L - rho_L*c_L*c_L*(1.0 - qL(ALPHA1_D_INDEX));
     const auto p0_R = p_bar_R - rho_R*c_R*c_R*(1.0 - qR(ALPHA1_D_INDEX));
