@@ -469,7 +469,6 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
   samurai::times::timers.start("apply_relaxation");
 
   std::size_t Newton_iter = 0;
-  to_be_relaxed.fill(0);
   Newton_iterations.fill(0);
   dalpha1.fill(std::numeric_limits<typename Field::value_type>::infinity());
   bool relaxation_applied = true;
@@ -530,6 +529,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                                               std::size_t& Newton_iterations_loc,
                                                               bool& local_relaxation_applied) {
   to_be_relaxed_loc = 0;
+
   if(!std::isnan(H_loc)) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto rho1_loc = (*local_conserved_variables)(M1_INDEX)/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/

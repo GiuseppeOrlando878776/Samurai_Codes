@@ -372,7 +372,8 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
                            conserved_variables[cell][M2_INDEX] = alpha2*rho2;
 
                            // Set mixture pressure
-                           p_bar[cell] = alpha1_bar[cell]*p1[cell] + (1.0 - alpha1_bar[cell])*p2[cell];
+                           p_bar[cell] = alpha1_bar[cell]*p1[cell]
+                                       + (1.0 - alpha1_bar[cell])*p2[cell];
 
                            // Set conserved variable associated to large-scale volume fraction
                            const auto rho = conserved_variables[cell][M1_INDEX]
@@ -614,7 +615,6 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
   samurai::times::timers.start("apply_relaxation");
 
   std::size_t Newton_iter = 0;
-  to_be_relaxed.fill(0);
   Newton_iterations.fill(0);
   dalpha1_bar.fill(std::numeric_limits<typename Field::value_type>::infinity());
   bool relaxation_applied = true;
@@ -679,6 +679,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                                               std::size_t& Newton_iterations_loc,
                                                               bool& local_relaxation_applied) {
   to_be_relaxed_loc = 0;
+  
   if(!std::isnan(H_bar_loc)) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto alpha1_loc = alpha1_bar_loc*(1.0 - (*local_conserved_variables)(ALPHA1_D_INDEX));
@@ -841,7 +842,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
 
         const auto num_dalpha1_bar = dtau_ov_epsilon/(1.0 - (*local_conserved_variables)(ALPHA1_D_INDEX));
         const auto den_dalpha1_bar = 1.0 - num_dalpha1_bar*dF_dalpha1_bar;
-        dalpha1_bar_loc             = (num_dalpha1_bar/den_dalpha1_bar)*(F - dm1*R);
+        dalpha1_bar_loc            = (num_dalpha1_bar/den_dalpha1_bar)*(F - dm1*R);
 
         if(dm1 > 0.0) {
           throw std::runtime_error("Negative sign of mass transfer inside Newton step");
@@ -962,8 +963,10 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                                                conserved_variables[cell][M1_D_INDEX]/conserved_variables[cell][ALPHA1_D_INDEX] :
                                                EOS_phase1.get_rho0();
                            p1[cell]         = EOS_phase1.pres_value(rho1);
-                           p2[cell]         = conserved_variables[cell][M2_INDEX]/(1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX]);
+                           const auto rho2  = conserved_variables[cell][M2_INDEX]/
+                                              (1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX]);
                            /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           p2[cell]         = EOS_phase2.pres_value(rho2);
                            p_bar[cell]      = alpha1_bar[cell]*p1[cell]
                                             + (1.0 - alpha1_bar[cell])*p2[cell];
                            const auto H_lim = std::min(H_bar[cell], Hmax);
