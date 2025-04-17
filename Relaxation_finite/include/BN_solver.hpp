@@ -779,25 +779,24 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                          [&](const auto& cell)
                          {
                            /*--- Instantaneous velocity update ---*/
-                           // Save velocity phase 1 and initial specific internal energy of phase 1 for the total energy update
+                           // Save phasic velocities and initial specific internal energy of phase 1 for the total energy update
                            vel1[cell] = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX]/
                                         conserved_variables[cell][ALPHA1_RHO1_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            auto e1_0  = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]/
                                         conserved_variables[cell][ALPHA1_RHO1_INDEX]
                                       - 0.5*vel1[cell]*vel1[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                           // Save initial velocity of phase 2
                            vel2[cell] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX]/
                                         conserved_variables[cell][ALPHA2_RHO2_INDEX]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            // Compute constant quantities (mixture density, (specific) total energy, mass fraction, 'mixture' velocity) for the updates
-                           const auto rho_0  = conserved_variables[cell][ALPHA1_RHO1_INDEX]
-                                             + conserved_variables[cell][ALPHA2_RHO2_INDEX];
-                           const auto Y1_0   = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho_0;
-                           const auto rhoE_0 = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]
-                                             + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
-                           const auto um_d   = Y1_0*vel1[cell]
-                                             + (1.0 - Y1_0)*vel2[cell];
+                           const auto rho_0     = conserved_variables[cell][ALPHA1_RHO1_INDEX]
+                                                + conserved_variables[cell][ALPHA2_RHO2_INDEX];
+                           const auto Y1_0      = conserved_variables[cell][ALPHA1_RHO1_INDEX]/rho_0;
+                           const auto rhoE_0    = conserved_variables[cell][ALPHA1_RHO1_E1_INDEX]
+                                                + conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
+                           const auto norm2_vel = (Y1_0*vel1[cell] + (1.0 - Y1_0)*vel2[cell])*
+                                                  (Y1_0*vel1[cell] + (1.0 - Y1_0)*vel2[cell]);
 
                            // Update the momentum (and the kinetic energy of phase 1)
                            std::array<typename Field::value_type, dim> vel_star;
@@ -868,9 +867,8 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                            }
 
                            // Re-update conserved variables. Newton method loop
-                           const auto norm2_vel = um_d*um_d;
-                           const auto rhoe_0    = rhoE_0
-                                                - 0.5*rho_0*norm2_vel;
+                           const auto rhoe_0 = rhoE_0
+                                             - 0.5*rho_0*norm2_vel;
                            typename Field::value_type dp2 = std::numeric_limits<typename Field::value_type>::max();
                            typename Field::value_type dT2 = std::numeric_limits<typename Field::value_type>::max();
                            unsigned int iter;
