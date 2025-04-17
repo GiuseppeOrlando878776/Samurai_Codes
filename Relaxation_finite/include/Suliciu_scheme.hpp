@@ -13,12 +13,19 @@ namespace samurai {
   class RelaxationFlux: public Flux<Field> {
   public:
     RelaxationFlux(const EOS<typename Field::value_type>& EOS_phase1_,
-                   const EOS<typename Field::value_type>& EOS_phase2_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+                   const EOS<typename Field::value_type>& EOS_phase2_,
+                   const double atol_Newton_ = 1e-8,
+                   const double rtol_Newton_ = 1e-6,
+                   const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     auto make_flux(double& c); /*--- Compute the flux over all cells.
                                      The input argument is employed to compute the Courant number ---*/
 
   private:
+    const double      atol_Newton;      /*--- Absolute tolerance for the Newont method of the Suliciu scheme ---*/
+    const double      rtol_Newton;      /*--- Relative tolerance for the Newont method of the Suliciu scheme ---*/
+    const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
+
     template<typename T>
     inline T M0(const T nu, const T Me) const;
 
@@ -50,8 +57,7 @@ namespace samurai {
     template<typename T>
     T Newton(const T rhs,
              const T a1, const T alpha1L, const T alpha1R, const T vel1_diesis, const T tau1L_diesis, const T tau1R_diesis,
-             const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis,
-             const double atol, const double rtol) const;
+             const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis) const;
 
     template<typename T>
     void Riemann_solver_phase_vI(const T xi,
@@ -93,8 +99,12 @@ namespace samurai {
   //
   template<class Field>
   RelaxationFlux<Field>::RelaxationFlux(const EOS<typename Field::value_type>& EOS_phase1_,
-                                        const EOS<typename Field::value_type>& EOS_phase2_):
-    Flux<Field>(EOS_phase1_, EOS_phase2_) {}
+                                        const EOS<typename Field::value_type>& EOS_phase2_,
+                                        const double atol_Newton_,
+                                        const double rtol_Newton_,
+                                        const std::size_t max_Newton_iters_):
+    Flux<Field>(EOS_phase1_, EOS_phase2_),
+    atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_), max_Newton_iters(max_Newton_iters_) {}
 
   // Implementation of the flux (F^{-} and F^{+} as in Saleh 2012 notation)
   //
@@ -238,11 +248,8 @@ namespace samurai {
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const double atol  = 1e-8;
-      const double rtol  = 1e-8;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
-                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
-                                       atol, rtol);
+                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
 
       /*--- Compute the "fluxes" ---*/
       field_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
@@ -468,11 +475,8 @@ namespace samurai {
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const double atol  = 1e-8;
-      const double rtol  = 1e-8;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
-                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
-                                       atol, rtol);
+                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
 
       /*--- Compute the "fluxes" ---*/
       field_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
@@ -702,8 +706,7 @@ namespace samurai {
   template<typename T>
   T RelaxationFlux<Field>::Newton(const T rhs,
                                   const T a1, const T alpha1L, const T alpha1R, const T vel1_diesis, const T tau1L_diesis, const T tau1R_diesis,
-                                  const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis,
-                                  const double atol, const double rtol) const {
+                                  const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis) const {
     if(alpha1L == alpha1R) {
       return vel1_diesis;
     }
@@ -719,10 +722,10 @@ namespace samurai {
               (dPsi_dustar(u_star, a1, alpha1L, alpha1R,
                                    a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis));
 
-      while(iter < 50 &&
+      while(iter < max_Newton_iters &&
             //std::abs(Psi(u_star, a1, alpha1L, alpha1R, vel1_diesis,
-            //                     a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs) > atol &&
-            std::abs(du) > atol + std::abs(u_star)*rtol) {
+            //                     a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs) > atol_Newton &&
+            std::abs(du) > atol_Newton + std::abs(u_star)*rtol_Newton) {
         ++iter;
 
         u_star += du;

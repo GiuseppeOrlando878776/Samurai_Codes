@@ -94,6 +94,10 @@ private:
   bool relax_pressure;    /*--- If instantaneous relaxation, choose whether to relax the pressure ---*/
   bool relax_temperature; /*--- If instantaneous relaxation, choose whether to relax the temperature (only possible with pressure) ---*/
 
+  const double atol_Newton_relaxation; /*--- Absolute tolerance Newton method to recompute conserved variables form deltas ---*/
+  const double rtol_Newton_relaxation; /*--- Relative tolerance Newton method to recompute conserved variables form deltas ---*/
+  const std::size_t max_Newton_iters;  /*--- Maximum number of Newton iterations ---*/
+
   Field conserved_variables; /*--- The variable which stores the conserved variables,
                                    namely the varialbes for which we solve a PDE system ---*/
 
@@ -134,8 +138,8 @@ private:
              vel,
              delta_vel;
 
-  const double       MR_param;      /*--- Multiresolution parameter ---*/
-  const unsigned int MR_regularity; /*--- Multiresolution regularity ---*/
+  const double MR_param;      /*--- Multiresolution parameter ---*/
+  const double MR_regularity; /*--- Multiresolution regularity ---*/
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void init_variables(const Riemann_Parameters& Riemann_param); /*--- Routine to initialize the variables
@@ -191,10 +195,15 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
   relax_instantaneous_velocity(sim_param.relax_instantaneous_velocity),
   tau_u(sim_param.tau_u), tau_p(sim_param.tau_p), tau_T(sim_param.tau_T),
   relax_velocity(sim_param.relax_velocity), relax_pressure(sim_param.relax_pressure), relax_temperature(sim_param.relax_temperature),
+  atol_Newton_relaxation(sim_param.atol_Newton_relaxation),
+  rtol_Newton_relaxation(sim_param.rtol_Newton_relaxation),
+  max_Newton_iters(sim_param.max_Newton_iters),
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.c_v_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.c_v_2),
   #ifdef SULICIU_RELAXATION
-    numerical_flux(EOS_phase1, EOS_phase2),
+    numerical_flux(EOS_phase1, EOS_phase2,
+                   sim_param.atol_Newton_Suliciu, sim_param.rtol_Newton_Suliciu,
+                   sim_param.max_Newton_iters),
   #elifdef RUSANOV_FLUX
     numerical_flux_cons(EOS_phase1, EOS_phase2),
     numerical_flux_non_cons(EOS_phase1, EOS_phase2),
@@ -767,7 +776,6 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                            typename Field::value_type dp2 = std::numeric_limits<typename Field::value_type>::max();
                            typename Field::value_type dT2 = std::numeric_limits<typename Field::value_type>::max();
                            unsigned int iter;
-                           const unsigned int max_iter = 50;
                            auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                      EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
                                    + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
@@ -778,9 +786,11 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                    + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
                                      EOS_phase2.e_value_PT(p2[cell], T2[cell])
                                    - rhoe_0;
-                           for(iter = 0; iter < max_iter; ++iter) {
-                             if((std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6) &&
-                                (std::abs(f1) > 1e-12 || std::abs(f2/rhoe_0) > 1e-6)) {
+                           for(iter = 0; iter < max_Newton_iters; ++iter) {
+                             if((std::abs(dp2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(p2[cell]) ||
+                                 std::abs(dT2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(T2[cell])) &&
+                                (std::abs(f1) > atol_Newton_relaxation ||
+                                 std::abs(f2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(rhoe_0))) {
                                // Compute Jacobian matrix
                                Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                                   (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
@@ -837,9 +847,11 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                break;
                              }
                            }
-                           if(iter == max_iter &&
-                              (std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6) &&
-                              (std::abs(f1) > 1e-12 || std::abs(f2/rhoe_0) > 1e-6)) {
+                           if(iter == max_Newton_iters &&
+                              (std::abs(dp2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(p2[cell]) ||
+                               std::abs(dT2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(T2[cell])) &&
+                              (std::abs(f1) > atol_Newton_relaxation ||
+                               std::abs(f2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(rhoe_0))) {
                              std::cerr << "Newton method not converged in the re-update of conserved variables after relaxation" << std::endl;
                              exit(1);
                            }
@@ -1014,7 +1026,6 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                            typename Field::value_type dp2 = std::numeric_limits<typename Field::value_type>::max();
                            typename Field::value_type dT2 = std::numeric_limits<typename Field::value_type>::max();
                            unsigned int iter;
-                           const unsigned int max_iter = 50;
                            auto f1 = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                      EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)
                                    + conserved_variables[cell][ALPHA2_RHO2_INDEX]/
@@ -1025,9 +1036,11 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                    + conserved_variables[cell][ALPHA2_RHO2_INDEX]*
                                      EOS_phase2.e_value_PT(p2[cell], T2[cell])
                                    - rhoe_0;
-                           for(iter = 0; iter < max_iter; ++iter) {
-                             if((std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6) &&
-                                (std::abs(f1) > 1e-12 || std::abs(f2/rhoe_0) > 1e-6)) {
+                           for(iter = 0; iter < max_Newton_iters; ++iter) {
+                             if((std::abs(dp2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(p2[cell]) ||
+                                 std::abs(dT2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(T2[cell])) &&
+                                (std::abs(f1) > atol_Newton_relaxation ||
+                                 std::abs(f2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(rhoe_0))) {
                                // Compute Jacobian matrix
                                Jac_update[0][0] = -conserved_variables[cell][ALPHA1_RHO1_INDEX]/
                                                   (EOS_phase1.rho_value_PT(p2[cell] + delta_p, T2[cell] + delta_T)*
@@ -1084,9 +1097,11 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                break;
                              }
                            }
-                           if(iter == max_iter &&
-                              (std::abs(dp2/p2[cell]) > 1e-6 || std::abs(dT2/T2[cell]) > 1e-6) &&
-                              (std::abs(f1) > 1e-12 || std::abs(f2/rhoe_0) > 1e-6)) {
+                           if(iter == max_Newton_iters &&
+                              (std::abs(dp2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(p2[cell]) ||
+                               std::abs(dT2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(T2[cell])) &&
+                              (std::abs(f1) > atol_Newton_relaxation ||
+                               std::abs(f2) > atol_Newton_relaxation + rtol_Newton_relaxation*std::abs(rhoe_0))) {
                              std::cerr << "Newton method not converged in the re-update of conserved variables after relaxation" << std::endl;
                              exit(1);
                            }

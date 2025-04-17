@@ -99,13 +99,12 @@ namespace samurai {
         static constexpr int d = decltype(integral_constant_d)::value;
 
         // Compute now the "discrete" non-conservative flux function
-        discrete_flux[d].flux_function = [&](auto& cells, const Field& field)
-                                            {
-                                              const auto& left  = cells[0];
-                                              const auto& right = cells[1];
-
-                                              const auto& qL = field[left];
-                                              const auto& qR = field[right];
+        discrete_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
+                                             const StencilData<typename Flux<Field>::cfg>& /*data*/,
+                                             const StencilValues<typename Flux<Field>::cfg> field)
+                                             {
+                                               const auto& qL = field[0];
+                                               const auto& qR = field[1];
 
                                               FluxValue<typename Flux<Field>::cfg> F_minus,
                                                                                    F_plus;
@@ -121,7 +120,10 @@ namespace samurai {
       }
     );
 
-    return make_flux_based_scheme(discrete_flux);
+    auto scheme = make_flux_based_scheme(discrete_flux);
+    scheme.set_name("Suliciu");
+
+    return scheme;
   }
 
 } // end of namespace

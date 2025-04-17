@@ -13,14 +13,18 @@ struct Simulation_Parameters {
   std::size_t min_level;
   std::size_t max_level;
 
-  double       MR_param;
-  unsigned int MR_regularity;
+  double MR_param;
+  double MR_regularity;
 
   double Tf;
   double Courant;
   double dt;
 
   std::size_t nfiles;
+
+  double      atol_Newton_Suliciu;
+  double      rtol_Newton_Suliciu;
+  std::size_t max_Newton_iters;
 
   bool apply_relaxation;
 
@@ -33,6 +37,9 @@ struct Simulation_Parameters {
   bool relax_velocity;
   bool relax_pressure;
   bool relax_temperature;
+
+  double atol_Newton_relaxation;
+  double rtol_Newton_relaxation;
 };
 
 // Declare a struct with EOS parameters

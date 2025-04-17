@@ -4,50 +4,75 @@
 //
 #include <CLI/CLI.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include "include/BN_solver.hpp"
 
 // Main function to run the program
 //
 int main(int argc, char* argv[]) {
+  using json = nlohmann::json;
+
   auto& app = samurai::initialize("Suliciu-type relaxation scheme for the 1D Baer-Nunziato model", argc, argv);
+
+  std::ifstream ifs("input.json"); // Read a JSON file
+  json input = json::parse(ifs);
 
   /*--- Set and declare simulation parameters related to mesh, final time and Courant ---*/
   Simulation_Parameters sim_param;
 
-  sim_param.xL = -2.0;
-  sim_param.xR = 2.0;
+  sim_param.xL = input.value("xL", -2.0);
+  sim_param.xR = input.value("xR", 2.0);
 
-  sim_param.min_level = 11;
-  sim_param.max_level = 11;
+  sim_param.min_level = input.value("min-level", 11);
+  sim_param.max_level = input.value("max-level", 11);
 
-  sim_param.Tf      = 3.2e-3;
-  sim_param.Courant = 0.2;
-  sim_param.nfiles  = 10;
+  sim_param.Tf      = input.value("Tf", 3.2e-3);
+  sim_param.Courant = input.value("cfl", 0.2);
 
-  sim_param.apply_relaxation = false;
+  sim_param.nfiles = input.value("nfiles", 10);
 
-  sim_param.apply_finite_rate_relaxation = false;
-  sim_param.relax_instantaneous_velocity = false;
-  sim_param.tau_u = 1e-15;
-  sim_param.tau_p = 1e-10;
-  sim_param.tau_T = 1e10;
+  sim_param.atol_Newton_Suliciu = input.value("atol_Newton_Suliciu", 1e-8);
+  sim_param.rtol_Newton_Suliciu = input.value("rtol_Newton_Suliciu", 1e-6);
+  sim_param.max_Newton_iters    = input.value("max_Newton_iters", 60);
 
-  sim_param.relax_velocity    = false;
-  sim_param.relax_pressure    = false;
-  sim_param.relax_temperature = false;
+  sim_param.apply_relaxation = input.value("apply_relaxation", false);
 
-  app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--dt", sim_param.dt, "The time step")->capture_default_str()->group("Simulation parameters");
+  sim_param.apply_finite_rate_relaxation = input.value("apply_finite_rate_relaxation", false);
+  sim_param.relax_instantaneous_velocity = input.value("relax_instantaneous_velocity", false);
+  sim_param.tau_u = input.value("tau_u", 1e-15);
+  sim_param.tau_p = input.value("tau_p", 1e-10);
+  sim_param.tau_T = input.value("tau_T", 1e10);
+
+  sim_param.relax_velocity    = input.value("relax_velocity", false);
+  sim_param.relax_pressure    = input.value("relax_pressure", false);
+  sim_param.relax_temperature = input.value("relax_temperature", false);
+
+  sim_param.atol_Newton_relaxation = input.value("atol_Newton_relaxation", 1e-12);
+  sim_param.rtol_Newton_relaxation = input.value("rtol_Newton_relaxation", 1e-6);
+
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--yL", sim_param.yL, "y Left-end of the domain")->capture_default_str()->group("Simulation parameters");
   app.add_option("--yR", sim_param.yR, "y Right-end of the domain")->capture_default_str()->group("Simulation parameters");
+
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
   app.add_option("--MR_param", sim_param.MR_param, "Multiresolution parameter")->capture_default_str()->group("AMR parameter");
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
+
+  app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--dt", sim_param.dt, "The time step")->capture_default_str()->group("Simulation parameters");
+
+  app.add_option("--atol_Newton_Suliciu", sim_param.atol_Newton_Suliciu,
+                 "Absolute tolerance Newton method in Suliciu scheme")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--rtol_Newton_Suliciu", sim_param.rtol_Newton_Suliciu,
+                 "Relative tolerance Newton method in Suliciu scheme")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--max_Newton_iters", sim_param.max_Newton_iters,
+                 "Maximum number of iterations of Newton method")->capture_default_str()->group("Simulation parameters");
+
   app.add_option("--apply_relaxation", sim_param.apply_relaxation,
                  "Choose whether to apply relaxation or not")->capture_default_str()->group("Simulation parameters");
   app.add_option("--apply_finite_rate_relaxation", sim_param.apply_finite_rate_relaxation,
@@ -63,19 +88,23 @@ int main(int argc, char* argv[]) {
                  "If instantaneous relaxation, relax the pressure")->capture_default_str()->group("Simulation parameters");
   app.add_option("--relax_temperature", sim_param.relax_temperature,
                  "If instantaneous relaxation, relax the temperature (this can occur only with pressure)")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--atol_Newton_relaxation", sim_param.atol_Newton_relaxation,
+                 "Absolute tolerance Newton method in recomputing conserved variables from deltas")->capture_default_str()->group("Simulation parameters");
+  app.add_option("--rtol_Newton_relaxation", sim_param.rtol_Newton_relaxation,
+                 "Relative tolerance Newton method in recomputing conserved variables from deltas")->capture_default_str()->group("Simulation parameters");
 
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters eos_param;
 
-  eos_param.gamma_1    = 2.35;
-  eos_param.pi_infty_1 = 1e9;
-  eos_param.q_infty_1  = -1167e3;
-  eos_param.c_v_1      = 1.816e3;
+  eos_param.gamma_1    = input.value("gamma_1", 2.35);
+  eos_param.pi_infty_1 = input.value("pi_infty_1", 1e9);
+  eos_param.q_infty_1  = input.value("q_infty_1", -1167e3);
+  eos_param.c_v_1      = input.value("c_v_1", 1.816e3);
 
-  eos_param.gamma_2    = 1.43;
-  eos_param.pi_infty_2 = 0.0;
-  eos_param.q_infty_2  = 2030e3;
-  eos_param.c_v_2      = 1.040e3;
+  eos_param.gamma_2    = input.value("gamma_2", 1.43);
+  eos_param.pi_infty_2 = input.value("pi_infty_2", 0.0);
+  eos_param.q_infty_2  = input.value("q_infty_2", 2030e3);
+  eos_param.c_v_2      = input.value("c_v_2", 1.040e3);
 
   app.add_option("--gammma_1", eos_param.gamma_1, "gamma_1")->capture_default_str()->group("EOS parameters");
   app.add_option("--pi_infty_1", eos_param.pi_infty_1, "pi_infty_1")->capture_default_str()->group("EOS parameters");
@@ -89,23 +118,23 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to initial condition ---*/
   Riemann_Parameters Riemann_param;
 
-  Riemann_param.xd      = 0.0;
+  Riemann_param.xd      = input.value("xd", 0.0);
 
-  Riemann_param.alpha1L = 1.0 - 1e-2;
-  Riemann_param.p1L     = 1e5;
-  Riemann_param.T1L     = 354.728;
-  Riemann_param.u1L     = -2.0;
-  Riemann_param.p2L     = 1e5;
-  Riemann_param.T2L     = 354.728;
-  Riemann_param.u2L     = -2.0;
+  Riemann_param.alpha1L = input.value("alpha1L", 1.0 - 1e-2);
+  Riemann_param.p1L     = input.value("p1L", 1e5);
+  Riemann_param.T1L     = input.value("T1L", 354.728);
+  Riemann_param.u1L     = input.value("u1L", -2.0);
+  Riemann_param.p2L     = input.value("p2L", 1e5);
+  Riemann_param.T2L     = input.value("T2L", 354.728);
+  Riemann_param.u2L     = input.value("u2L", -2.0);
 
-  Riemann_param.alpha1R = 1.0 - 1e-2;
-  Riemann_param.p1R     = 1e5;
-  Riemann_param.T1R     = 354.728;
-  Riemann_param.u1R     = 2.0;
-  Riemann_param.p2R     = 1e5;
-  Riemann_param.T2R     = 354.728;
-  Riemann_param.u2R     = 2.0;
+  Riemann_param.alpha1R = input.value("alpha1R", 1.0 - 1e-2);
+  Riemann_param.p1R     = input.value("p1R", 1e5);
+  Riemann_param.T1R     = input.value("T1R", 354.728);
+  Riemann_param.u1R     = input.value("u1R", 2.0);
+  Riemann_param.p2R     = input.value("p2R", 1e5);
+  Riemann_param.T2R     = input.value("T2R", 354.728);
+  Riemann_param.u2R     = input.value("u2R", 2.0);
 
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
   app.add_option("--alpha1L", Riemann_param.alpha1L, "Initial volume fraction at left")->capture_default_str()->group("Initial conditions");

@@ -1,0 +1,59 @@
+{
+ "xL": -2.0,
+ "xR": 2.0,
+
+ "min-level": 11,
+ "max-level": 11,
+ 
+ "Tf": 3.2e-3,
+ "cfl": 0.2,
+
+ "nfiles": 10,
+
+ "atol_Newton_Suliciu": 1e-8,
+ "rtol_Newton_Suliciu": 1e-6,
+ "max_Newton_iters": 60,
+
+ "apply_relaxation": false,
+ 
+ "apply_finite_rate_relaxation": false,
+ "relax_instantaneous_velocity": false,
+ "tau_u": 1e-15,
+ "tau_p": 1e-10,
+ "tau_T": 1e10,
+ 
+ "relax_velocity": false,
+ "relax_pressure": false,
+ "relax_temperature": false,
+
+ "atol_Newton_relaxation": 1e-12,
+ "rtol_Newton_relaxation": 1e-6,
+
+ "gamma_1": 2.43,
+ "pi_infty_1": 1e9,
+ "q_infty_1": -1167e3,
+ "c_v_1": 1.816e3,
+
+ "gamma_2": 1.43,
+ "pi_infty_2": 0.0,
+ "q_infty_2": 2030e3,
+ "c_v_2": 1.040e3,
+
+ "xd": 0.0,
+
+ "alpha1L": 0.99,
+ "p1L": 1e5,
+ "T1L": 354.728,
+ "u1L": -2.0,
+ "p2L": 1e5,
+ "T2L": 354.728,
+ "u2L": -2.0,
+
+ "alpha1R": 0.99,
+ "p1R": 1e5,
+ "T1R": 354.728,
+ "u1R": 2.0,
+ "p2R": 1e5,
+ "T2R": 354.728,
+ "u2R": 2.0
+}
