@@ -182,11 +182,11 @@ private:
                                       const typename Field::value_type H_bar_loc,
                                       typename Field::value_type& dalpha1_bar_loc,
                                       typename Field::value_type& alpha1_bar_loc,
-                                      const Gradient& grad_alpha1_bar_loc,
-                                      const bool mass_transfer_NR,
                                       std::size_t& to_be_relaxed_loc,
                                       std::size_t& Newton_iterations_loc,
-                                      bool& local_relaxation_applied);
+                                      bool& local_relaxation_applied,
+                                      const Gradient& grad_alpha1_bar_loc,
+                                      const bool mass_transfer_NR);
 
   void execute_postprocess(const double time); /*--- Execute the postprocess ---*/
 };
@@ -637,8 +637,9 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                            {
                              try {
                                perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell], grad_alpha1_bar[cell],
-                                                              mass_transfer_NR, to_be_relaxed[cell], Newton_iterations[cell], relaxation_applied);
+                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
+                                                              to_be_relaxed[cell], Newton_iterations[cell], relaxation_applied,
+                                                              grad_alpha1_bar[cell], mass_transfer_NR);
                              }
                              catch(std::exception& e) {
                                std::cerr << e.what() << std::endl;
@@ -673,13 +674,13 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                                               const typename Field::value_type H_bar_loc,
                                                               typename Field::value_type& dalpha1_bar_loc,
                                                               typename Field::value_type& alpha1_bar_loc,
-                                                              const Gradient& grad_alpha1_bar_loc,
-                                                              const bool mass_transfer_NR,
                                                               std::size_t& to_be_relaxed_loc,
                                                               std::size_t& Newton_iterations_loc,
-                                                              bool& local_relaxation_applied) {
+                                                              bool& local_relaxation_applied,
+                                                              const Gradient& grad_alpha1_bar_loc,
+                                                              const bool mass_transfer_NR) {
   to_be_relaxed_loc = 0;
-  
+
   if(!std::isnan(H_bar_loc)) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto alpha1_loc = alpha1_bar_loc*(1.0 - (*local_conserved_variables)(ALPHA1_D_INDEX));
