@@ -15,7 +15,8 @@ namespace samurai {
   template<class Field>
   class NonConservativeFlux: public Flux<Field> {
   public:
-    NonConservativeFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+    NonConservativeFlux(const EOS<typename Field::value_type>& EOS_phase1_,
+                        const EOS<typename Field::value_type>& EOS_phase2_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     auto make_flux(); /*--- Compute the flux over all cells ---*/
 
@@ -30,8 +31,9 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  NonConservativeFlux<Field>::NonConservativeFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2):
-    Flux<Field>(EOS_phase1, EOS_phase2) {}
+  NonConservativeFlux<Field>::NonConservativeFlux(const EOS<typename Field::value_type>& EOS_phase1_,
+                                                  const EOS<typename Field::value_type>& EOS_phase2_):
+    Flux<Field>(EOS_phase1_, EOS_phase2_) {}
 
   // Implementation of a non-conservative flux from left to right
   //
@@ -55,7 +57,7 @@ namespace samurai {
       e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                   (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pIL   = this->phase2.pres_value_Rhoe(rho2L, e2L);
+    const auto pIL   = this->EOS_phase2.pres_value_Rhoe(rho2L, e2L);
 
     /*--- Interface velocity and interface pressure computed from right state ---*/
     const auto velIR = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -65,14 +67,14 @@ namespace samurai {
       e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                   (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pIR   = this->phase2.pres_value_Rhoe(rho2R, e2R);
+    const auto pIR   = this->EOS_phase2.pres_value_Rhoe(rho2R, e2R);
 
     /*--- Build the non conservative flux ---*/
     #ifdef BR
       F_minus(ALPHA1_INDEX) = (0.5*(velIL*qL(ALPHA1_INDEX) + velIR*qR(ALPHA1_INDEX)) -
                                0.5*(velIL + velIR)*qL(ALPHA1_INDEX));
-      F_plus(ALPHA1_INDEX) = (0.5*(velIL*qL(ALPHA1_INDEX) + velIR*qR(ALPHA1_INDEX)) -
-                              0.5*(velIL + velIR)*qR(ALPHA1_INDEX));
+      F_plus(ALPHA1_INDEX)  = (0.5*(velIL*qL(ALPHA1_INDEX) + velIR*qR(ALPHA1_INDEX)) -
+                               0.5*(velIL + velIR)*qR(ALPHA1_INDEX));
 
       F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = -(0.5*(pIL*qL(ALPHA1_INDEX) + pIR*qR(ALPHA1_INDEX)) -
                                                  0.5*(pIL + pIR)*qL(ALPHA1_INDEX));
@@ -116,32 +118,32 @@ namespace samurai {
         discrete_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
                                              const StencilData<typename Flux<Field>::cfg>& /*data*/,
                                              const StencilValues<typename Flux<Field>::cfg> field)
-                                            {
-                                              #ifdef ORDER_2
-                                                #ifdef PERFORM_RECON
-                                                  // MUSCL reconstruction
-                                                  const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+                                             {
+                                               #ifdef ORDER_2
+                                                 #ifdef PERFORM_RECON
+                                                   // MUSCL reconstruction
+                                                   const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                   const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                   const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                   const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                                  FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                       primR_recon;
-                                                  this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                               primL_recon, primR_recon);
+                                                   FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                        primR_recon;
+                                                   this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                                primL_recon, primR_recon);
 
-                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
-                                                #else
-                                                  // Extract the state
-                                                  const FluxValue<typename Flux<Field>::cfg>& qL = field[1];
-                                                  const FluxValue<typename Flux<Field>::cfg>& qR = field[2];
-                                                #endif
-                                              #else
-                                                // Extract the state
-                                                const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
-                                                const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
-                                              #endif
+                                                   FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                   FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                 #else
+                                                   // Extract the states
+                                                   const FluxValue<typename Flux<Field>::cfg>& qL = field[1];
+                                                   const FluxValue<typename Flux<Field>::cfg>& qR = field[2];
+                                                 #endif
+                                               #else
+                                                 // Extract the states
+                                                 const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
+                                                 const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
+                                               #endif
 
                                               FluxValue<typename Flux<Field>::cfg> F_minus,
                                                                                    F_plus;
@@ -156,7 +158,10 @@ namespace samurai {
       }
     );
 
-    return make_flux_based_scheme(discrete_flux);
+    auto scheme = make_flux_based_scheme(discrete_flux);
+    scheme.set_name("Non conservative");
+
+    return scheme;
   }
 
 } // end of namespace

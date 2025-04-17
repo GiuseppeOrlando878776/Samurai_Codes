@@ -53,12 +53,12 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const EOS<typename Field::value_type>& EOS_phase1,
-         const EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in inputs the equations of state of the two phases
+    Flux(const EOS<typename Field::value_type>& EOS_phase1_,
+         const EOS<typename Field::value_type>& EOS_phase2_); // Constructor which accepts in inputs the equations of state of the two phases
 
   protected:
-    const EOS<typename Field::value_type>& phase1; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
-    const EOS<typename Field::value_type>& phase2; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
+    const EOS<typename Field::value_type>& EOS_phase1; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
+    const EOS<typename Field::value_type>& EOS_phase2; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
 
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q
                                                                                                       along direction curr_d ---*/
@@ -80,9 +80,9 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const EOS<typename Field::value_type>& EOS_phase1,
-                    const EOS<typename Field::value_type>& EOS_phase2):
-    phase1(EOS_phase1), phase2(EOS_phase2) {}
+  Flux<Field>::Flux(const EOS<typename Field::value_type>& EOS_phase1_,
+                    const EOS<typename Field::value_type>& EOS_phase2_):
+    EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_) {}
 
   // Evaluate the 'continuous flux' along direction 'curr_d'
   //
@@ -101,7 +101,7 @@ namespace samurai {
       e1 -= 0.5*((q(ALPHA1_RHO1_U1_INDEX + d)/q(ALPHA1_RHO1_INDEX))*
                  (q(ALPHA1_RHO1_U1_INDEX + d)/q(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres1  = this->phase1.pres_value_Rhoe(rho1, e1);
+    const auto pres1  = EOS_phase1.pres_value_Rhoe(rho1, e1);
     const auto vel1_d = q(ALPHA1_RHO1_U1_INDEX + curr_d)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
     /*--- Compute the flux for the equations "associated" to phase 1 ---*/
@@ -122,7 +122,7 @@ namespace samurai {
       e2 -= 0.5*((q(ALPHA2_RHO2_U2_INDEX + d)/q(ALPHA2_RHO2_INDEX))*
                  (q(ALPHA2_RHO2_U2_INDEX + d)/q(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres2  = this->phase2.pres_value_Rhoe(rho2, e2);
+    const auto pres2  = EOS_phase2.pres_value_Rhoe(rho2, e2);
     const auto vel2_d = q(ALPHA2_RHO2_U2_INDEX + curr_d)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
     /*--- Compute the flux for the equations "associated" to phase 2 ---*/
@@ -158,7 +158,7 @@ namespace samurai {
       for(std::size_t d = 0; d < Field::dim; ++d) {
         e1 -= 0.5*(prim(U1_INDEX + d)*prim(U1_INDEX + d)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      prim(P1_INDEX) = phase1.pres_value_Rhoe(prim(RHO1_INDEX), e1);
+      prim(P1_INDEX) = EOS_phase1.pres_value_Rhoe(prim(RHO1_INDEX), e1);
 
       /*--- Proceed with phase 2 ---*/
       prim(RHO2_INDEX) = cons(ALPHA2_RHO2_INDEX)/(1.0 - cons(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -170,7 +170,7 @@ namespace samurai {
       for(std::size_t d = 0; d < Field::dim; ++d) {
         e2 -= 0.5*(prim(U2_INDEX + d)*prim(U2_INDEX + d));
       }
-      prim(P2_INDEX) = phase2.pres_value_Rhoe(prim(RHO2_INDEX), e2);
+      prim(P2_INDEX) = EOS_phase2.pres_value_Rhoe(prim(RHO2_INDEX), e2);
 
       /*--- Return computed primitive variables ---*/
       return prim;
@@ -190,7 +190,7 @@ namespace samurai {
         cons(ALPHA1_RHO1_U1_INDEX + d) = cons(ALPHA1_RHO1_INDEX)*prim(U1_INDEX + d);
       }
       // Compute internal energy
-      auto E1 = phase1.e_value_RhoP(prim(RHO1_INDEX), prim(P1_INDEX));
+      auto E1 = EOS_phase1.e_value_RhoP(prim(RHO1_INDEX), prim(P1_INDEX));
       for(std::size_t d = 0; d < Field::dim; ++d) {
         E1 += 0.5*(prim(U1_INDEX + d)*prim(U1_INDEX + d));
       }
@@ -202,7 +202,7 @@ namespace samurai {
         cons(ALPHA2_RHO2_U2_INDEX + d) = cons(ALPHA2_RHO2_INDEX)*prim(U2_INDEX + d);
       }
       // Compute internal energy
-      auto E2 = phase2.e_value_RhoP(prim(RHO2_INDEX), prim(P2_INDEX));
+      auto E2 = EOS_phase2.e_value_RhoP(prim(RHO2_INDEX), prim(P2_INDEX));
       for(std::size_t d = 0; d < Field::dim; ++d) {
         E2 += 0.5*(prim(U2_INDEX + d)*prim(U2_INDEX + d));
       }

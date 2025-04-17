@@ -13,8 +13,8 @@ struct Simulation_Parameters {
   std::size_t min_level;
   std::size_t max_level;
 
-  double MR_param;
-  double MR_regularity;
+  double       MR_param;
+  unsigned int MR_regularity;
 
   double Tf;
   double Courant;

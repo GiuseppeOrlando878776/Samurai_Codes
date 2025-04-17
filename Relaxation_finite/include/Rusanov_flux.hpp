@@ -12,7 +12,8 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    RusanovFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+    RusanovFlux(const EOS<typename Field::value_type>& EOS_phase1_,
+                const EOS<typename Field::value_type>& EOS_phase2_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     auto make_flux(); /*--- Compute the flux over all cells ---*/
 
@@ -25,8 +26,9 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  RusanovFlux<Field>::RusanovFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2):
-    Flux<Field>(EOS_phase1, EOS_phase2) {}
+  RusanovFlux<Field>::RusanovFlux(const EOS<typename Field::value_type>& EOS_phase1_,
+                                  const EOS<typename Field::value_type>& EOS_phase2_):
+    Flux<Field>(EOS_phase1_, EOS_phase2_) {}
 
   // Implementation of a Rusanov flux
   //
@@ -42,8 +44,8 @@ namespace samurai {
       e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                   (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres1L  = this->phase1.pres_value_Rhoe(rho1L, e1L);
-    const auto c1L     = this->phase1.c_value_RhoP(rho1L, pres1L);
+    const auto pres1L  = this->EOS_phase1.pres_value_Rhoe(rho1L, e1L);
+    const auto c1L     = this->EOS_phase1.c_value_RhoP(rho1L, pres1L);
 
     /*--- Left state phase 2 ---*/
     const auto vel2L_d = qL(ALPHA2_RHO2_U2_INDEX + curr_d)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -53,8 +55,8 @@ namespace samurai {
       e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                   (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres2L  = this->phase2.pres_value_Rhoe(rho2L, e2L);
-    const auto c2L     = this->phase2.c_value_RhoP(rho2L, pres2L);
+    const auto pres2L  = this->EOS_phase2.pres_value_Rhoe(rho2L, e2L);
+    const auto c2L     = this->EOS_phase2.c_value_RhoP(rho2L, pres2L);
 
     /*--- Right state phase 1 ---*/
     const auto vel1R_d = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -64,8 +66,8 @@ namespace samurai {
       e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                   (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres1R  = this->phase1.pres_value_Rhoe(rho1R, e1R);
-    const auto c1R     = this->phase1.c_value_RhoP(rho1R, pres1R);
+    const auto pres1R  = this->EOS_phase1.pres_value_Rhoe(rho1R, e1R);
+    const auto c1R     = this->EOS_phase1.c_value_RhoP(rho1R, pres1R);
 
     /*--- Right state phase 2 ---*/
     const auto vel2R_d = qR(ALPHA2_RHO2_U2_INDEX + curr_d)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -75,8 +77,8 @@ namespace samurai {
       e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                   (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
-    const auto pres2R  = this->phase2.pres_value_Rhoe(rho2R, e2R);
-    const auto c2R     = this->phase2.c_value_RhoP(rho2R, pres2R);
+    const auto pres2R  = this->EOS_phase2.pres_value_Rhoe(rho2R, e2R);
+    const auto c2R     = this->EOS_phase2.c_value_RhoP(rho2R, pres2R);
 
     /*--- Compute the flux ---*/
     const auto lambda = std::max(std::max(std::abs(vel1L_d) + c1L, std::abs(vel1R_d) + c1R),
@@ -102,33 +104,36 @@ namespace samurai {
         discrete_flux[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
                                                   const StencilData<typename Flux<Field>::cfg>& /*data*/,
                                                   const StencilValues<typename Flux<Field>::cfg> field)
-                                              {
-                                                #ifdef ORDER_2
-                                                  // MUSCL reconstruction
-                                                  const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                                  const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+                                                  {
+                                                    #ifdef ORDER_2
+                                                      // MUSCL reconstruction
+                                                      const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                      const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                      const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                      const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                                  FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                       primR_recon;
-                                                  this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                               primL_recon, primR_recon);
+                                                      FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                           primR_recon;
+                                                      this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                                   primL_recon, primR_recon);
 
-                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
-                                                #else
-                                                  // Extract the states
-                                                  const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
-                                                  const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
-                                                #endif
+                                                      FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                      FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                    #else
+                                                      // Extract the states
+                                                      const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
+                                                      const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
+                                                    #endif
 
-                                                flux = compute_discrete_flux(qL, qR, d);
-                                              };
+                                                    flux = compute_discrete_flux(qL, qR, d);
+                                                  };
       }
     );
 
-    return make_flux_based_scheme(discrete_flux);
+    auto scheme = make_flux_based_scheme(discrete_flux);
+    scheme.set_name("Rusanov");
+
+    return scheme;
   }
 
 } // end of namespace

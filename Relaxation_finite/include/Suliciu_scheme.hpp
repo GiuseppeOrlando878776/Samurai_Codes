@@ -12,7 +12,8 @@ namespace samurai {
   template<class Field>
   class RelaxationFlux: public Flux<Field> {
   public:
-    RelaxationFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+    RelaxationFlux(const EOS<typename Field::value_type>& EOS_phase1_,
+                   const EOS<typename Field::value_type>& EOS_phase2_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     auto make_flux(double& c); /*--- Compute the flux over all cells.
                                      The input argument is employed to compute the Courant number ---*/
@@ -91,8 +92,9 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  RelaxationFlux<Field>::RelaxationFlux(const EOS<>& EOS_phase1, const EOS<>& EOS_phase2):
-    Flux<Field>(EOS_phase1, EOS_phase2) {}
+  RelaxationFlux<Field>::RelaxationFlux(const EOS<typename Field::value_type>& EOS_phase1_,
+                                        const EOS<typename Field::value_type>& EOS_phase2_):
+    Flux<Field>(EOS_phase1_, EOS_phase2_) {}
 
   // Implementation of the flux (F^{-} and F^{+} as in Saleh 2012 notation)
   //
@@ -116,7 +118,7 @@ namespace samurai {
         e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                     (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p1L = this->phase1.pres_value_Rhoe(rho1L, e1L);
+      const auto p1L = this->EOS_phase1.pres_value_Rhoe(rho1L, e1L);
 
       /*--- Compute the relevant variables from right state for phase 1 ---*/
       const auto alpha1R = qR(ALPHA1_INDEX);
@@ -128,7 +130,7 @@ namespace samurai {
         e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                     (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p1R = this->phase1.pres_value_Rhoe(rho1R, e1R);
+      const auto p1R = this->EOS_phase1.pres_value_Rhoe(rho1R, e1R);
 
       /*--- Compute the relevant variables from left state for phase 2 ---*/
       const auto alpha2L = 1.0 - alpha1L;
@@ -140,7 +142,7 @@ namespace samurai {
         e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                     (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p2L = this->phase2.pres_value_Rhoe(rho2L, e2L);
+      const auto p2L = this->EOS_phase2.pres_value_Rhoe(rho2L, e2L);
 
       /*--- Compute the relevant variables from right state for phase 2 ---*/
       const auto alpha2R = 1.0 - alpha1R;
@@ -152,13 +154,13 @@ namespace samurai {
         e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                     (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p2R = this->phase2.pres_value_Rhoe(rho2R, e2R);
+      const auto p2R = this->EOS_phase2.pres_value_Rhoe(rho2R, e2R);
 
       /*--- Compute first rhs of relaxation related parameters (Whitham's approach) ---*/
-      auto a1 = std::max(this->phase1.c_value_RhoP(rho1L, p1L)*rho1L,
-                         this->phase1.c_value_RhoP(rho1R, p1R)*rho1R);
-      auto a2 = std::max(this->phase2.c_value_RhoP(rho2L, p2L)*rho2L,
-                         this->phase2.c_value_RhoP(rho2R, p2R)*rho2R);
+      auto a1 = std::max(this->EOS_phase1.c_value_RhoP(rho1L, p1L)*rho1L,
+                         this->EOS_phase1.c_value_RhoP(rho1R, p1R)*rho1R);
+      auto a2 = std::max(this->EOS_phase2.c_value_RhoP(rho2L, p2L)*rho2L,
+                         this->EOS_phase2.c_value_RhoP(rho2R, p2R)*rho2R);
 
       /*--- Compute the transport step solving a non-linear equation with the Newton method ---*/
 
@@ -237,7 +239,7 @@ namespace samurai {
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
       const double atol  = 1e-8;
-      const souble rtol  = 1e-8;
+      const double rtol  = 1e-8;
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
                                        a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
                                        atol, rtol);
@@ -346,7 +348,7 @@ namespace samurai {
         e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
                     (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p1L = this->phase1.pres_value_Rhoe(rho1L, e1L);
+      const auto p1L = this->EOS_phase1.pres_value_Rhoe(rho1L, e1L);
 
       /*--- Compute the relevant variables from right state for phase 1 ---*/
       const auto alpha1R = qR(ALPHA1_INDEX);
@@ -358,7 +360,7 @@ namespace samurai {
         e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
                     (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p1R = this->phase1.pres_value_Rhoe(rho1R, e1R);
+      const auto p1R = this->EOS_phase1.pres_value_Rhoe(rho1R, e1R);
 
       /*--- Compute the relevant variables from left state for phase 2 ---*/
       const auto alpha2L = 1.0 - alpha1L;
@@ -370,7 +372,7 @@ namespace samurai {
         e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
                     (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p2L = this->phase2.pres_value_Rhoe(rho2L, e2L);
+      const auto p2L = this->EOS_phase2.pres_value_Rhoe(rho2L, e2L);
 
       /*--- Compute the relevant variables from right state for phase 2 ---*/
       const auto alpha2R = 1.0 - alpha1R;
@@ -382,13 +384,13 @@ namespace samurai {
         e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
                     (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       }
-      const auto p2R = this->phase2.pres_value_Rhoe(rho2R, e2R);
+      const auto p2R = this->EOS_phase2.pres_value_Rhoe(rho2R, e2R);
 
       /*--- Compute first rhs of relaxation related parameters (Whitham's approach) ---*/
-      auto a1 = std::max(this->phase1.c_value_RhoP(rho1L, p1L)*rho1L,
-                         this->phase1.c_value_RhoP(rho1R, p1R)*rho1R);
-      auto a2 = std::max(this->phase2.c_value_RhoP(rho2L, p2L)*rho2L,
-                         this->phase2.c_value_RhoP(rho2R, p2R)*rho2R);
+      auto a1 = std::max(this->EOS_phase1.c_value_RhoP(rho1L, p1L)*rho1L,
+                         this->EOS_phase1.c_value_RhoP(rho1R, p1R)*rho1R);
+      auto a2 = std::max(this->EOS_phase2.c_value_RhoP(rho2L, p2L)*rho2L,
+                         this->EOS_phase2.c_value_RhoP(rho2R, p2R)*rho2R);
 
       /*--- Compute the transport step solving a non-linear equation with the Newton method ---*/
 
@@ -595,7 +597,7 @@ namespace samurai {
                                                 FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
                                                 compute_discrete_flux(qL, qR,
-                                                                      field[left](ALPHA1_INDEX), field[right](ALPHA1_INDEX),
+                                                                      field[1](ALPHA1_INDEX), field[2](ALPHA1_INDEX),
                                                                       d, F_minus, F_plus, c);
                                               #else
                                                 // Extract state
@@ -611,7 +613,10 @@ namespace samurai {
       }
     );
 
-    return make_flux_based_scheme(discrete_flux);
+    auto scheme = make_flux_based_scheme(discrete_flux);
+    scheme.set_name("Suliciu");
+
+    return scheme;
   }
 
   // Implement M0 function (3.312 Saleh 2012, 3.30 Saleh ESAIM 2019)
@@ -715,10 +720,9 @@ namespace samurai {
                                    a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis));
 
       while(iter < 50 &&
-            std::abs(Psi(u_star, a1, alpha1L, alpha1R, vel1_diesis,
-                                 a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs) > atol &&
-            std::abs(du) > atol &&
-            std::abs(du)/(std::abs(u_star) + 1e-16) > rtol) {
+            //std::abs(Psi(u_star, a1, alpha1L, alpha1R, vel1_diesis,
+            //                     a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs) > atol &&
+            std::abs(du) > atol + std::abs(u_star)*rtol) {
         ++iter;
 
         u_star += du;
