@@ -18,8 +18,8 @@ namespace fs = std::filesystem;
 /*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
 
-#define SULICIU_RELAXATION
-//#define RUSANOV_FLUX
+//#define SULICIU_RELAXATION
+#define RUSANOV_FLUX
 
 #ifdef SULICIU_RELAXATION
   #include "Suliciu_scheme.hpp"
@@ -275,25 +275,25 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 
                              p1[cell]   = Riemann_param.p1L;
                              vel1[cell] = Riemann_param.u1L;
-                             T1[cell]   = Riemann_param.T1L;
+                             rho1[cell] = Riemann_param.rho1L;
 
                              p2[cell]   = Riemann_param.p2L;
                              vel2[cell] = Riemann_param.u2L;
-                             T2[cell]   = Riemann_param.T2L;
+                             rho2[cell] = Riemann_param.rho2L;
                            }
                            else {
                              conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1R;
 
                              p1[cell]   = Riemann_param.p1R;
                              vel1[cell] = Riemann_param.u1R;
-                             T1[cell]   = Riemann_param.T1R;
+                             rho1[cell] = Riemann_param.rho1R;
 
                              p2[cell]   = Riemann_param.p2R;
                              vel2[cell] = Riemann_param.u2R;
-                             T2[cell]   = Riemann_param.T2R;
+                             rho2[cell] = Riemann_param.rho2R;
                            }
 
-                           rho1[cell] = EOS_phase1.rho_value_PT(p1[cell], T1[cell]);
+                           T1[cell] = EOS_phase1.T_value_RhoP(rho1[cell], p1[cell]);
 
                            conserved_variables[cell][ALPHA1_RHO1_INDEX]    = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];
                            conserved_variables[cell][ALPHA1_RHO1_U1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*vel1[cell];
@@ -301,7 +301,7 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
                                                                              (e1 + 0.5*vel1[cell]*vel1[cell]);
 
-                           rho2[cell] = EOS_phase2.rho_value_PT(p2[cell], T2[cell]);
+                           T2[cell] = EOS_phase2.T_value_RhoP(rho2[cell], p2[cell]);
 
                            conserved_variables[cell][ALPHA2_RHO2_INDEX]    = (1.0 - conserved_variables[cell][ALPHA1_INDEX])*rho2[cell];
                            conserved_variables[cell][ALPHA2_RHO2_U2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*vel2[cell];
@@ -346,30 +346,32 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   /*--- Add boundary conditions ---*/
   const xt::xtensor_fixed<int, xt::xshape<1>> left{-1};
   const xt::xtensor_fixed<int, xt::xshape<1>> right{1};
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
+  /*samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.alpha1L,
-                                          Riemann_param.alpha1L*EOS_phase1.rho_value_PT(Riemann_param.p1L, Riemann_param.T1L),
-                                          Riemann_param.alpha1L*EOS_phase1.rho_value_PT(Riemann_param.p1L, Riemann_param.T1L)*Riemann_param.u1L,
-                                          Riemann_param.alpha1L*EOS_phase1.rho_value_PT(Riemann_param.p1L, Riemann_param.T1L)*
-                                          (EOS_phase1.e_value_PT(Riemann_param.p1L, Riemann_param.T1L) +
+                                          Riemann_param.alpha1L*Riemann_param.rho1L,
+                                          Riemann_param.alpha1L*Riemann_param.rho1L*Riemann_param.u1L,
+                                          Riemann_param.alpha1L*Riemann_param.rho1L*
+                                          (EOS_phase1.e_value_RhoP(Riemann_param.rho1L, Riemann_param.p1L) +
                                            0.5*Riemann_param.u1L*Riemann_param.u1L),
-                                          (1.0 - Riemann_param.alpha1L)*EOS_phase2.rho_value_PT(Riemann_param.p2L, Riemann_param.T2L),
-                                          (1.0 - Riemann_param.alpha1L)*EOS_phase2.rho_value_PT(Riemann_param.p2L, Riemann_param.T2L)*Riemann_param.u2L,
-                                          (1.0 - Riemann_param.alpha1L)*EOS_phase2.rho_value_PT(Riemann_param.p2L, Riemann_param.T2L)*
-                                          (EOS_phase2.e_value_PT(Riemann_param.p2L, Riemann_param.T2L) +
-                                           0.5*Riemann_param.u2L*Riemann_param.u2L))->on(left);
-  samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
+                                          (1.0 - Riemann_param.alpha1L)*Riemann_param.rho2L,
+                                          (1.0 - Riemann_param.alpha1L)*Riemann_param.rho2L*Riemann_param.u2L,
+                                          (1.0 - Riemann_param.alpha1L)*Riemann_param.rho2L*
+                                          (EOS_phase2.e_value_RhoP(Riemann_param.rho2L, Riemann_param.p2L) +
+                                           0.5*Riemann_param.u2L*Riemann_param.u2L))->on(left);*/
+  samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(left);
+  /*samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.alpha1R,
-                                          Riemann_param.alpha1R*EOS_phase1.rho_value_PT(Riemann_param.p1R, Riemann_param.T1R),
-                                          Riemann_param.alpha1R*EOS_phase1.rho_value_PT(Riemann_param.p1R, Riemann_param.T1R)*Riemann_param.u1R,
-                                          Riemann_param.alpha1R*EOS_phase1.rho_value_PT(Riemann_param.p1R, Riemann_param.T1R)*
-                                          (EOS_phase1.e_value_PT(Riemann_param.p1R, Riemann_param.T1R) +
+                                          Riemann_param.alpha1R*Riemann_param.rho1R,
+                                          Riemann_param.alpha1R*Riemann_param.rho1R*Riemann_param.u1R,
+                                          Riemann_param.alpha1R*Riemann_param.rho1R*
+                                          (EOS_phase1.e_value_RhoP(Riemann_param.rho1R, Riemann_param.p1R) +
                                            0.5*Riemann_param.u1R*Riemann_param.u1R),
-                                          (1.0 - Riemann_param.alpha1R)*EOS_phase2.rho_value_PT(Riemann_param.p2R, Riemann_param.T2R),
-                                          (1.0 - Riemann_param.alpha1R)*EOS_phase2.rho_value_PT(Riemann_param.p2R, Riemann_param.T2R)*Riemann_param.u2R,
-                                          (1.0 - Riemann_param.alpha1R)*EOS_phase2.rho_value_PT(Riemann_param.p2R, Riemann_param.T2R)*
-                                          (EOS_phase2.e_value_PT(Riemann_param.p2R, Riemann_param.T2R) +
-                                           0.5*Riemann_param.u2R*Riemann_param.u2R))->on(right);
+                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R,
+                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R*Riemann_param.u2R,
+                                          (1.0 - Riemann_param.alpha1R)*Riemann_param.rho2R*
+                                          (EOS_phase2.e_value_RhoP(Riemann_param.rho2R, Riemann_param.p2R) +
+                                           0.5*Riemann_param.u2R*Riemann_param.u2R))->on(right);*/
+  samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
 }
 
 /*--- AUXILIARY ROUTINES ---*/
@@ -542,7 +544,7 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
 
   /*--- Compute the coefficients ---*/
   const auto p_ref_loc     = rho1_loc*c1_loc*c1_loc/q[ALPHA1_INDEX]
-                           + rho2_loc*c2_loc*c2_loc/(1.0 - q[ALPHA1_INDEX]); /*--- TODO: Add treatment fro vanishing volume fraction ---*/
+                           + rho2_loc*c2_loc*c2_loc/(1.0 - q[ALPHA1_INDEX]); /*--- TODO: Add treatment for vanishing volume fraction ---*/
   const auto p_relax_coeff = (q[ALPHA1_INDEX]*(1.0 - q[ALPHA1_INDEX]))/(tau_p*p_ref_loc);
   const auto T_relax_coeff = (q[ALPHA1_RHO1_INDEX]*cv1*q[ALPHA2_RHO2_INDEX]*cv2)/
                              (tau_T*(q[ALPHA1_RHO1_INDEX]*cv1 + q[ALPHA2_RHO2_INDEX]*cv2));
@@ -618,6 +620,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                         conserved_variables[cell][ALPHA2_RHO2_INDEX]
                                       - 0.5*vel2[cell]*vel2[cell]; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                            p2[cell]   = EOS_phase2.pres_value_Rhoe(rho2[cell], e2);
+
 
                            // Compute matrix relaxation coefficients
                            compute_coefficients_source_relaxation(conserved_variables[cell],
@@ -721,7 +724,11 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                                   - Jac_update[0][1]*Jac_update[1][0];
                                if(std::abs(det_Jac) > 1e-10) {
                                  dp2 = (1.0/det_Jac)*(Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
+                                 dp2 = std::min(dp2, 0.9*(p2[cell] + EOS_phase2.get_pi_infty()));
+                                 dp2 = std::min(dp2, 0.9*(p2[cell] + delta_p + EOS_phase1.get_pi_infty()));
                                  dT2 = (1.0/det_Jac)*(-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
+                                 dT2 = std::min(dT2, 0.9*T2[cell]);
+                                 dT2 = std::min(dT2, 0.9*(T2[cell] + delta_T));
                                  p2[cell] -= dp2;
                                  T2[cell] -= dT2;
                                }

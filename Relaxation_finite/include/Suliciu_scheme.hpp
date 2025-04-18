@@ -57,7 +57,8 @@ namespace samurai {
     template<typename T>
     T Newton(const T rhs,
              const T a1, const T alpha1L, const T alpha1R, const T vel1_diesis, const T tau1L_diesis, const T tau1R_diesis,
-             const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis) const;
+             const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis,
+             const T cLmax, const T cRmin) const;
 
     template<typename T>
     void Riemann_solver_phase_vI(const T xi,
@@ -182,6 +183,7 @@ namespace samurai {
       const double fact = 1.01; // Safety factor
       // Loop to be sure that tau_diesis variables are positive (theorem 3.5, Coquel et al. JCP 2017)
       while(tau1L_diesis <= 0.0 || tau1R_diesis <= 0.0) {
+        iter++;
         a1 *= fact;
         vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5*(p1R - p1L)/a1;
         p1_diesis    = 0.5*(p1R + p1L) - 0.5*a1*(vel1R_d - vel1L_d);
@@ -189,6 +191,7 @@ namespace samurai {
         tau1R_diesis = 1.0/rho1R - (vel1_diesis - vel1R_d)/a1;
       }
       while(tau2L_diesis <= 0.0 || tau2R_diesis <= 0.0) {
+        iter++;
         a2 *= fact;
         vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5*(p2R - p2L)/a2;
         p2_diesis    = 0.5*(p2R + p2L) - 0.5*a2*(vel2R_d - vel2L_d);
@@ -200,6 +203,7 @@ namespace samurai {
       field_type rhs = 0.0, sup = 0.0, inf = 0.0;
       const double mu = 0.02;
       while(rhs - inf <= mu*(sup - inf) || sup - rhs <= mu*(sup - inf)) {
+        iter++;
         if(vel1_diesis - a1*tau1L_diesis > vel2_diesis - a2*tau2L_diesis &&
            vel1_diesis + a1*tau1R_diesis < vel2_diesis + a2*tau2R_diesis) {
           a1 *= fact;
@@ -408,25 +412,39 @@ namespace samurai {
 
       const double fact = 1.01; // Safety factor
       // Loop to be sure that tau_diesis variables are positive (theorem 3.5, Coquel et al. JCP 2017)
-      while(tau1L_diesis <= 0.0 || tau1R_diesis <= 0.0) {
+      unsigned int iter = 0;
+      while((tau1L_diesis <= 0.0 || tau1R_diesis <= 0.0) && iter < max_Newton_iters) {
+        iter++;
         a1 *= fact;
         vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5*(p1R - p1L)/a1;
         p1_diesis    = 0.5*(p1R + p1L) - 0.5*a1*(vel1R_d - vel1L_d);
         tau1L_diesis = 1.0/rho1L + (vel1_diesis - vel1L_d)/a1;
         tau1R_diesis = 1.0/rho1R - (vel1_diesis - vel1R_d)/a1;
       }
-      while(tau2L_diesis <= 0.0 || tau2R_diesis <= 0.0) {
+      if(iter == max_Newton_iters) {
+        std::cerr << "Maximum iterations in Suliciu flux loop: positivity of tau1" << std::endl;
+        exit(1);
+      }
+      iter = 0;
+      while((tau2L_diesis <= 0.0 || tau2R_diesis <= 0.0) && iter < max_Newton_iters) {
+        iter++;
         a2 *= fact;
         vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5*(p2R - p2L)/a2;
         p2_diesis    = 0.5*(p2R + p2L) - 0.5*a2*(vel2R_d - vel2L_d);
         tau2L_diesis = 1.0/rho2L + (vel2_diesis - vel2L_d)/a2;
         tau2R_diesis = 1.0/rho2R - (vel2_diesis - vel2R_d)/a2;
       }
-
+      if(iter == max_Newton_iters) {
+        std::cerr << "Maximum iterations in Suliciu flux loop: positivity of tau2" << std::endl;
+        exit(1);
+      }
       // Update of a1 and a2 so that a solution for u* surely exists
       field_type rhs = 0.0, sup = 0.0, inf = 0.0;
       const double mu = 0.02;
-      while(rhs - inf <= mu*(sup - inf) || sup - rhs <= mu*(sup - inf)) {
+      field_type cLmax, cRmin;
+      iter = 0;
+      while((rhs - inf <= mu*(sup - inf) || sup - rhs <= mu*(sup - inf)) && iter < max_Newton_iters) {
+        iter++;
         if(vel1_diesis - a1*tau1L_diesis > vel2_diesis - a2*tau2L_diesis &&
            vel1_diesis + a1*tau1R_diesis < vel2_diesis + a2*tau2R_diesis) {
           a1 *= fact;
@@ -458,13 +476,17 @@ namespace samurai {
             tau2R_diesis = 1.0/rho2R - 1.0/a2*(vel2_diesis - vel2R_d);
           }
         }
+        if(iter == max_Newton_iters) {
+          std::cerr << "Maximum iterations in Suliciu flux loop: failed to ensure u* exists" << std::endl;
+          exit(1);
+        }
 
         // Compute the rhs of the equation for u*
         rhs = -p1_diesis*(alpha1R-alpha1L) -p2_diesis*(alpha2R-alpha2L);
 
         // Limits on u* so that the relative Mach number is below one
-        const auto cLmax = std::max(vel1_diesis - a1*tau1L_diesis, vel2_diesis - a2*tau2L_diesis);
-        const auto cRmin = std::min(vel1_diesis + a1*tau1R_diesis, vel2_diesis + a2*tau2R_diesis);
+        cLmax = std::max(vel1_diesis - a1*tau1L_diesis, vel2_diesis - a2*tau2L_diesis);
+        cRmin = std::min(vel1_diesis + a1*tau1R_diesis, vel2_diesis + a2*tau2R_diesis);
 
         // Bounds on the function Psi
         inf = Psi(cLmax, a1, alpha1L, alpha1R, vel1_diesis,
@@ -476,7 +498,8 @@ namespace samurai {
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
       const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
-                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
+                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
+                                       cLmax, cRmin);
 
       /*--- Compute the "fluxes" ---*/
       field_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
@@ -706,7 +729,8 @@ namespace samurai {
   template<typename T>
   T RelaxationFlux<Field>::Newton(const T rhs,
                                   const T a1, const T alpha1L, const T alpha1R, const T vel1_diesis, const T tau1L_diesis, const T tau1R_diesis,
-                                  const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis) const {
+                                  const T a2, const T alpha2L, const T alpha2R, const T vel2_diesis, const T tau2L_diesis, const T tau2R_diesis,
+                                  const T cLmax, const T cRmin) const {
     if(alpha1L == alpha1R) {
       return vel1_diesis;
     }
@@ -721,6 +745,7 @@ namespace samurai {
                            a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs)/
               (dPsi_dustar(u_star, a1, alpha1L, alpha1R,
                                    a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis));
+      du = std::max(std::min(du, 0.9*(cRmin - u_star)), 0.9*(cLmax - u_star));
 
       while(iter < max_Newton_iters &&
             //std::abs(Psi(u_star, a1, alpha1L, alpha1R, vel1_diesis,
@@ -734,10 +759,11 @@ namespace samurai {
                            a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs)/
               (dPsi_dustar(u_star, a1, alpha1L, alpha1R,
                                    a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis));
+        du = std::max(std::min(du, 0.9*(cRmin - u_star)), 0.9*(cLmax - u_star));
       }
 
       // Safety check
-      if(iter == 50) {
+      if(iter == max_Newton_iters) {
         std::cout << "Newton method not converged." << std::endl;
         exit(0);
       }

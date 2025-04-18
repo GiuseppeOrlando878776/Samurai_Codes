@@ -111,7 +111,6 @@ namespace samurai {
 
                                               compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
 
-                                              samurai::FluxValuePair<typename Flux<Field>::cfg> flux;
                                               flux[0] = F_minus;
                                               flux[1] = -F_plus;
 
