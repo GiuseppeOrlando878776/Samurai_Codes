@@ -413,7 +413,7 @@ namespace samurai {
       const double fact = 1.01; // Safety factor
       // Loop to be sure that tau_diesis variables are positive (theorem 3.5, Coquel et al. JCP 2017)
       unsigned int iter = 0;
-      while((tau1L_diesis <= 0.0 || tau1R_diesis <= 0.0) && iter < max_Newton_iters) {
+      while((tau1L_diesis <= 0.0 || tau1R_diesis <= 0.0) && iter < 1000) {
         iter++;
         a1 *= fact;
         vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5*(p1R - p1L)/a1;
@@ -421,12 +421,12 @@ namespace samurai {
         tau1L_diesis = 1.0/rho1L + (vel1_diesis - vel1L_d)/a1;
         tau1R_diesis = 1.0/rho1R - (vel1_diesis - vel1R_d)/a1;
       }
-      if(iter == max_Newton_iters) {
+      if(iter == 1000) {
         std::cerr << "Maximum iterations in Suliciu flux loop: positivity of tau1" << std::endl;
         exit(1);
       }
       iter = 0;
-      while((tau2L_diesis <= 0.0 || tau2R_diesis <= 0.0) && iter < max_Newton_iters) {
+      while((tau2L_diesis <= 0.0 || tau2R_diesis <= 0.0) && iter < 1000) {
         iter++;
         a2 *= fact;
         vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5*(p2R - p2L)/a2;
@@ -434,7 +434,7 @@ namespace samurai {
         tau2L_diesis = 1.0/rho2L + (vel2_diesis - vel2L_d)/a2;
         tau2R_diesis = 1.0/rho2R - (vel2_diesis - vel2R_d)/a2;
       }
-      if(iter == max_Newton_iters) {
+      if(iter == 1000) {
         std::cerr << "Maximum iterations in Suliciu flux loop: positivity of tau2" << std::endl;
         exit(1);
       }
@@ -443,7 +443,7 @@ namespace samurai {
       const double mu = 0.02;
       field_type cLmax, cRmin;
       iter = 0;
-      while((rhs - inf <= mu*(sup - inf) || sup - rhs <= mu*(sup - inf)) && iter < max_Newton_iters) {
+      while((rhs - inf <= mu*(sup - inf) || sup - rhs <= mu*(sup - inf)) && iter < 1000) {
         iter++;
         if(vel1_diesis - a1*tau1L_diesis > vel2_diesis - a2*tau2L_diesis &&
            vel1_diesis + a1*tau1R_diesis < vel2_diesis + a2*tau2R_diesis) {
@@ -476,10 +476,6 @@ namespace samurai {
             tau2R_diesis = 1.0/rho2R - 1.0/a2*(vel2_diesis - vel2R_d);
           }
         }
-        if(iter == max_Newton_iters) {
-          std::cerr << "Maximum iterations in Suliciu flux loop: failed to ensure u* exists" << std::endl;
-          exit(1);
-        }
 
         // Compute the rhs of the equation for u*
         rhs = -p1_diesis*(alpha1R-alpha1L) -p2_diesis*(alpha2R-alpha2L);
@@ -494,6 +490,10 @@ namespace samurai {
         sup = Psi(cRmin, a1, alpha1L, alpha1R, vel1_diesis,
                          a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
 
+      }
+      if(iter == 1000) {
+        std::cerr << "Maximum iterations in Suliciu flux loop: failed to ensure u* exists" << std::endl;
+        exit(1);
       }
 
       // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
@@ -764,8 +764,8 @@ namespace samurai {
 
       // Safety check
       if(iter == max_Newton_iters) {
-        std::cout << "Newton method not converged." << std::endl;
-        exit(0);
+        std::cout << "Newton method not converged in Suliciu-type scheme." << std::endl;
+        exit(1);
       }
 
       return u_star;

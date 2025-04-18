@@ -18,8 +18,8 @@ namespace fs = std::filesystem;
 /*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
 
-//#define SULICIU_RELAXATION
-#define RUSANOV_FLUX
+#define SULICIU_RELAXATION
+//#define RUSANOV_FLUX
 
 #ifdef SULICIU_RELAXATION
   #include "Suliciu_scheme.hpp"
