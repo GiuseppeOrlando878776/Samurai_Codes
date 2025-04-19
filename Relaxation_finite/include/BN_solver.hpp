@@ -1560,7 +1560,7 @@ void BN_Solver<dim>::run() {
     #elifdef RUSANOV_FLUX
       auto Cons_Flux    = Rusanov_flux(conserved_variables);
       auto NonCons_Flux = NonConservative_flux(conserved_variables);
-      dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+      dt = std::min(Tf - t, std::min(0.001*(nt + 1),cfl)*dx/get_max_lambda());
     #endif
     t += dt;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
