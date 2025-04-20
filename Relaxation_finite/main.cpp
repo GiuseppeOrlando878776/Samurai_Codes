@@ -124,17 +124,21 @@ int main(int argc, char* argv[]) {
   Riemann_param.alpha1L = input.value("alpha1L", 0.8);
   Riemann_param.p1L     = input.value("p1L", 1e3);
   Riemann_param.rho1L   = input.value("rho1L", 1.0);
+  Riemann_param.T1L     = input.value("T1L", 363.0);
   Riemann_param.u1L     = input.value("u1L", -19.59716);
   Riemann_param.p2L     = input.value("p2L", 1e3);
   Riemann_param.rho2L   = input.value("rho2L", 1.0);
+  Riemann_param.T2L     = input.value("T2L", 1000.0);
   Riemann_param.u2L     = input.value("u2L", -19.59741);
 
   Riemann_param.alpha1R = input.value("alpha1R", 0.3);
   Riemann_param.p1R     = input.value("p1R", 1e-1);
   Riemann_param.rho1R   = input.value("rho1R", 1.0);
+  Riemann_param.T1R     = input.value("T1R", 363.0);
   Riemann_param.u1R     = input.value("u1R", -19.59741);
   Riemann_param.p2R     = input.value("p2R", 1e-1);
   Riemann_param.rho2R   = input.value("rho2R", 1.0);
+  Riemann_param.T2R     = input.value("T2R", 1000.0);
   Riemann_param.u2R     = input.value("u2R", -19.59741);
 
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
