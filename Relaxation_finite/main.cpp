@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
 
   sim_param.Tf      = input.value("Tf", 0.007);
   sim_param.Courant = input.value("cfl", 0.2);
+  sim_param.dt      = input.value("dt", 1e-8);
 
   sim_param.nfiles = input.value("nfiles", 10);
 
