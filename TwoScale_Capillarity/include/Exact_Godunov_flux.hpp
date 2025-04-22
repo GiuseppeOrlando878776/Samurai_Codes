@@ -132,27 +132,27 @@ namespace samurai {
     typename Field::value_type dp_star = std::numeric_limits<typename Field::value_type>::infinity();
 
     /*--- Left state useful variables ---*/
-    const auto rho_L        = qL(M1_INDEX) + qL(M2_INDEX) + qL(M1_D_INDEX);
-    const auto alpha1_bar_L = qL(RHO_ALPHA1_BAR_INDEX)/rho_L;
-    const auto alpha1_L     = alpha1_bar_L*(1.0 - qL(ALPHA1_D_INDEX));
-    const auto rho1_L       = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_L     = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
-    const auto rho2_L       = qL(M2_INDEX)/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L  = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                            + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
-    const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
-    const auto p_bar_L      = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
+    const auto rho_L          = qL(M1_INDEX) + qL(M2_INDEX) + qL(M1_D_INDEX);
+    const auto alpha1_bar_L   = qL(RHO_ALPHA1_BAR_INDEX)/rho_L;
+    const auto alpha1_L       = alpha1_bar_L*(1.0 - qL(ALPHA1_D_INDEX));
+    const auto rho1_L         = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha2_L       = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
+    const auto rho2_L         = qL(M2_INDEX)/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                              + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto c_L            = std::sqrt(rhoc_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
+    const auto p_bar_L        = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
 
     /*--- Right state useful variables ---*/
-    const auto rho_R        = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
-    const auto alpha1_bar_R = qR(RHO_ALPHA1_BAR_INDEX)/rho_R;
-    const auto alpha1_R     = alpha1_bar_R*(1.0 - qR(ALPHA1_D_INDEX));
-    const auto rho1_R       = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_R     = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
-    const auto rho2_R       = qR(M2_INDEX)/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R  = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                            + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
-    const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
+    const auto rho_R          = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
+    const auto alpha1_bar_R   = qR(RHO_ALPHA1_BAR_INDEX)/rho_R;
+    const auto alpha1_R       = alpha1_bar_R*(1.0 - qR(ALPHA1_D_INDEX));
+    const auto rho1_R         = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha2_R       = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
+    const auto rho2_R         = qR(M2_INDEX)/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                              + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto c_R            = std::sqrt(rhoc_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
     const auto p_bar_R      = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
 
@@ -275,28 +275,28 @@ namespace samurai {
     FluxValue<typename Flux<Field>::cfg> q_star = qL;
 
     // Left state useful variables
-    const auto rho_L        = qL(M1_INDEX) + qL(M2_INDEX) + qL(M1_D_INDEX);
-    const auto vel_d_L      = qL(RHO_U_INDEX + curr_d)/rho_L;
-    const auto alpha1_bar_L = qL(RHO_ALPHA1_BAR_INDEX)/rho_L;
-    const auto alpha1_L     = alpha1_bar_L*(1.0 - qL(ALPHA1_D_INDEX));
-    const auto rho1_L       = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_L     = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
-    const auto rho2_L       = qL(M2_INDEX)/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L  = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                            + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
-    const auto c_L          = std::sqrt(c_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
+    const auto rho_L          = qL(M1_INDEX) + qL(M2_INDEX) + qL(M1_D_INDEX);
+    const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)/rho_L;
+    const auto alpha1_bar_L   = qL(RHO_ALPHA1_BAR_INDEX)/rho_L;
+    const auto alpha1_L       = alpha1_bar_L*(1.0 - qL(ALPHA1_D_INDEX));
+    const auto rho1_L         = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha2_L       = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
+    const auto rho2_L         = qL(M2_INDEX)/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                              + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto c_L            = std::sqrt(rhoc_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
 
     // Right state useful variables
-    const auto rho_R        = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
-    const auto vel_d_R      = qR(RHO_U_INDEX + curr_d)/rho_R;
-    const auto alpha1_bar_R = qR(RHO_ALPHA1_BAR_INDEX)/rho_R;
-    const auto alpha1_R     = alpha1_bar_R*(1.0 - qR(ALPHA1_D_INDEX));
-    const auto rho1_R       = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_R     = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
-    const auto rho2_R       = qR(M2_INDEX)/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R  = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                            + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
-    const auto c_R          = std::sqrt(c_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
+    const auto rho_R          = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
+    const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)/rho_R;
+    const auto alpha1_bar_R   = qR(RHO_ALPHA1_BAR_INDEX)/rho_R;
+    const auto alpha1_R       = alpha1_bar_R*(1.0 - qR(ALPHA1_D_INDEX));
+    const auto rho1_R         = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha2_R       = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
+    const auto rho2_R         = qR(M2_INDEX)/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                              + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto c_R            = std::sqrt(rhoc_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
 
     // Compute p*
     const auto p_bar_L = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L)
@@ -419,7 +419,7 @@ namespace samurai {
       // 1-wave right shock
       if(p_star > p_bar_R) {
         const auto r = 1.0 + (1.0 - qR(ALPHA1_D_INDEX))/
-                             (qR(ALPHA1_D_INDEX) + (c_squared_R*(1.0 - qR(ALPHA1_D_INDEX)))/(p_star - p_bar_R));
+                             (qR(ALPHA1_D_INDEX) + (rhoc_squared_R*(1.0 - qR(ALPHA1_D_INDEX)))/(p_star - p_bar_R));
 
         const auto m1_R_star       = qR(M1_INDEX)*r;
         const auto m2_R_star       = qR(M2_INDEX)*r;
