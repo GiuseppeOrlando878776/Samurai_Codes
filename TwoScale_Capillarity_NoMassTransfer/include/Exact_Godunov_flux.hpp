@@ -82,26 +82,26 @@ namespace samurai {
     typename Field::value_type dp_star = std::numeric_limits<typename Field::value_type>::infinity();
 
     /*--- Left state useful variables ---*/
-    const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
-    const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
-    const auto rho1_L      = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_L      = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                           + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
-    const auto c_L         = std::sqrt(c_squared_L/rho_L);
-    const auto p_L         = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
-                           + (1.0 - alpha1_L)*this->EOS_phase2.pres_value(rho2_L);
+    const auto rho_L          = qL(M1_INDEX) + qL(M2_INDEX);
+    const auto alpha1_L       = qL(RHO_ALPHA1_INDEX)/rho_L;
+    const auto rho1_L         = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L         = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                              + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto c_L            = std::sqrt(rhoc_squared_L/rho_L);
+    const auto p_L            = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
+                              + (1.0 - alpha1_L)*this->EOS_phase2.pres_value(rho2_L);
 
     /*--- Right state useful variables ---*/
-    const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
-    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
-    const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_R      = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                           + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
-    const auto c_R         = std::sqrt(c_squared_R/rho_R);
-    const auto p_R         = alpha1_R*this->EOS_phase1.pres_value(rho1_R)
-                           + (1.0 - alpha1_R)*this->EOS_phase2.pres_value(rho2_R);
+    const auto rho_R          = qR(M1_INDEX) + qR(M2_INDEX);
+    const auto alpha1_R       = qR(RHO_ALPHA1_INDEX)/rho_R;
+    const auto rho1_R         = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R         = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                              + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto c_R            = std::sqrt(rhoc_squared_R/rho_R);
+    const auto p_R            = alpha1_R*this->EOS_phase1.pres_value(rho1_R)
+                              + (1.0 - alpha1_R)*this->EOS_phase2.pres_value(rho2_R);
 
     if(p_star <= p0_L || p_L <= p0_L) {
       throw std::runtime_error("Non-admissible value for the pressure at the beginning of the Newton method to compute p* in Godunov solver");
@@ -210,40 +210,40 @@ namespace samurai {
     FluxValue<typename Flux<Field>::cfg> q_star = qL;
 
     // Left state useful variables
-    const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
-    const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
-    const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
-    const auto rho1_L      = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_L      = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                           + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto rho_L          = qL(M1_INDEX) + qL(M2_INDEX);
+    const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)/rho_L;
+    const auto alpha1_L       = qL(RHO_ALPHA1_INDEX)/rho_L;
+    const auto rho1_L         = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L         = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                              + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     #ifdef VERBOSE_FLUX
       if(rho_L < 0.0) {
         throw std::runtime_error(std::string("Negative density left state: " + std::to_string(rho_L)));
       }
-      if(c_squared_L/rho_L < 0.0) {
-        throw std::runtime_error(std::string("Negative square speed of sound left state: " + std::to_string(c_squared_L/rho_L)));
+      if(rhoc_squared_L/rho_L < 0.0) {
+        throw std::runtime_error(std::string("Negative square speed of sound left state: " + std::to_string(rhoc_squared_L/rho_L)));
       }
     #endif
-    const auto c_L = std::sqrt(c_squared_L/rho_L);
+    const auto c_L = std::sqrt(rhoc_squared_L/rho_L);
 
     // Right state useful variables
-    const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
-    const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
-    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;
-    const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_R      = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                           + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto rho_R          = qR(M1_INDEX) + qR(M2_INDEX);
+    const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)/rho_R;
+    const auto alpha1_R       = qR(RHO_ALPHA1_INDEX)/rho_R;
+    const auto rho1_R         = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R         = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                              + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     #ifdef VERBOSE_FLUX
       if(rho_R < 0.0) {
         throw std::runtime_error(std::string("Negative density right state: " + std::to_string(rho_R)));
       }
-      if(c_squared_R/rho_R < 0.0) {
-        throw std::runtime_error(std::string("Negative square speed of sound right state: " + std::to_string(c_squared_R/rho_R)));
+      if(rhoc_squared_R/rho_R < 0.0) {
+        throw std::runtime_error(std::string("Negative square speed of sound right state: " + std::to_string(rhoc_squared_R/rho_R)));
       }
     #endif
-    const auto c_R = std::sqrt(c_squared_R/rho_R);
+    const auto c_R = std::sqrt(rhoc_squared_R/rho_R);
 
     // Compute p*
     const auto p_L = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
@@ -251,8 +251,8 @@ namespace samurai {
     const auto p_R = alpha1_R*this->EOS_phase1.pres_value(rho1_R)
                    + (1.0 - alpha1_R)*this->EOS_phase2.pres_value(rho2_R);
 
-    const auto p0_L = p_L - c_squared_L;
-    const auto p0_R = p_R - c_squared_R;
+    const auto p0_L = p_L - rhoc_squared_L;
+    const auto p0_R = p_R - rhoc_squared_R;
 
     auto p_star = std::max(0.5*(p_L + p_R),
                            std::max(p0_L, p0_R) + 0.1*std::abs(std::max(p0_L, p0_R)));
@@ -266,7 +266,7 @@ namespace samurai {
     if(u_star > 0.0) {
       // 1-wave left shock
       if(p_star > p_L) {
-        const auto r = 1.0 + 1.0/(c_squared_L/(p_star - p_L));
+        const auto r = 1.0 + 1.0/(rhoc_squared_L/(p_star - p_L));
 
         const auto m1_L_star  = qL(M1_INDEX)*r;
         const auto m2_L_star  = qL(M2_INDEX)*r;
@@ -339,7 +339,7 @@ namespace samurai {
     else {
       // 1-wave right shock
       if(p_star > p_R) {
-        const auto r = 1.0 + 1.0/(c_squared_R/(p_star - p_R));
+        const auto r = 1.0 + 1.0/(rhoc_squared_R/(p_star - p_R));
 
         const auto m1_R_star  = qR(M1_INDEX)*r;
         const auto m2_R_star  = qR(M2_INDEX)*r;

@@ -83,42 +83,42 @@ namespace samurai {
     #endif
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
-    const auto rho_L       = qL(M1_INDEX) + qL(M2_INDEX);
-    const auto vel_d_L     = qL(RHO_U_INDEX + curr_d)/rho_L;
+    const auto rho_L          = qL(M1_INDEX) + qL(M2_INDEX);
+    const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)/rho_L;
 
-    const auto alpha1_L    = qL(RHO_ALPHA1_INDEX)/rho_L;
-    const auto rho1_L      = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_L      = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                           + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto alpha1_L       = qL(RHO_ALPHA1_INDEX)/rho_L;
+    const auto rho1_L         = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L         = qL(M2_INDEX)/(1.0 - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                              + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     #ifdef VERBOSE_FLUX
       if(rho_L < 0.0) {
         throw std::runtime_error(std::string("Negative density left state: " + std::to_string(rho_L)));
       }
-      if(c_squared_L/rho_L < 0.0) {
-        throw std::runtime_error(std::string("Negative square speed of sound left state: " + std::to_string(c_squared_L/rho_L)));
+      if(rhoc_squared_L/rho_L < 0.0) {
+        throw std::runtime_error(std::string("Negative square speed of sound left state: " + std::to_string(rhoc_squared_L/rho_L)));
       }
     #endif
-    const auto c_L = std::sqrt(c_squared_L/rho_L);
+    const auto c_L = std::sqrt(rhoc_squared_L/rho_L);
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
-    const auto rho_R       = qR(M1_INDEX) + qR(M2_INDEX);
-    const auto vel_d_R     = qR(RHO_U_INDEX + curr_d)/rho_R;
+    const auto rho_R          = qR(M1_INDEX) + qR(M2_INDEX);
+    const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)/rho_R;
 
-    const auto alpha1_R    = qR(RHO_ALPHA1_INDEX)/rho_R;;
-    const auto rho1_R      = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_R      = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                           + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto alpha1_R       = qR(RHO_ALPHA1_INDEX)/rho_R;;
+    const auto rho1_R         = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R         = qR(M2_INDEX)/(1.0 - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                              + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     #ifdef VERBOSE_FLUX
       if(rho_R < 0.0) {
         throw std::runtime_error(std::string("Negative density right state: " + std::to_string(rho_R)));
       }
-      if(c_squared_R/rho_R < 0.0) {
-        throw std::runtime_error(std::string("Negative square speed of sound right state: " + std::to_string(c_squared_R/rho_R)));
+      if(rhoc_squared_R/rho_R < 0.0) {
+        throw std::runtime_error(std::string("Negative square speed of sound right state: " + std::to_string(rhoc_squared_R/rho_R)));
       }
     #endif
-    const auto c_R = std::sqrt(c_squared_R/rho_R);
+    const auto c_R = std::sqrt(rhoc_squared_R/rho_R);
 
     /*--- Compute the estimate of the eigenvalue ---*/
     const auto lambda = std::max(std::abs(vel_d_L) + c_L,
