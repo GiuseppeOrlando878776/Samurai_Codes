@@ -128,8 +128,8 @@ private:
 
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
-  double       MR_param;      /*--- Multiresolution parameter ---*/
-  unsigned int MR_regularity; /*--- Multiresolution regularity ---*/
+  double MR_param;      /*--- Multiresolution parameter ---*/
+  double MR_regularity; /*--- Multiresolution regularity ---*/
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
@@ -180,7 +180,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
                  lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   #elifdef GODUNOV_FLUX
     Godunov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
-                 lambda, atol_Newton, rtol_Newton, max_Newton_iters
+                 lambda, atol_Newton, rtol_Newton, max_Newton_iters,
                  sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star),
   #elifdef HLLC_FLUX
     HLLC_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,

@@ -147,8 +147,8 @@ private:
 
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
-  double       MR_param;      /*--- Multiresolution parameter ---*/
-  unsigned int MR_regularity; /*--- Multiresolution regularity ---*/
+  double MR_param;      /*--- Multiresolution parameter ---*/
+  double MR_regularity; /*--- Multiresolution regularity ---*/
 
   /*--- Auxiliary output streams for post-processing ---*/
   std::ofstream Hlig;
