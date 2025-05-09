@@ -349,6 +349,13 @@ namespace samurai {
     const auto p1_d = EOS_phase1.pres_value(rho1_d);
     prim(SIGMA_OV_ALPHA1_D_INDEX) = 1.5*(p1_d - prim(P2_INDEX))/sigma;
 
+    if(rho1_d < 0.0) {
+      std::cerr << "Negative rho1_d in cons2prim" << std::endl;
+    }
+    if(prim(SIGMA_OV_ALPHA1_D_INDEX) < -1e-12) {
+      std::cerr << "Negative \Delta p = p1_d - p2 in cons2prim = " << p1_d - prim(P2_INDEX) << std::endl;
+    }
+
     /*if(std::isnan(prim(Z_INDEX))) {
       std::cerr << "NaN in the cons2prim Z" << std::endl;
       std::cerr << "rho z = " << cons(RHO_Z_INDEX) << std::endl;
@@ -395,7 +402,16 @@ namespace samurai {
     for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
     }
-    cons(RHO_Z_INDEX) = rho*(std::pow(rho1_d, 2.0/3.0)/rho*prim(SIGMA_OV_ALPHA1_D_INDEX)*alpha1_d);
+    if(prim(SIGMA_OV_ALPHA1_D_INDEX) < 0.0) {
+      std::cerr << "Negative Sigma_d/alpha1_d in cons2prim" << std::endl;
+    }
+    if(rho1_d < 0.0) {
+      std::cerr << "Negative rho1_d in cons2prim" << std::endl;
+    }
+    if(alpha1_d < 0.0) {
+      std::cerr << "Negative alpha1_d in prim2cons" << std::endl;
+    }
+    cons(RHO_Z_INDEX) = std::pow(rho1_d, 2.0/3.0)*prim(SIGMA_OV_ALPHA1_D_INDEX)*alpha1_d;
 
     return cons;
   }
