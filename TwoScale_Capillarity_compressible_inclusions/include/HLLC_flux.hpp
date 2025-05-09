@@ -104,7 +104,7 @@ namespace samurai {
       if(qL(M2_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative mass gas left state: " + std::to_string(qL(M2_INDEX))));
       }
-      if(qL(M1_D_INDEX) < 0.0) {
+      if(qL(M1_D_INDEX) < -1e-15) {
         throw std::runtime_error(std::string("Negative mass small-scale liquid left state: " + std::to_string(qL(M1_D_INDEX))));
       }
       if(qL(RHO_ALPHA1_INDEX) < 0.0) {
@@ -196,6 +196,13 @@ namespace samurai {
     /*--- Compute intermediate states ---*/
     const auto q_star_L = compute_middle_state(qL, s_L, s_star, curr_d);
     const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
+
+    if(q_star_L(M1_D_INDEX) < -1e-15) {
+      std::cerr << "Negative mass small-scale left star state" << std::endl;
+    }
+    if(q_star_R(M1_D_INDEX) < -1e-15) {
+      std::cerr << "Negative mass small-scale right star state" << std::endl;
+    }
 
     /*--- Compute the flux ---*/
     if(s_L >= 0.0) {

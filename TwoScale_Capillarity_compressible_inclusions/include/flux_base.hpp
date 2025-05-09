@@ -37,12 +37,14 @@ namespace EquationData {
   static constexpr std::size_t NVARS = 5 + dim;
 
   /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
-  static constexpr std::size_t ALPHA1_INDEX = RHO_ALPHA1_INDEX;
-  static constexpr std::size_t P1_INDEX     = M1_INDEX;
-  static constexpr std::size_t P2_INDEX     = M2_INDEX;
-  static constexpr std::size_t P1_D_INDEX   = M1_D_INDEX;
-  static constexpr std::size_t Z_INDEX      = RHO_Z_INDEX;
-  static constexpr std::size_t U_INDEX      = RHO_U_INDEX;
+  static constexpr std::size_t ALPHA1_INDEX            = RHO_ALPHA1_INDEX;
+  static constexpr std::size_t P1_INDEX                = M1_INDEX;
+  static constexpr std::size_t P2_INDEX                = M2_INDEX;
+  static constexpr std::size_t ALPHA1_D_2_INDEX        = M1_D_INDEX;
+  static constexpr std::size_t SIGMA_OV_ALPHA1_D_INDEX = RHO_Z_INDEX;
+  static constexpr std::size_t U_INDEX                 = RHO_U_INDEX;
+  /*static constexpr std::size_t P1_D_INDEX   = M1_D_INDEX;
+  static constexpr std::size_t Z_INDEX      = RHO_Z_INDEX;*/
 
   template<typename Field>
   typename Field::value_type compute_rho1_d_local_Laplace(const typename Field::value_type m1_d,
@@ -332,14 +334,20 @@ namespace samurai {
       std::cerr << e.what() << std::endl;
       exit(1);
     }
+    if(rho1_d < 0.0) {
+      std::cerr << "Negative rho1_d in cons2prim" << std::endl;
+    }
     const auto alpha1_d = cons(M1_D_INDEX)/rho1_d;
     prim(P2_INDEX)      = EOS_phase2.pres_value(cons(M2_INDEX)/(1.0 - prim(ALPHA1_INDEX) - alpha1_d));
                          /*--- TODO: Add a check in case of zero volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
       prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
     }
-    prim(P1_D_INDEX) = EOS_phase1.pres_value(rho1_d);
-    prim(Z_INDEX)    = cons(RHO_Z_INDEX)/rho;
+    /*prim(P1_D_INDEX) = EOS_phase1.pres_value(rho1_d);
+      prim(Z_INDEX)    = cons(RHO_Z_INDEX)/rho;*/
+    prim(ALPHA1_D_2_INDEX) = alpha1_d/(1.0 - prim(ALPHA1_INDEX));
+    const auto p1_d = EOS_phase1.pres_value(rho1_d);
+    prim(SIGMA_OV_ALPHA1_D_INDEX) = 1.5*(p1_d - prim(P2_INDEX))/sigma;
 
     /*if(std::isnan(prim(Z_INDEX))) {
       std::cerr << "NaN in the cons2prim Z" << std::endl;
@@ -360,21 +368,34 @@ namespace samurai {
     cons(M1_INDEX) = prim(ALPHA1_INDEX)*EOS_phase1.rho_value(prim(P1_INDEX));
 
     /*--- Update alpha1_d thanks to local Laplace law ---*/
-    const auto rho1_d      = EOS_phase1.rho_value(prim(P1_D_INDEX));
+    /*const auto rho1_d      = EOS_phase1.rho_value(prim(P1_D_INDEX));
     const auto rho2        = EOS_phase2.rho_value(prim(P2_INDEX));
     const auto Delta_p     = prim(P1_D_INDEX) - prim(P2_INDEX);
     const auto alpha1_d    = 2.0*sigma*prim(Z_INDEX)*
                              (cons(M1_INDEX) + (1.0 - prim(ALPHA1_INDEX))*rho2)/
-                             (std::abs(3.0*std::pow(rho1_d, 2.0/3.0)*Delta_p + 2.0*sigma*prim(Z_INDEX)*(rho2 - rho1_d)) + 1e-13);
+                             (std::abs(3.0*std::pow(rho1_d, 2.0/3.0)*Delta_p + 2.0*sigma*prim(Z_INDEX)*(rho2 - rho1_d)) + 1e-13);*/
                              /*--- Added tolerance because division by zero occurs when alpha1_d = 0 (\Delta p = 0, z = 0) ---*/
+    /*if(prim(ALPHA1_D_INDEX) < 0.0) {
+      std::cerr << "Negative alpha1_d in prim2cons" << std::endl;
+    }
+    if(rho1_d < 0.0) {
+      std::cerr << "Negative rho1_d in prim2cons" << std::endl;
+    }
+    if(Delta_p < 0.0) {
+      std::cerr << "Negative \Delta p = p1_d - p2 in prim2cons" << std::endl;
+    }*/
+    const auto rho2        = EOS_phase2.rho_value(prim(P2_INDEX));
+    const auto alpha1_d    = (1.0 - prim(ALPHA1_INDEX))*prim(ALPHA1_D_2_INDEX);
     cons(M2_INDEX)         = (1.0 - prim(ALPHA1_INDEX) - alpha1_d)*rho2;
+    const auto p1_d        = prim(P2_INDEX) + 2.0/3.0*sigma*prim(SIGMA_OV_ALPHA1_D_INDEX);
+    const auto rho1_d      = EOS_phase1.rho_value(p1_d);
     cons(M1_D_INDEX)       = alpha1_d*rho1_d;
     const auto rho         = cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX);
     cons(RHO_ALPHA1_INDEX) = rho*prim(ALPHA1_INDEX);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
     }
-    cons(RHO_Z_INDEX) = rho*prim(Z_INDEX);
+    cons(RHO_Z_INDEX) = rho*(std::pow(rho1_d, 2.0/3.0)/rho*prim(SIGMA_OV_ALPHA1_D_INDEX)*alpha1_d);
 
     return cons;
   }
