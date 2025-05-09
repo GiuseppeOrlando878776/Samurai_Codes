@@ -79,7 +79,6 @@ namespace samurai {
     q_star(M1_D_INDEX)           = q(M1_D_INDEX)*((S - vel_d)/(S - S_star));
     const auto rho_star          = q_star(M1_INDEX) + q_star(M2_INDEX) + q_star(M1_D_INDEX);
     q_star(RHO_ALPHA1_INDEX)     = rho_star*(q(RHO_ALPHA1_INDEX)/rho);
-    q_star(ALPHA1_D_INDEX)       = rho_star*(q(ALPHA1_D_INDEX)/rho);
     q_star(RHO_Z_INDEX)          = rho_star*(q(RHO_Z_INDEX)/rho);
     q_star(RHO_U_INDEX + curr_d) = rho_star*S_star;
     for(std::size_t d = 0; d < Field::dim; ++d) {
@@ -111,9 +110,6 @@ namespace samurai {
       if(qL(RHO_ALPHA1_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid left state: " + std::to_string(qL(RHO_ALPHA1_INDEX))));
       }
-      if(qL(ALPHA1_D_INDEX) < -1e-15) {
-        throw std::runtime_error(std::string("Negative volume fraction small-scale liquid left state: " + std::to_string(qL(ALPHA1_D_INDEX))));
-      }
       if(qL(RHO_Z_INDEX) < -1e-15) {
         throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(qL(RHO_Z_INDEX))));
       }
@@ -130,9 +126,6 @@ namespace samurai {
       if(qR(RHO_ALPHA1_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid right state: " + std::to_string(qR(RHO_ALPHA1_INDEX))));
       }
-      if(qR(ALPHA1_D_INDEX) < -1e-15) {
-        throw std::runtime_error(std::string("Negative volume fraction small-scale liquid right state: " + std::to_string(qR(ALPHA1_D_INDEX))));
-      }
       if(qR(RHO_Z_INDEX) < -1e-15) {
         throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(qR(RHO_Z_INDEX))));
       }
@@ -144,7 +137,20 @@ namespace samurai {
 
     const auto alpha1_L       = qL(RHO_ALPHA1_INDEX)/rho_L;
     const auto rho1_L         = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_L       = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
+    typename Field::value_type rho1_d_L;
+    try {
+      rho1_d_L = compute_rho1_d_local_Laplace<Field>(qL(M1_D_INDEX), qL(M2_INDEX), qL(M1_INDEX), alpha1_L, qL(RHO_Z_INDEX),
+                                                     this->sigma, this->EOS_phase1, this->EOS_phase2,
+                                                     this->atol_Newton, this->rtol_Newton, this->max_Newton_iters, this->lambda);
+    }
+    catch(const std::exception& e) {
+      std::cerr << "Small-scale error when computing left star region" << std::endl;
+      std::cout << qL << std::endl;
+      std::cerr << e.what() << std::endl;
+      exit(1);
+    }
+    const auto alpha1_d_L     = qL(M1_D_INDEX)/rho1_d_L;
+    const auto alpha2_L       = 1.0 - alpha1_L - alpha1_d_L;
     const auto rho2_L         = qL(M2_INDEX)/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
                               + ((1.0 - alpha1_L)/(alpha2_L))*((1.0 - alpha1_L)/(alpha2_L))*
@@ -157,7 +163,20 @@ namespace samurai {
 
     const auto alpha1_R       = qR(RHO_ALPHA1_INDEX)/rho_R;
     const auto rho1_R         = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_R       = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
+    typename Field::value_type rho1_d_R;
+    try {
+      rho1_d_R = compute_rho1_d_local_Laplace<Field>(qR(M1_D_INDEX), qR(M2_INDEX), qR(M1_INDEX), alpha1_R, qR(RHO_Z_INDEX),
+                                                     this->sigma, this->EOS_phase1, this->EOS_phase2,
+                                                     this->atol_Newton, this->rtol_Newton, this->max_Newton_iters, this->lambda);
+    }
+    catch(const std::exception& e) {
+      std::cerr << "Small-scale error when computing right star region" << std::endl;
+      std::cout << qR << std::endl;
+      std::cerr << e.what() << std::endl;
+      exit(1);
+    }
+    const auto alpha1_d_R     = qR(M1_D_INDEX)/rho1_d_R;
+    const auto alpha2_R       = 1.0 - alpha1_R - alpha1_d_R;
     const auto rho2_R         = qR(M2_INDEX)/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
                               + ((1.0 - alpha1_R)/(alpha2_R))*((1.0 - alpha1_R)/(alpha2_R))*
@@ -223,32 +242,32 @@ namespace samurai {
                                                  primLL = this->cons2prim(field[0]);
                                                }
                                                catch(const std::exception& e) {
+                                                 std::cout << e.what() << std::endl;
                                                  std::cout << data.cells[0] << std::endl;
-                                                 exit(1);
                                                }
                                                FluxValue<typename Flux<Field>::cfg> primL;
                                                try {
                                                  primL = this->cons2prim(field[1]);
                                                }
                                                catch(const std::exception& e) {
+                                                 std::cout << e.what() << std::endl;
                                                  std::cout << data.cells[1] << std::endl;
-                                                 exit(1);
                                                }
                                                FluxValue<typename Flux<Field>::cfg> primR;
                                                try {
                                                  primR = this->cons2prim(field[2]);
                                                }
                                                catch(const std::exception& e) {
+                                                 std::cout << e.what() << std::endl;
                                                  std::cout << data.cells[2] << std::endl;
-                                                 exit(1);
                                                }
                                                FluxValue<typename Flux<Field>::cfg> primRR;
                                                try {
                                                  primRR = this->cons2prim(field[3]);
                                                }
                                                catch(const std::exception& e) {
+                                                 std::cout << e.what() << std::endl;
                                                  std::cout << data.cells[3] << std::endl;
-                                                 exit(1);
                                                }*/
                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);

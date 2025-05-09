@@ -23,7 +23,7 @@
  "Tf": 1.5,
  "cfl": 0.4,
 
- "nfiles": 10,
+ "nfiles": 30,
 
  "alpha_residual": 1e-8,
  "mod_grad_alpha1_min": 1e-3,

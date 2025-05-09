@@ -46,8 +46,14 @@ auto Inlet(const Field& Q,
            const typename Field::value_type alpha1_D,
            const typename Field::value_type alpha1_d_D,
            const typename Field::value_type rho1_d_D,
-           const typename Field::value_type z_D) {
-  return[&Q, ux_D, uy_D, alpha1_D, alpha1_d_D, rho1_d_D, z_D]
+           const typename Field::value_type z_D,
+           const double sigma,
+           const BarotropicEOS<typename Field::value_type>& EOS_phase1,
+           const BarotropicEOS<typename Field::value_type>& EOS_phase2,
+           const double atol_Newton = 1e-14, const double rtol_Newton = 1e-12,
+           const std::size_t max_Newton_iters = 60, const double lambda = 0.9) {
+  return[&Q, ux_D, uy_D, alpha1_D, alpha1_d_D, rho1_d_D, z_D,
+         sigma, &EOS_phase1, &EOS_phase2, atol_Newton, rtol_Newton, max_Newton_iters, lambda]
   (const auto& /*normal*/, const auto& cell_in, const auto& /*coord*/)
   {
     /*--- Compute phasic pressures form the internal state ---*/
@@ -55,8 +61,25 @@ auto Inlet(const Field& Q,
                         (Q[cell_in](M1_INDEX) + Q[cell_in](M2_INDEX) + Q[cell_in](M1_D_INDEX));
     const auto rho1   = Q[cell_in](M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
 
-    const auto alpha2 = 1.0 - alpha1 - Q[cell_in](ALPHA1_D_INDEX);
-    const auto rho2   = Q[cell_in](M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    typename Field::value_type rho1_d;
+    try {
+      rho1_d = compute_rho1_d_local_Laplace<Field>(Q[cell_in](M1_D_INDEX),
+                                                   Q[cell_in](M2_INDEX),
+                                                   Q[cell_in](M1_INDEX),
+                                                   alpha1,
+                                                   Q[cell_in](RHO_Z_INDEX),
+                                                   sigma, EOS_phase1, EOS_phase2,
+                                                   atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+    }
+    catch(const std::exception& e) {
+      std::cerr << "Small-scale error when computing bc" << std::endl;
+      std::cout << Q[cell_in] << std::endl;
+      std::cerr << e.what() << std::endl;
+      exit(1);
+    }
+    const auto alpha1_d = Q[cell_in](M1_D_INDEX)/rho1_d;
+    const auto alpha2   = 1.0 - alpha1 - alpha1_d;
+    const auto rho2     = Q[cell_in](M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
 
     /*--- Compute the corresponding ghost state ---*/
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
@@ -64,7 +87,6 @@ auto Inlet(const Field& Q,
     Q_ghost[M1_INDEX]         = alpha1_D*rho1;
     Q_ghost[M2_INDEX]         = alpha2_D*rho2;
     Q_ghost[M1_D_INDEX]       = alpha1_d_D*rho1_d_D;
-    Q_ghost[ALPHA1_D_INDEX]   = alpha1_d_D;
     const auto rho_ghost      = Q_ghost[M1_INDEX] + Q_ghost[M2_INDEX] + Q_ghost[M1_D_INDEX];
     Q_ghost[RHO_Z_INDEX]      = rho_ghost*z_D;
     Q_ghost[RHO_ALPHA1_INDEX] = rho_ghost*alpha1_D;

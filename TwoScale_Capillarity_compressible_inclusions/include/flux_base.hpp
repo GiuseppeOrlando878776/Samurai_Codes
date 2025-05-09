@@ -15,7 +15,7 @@
 
 /*--- Preprocessor to define whether relaxation is desired after reconstruction for order 2 ---*/
 #ifdef ORDER_2
-  #define RELAX_RECONSTRUCTION
+  //#define RELAX_RECONSTRUCTION
 #endif
 
 /**
@@ -29,20 +29,76 @@ namespace EquationData {
   static constexpr std::size_t M1_INDEX         = 0;
   static constexpr std::size_t M2_INDEX         = 1;
   static constexpr std::size_t M1_D_INDEX       = 2;
-  static constexpr std::size_t ALPHA1_D_INDEX   = 3;
-  static constexpr std::size_t RHO_Z_INDEX      = 4;
-  static constexpr std::size_t RHO_ALPHA1_INDEX = 5;
-  static constexpr std::size_t RHO_U_INDEX      = 6;
+  static constexpr std::size_t RHO_Z_INDEX      = 3;
+  static constexpr std::size_t RHO_ALPHA1_INDEX = 4;
+  static constexpr std::size_t RHO_U_INDEX      = 5;
 
   /*--- Save also the total number of (scalar) variables ---*/
-  static constexpr std::size_t NVARS = 6 + dim;
+  static constexpr std::size_t NVARS = 5 + dim;
 
   /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
   static constexpr std::size_t ALPHA1_INDEX = RHO_ALPHA1_INDEX;
   static constexpr std::size_t P1_INDEX     = M1_INDEX;
   static constexpr std::size_t P2_INDEX     = M2_INDEX;
+  static constexpr std::size_t P1_D_INDEX   = M1_D_INDEX;
   static constexpr std::size_t Z_INDEX      = RHO_Z_INDEX;
   static constexpr std::size_t U_INDEX      = RHO_U_INDEX;
+
+  template<typename Field>
+  typename Field::value_type compute_rho1_d_local_Laplace(const typename Field::value_type m1_d,
+                                                          const typename Field::value_type m2,
+                                                          const typename Field::value_type m1,
+                                                          const typename Field::value_type alpha1,
+                                                          const typename Field::value_type rho_z,
+                                                          const double sigma,
+                                                          const BarotropicEOS<typename Field::value_type>& EOS_phase1,
+                                                          const BarotropicEOS<typename Field::value_type>& EOS_phase2,
+                                                          const double atol_Newton = 1e-14, const double rtol_Newton = 1e-12,
+                                                          const std::size_t max_Newton_iters = 60, const double lambda = 0.9) {
+    auto rho1_d = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    if(rho1_d < 0.0) {
+      throw std::runtime_error("Negative initial guess to compute small-scale Laplace law");
+    }
+
+    /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
+    auto p1_d       = EOS_phase1.pres_value(rho1_d);
+    auto p2         = EOS_phase2.pres_value(m2/(1.0 - alpha1 - m1_d/rho1_d));
+    auto F          = m1_d*(p1_d - p2) - 2.0/3.0*sigma*rho_z*std::pow(rho1_d, 1.0/3.0);
+    const auto F_0  = F;
+    auto drho1_d    = atol_Newton + 1.0;
+
+    std::size_t iter = 0;
+    for(iter = 0; iter < max_Newton_iters; ++iter) {
+      if(std::abs(F) > atol_Newton + rtol_Newton*std::abs(F_0) && std::abs(drho1_d) > atol_Newton) {
+        // Compute the derivative w.r.t rho1_d
+        const auto rho2       = m2/(1.0 - alpha1 - m1_d/rho1_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
+        const auto c1_d       = EOS_phase1.c_value(rho1_d);
+        const auto c2         = EOS_phase2.c_value(rho2);
+        const auto dF_drho1_d = m1_d*(c1_d*c1_d + c2*c2*rho2*rho2*m1/(m2*rho1_d*rho1_d))
+                              - 2.0/9.0*sigma*rho_z*std::pow(rho1_d, -2.0/3.0); /*--- TODO: Add a check in case of zero volume fraction ---*/
+
+        // Compute the rho1_d update
+        drho1_d = -F/dF_drho1_d;
+        if(drho1_d < 0.0) {
+          drho1_d = std::max(drho1_d, -lambda*rho1_d);
+        }
+
+        rho1_d += drho1_d;
+
+        p1_d = EOS_phase1.pres_value(rho1_d);
+        p2   = EOS_phase2.pres_value(m2/(1.0 - alpha1 - m1_d/rho1_d));
+        F    = m1_d*(p1_d - p2) - 2.0/3.0*sigma*rho_z*std::pow(rho1_d, 1.0/3.0);
+      }
+      else {
+        break;
+      }
+    }
+    if(iter == max_Newton_iters) {
+      throw std::runtime_error("Non-converging Newton method to compute small-scale Laplace law");
+    }
+
+    return rho1_d;
+  }
 }
 
 namespace samurai {
@@ -181,7 +237,6 @@ namespace samurai {
     res(M1_INDEX) *= vel_d;
     res(M2_INDEX) *= vel_d;
     res(M1_D_INDEX) *= vel_d;
-    res(ALPHA1_D_INDEX) *= vel_d;
     res(RHO_Z_INDEX) *= vel_d;
     res(RHO_ALPHA1_INDEX) *= vel_d;
     for(std::size_t d = 0; d < Field::dim; ++d) {
@@ -189,15 +244,27 @@ namespace samurai {
     }
 
     /*--- Compute and add the contribution due to the pressure ---*/
-    const auto alpha1 = q(RHO_ALPHA1_INDEX)/rho;
-    const auto rho1   = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p1     = EOS_phase1.pres_value(rho1);
+    const auto alpha1   = q(RHO_ALPHA1_INDEX)/rho;
+    const auto rho1     = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto p1       = EOS_phase1.pres_value(rho1);
 
-    const auto alpha2 = 1.0 - alpha1 - q(ALPHA1_D_INDEX);
-    const auto rho2   = q(M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto p2     = EOS_phase2.pres_value(rho2);
+    typename Field::value_type rho1_d;
+    try {
+      rho1_d = compute_rho1_d_local_Laplace<Field>(q(M1_D_INDEX), q(M2_INDEX), q(M1_INDEX), alpha1, q(RHO_Z_INDEX),
+                                                   sigma, EOS_phase1, EOS_phase2, atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+    }
+    catch(const std::exception& e) {
+      std::cerr << "Small-scale error when evaluating operator" << std::endl;
+      std::cout << q << std::endl;
+      std::cerr << e.what() << std::endl;
+      exit(1);
+    }
+    const auto alpha1_d = q(M1_D_INDEX)/rho1_d;
+    const auto alpha2   = 1.0 - alpha1 - alpha1_d;
+    const auto rho2     = q(M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto p2       = EOS_phase2.pres_value(rho2);
 
-    const auto p      = alpha1*p1 + (1.0 - alpha1)*p2;
+    const auto p        = alpha1*p1 + (1.0 - alpha1)*p2;
 
     res(RHO_U_INDEX + curr_d) += p;
 
@@ -224,7 +291,6 @@ namespace samurai {
       res(RHO_U_INDEX + d) = 0.0;
     }
     res(M1_D_INDEX) = 0.0;
-    res(ALPHA1_D_INDEX) = 0.0;
     res(RHO_Z_INDEX) = 0.0;
 
     /*--- Add the contribution due to surface tension ---*/
@@ -255,14 +321,25 @@ namespace samurai {
     const auto rho     = cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX);
     prim(ALPHA1_INDEX) = cons(RHO_ALPHA1_INDEX)/rho;
     prim(P1_INDEX)     = EOS_phase1.pres_value(cons(M1_INDEX)/prim(ALPHA1_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    prim(P2_INDEX)     = EOS_phase2.pres_value(cons(M2_INDEX)/(1.0 - prim(ALPHA1_INDEX) - cons(ALPHA1_D_INDEX)));
+    typename Field::value_type rho1_d;
+    try {
+      rho1_d = compute_rho1_d_local_Laplace<Field>(cons(M1_D_INDEX), cons(M2_INDEX), cons(M1_INDEX), prim(ALPHA1_INDEX), cons(RHO_Z_INDEX),
+                                                   sigma, EOS_phase1, EOS_phase2, atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+    }
+    catch(const std::exception& e) {
+      std::cerr << "Small-scale error in cons2prim" << std::endl;
+      std::cout << cons << std::endl;
+      std::cerr << e.what() << std::endl;
+      exit(1);
+    }
+    const auto alpha1_d = cons(M1_D_INDEX)/rho1_d;
+    prim(P2_INDEX)      = EOS_phase2.pres_value(cons(M2_INDEX)/(1.0 - prim(ALPHA1_INDEX) - alpha1_d));
                          /*--- TODO: Add a check in case of zero volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
       prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
     }
-    prim(M1_D_INDEX)     = cons(M1_D_INDEX);
-    prim(ALPHA1_D_INDEX) = cons(ALPHA1_D_INDEX);
-    prim(Z_INDEX)        = cons(RHO_Z_INDEX)/rho;
+    prim(P1_D_INDEX) = EOS_phase1.pres_value(rho1_d);
+    prim(Z_INDEX)    = cons(RHO_Z_INDEX)/rho;
 
     /*if(std::isnan(prim(Z_INDEX))) {
       std::cerr << "NaN in the cons2prim Z" << std::endl;
@@ -280,16 +357,24 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
     FluxValue<cfg> cons;
 
-    cons(M1_INDEX)         = prim(ALPHA1_INDEX)*EOS_phase1.rho_value(prim(P1_INDEX));
-    cons(M2_INDEX)         = (1.0 - prim(ALPHA1_INDEX) - prim(ALPHA1_D_INDEX))*EOS_phase2.rho_value(prim(P2_INDEX));
-    cons(M1_D_INDEX)       = prim(M1_D_INDEX);
+    cons(M1_INDEX) = prim(ALPHA1_INDEX)*EOS_phase1.rho_value(prim(P1_INDEX));
+
+    /*--- Update alpha1_d thanks to local Laplace law ---*/
+    const auto rho1_d      = EOS_phase1.rho_value(prim(P1_D_INDEX));
+    const auto rho2        = EOS_phase2.rho_value(prim(P2_INDEX));
+    const auto Delta_p     = prim(P1_D_INDEX) - prim(P2_INDEX);
+    const auto alpha1_d    = 2.0*sigma*prim(Z_INDEX)*
+                             (cons(M1_INDEX) + (1.0 - prim(ALPHA1_INDEX))*rho2)/
+                             (std::abs(3.0*std::pow(rho1_d, 2.0/3.0)*Delta_p + 2.0*sigma*prim(Z_INDEX)*(rho2 - rho1_d)) + 1e-13);
+                             /*--- Added tolerance because division by zero occurs when alpha1_d = 0 (\Delta p = 0, z = 0) ---*/
+    cons(M2_INDEX)         = (1.0 - prim(ALPHA1_INDEX) - alpha1_d)*rho2;
+    cons(M1_D_INDEX)       = alpha1_d*rho1_d;
     const auto rho         = cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX);
     cons(RHO_ALPHA1_INDEX) = rho*prim(ALPHA1_INDEX);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
     }
-    cons(ALPHA1_D_INDEX) = prim(ALPHA1_D_INDEX);
-    cons(RHO_Z_INDEX)    = rho*prim(Z_INDEX);
+    cons(RHO_Z_INDEX) = rho*prim(Z_INDEX);
 
     return cons;
   }
@@ -355,12 +440,24 @@ namespace samurai {
                                                        bool& relaxation_applied) {
         if(!std::isnan(H)) {
           /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-          const auto rho1   = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-          const auto p1     = EOS_phase1.pres_value(rho1);
+          const auto rho1 = (*conserved_variables)(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+          const auto p1   = EOS_phase1.pres_value(rho1);
 
-          const auto alpha2 = 1.0 - alpha1 - (*conserved_variables)(ALPHA1_D_INDEX);
-          const auto rho2   = (*conserved_variables)(M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
-          const auto p2     = EOS_phase2.pres_value(rho2);
+          typename Field::value_type rho1_d;
+          try {
+            rho1_d = compute_rho1_d_local_Laplace<Field>((*conserved_variables)(M1_D_INDEX),
+                                                         (*conserved_variables)(M2_INDEX),
+                                                         (*conserved_variables)(M1_INDEX), alpha1, (*conserved_variables)(RHO_Z_INDEX),
+                                                         sigma, EOS_phase1, EOS_phase2, atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+          }
+          catch(const std::exception& e) {
+            std::cerr << e.what() << std::endl;
+            exit(1);
+          }
+          const auto alpha1_d = (*conserved_variables)(M1_D_INDEX)/rho1_d;
+          const auto alpha2   = 1.0 - alpha1 - alpha1_d;
+          const auto rho2     = (*conserved_variables)(M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
+          const auto p2       = EOS_phase2.pres_value(rho2);
 
           /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
           const auto F = (p1 - p2) - sigma*H;
@@ -399,6 +496,7 @@ namespace samurai {
                          + (*conserved_variables)(M2_INDEX)
                          + (*conserved_variables)(M1_D_INDEX);
           (*conserved_variables)(RHO_ALPHA1_INDEX) = rho*alpha1;
+          /*--- TODO: This approach is not compatible with small-scale Laplace law, to be reanalyzed.... ----*/
         }
       }
 
