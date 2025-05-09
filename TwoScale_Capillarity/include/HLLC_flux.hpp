@@ -114,6 +114,9 @@ namespace samurai {
       if(qL(ALPHA1_D_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 left state: " + std::to_string(qL(ALPHA1_D_INDEX))));
       }
+      if(qL(SIGMA_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(qL(SIGMA_D_INDEX))));
+      }
 
       if(qR(M1_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative mass large-scale phase 1 right state: " + std::to_string(qR(M1_INDEX))));
@@ -129,6 +132,9 @@ namespace samurai {
       }
       if(qR(ALPHA1_D_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 right state: " + std::to_string(qR(ALPHA1_D_INDEX))));
+      }
+      if(qR(SIGMA_D_INDEX) < 0.0) {
+        throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(qR(SIGMA_D_INDEX))));
       }
     #endif
 

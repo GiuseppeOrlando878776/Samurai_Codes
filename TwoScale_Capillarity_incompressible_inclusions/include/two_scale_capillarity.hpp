@@ -71,9 +71,10 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
-  using Field_Vect   = samurai::Field<decltype(mesh), typename Field::value_type, dim, false>;
+  using Field              = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
+  using Field_Scalar       = samurai::ScalarField<decltype(mesh), typename Field::value_type>;
+  using Field_Vect         = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
+  using Field_ScalarVector = samurai::VectorField<decltype(mesh), typename Field::value_type, 1, false>;
 
   bool apply_relax; /*--- Choose whether to apply or not the relaxation ---*/
 
@@ -88,7 +89,6 @@ private:
   /*--- Now we declare a bunch of fields which depend from the state, but it is useful
         to have it so as to avoid recomputation ---*/
   Field_Scalar alpha1,
-               H,
                dalpha1,
                p1,
                p2,
@@ -100,17 +100,19 @@ private:
   Field_Scalar alpha1_d,
                Dt_alpha1_d,
                CV_alpha1_d,
-               div_vel,
-               alpha1_bar,
-               H_bar;
+               alpha1_bar;
 
   Field_Vect grad_alpha1_d,
              vel,
              normal_bar,
              grad_alpha1_bar;
 
-  samurai::Field<decltype(mesh), std::size_t, 1, false> to_be_relaxed;
-  samurai::Field<decltype(mesh), std::size_t, 1, false> Newton_iterations;
+  Field_ScalarVector H,
+                     H_bar,
+                     div_vel;
+
+  samurai::ScalarField<decltype(mesh), std::size_t> to_be_relaxed;
+  samurai::ScalarField<decltype(mesh), std::size_t> Newton_iterations;
 
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1)>());
   gradient_type gradient;
@@ -243,8 +245,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << std::endl;
     }
     init_variables(sim_param.R, sim_param.eps_over_R, sim_param.alpha_residual);
-    to_be_relaxed     = samurai::make_field<std::size_t, 1>("to_be_relaxed", mesh);
-    Newton_iterations = samurai::make_field<std::size_t, 1>("Newton_iterations", mesh);
+    to_be_relaxed     = samurai::make_scalar_field<std::size_t>("to_be_relaxed", mesh);
+    Newton_iterations = samurai::make_scalar_field<std::size_t>("Newton_iterations", mesh);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -278,30 +280,30 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_over_R, const double alpha_residual) {
   /*--- Create conserved and auxiliary fields ---*/
-  conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  alpha1      = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
-  grad_alpha1 = samurai::make_field<typename Field::value_type, dim>("grad_alpha1", mesh);
-  normal      = samurai::make_field<typename Field::value_type, dim>("normal", mesh);
-  H           = samurai::make_field<typename Field::value_type, 1>("H", mesh);
+  alpha1      = samurai::make_scalar_field<typename Field::value_type>("alpha1", mesh);
+  grad_alpha1 = samurai::make_vector_field<typename Field::value_type, dim>("grad_alpha1", mesh);
+  normal      = samurai::make_vector_field<typename Field::value_type, dim>("normal", mesh);
+  H           = samurai::make_vector_field<typename Field::value_type, 1>("H", mesh);
 
-  dalpha1     = samurai::make_field<typename Field::value_type, 1>("dalpha1", mesh);
+  dalpha1     = samurai::make_scalar_field<typename Field::value_type>("dalpha1", mesh);
 
-  p1          = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
-  p2          = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
-  p           = samurai::make_field<typename Field::value_type, 1>("p", mesh);
+  p1          = samurai::make_scalar_field<typename Field::value_type>("p1", mesh);
+  p2          = samurai::make_scalar_field<typename Field::value_type>("p2", mesh);
+  p           = samurai::make_scalar_field<typename Field::value_type>("p", mesh);
 
-  alpha1_d      = samurai::make_field<typename Field::value_type, 1>("alpha1_d", mesh);
-  grad_alpha1_d = samurai::make_field<typename Field::value_type, dim>("grad_alpha1_d", mesh);
-  vel           = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
-  div_vel       = samurai::make_field<typename Field::value_type, 1>("div_vel", mesh);
-  Dt_alpha1_d   = samurai::make_field<typename Field::value_type, 1>("Dt_alpha1_d", mesh);
-  CV_alpha1_d   = samurai::make_field<typename Field::value_type, 1>("CV_alpha1_d", mesh);
+  alpha1_d      = samurai::make_scalar_field<typename Field::value_type>("alpha1_d", mesh);
+  grad_alpha1_d = samurai::make_vector_field<typename Field::value_type, dim>("grad_alpha1_d", mesh);
+  vel           = samurai::make_vector_field<typename Field::value_type, dim>("vel", mesh);
+  div_vel       = samurai::make_vector_field<typename Field::value_type, 1>("div_vel", mesh);
+  Dt_alpha1_d   = samurai::make_scalar_field<typename Field::value_type>("Dt_alpha1_d", mesh);
+  CV_alpha1_d   = samurai::make_scalar_field<typename Field::value_type>("CV_alpha1_d", mesh);
 
-  alpha1_bar      = samurai::make_field<typename Field::value_type, 1>("alpha1_bar", mesh);
-  grad_alpha1_bar = samurai::make_field<typename Field::value_type, dim>("grad_alpha1_bar", mesh);
-  normal_bar      = samurai::make_field<typename Field::value_type, dim>("normal_bar", mesh);
-  H_bar           = samurai::make_field<typename Field::value_type, 1>("H_bar", mesh);
+  alpha1_bar      = samurai::make_scalar_field<typename Field::value_type>("alpha1_bar", mesh);
+  grad_alpha1_bar = samurai::make_vector_field<typename Field::value_type, dim>("grad_alpha1_bar", mesh);
+  normal_bar      = samurai::make_vector_field<typename Field::value_type, dim>("normal_bar", mesh);
+  H_bar           = samurai::make_vector_field<typename Field::value_type, 1>("H_bar", mesh);
 
   /*--- Declare some constant parameters associated to the grid and to the
         initial state ---*/
@@ -358,8 +360,8 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
                            }
                            else {
                              p1[cell] = EOS_phase2.get_p0();
-                             if(r >= R && r < R + eps_R && !std::isnan(H[cell])) {
-                               p1[cell] += sigma*H[cell];
+                             if(r >= R && r < R + eps_R && !std::isnan(H[cell][0])) {
+                               p1[cell] += sigma*H[cell][0];
                              }
                              else {
                                p1[cell] += sigma/R;
@@ -580,7 +582,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            }
 
                            // Sanity check for m1_d
-                           if(conserved_variables[cell][M1_D_INDEX] < 0.0) {
+                           if(conserved_variables[cell][M1_D_INDEX] < -1e-15) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative mass small-scale liquid " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
@@ -600,7 +602,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
                                exit(1);
                            }
-                           else if(conserved_variables[cell][ALPHA1_D_INDEX] < 0.0) {
+                           else if(conserved_variables[cell][ALPHA1_D_INDEX] < -1e-15) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative volume fraction small-scale liquid " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
@@ -614,7 +616,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            }
 
                            // Sanity check for Sigma_d
-                           if(conserved_variables[cell][SIGMA_D_INDEX] < 0.0) {
+                           if(conserved_variables[cell][SIGMA_D_INDEX] < -1e-15) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative interface area small-scale liquid " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1);
@@ -659,7 +661,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                            {
                              try {
                                perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                              H[cell], dalpha1[cell], alpha1[cell],
+                                                              H[cell][0], dalpha1[cell], alpha1[cell],
                                                               to_be_relaxed[cell], Newton_iterations[cell], relaxation_applied,
                                                               grad_alpha1[cell], mass_transfer_NR);
                              }
@@ -915,7 +917,7 @@ template<class... Variables>
 void TwoScaleCapillarity<dim>::save(const fs::path& path,
                                     const std::string& suffix,
                                     const Variables&... fields) {
-  auto level_ = samurai::make_field<std::size_t, 1>("level", mesh);
+  auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
   if(!fs::exists(path)) {
     fs::create_directory(path);
@@ -983,7 +985,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                            p2[cell]         = EOS_phase2.pres_value(rho2);
                            p[cell]          = alpha1[cell]*p1[cell]
                                             + (1.0 - alpha1[cell])*p2[cell];
-                           const auto H_lim = std::min(H[cell], Hmax);
+                           const auto H_lim = std::min(H[cell][0], Hmax);
                            typename Field::value_type p2_minus_p1_times_theta;
                            try {
                              p2_minus_p1_times_theta = rho1*(EOS_phase1.e_value(rho1d) - EOS_phase1.e_value(rho1))
@@ -1001,7 +1003,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                               -grad_alpha1[cell][0]*conserved_variables[cell][RHO_U_INDEX]
                               -grad_alpha1[cell][1]*conserved_variables[cell][RHO_U_INDEX + 1] > 0.0 &&
                               conserved_variables[cell][ALPHA1_D_INDEX] < alpha1d_max) {
-                             H_lig = std::max(H[cell], H_lig);
+                             H_lig = std::max(H[cell][0], H_lig);
                            }
 
                            // Compute the integral quantities
@@ -1068,10 +1070,10 @@ void TwoScaleCapillarity<dim>::run() {
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
   /*--- Create the flux variable ---*/
   #ifdef RUSANOV_FLUX
@@ -1312,7 +1314,7 @@ void TwoScaleCapillarity<dim>::run() {
                                                  + vel[cell][0]*grad_alpha1_d[cell][0] + vel[cell][1]*grad_alpha1_d[cell][1];
 
                                CV_alpha1_d[cell] = Dt_alpha1_d[cell]
-                                                 + conserved_variables[cell][ALPHA1_D_INDEX]*div_vel[cell];
+                                                 + conserved_variables[cell][ALPHA1_D_INDEX]*div_vel[cell][0];
 
                                const auto mod_grad_alpha1_bar = std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])());
 

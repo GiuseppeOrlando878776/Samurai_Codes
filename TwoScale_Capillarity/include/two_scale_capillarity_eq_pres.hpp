@@ -148,8 +148,8 @@ private:
 
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
-  double       MR_param;      /*--- Multiresolution parameter ---*/
-  unsigned int MR_regularity; /*--- Multiresolution regularity ---*/
+  double MR_param;      /*--- Multiresolution parameter ---*/
+  double MR_regularity; /*--- Multiresolution regularity ---*/
 
   /*--- Auxiliary output streams for post-processing ---*/
   std::ofstream Hlig;
@@ -454,13 +454,13 @@ double TwoScaleCapillarity<dim>::get_max_lambda() {
                            const auto vel_y = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
 
                            /*--- Compute frozen speed of sound ---*/
-                           alpha1[cell]         = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           const auto rho1      = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           const auto alpha2    = 1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX];
-                           const auto rho2      = conserved_variables[cell][M2_INDEX]/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                           const auto c_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
-                                                + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
-                           const auto c         = std::sqrt(c_squared/rho)/(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
+                           alpha1[cell]            = alpha1_bar[cell]*(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
+                           const auto rho1         = conserved_variables[cell][M1_INDEX]/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto alpha2       = 1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX];
+                           const auto rho2         = conserved_variables[cell][M2_INDEX]/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                           const auto rhoc_squared = conserved_variables[cell][M1_INDEX]*EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
+                                                   + conserved_variables[cell][M2_INDEX]*EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
+                           const auto c            = std::sqrt(rhoc_squared/rho)/(1.0 - conserved_variables[cell][ALPHA1_D_INDEX]);
 
                            /*--- Add term due to surface tension ---*/
                            const double r = sigma*std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())/(rho*c*c);
@@ -614,7 +614,64 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::apply_relaxation() {
-  /*--- Initialize the variables ---*/
+  /*--- Initialize the variables for the first Newton method ---*/
+  /*samurai::times::timers.start("apply_relaxation");
+
+  std::size_t Newton_iter = 0;
+  Newton_iterations.fill(0);
+  dalpha1_bar.fill(std::numeric_limits<typename Field::value_type>::infinity());
+  H_bar.fill(nan(""));
+  bool relaxation_applied = true;
+
+  samurai::times::timers.stop("apply_relaxation");*/
+
+  /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
+        over each cell would (could?) be more logic, but this would lead to issues to call 'update_geometry' ---*/
+  /*while(relaxation_applied == true) {
+    samurai::times::timers.start("apply_relaxation");
+
+    relaxation_applied = false;
+    Newton_iter++;
+
+    // Loop over all cells.
+    samurai::for_each_cell(mesh,
+                           [&](const auto& cell)
+                           {
+                             try {
+                               perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
+                                                              to_be_relaxed[cell], Newton_iterations[cell], relaxation_applied, type_relaxation[cell],
+                                                              grad_alpha1_bar[cell], false);
+                             }
+                             catch(std::exception& e) {
+                               std::cerr << e.what() << std::endl;
+                               save(fs::current_path(), "_diverged",
+                                    conserved_variables, alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
+                                    to_be_relaxed, Newton_iterations, type_relaxation);
+                               exit(1);
+                             }
+                           });
+
+    // Newton cycle diverged
+    if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+      std::cerr << "First Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
+      save(fs::current_path(), "_diverged",
+           conserved_variables, alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
+           to_be_relaxed, Newton_iterations, type_relaxation);
+      exit(1);
+    }
+
+    samurai::times::timers.stop("apply_relaxation");
+
+    // Recompute geometric quantities (curvature potentially changed in the Newton loop)
+    update_geometry();
+    H_bar.fill(nan(""));
+  }*/
+
+  /*--- Recompute geometric quantities after first Newton (alpha1_bar changed) ---*/
+  //update_geometry();
+
+  /*--- Initialize the variables for the second Newton method ---*/
   samurai::times::timers.start("apply_relaxation");
 
   std::size_t Newton_iter = 0;
@@ -786,7 +843,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
       // Bound preserving for the velocity
       const auto mom_dot_vel   = ((*local_conserved_variables)(RHO_U_INDEX)*(*local_conserved_variables)(RHO_U_INDEX) +
                                   (*local_conserved_variables)(RHO_U_INDEX + 1)*(*local_conserved_variables)(RHO_U_INDEX + 1))/rho_loc;
-      auto dtau_ov_epsilon_tmp = mom_dot_vel/(dH*fac_Ru*sigma);
+      auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(dH*fac_Ru*sigma);
       dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
       if(dtau_ov_epsilon < 0.0) {
         throw std::runtime_error("Negative time step found after relaxation of velocity");
@@ -797,7 +854,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                             (rho1_loc*sigma*dH);
       dtau_ov_epsilon     = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
       if((*local_conserved_variables)(ALPHA1_D_INDEX) > 0.0) {
-        dtau_ov_epsilon_tmp = (*local_conserved_variables)(ALPHA1_D_INDEX)*(1.0 - alpha1_bar_loc)*rho1d_loc/
+        dtau_ov_epsilon_tmp = lambda*(*local_conserved_variables)(ALPHA1_D_INDEX)*(1.0 - alpha1_bar_loc)*rho1d_loc/
                               (rho1_loc*sigma*dH);
 
         dtau_ov_epsilon     = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);

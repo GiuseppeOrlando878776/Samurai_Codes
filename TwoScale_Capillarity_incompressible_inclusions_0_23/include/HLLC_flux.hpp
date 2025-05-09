@@ -111,11 +111,8 @@ namespace samurai {
       if(qL(RHO_ALPHA1_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid left state: " + std::to_string(qL(RHO_ALPHA1_INDEX))));
       }
-      if(qL(ALPHA1_D_INDEX) < -1e-15) {
+      if(qL(ALPHA1_D_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative volume fraction small-scale liquid left state: " + std::to_string(qL(ALPHA1_D_INDEX))));
-      }
-      if(qL(SIGMA_D_INDEX) < -1e-15) {
-        throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(qL(SIGMA_D_INDEX))));
       }
 
       if(qR(M1_INDEX) < 0.0) {
@@ -124,17 +121,14 @@ namespace samurai {
       if(qR(M2_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative mass gas right state: " + std::to_string(qR(M2_INDEX))));
       }
-      if(qR(M1_D_INDEX) < -1e-15) {
+      if(qR(M1_D_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative mass small-scale liquid right state: " + std::to_string(qR(M1_D_INDEX))));
       }
       if(qR(RHO_ALPHA1_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid right state: " + std::to_string(qR(RHO_ALPHA1_INDEX))));
       }
-      if(qR(ALPHA1_D_INDEX) < -1e-15) {
+      if(qR(ALPHA1_D_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative volume fraction small-scale liquid right state: " + std::to_string(qR(ALPHA1_D_INDEX))));
-      }
-      if(qR(SIGMA_D_INDEX) < -1e-15) {
-        throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(qR(SIGMA_D_INDEX))));
       }
     #endif
 
@@ -232,8 +226,8 @@ namespace samurai {
                                                FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
                                                #ifdef RELAX_RECONSTRUCTION
-                                                 this->relax_reconstruction(qL, H[data.cells[1]][0]);
-                                                 this->relax_reconstruction(qR, H[data.cells[2]][0]);
+                                                 this->relax_reconstruction(qL, H[data.cells[1]]);
+                                                 this->relax_reconstruction(qR, H[data.cells[2]]);
                                                #endif
                                              #else
                                                // Extract the states

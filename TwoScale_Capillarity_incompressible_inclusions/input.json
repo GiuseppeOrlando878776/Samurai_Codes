@@ -15,7 +15,7 @@
  "eps_over_R": 0.2,
  "sigma": 1e-2,
  
- "min-level": 5,
+ "min-level": 8,
  "max-level": 8,
  "MR_param": 1e-1,
  "MR_regularity": 0,

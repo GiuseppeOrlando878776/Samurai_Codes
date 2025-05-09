@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(two_scale_capillarity)
 
-find_package(samurai)
+find_package(samurai 0.23.0)
 find_package(CLI11)
 find_package(nlohmann_json REQUIRED)
 find_package(MPI)
