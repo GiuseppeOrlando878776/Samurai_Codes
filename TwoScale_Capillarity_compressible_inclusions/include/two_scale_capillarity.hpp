@@ -100,7 +100,8 @@ private:
   Field_Scalar alpha1_d,
                Dt_alpha1_d,
                CV_alpha1_d,
-               alpha1_bar;
+               alpha1_bar,
+               Sigma_d;
 
   Field_Vect grad_alpha1_d,
              vel,
@@ -295,6 +296,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
 
   alpha1_d      = samurai::make_scalar_field<typename Field::value_type>("alpha1_d", mesh);
   grad_alpha1_d = samurai::make_vector_field<typename Field::value_type, dim>("grad_alpha1_d", mesh);
+  Sigma_d       = samurai::make_scalar_field<typename Field::value_type>("Sigma_d", mesh);
   vel           = samurai::make_vector_field<typename Field::value_type, dim>("vel", mesh);
   div_vel       = samurai::make_vector_field<typename Field::value_type, 1>("div_vel", mesh);
   Dt_alpha1_d   = samurai::make_scalar_field<typename Field::value_type>("Dt_alpha1_d", mesh);
@@ -345,6 +347,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
                            conserved_variables[cell][ALPHA1_D_INDEX] = 0.0;
                            alpha1_d[cell]                            = conserved_variables[cell][ALPHA1_D_INDEX];
                            conserved_variables[cell][RHO_Z_INDEX]    = 0.0;
+                           Sigma_d[cell]                             = 0.0;
                            conserved_variables[cell][M1_D_INDEX]     = conserved_variables[cell][ALPHA1_D_INDEX]*EOS_phase1.get_rho0();
 
                            // Recompute geometric locations to set partial masses
@@ -879,7 +882,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
         }
 
         const auto R_Sigma_D = -dm1*3.0*Hmax/(kappa*rho1d_loc);
-        (*local_conserved_variables)(RHO_Z_INDEX) += (std::pow(rho1d_loc, 2.0/3.0)/rho_loc)*R_Sigma_D;
+        (*local_conserved_variables)(RHO_Z_INDEX) += (std::pow(rho1d_loc, 2.0/3.0))*R_Sigma_D;
       }
 
       if(alpha1_loc + dalpha1_loc < 0.0 || alpha1_loc + dalpha1_loc > 1.0) {
@@ -971,6 +974,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
   p1.resize();
   p2.resize();
   p.resize();
+  Sigma_d.resize();
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
@@ -1012,7 +1016,8 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                            m1_d_int += conserved_variables[cell][M1_D_INDEX]*std::pow(cell.length, dim);
                            alpha1_int += alpha1[cell]*std::pow(cell.length, dim);
                            grad_alpha1_int += std::sqrt(xt::sum(grad_alpha1[cell]*grad_alpha1[cell])())*std::pow(cell.length, dim);
-                           Sigma_d_int += (conserved_variables[cell][RHO_Z_INDEX]/std::pow(rho1d, 2.0/3.0))*std::pow(cell.length, dim);
+                           Sigma_d[cell] = conserved_variables[cell][RHO_Z_INDEX]/std::pow(rho1d, 2.0/3.0);
+                           Sigma_d_int += Sigma_d[cell]*std::pow(cell.length, dim);
                            grad_alpha1_d_int += std::sqrt(xt::sum(grad_alpha1_d[cell]*grad_alpha1_d[cell])())*std::pow(cell.length, dim);
                            alpha1_d_int += alpha1_d[cell]*std::pow(cell.length, dim);
                            grad_alpha1_tot_int += std::sqrt(xt::sum((grad_alpha1[cell] + grad_alpha1_d[cell])*
@@ -1101,7 +1106,7 @@ void TwoScaleCapillarity<dim>::run() {
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, suffix_init, conserved_variables, alpha1, grad_alpha1, normal, H, p1, p2, p,
-                          grad_alpha1_d, vel, div_vel,
+                          Sigma_d, grad_alpha1_d, vel, div_vel,
                           alpha1_bar, grad_alpha1_bar, H_bar);
   Hlig.open("Hlig.dat", std::ofstream::out);
   m1_integral.open("m1_integral.dat", std::ofstream::out);
@@ -1335,7 +1340,7 @@ void TwoScaleCapillarity<dim>::run() {
       // Perform the saving
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, suffix, conserved_variables, alpha1, grad_alpha1, normal, H, p1, p2, p,
-                         grad_alpha1_d, vel, div_vel, Dt_alpha1_d, CV_alpha1_d,
+                         Sigma_d, grad_alpha1_d, vel, div_vel, Dt_alpha1_d, CV_alpha1_d,
                          alpha1_bar, grad_alpha1_bar, H_bar, Newton_iterations);
     }
   }
