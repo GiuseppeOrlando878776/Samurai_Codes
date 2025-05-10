@@ -23,13 +23,10 @@ namespace fs = std::filesystem;
 
 /*--- Include the headers with the numerical fluxes ---*/
 //#define RUSANOV_FLUX
-//#define GODUNOV_FLUX
 #define HLLC_FLUX
 
 #ifdef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
-#elifdef GODUNOV_FLUX
-  #include "Exact_Godunov_flux.hpp"
 #elifdef HLLC_FLUX
   #include "HLLC_flux.hpp"
 #endif
@@ -135,14 +132,15 @@ private:
   const double      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
   const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
+  const double atol_Newton_small_scale; /*--- Absolute tolerance Newton method small-scale local Laplace law ---*/
+  const double rtol_Newton_small_scale; /*--- Relative tolerance Newton method small-scale local Laplace law ---*/
+
   LinearizedBarotropicEOS<typename Field::value_type> EOS_phase1,
                                                       EOS_phase2; /*--- The two variables which take care of the
                                                                         barotropic EOS to compute the speed of sound ---*/
 
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
-  #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field> Godunov_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
   #elifdef HLLC_FLUX
     samurai::HLLCFlux<Field> HLLC_flux; /*--- Auxiliary variable to compute the flux ---*/
   #endif
@@ -215,26 +213,25 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   alpha1_min(sim_param.alpha1_min), alpha1_max(sim_param.alpha1_max),
   lambda(sim_param.lambda), atol_Newton(sim_param.atol_Newton),
   rtol_Newton(sim_param.rtol_Newton), max_Newton_iters(sim_param.max_Newton_iters),
+  atol_Newton_small_scale(sim_param.atol_Newton_small_scale),
+  rtol_Newton_small_scale(sim_param.rtol_Newton_small_scale),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
     Rusanov_flux(EOS_phase1, EOS_phase2,
                  sigma, mod_grad_alpha1_min,
-                 lambda, atol_Newton, rtol_Newton, max_Newton_iters),
-  #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2,
-                 sigma, mod_grad_alpha1_min,
                  lambda, atol_Newton, rtol_Newton, max_Newton_iters,
-                 sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star,
-                 sim_param.tol_Newton_alpha1_d),
+                 atol_Newton_small_scale, rtol_Newton_small_scale),
   #elifdef HLLC_FLUX
     HLLC_flux(EOS_phase1, EOS_phase2,
               sigma, mod_grad_alpha1_min,
-              lambda, atol_Newton, rtol_Newton, max_Newton_iters),
+              lambda, atol_Newton, rtol_Newton, max_Newton_iters,
+              atol_Newton_small_scale, rtol_Newton_small_scale),
   #endif
   SurfaceTension_flux(EOS_phase1, EOS_phase2,
                       sigma, mod_grad_alpha1_min,
-                      lambda, atol_Newton, rtol_Newton, max_Newton_iters),
+                      lambda, atol_Newton, rtol_Newton, max_Newton_iters,
+                      atol_Newton_small_scale, rtol_Newton_small_scale),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
   {
     int rank;
@@ -483,7 +480,7 @@ double TwoScaleCapillarity<dim>::get_max_lambda() {
                                                                           alpha1[cell],
                                                                           conserved_variables[cell][RHO_Z_INDEX],
                                                                           sigma, EOS_phase1, EOS_phase2,
-                                                                          atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+                                                                          atol_Newton_small_scale, rtol_Newton_small_scale, max_Newton_iters, lambda);
                            }
                            catch(const std::exception& e) {
                              std::cerr << "Small-scale error when computing max speed sound" << std::endl;
@@ -715,7 +712,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                                        alpha1_loc,
                                                        (*local_conserved_variables)(RHO_Z_INDEX),
                                                        sigma, EOS_phase1, EOS_phase2,
-                                                       atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+                                                       atol_Newton_small_scale, rtol_Newton_small_scale, max_Newton_iters, lambda);
     }
     catch(const std::exception& e) {
       std::cerr << "Small-scale error when computing mass transfer" << std::endl;
@@ -1035,8 +1032,6 @@ void TwoScaleCapillarity<dim>::run() {
   filename = "liquid_column";
   #ifdef RUSANOV_FLUX
     filename += "_Rusanov";
-  #elifdef GODUNOV_FLUX
-    filename += "_Godunov";
   #elifdef HLLC_FLUX
     filename += "_HLLC";
   #endif
@@ -1070,12 +1065,6 @@ void TwoScaleCapillarity<dim>::run() {
       auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity(H);
     #else
       auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity();
-    #endif
-  #elifdef GODUNOV_FLUX
-    #ifdef ORDER_2
-      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity(H);
-    #else
-      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
     #endif
   #elifdef HLLC_FLUX
     #ifdef ORDER_2

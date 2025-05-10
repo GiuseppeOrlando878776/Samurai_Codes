@@ -37,6 +37,9 @@ struct Simulation_Paramaters {
   double      rtol_Newton;
   std::size_t max_Newton_iters;
 
+  double atol_Newton_small_scale;
+  double rtol_Newton_small_scale;
+
   double atol_Newton_p_star;
   double rtol_Newton_p_star;
   double tol_Newton_alpha1_d;

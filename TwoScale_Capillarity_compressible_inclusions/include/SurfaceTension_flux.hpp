@@ -23,7 +23,9 @@ namespace samurai {
                        const double lambda_,
                        const double atol_Newton_,
                        const double rtol_Newton_,
-                       const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+                       const std::size_t max_Newton_iters_,
+                       const double atol_Newton_small_scale_,
+                       const double rtol_Newton_small_scale_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Gradient>
     auto make_two_scale_capillarity(const Gradient& grad_alpha1); /*--- Compute the flux over all the directions ---*/
@@ -45,10 +47,13 @@ namespace samurai {
                                                 const double lambda_,
                                                 const double atol_Newton_,
                                                 const double rtol_Newton_,
-                                                const std::size_t max_Newton_iters_):
+                                                const std::size_t max_Newton_iters_,
+                                                const double atol_Newton_small_scale_,
+                                                const double rtol_Newton_small_scale_):
     Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_min_,
-                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
+                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_,
+                atol_Newton_small_scale_, rtol_Newton_small_scale_) {}
 
   // Implementation of the surface tension contribution
   //

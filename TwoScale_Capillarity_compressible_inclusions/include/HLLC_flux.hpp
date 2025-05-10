@@ -25,7 +25,9 @@ namespace samurai {
              const double lambda_,
              const double atol_Newton_,
              const double rtol_Newton_,
-             const std::size_t max_Newton_iters_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+             const std::size_t max_Newton_iters_,
+             const double atol_Newton_small_scale_,
+             const double rtol_Newton_small_scale_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Field_Scalar>
@@ -55,10 +57,13 @@ namespace samurai {
                             const double lambda_,
                             const double atol_Newton_,
                             const double rtol_Newton_,
-                            const std::size_t max_Newton_iters_):
+                            const std::size_t max_Newton_iters_,
+                            const double atol_Newton_small_scale_,
+                            const double rtol_Newton_small_scale_):
     Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_min_,
-                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
+                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_,
+                atol_Newton_small_scale_, rtol_Newton_small_scale_) {}
 
   // Implement the auxliary routine that computes the middle state
   //
@@ -141,7 +146,7 @@ namespace samurai {
     try {
       rho1_d_L = compute_rho1_d_local_Laplace<Field>(qL(M1_D_INDEX), qL(M2_INDEX), qL(M1_INDEX), alpha1_L, qL(RHO_Z_INDEX),
                                                      this->sigma, this->EOS_phase1, this->EOS_phase2,
-                                                     this->atol_Newton, this->rtol_Newton, this->max_Newton_iters, this->lambda);
+                                                     this->atol_Newton_small_scale, this->rtol_Newton_small_scale, this->max_Newton_iters, this->lambda);
     }
     catch(const std::exception& e) {
       std::cerr << "Small-scale error when computing rho1_d_L" << std::endl;
@@ -166,7 +171,7 @@ namespace samurai {
     try {
       rho1_d_R = compute_rho1_d_local_Laplace<Field>(qR(M1_D_INDEX), qR(M2_INDEX), qR(M1_INDEX), alpha1_R, qR(RHO_Z_INDEX),
                                                      this->sigma, this->EOS_phase1, this->EOS_phase2,
-                                                     this->atol_Newton, this->rtol_Newton, this->max_Newton_iters, this->lambda);
+                                                     this->atol_Newton_small_scale, this->rtol_Newton_small_scale, this->max_Newton_iters, this->lambda);
     }
     catch(const std::exception& e) {
       std::cerr << "Small-scale error when computing rho1_d_R" << std::endl;

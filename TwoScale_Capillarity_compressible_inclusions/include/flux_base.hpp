@@ -37,14 +37,14 @@ namespace EquationData {
   static constexpr std::size_t NVARS = 5 + dim;
 
   /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
-  static constexpr std::size_t ALPHA1_INDEX            = RHO_ALPHA1_INDEX;
-  static constexpr std::size_t P1_INDEX                = M1_INDEX;
+  static constexpr std::size_t ALPHA1_INDEX = RHO_ALPHA1_INDEX;
+  //static constexpr std::size_t U_INDEX      = RHO_U_INDEX;
+  static constexpr std::size_t Z_INDEX      = RHO_Z_INDEX;
+
+  /*static constexpr std::size_t P1_INDEX                = M1_INDEX;
   static constexpr std::size_t P2_INDEX                = M2_INDEX;
   static constexpr std::size_t ALPHA1_D_2_INDEX        = M1_D_INDEX;
-  static constexpr std::size_t SIGMA_OV_ALPHA1_D_INDEX = RHO_Z_INDEX;
-  static constexpr std::size_t U_INDEX                 = RHO_U_INDEX;
-  /*static constexpr std::size_t P1_D_INDEX   = M1_D_INDEX;
-  static constexpr std::size_t Z_INDEX      = RHO_Z_INDEX;*/
+  static constexpr std::size_t SIGMA_OV_ALPHA1_D_INDEX = RHO_Z_INDEX;*/
 
   template<typename Field>
   typename Field::value_type compute_rho1_d_local_Laplace(const typename Field::value_type m1_d,
@@ -55,7 +55,7 @@ namespace EquationData {
                                                           const double sigma,
                                                           const BarotropicEOS<typename Field::value_type>& EOS_phase1,
                                                           const BarotropicEOS<typename Field::value_type>& EOS_phase2,
-                                                          const double atol_Newton = 1e-14, const double rtol_Newton = 1e-12,
+                                                          const double atol_Newton = 1e-10, const double rtol_Newton = 1e-8,
                                                           const std::size_t max_Newton_iters = 60, const double lambda = 0.9) {
     auto rho1_d = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     if(rho1_d < 0.0) {
@@ -132,7 +132,9 @@ namespace samurai {
          const double lambda_ = 0.9,
          const double atol_Newton_ = 1e-14,
          const double rtol_Newton_ = 1e-12,
-         const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+         const std::size_t max_Newton_iters_ = 60,
+         const double atol_Newton_small_scale_ = 1e-10,
+         const double rtol_Newton_small_scale_ = 1e-8); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
   protected:
     const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1;
@@ -146,6 +148,9 @@ namespace samurai {
     const double      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
     const double      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
     const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
+
+    const double atol_Newton_small_scale; /*--- Absolute tolerance Newton method small-scale local Laplace law ---*/
+    const double rtol_Newton_small_scale; /*--- Relative tolerance Newton method small-scale local Laplace law ---*/
 
     template<typename Gradient>
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
@@ -198,11 +203,15 @@ namespace samurai {
                     const double lambda_,
                     const double atol_Newton_,
                     const double rtol_Newton_,
-                    const std::size_t max_Newton_iters_):
+                    const std::size_t max_Newton_iters_,
+                    const double atol_Newton_small_scale_,
+                    const double rtol_Newton_small_scale_):
     EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_),
     sigma(sigma_), mod_grad_alpha1_min(mod_grad_alpha1_min_),
     lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
-    max_Newton_iters(max_Newton_iters_) {}
+    max_Newton_iters(max_Newton_iters_),
+    atol_Newton_small_scale(atol_Newton_small_scale_),
+    rtol_Newton_small_scale(rtol_Newton_small_scale_) {}
 
   // Evaluate the 'continuous flux'
   //
@@ -253,7 +262,8 @@ namespace samurai {
     typename Field::value_type rho1_d;
     try {
       rho1_d = compute_rho1_d_local_Laplace<Field>(q(M1_D_INDEX), q(M2_INDEX), q(M1_INDEX), alpha1, q(RHO_Z_INDEX),
-                                                   sigma, EOS_phase1, EOS_phase2, atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+                                                   sigma, EOS_phase1, EOS_phase2,
+                                                   atol_Newton_small_scale, rtol_Newton_small_scale, max_Newton_iters, lambda);
     }
     catch(const std::exception& e) {
       std::cerr << "Small-scale error when evaluating operator" << std::endl;
@@ -318,49 +328,44 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
-    FluxValue<cfg> prim;
+    FluxValue<cfg> prim = cons;
 
     const auto rho     = cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX);
     prim(ALPHA1_INDEX) = cons(RHO_ALPHA1_INDEX)/rho;
-    prim(P1_INDEX)     = EOS_phase1.pres_value(cons(M1_INDEX)/prim(ALPHA1_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    typename Field::value_type rho1_d;
+    /*for(std::size_t d = 0; d < Field::dim; ++d) {
+      prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
+    }*/
+    prim(Z_INDEX) = cons(RHO_Z_INDEX)/rho;
+
+    //prim(P1_INDEX) = EOS_phase1.pres_value(cons(M1_INDEX)/prim(ALPHA1_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    /*typename Field::value_type rho1_d;
     try {
       rho1_d = compute_rho1_d_local_Laplace<Field>(cons(M1_D_INDEX), cons(M2_INDEX), cons(M1_INDEX), prim(ALPHA1_INDEX), cons(RHO_Z_INDEX),
-                                                   sigma, EOS_phase1, EOS_phase2, atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+                                                   sigma, EOS_phase1, EOS_phase2,
+                                                   atol_Newton_small_scale, rtol_Newton_small_scale, max_Newton_iters, lambda);
     }
     catch(const std::exception& e) {
       std::cerr << "Small-scale error in cons2prim" << std::endl;
-      std::cout << cons << std::endl;
+      std::cerr << cons << std::endl;
       std::cerr << e.what() << std::endl;
       exit(1);
     }
     if(rho1_d < 0.0) {
       std::cerr << "Negative rho1_d in cons2prim" << std::endl;
-    }
-    const auto alpha1_d = cons(M1_D_INDEX)/rho1_d;
-    prim(P2_INDEX)      = EOS_phase2.pres_value(cons(M2_INDEX)/(1.0 - prim(ALPHA1_INDEX) - alpha1_d));
+      std::cerr << cons << std::endl;
+      exit(1);
+    }*/
+    //const auto alpha1_d = cons(M1_D_INDEX)/rho1_d;
+    //prim(P2_INDEX)      = EOS_phase2.pres_value(cons(M2_INDEX)/(1.0 - prim(ALPHA1_INDEX) - alpha1_d));
                          /*--- TODO: Add a check in case of zero volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
-    }
-    /*prim(P1_D_INDEX) = EOS_phase1.pres_value(rho1_d);
-      prim(Z_INDEX)    = cons(RHO_Z_INDEX)/rho;*/
-    prim(ALPHA1_D_2_INDEX) = alpha1_d/(1.0 - prim(ALPHA1_INDEX));
+    /*prim(ALPHA1_D_2_INDEX) = alpha1_d/(1.0 - prim(ALPHA1_INDEX));
     const auto p1_d = EOS_phase1.pres_value(rho1_d);
     prim(SIGMA_OV_ALPHA1_D_INDEX) = 1.5*(p1_d - prim(P2_INDEX))/sigma;
 
-    if(rho1_d < 0.0) {
-      std::cerr << "Negative rho1_d in cons2prim" << std::endl;
-    }
-    if(prim(SIGMA_OV_ALPHA1_D_INDEX) < -1e-12) {
+    if(prim(SIGMA_OV_ALPHA1_D_INDEX) < -1e-15) {
       std::cerr << "Negative \Delta p = p1_d - p2 in cons2prim = " << p1_d - prim(P2_INDEX) << std::endl;
-    }
-
-    /*if(std::isnan(prim(Z_INDEX))) {
-      std::cerr << "NaN in the cons2prim Z" << std::endl;
-      std::cerr << "rho z = " << cons(RHO_Z_INDEX) << std::endl;
-      std::cerr << "rho = " << rho << std::endl;
-      throw std::runtime_error("NaN in the cons2prim");
+      std::cerr << cons << std::endl;
+      exit(1);
     }*/
 
     return prim;
@@ -370,27 +375,16 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
-    FluxValue<cfg> cons;
+    FluxValue<cfg> cons = prim;
 
-    cons(M1_INDEX) = prim(ALPHA1_INDEX)*EOS_phase1.rho_value(prim(P1_INDEX));
-
-    /*--- Update alpha1_d thanks to local Laplace law ---*/
-    /*const auto rho1_d      = EOS_phase1.rho_value(prim(P1_D_INDEX));
-    const auto rho2        = EOS_phase2.rho_value(prim(P2_INDEX));
-    const auto Delta_p     = prim(P1_D_INDEX) - prim(P2_INDEX);
-    const auto alpha1_d    = 2.0*sigma*prim(Z_INDEX)*
-                             (cons(M1_INDEX) + (1.0 - prim(ALPHA1_INDEX))*rho2)/
-                             (std::abs(3.0*std::pow(rho1_d, 2.0/3.0)*Delta_p + 2.0*sigma*prim(Z_INDEX)*(rho2 - rho1_d)) + 1e-13);*/
-                             /*--- Added tolerance because division by zero occurs when alpha1_d = 0 (\Delta p = 0, z = 0) ---*/
-    /*if(prim(ALPHA1_D_INDEX) < 0.0) {
-      std::cerr << "Negative alpha1_d in prim2cons" << std::endl;
-    }
-    if(rho1_d < 0.0) {
-      std::cerr << "Negative rho1_d in prim2cons" << std::endl;
-    }
-    if(Delta_p < 0.0) {
-      std::cerr << "Negative \Delta p = p1_d - p2 in prim2cons" << std::endl;
+    const auto rho         = cons(M1_INDEX) + cons(M2_INDEX) + cons(M1_D_INDEX);
+    cons(RHO_ALPHA1_INDEX) = rho*prim(ALPHA1_INDEX);
+    /*for(std::size_t d = 0; d < Field::dim; ++d) {
+      cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
     }*/
+    cons(RHO_Z_INDEX) = rho*prim(Z_INDEX);
+
+    /*cons(M1_INDEX)         = prim(ALPHA1_INDEX)*EOS_phase1.rho_value(prim(P1_INDEX));
     const auto rho2        = EOS_phase2.rho_value(prim(P2_INDEX));
     const auto alpha1_d    = (1.0 - prim(ALPHA1_INDEX))*prim(ALPHA1_D_2_INDEX);
     cons(M2_INDEX)         = (1.0 - prim(ALPHA1_INDEX) - alpha1_d)*rho2;
@@ -402,16 +396,13 @@ namespace samurai {
     for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
     }
-    if(prim(SIGMA_OV_ALPHA1_D_INDEX) < 0.0) {
-      std::cerr << "Negative Sigma_d/alpha1_d in cons2prim" << std::endl;
-    }
     if(rho1_d < 0.0) {
       std::cerr << "Negative rho1_d in cons2prim" << std::endl;
     }
     if(alpha1_d < 0.0) {
       std::cerr << "Negative alpha1_d in prim2cons" << std::endl;
     }
-    cons(RHO_Z_INDEX) = std::pow(rho1_d, 2.0/3.0)*prim(SIGMA_OV_ALPHA1_D_INDEX)*alpha1_d;
+    cons(RHO_Z_INDEX) = std::pow(rho1_d, 2.0/3.0)*prim(SIGMA_OV_ALPHA1_D_INDEX)*alpha1_d;*/
 
     return cons;
   }
@@ -485,7 +476,8 @@ namespace samurai {
             rho1_d = compute_rho1_d_local_Laplace<Field>((*conserved_variables)(M1_D_INDEX),
                                                          (*conserved_variables)(M2_INDEX),
                                                          (*conserved_variables)(M1_INDEX), alpha1, (*conserved_variables)(RHO_Z_INDEX),
-                                                         sigma, EOS_phase1, EOS_phase2, atol_Newton, rtol_Newton, max_Newton_iters, lambda);
+                                                         sigma, EOS_phase1, EOS_phase2,
+                                                         atol_Newton_small_scale, rtol_Newton_small_scale, max_Newton_iters, lambda);
           }
           catch(const std::exception& e) {
             std::cerr << e.what() << std::endl;
