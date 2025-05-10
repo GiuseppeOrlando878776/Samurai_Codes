@@ -144,10 +144,9 @@ namespace samurai {
                                                      this->atol_Newton, this->rtol_Newton, this->max_Newton_iters, this->lambda);
     }
     catch(const std::exception& e) {
-      std::cerr << "Small-scale error when computing left star region" << std::endl;
+      std::cerr << "Small-scale error when computing rho1_d_L" << std::endl;
       std::cout << qL << std::endl;
-      std::cerr << e.what() << std::endl;
-      exit(1);
+      throw std::runtime_error(e.what());
     }
     const auto alpha1_d_L     = qL(M1_D_INDEX)/rho1_d_L;
     const auto alpha2_L       = 1.0 - alpha1_L - alpha1_d_L;
@@ -170,10 +169,9 @@ namespace samurai {
                                                      this->atol_Newton, this->rtol_Newton, this->max_Newton_iters, this->lambda);
     }
     catch(const std::exception& e) {
-      std::cerr << "Small-scale error when computing right star region" << std::endl;
-      std::cout << qR << std::endl;
-      std::cerr << e.what() << std::endl;
-      exit(1);
+      std::cerr << "Small-scale error when computing rho1_d_R" << std::endl;
+      std::cerr << qR << std::endl;
+      throw std::runtime_error(e.what());
     }
     const auto alpha1_d_R     = qR(M1_D_INDEX)/rho1_d_R;
     const auto alpha2_R       = 1.0 - alpha1_R - alpha1_d_R;
@@ -198,10 +196,10 @@ namespace samurai {
     const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
 
     if(q_star_L(M1_D_INDEX) < -1e-15) {
-      std::cerr << "Negative mass small-scale left star state" << std::endl;
+      throw std::runtime_error("Negative mass small-scale left star state");
     }
     if(q_star_R(M1_D_INDEX) < -1e-15) {
-      std::cerr << "Negative mass small-scale right star state" << std::endl;
+      throw std::runtime_error("Negative mass small-scale right star state");
     }
 
     /*--- Compute the flux ---*/

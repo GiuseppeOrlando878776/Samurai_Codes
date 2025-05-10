@@ -487,7 +487,7 @@ double TwoScaleCapillarity<dim>::get_max_lambda() {
                            }
                            catch(const std::exception& e) {
                              std::cerr << "Small-scale error when computing max speed sound" << std::endl;
-                             std::cout << conserved_variables[cell] << std::endl;
+                             std::cerr << conserved_variables[cell] << std::endl;
                              std::cerr << e.what() << std::endl;
                              exit(1);
                            }
@@ -719,7 +719,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
     }
     catch(const std::exception& e) {
       std::cerr << "Small-scale error when computing mass transfer" << std::endl;
-      std::cout << (*local_conserved_variables) << std::endl;
+      std::cerr << (*local_conserved_variables) << std::endl;
       throw std::runtime_error("Checking data");
     }
     const auto alpha1_d_loc = (*local_conserved_variables)(M1_D_INDEX)/rho1_d_loc;

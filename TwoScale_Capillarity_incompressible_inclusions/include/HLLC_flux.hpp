@@ -105,7 +105,7 @@ namespace samurai {
       if(qL(M2_INDEX) < 0.0) {
         throw std::runtime_error(std::string("Negative mass gas left state: " + std::to_string(qL(M2_INDEX))));
       }
-      if(qL(M1_D_INDEX) < 0.0) {
+      if(qL(M1_D_INDEX) < -1e-15) {
         throw std::runtime_error(std::string("Negative mass small-scale liquid left state: " + std::to_string(qL(M1_D_INDEX))));
       }
       if(qL(RHO_ALPHA1_INDEX) < 0.0) {

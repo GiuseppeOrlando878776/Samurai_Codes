@@ -103,8 +103,9 @@ namespace samurai {
                                                      this->atol_Newton, this->rtol_Newton, this->max_Newton_iters, this->lambda);
     }
     catch(const std::exception& e) {
-      std::cerr << e.what() << std::endl;
-      exit(1);
+      std::cerr << "Small-scale error when computing rho1_d_L" << std::endl;
+      std::cout << qL << std::endl;
+      throw std::runtime_error(e.what());
     }
     const auto alpha1_d_L     = qL(M1_D_INDEX)/rho1_d_L;
     const auto alpha2_L       = 1.0 - alpha1_L - alpha1_d_L;
@@ -127,8 +128,9 @@ namespace samurai {
                                                      this->atol_Newton, this->rtol_Newton, this->max_Newton_iters, this->lambda);
     }
     catch(const std::exception& e) {
-      std::cerr << e.what() << std::endl;
-      exit(1);
+      std::cerr << "Small-scale error when computing rho1_d_R" << std::endl;
+      std::cout << qR << std::endl;
+      throw std::runtime_error(e.what());
     }
     const auto alpha1_d_R     = qR(M1_D_INDEX)/rho1_d_R;
     const auto alpha2_R       = 1.0 - alpha1_R - alpha1_d_R;
