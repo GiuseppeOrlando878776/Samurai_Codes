@@ -766,7 +766,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                         EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)/
                                         rho_liq_loc;
       const auto dF_SS_dmd            = dF_LS_dmd
-                                      + aux_SS/(std::pow(alpha_d_loc, 1.0/3.0)*((*local_conserved_variables)(Md_INDEX) + 1e-13));
+                                      + aux_SS/(std::pow(alpha_d_loc, 1.0/3.0)*(*local_conserved_variables)(Md_INDEX) + 1e-13);
       const auto dF_LS_dml            = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)/alpha_l_loc
                                       + (*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
                                         EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
@@ -783,12 +783,13 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
                                       + (*local_conserved_variables)(Ml_INDEX)*dF_LS_dml
                                       + (*local_conserved_variables)(Md_INDEX)*dF_SS_dml;
 
-      const auto R                    = dF_dmd - dF_dml - 0.0*dF_drhoz*(3.0*Hmax/(kappa*std::pow(rho_liq_loc, 1.0/3.0)));
+      const auto R                    = dF_dml - dF_dmd - dF_drhoz*(3.0*Hmax/(kappa*std::pow(rho_liq_loc, 1.0/3.0)));
                                         /*equivalent to dF_drhoz*(S_avg/m_avg)*((rho*z/Sigma))*/
 
       // Upper bound
-      /*const auto a             = rho_liq_loc*sigma*dH*R;
-      auto b                   = F + lambda*(1.0 - alpha_l_loc)*dF_dalpha_l;
+      const auto R_ml          = -(*local_conserved_variables)(Ml_INDEX)*sigma*dH;
+      const auto a             = (R_ml/rho_liq_loc)*R;
+      auto b                   = (F + lambda*(1.0 - alpha_l_loc)*dF_dalpha_l)/rho_liq_loc;
       auto D                   = b*b - 4.0*a*(-lambda*(1.0 - alpha_l_loc));
       auto dtau_ov_epsilon_tmp = std::numeric_limits<typename Field::value_type>::infinity();
       if(D > 0.0 && (a > 0.0 || (a < 0.0 && b > 0.0))) {
@@ -800,7 +801,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
       dtau_ov_epsilon = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
       // Lower bound
       dtau_ov_epsilon_tmp = std::numeric_limits<typename Field::value_type>::infinity();
-      b                   = (F - lambda*alpha_l_loc*dF_dalpha_l);
+      b                   = (F - lambda*alpha_l_loc*dF_dalpha_l)/rho_liq_loc;
       D                   = b*b - 4.0*a*(lambda*alpha_l_loc);
       if(D > 0.0 && (a < 0.0 || (a > 0.0 && b < 0.0))) {
         dtau_ov_epsilon_tmp = 0.5*(-b - std::sqrt(D))/a;
@@ -811,7 +812,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
       dtau_ov_epsilon = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
       if(dtau_ov_epsilon < 0.0) {
         throw std::runtime_error("Negative time step found after relaxation of large-scale volume fraction");
-      }*/
+      }
 
       // Compute the effective variation of the variables
       if(std::isinf(dtau_ov_epsilon)) {
@@ -827,28 +828,27 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
         }
       }
       else {
-        const auto dm1 = -dtau_ov_epsilon*
-                          ((*local_conserved_variables)(Ml_INDEX)*sigma*dH);
+        const auto dm_l = dtau_ov_epsilon*R_ml;
 
         dalpha_l_loc = (dtau_ov_epsilon/rho_liq_loc)/((1.0 - dtau_ov_epsilon/rho_liq_loc*dF_dalpha_l))*
-                       (F - dm1*R);
+                       (F + dm_l*R);
 
-        if(dm1 > 0.0) {
+        if(dm_l > 0.0) {
           throw std::runtime_error("Negative sign of mass transfer inside Newton step");
         }
         else {
-          (*local_conserved_variables)(Ml_INDEX) += dm1;
+          (*local_conserved_variables)(Ml_INDEX) += dm_l;
           if((*local_conserved_variables)(Ml_INDEX) < 0.0) {
             throw std::runtime_error("Negative mass of large-scale phase 1 inside Newton step");
           }
 
-          (*local_conserved_variables)(Md_INDEX) -= dm1;
+          (*local_conserved_variables)(Md_INDEX) -= dm_l;
           if((*local_conserved_variables)(Md_INDEX) < 0.0) {
             throw std::runtime_error("Negative mass of small-scale phase 1 inside Newton step");
           }
         }
 
-        const auto R_Sigma_D = -dm1*3.0*Hmax/(kappa*rho_liq_loc);
+        const auto R_Sigma_D = -dm_l*3.0*Hmax/(kappa*rho_liq_loc);
         (*local_conserved_variables)(RHO_Z_INDEX) += (std::pow(rho_liq_loc, 2.0/3.0))*R_Sigma_D;
       }
 

@@ -4,7 +4,7 @@
  "yL": 0.0,
  "yR": 2.0,
 
- "mass_transfer": false,
+ "mass_transfer": true,
  "kappa": 1.0,
  "Hmax": 40.0,
  "alpha_d_max": 0.5,
