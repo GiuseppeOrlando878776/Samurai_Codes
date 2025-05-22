@@ -15,7 +15,7 @@
 
 /*--- Preprocessor to define whether relaxation is desired after reconstruction for order 2 ---*/
 #ifdef ORDER_2
-  //#define RELAX_RECONSTRUCTION
+  #define RELAX_RECONSTRUCTION
 #endif
 
 /**
@@ -349,14 +349,14 @@ namespace samurai {
           const auto p_g     = EOS_phase_gas.pres_value(rho_g);
 
           /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
-          const auto aux_SS = 2.0/3.0*sigma*
-                              (*conserved_variables)(RHO_Z_INDEX)*
-                              std::pow((*conserved_variables)(Ml_INDEX), 1.0/3.0)/
-                              ((*conserved_variables)(Md_INDEX) + 1e-13);
-          const auto F_SS   = p_liq - p_g - std::pow(alpha_l, -1.0/3.0)*aux_SS;
-          const auto F_LS   = p_liq - p_g - sigma*H;
-          const auto F      = (*conserved_variables)(Md_INDEX)*F_SS
-                            + (*conserved_variables)(Ml_INDEX)*F_LS;
+          const auto delta_p = p_liq - p_g;
+          const auto F_LS    = (*conserved_variables)(Ml_INDEX)*(delta_p - sigma*H);
+          const auto aux_SS  = 2.0/3.0*sigma*
+                               (*conserved_variables)(RHO_Z_INDEX)*
+                               std::pow((*conserved_variables)(Ml_INDEX), 1.0/3.0);
+          const auto F_SS    = (*conserved_variables)(Md_INDEX)*delta_p
+                             - std::pow(alpha_l, -1.0/3.0)*aux_SS;
+          const auto F       = F_LS + F_SS;
 
           /*--- Perform the relaxation only where really needed ---*/
           if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase_liq.get_p0(), sigma*std::abs(H)) &&
@@ -364,16 +364,16 @@ namespace samurai {
             relaxation_applied = true;
 
             // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-            const auto dF_LS_dalpha_l = -(*conserved_variables)(Ml_INDEX)/(alpha_l*alpha_l)*
-                                        EOS_phase_liq.c_value(rho_liq)*EOS_phase_liq.c_value(rho_liq)
-                                        -(*conserved_variables)(Mg_INDEX)/(alpha_g*alpha_g)*
-                                        EOS_phase_gas.c_value(rho_g)*EOS_phase_gas.c_value(rho_g)*
-                                        ((*conserved_variables)(Ml_INDEX) + (*conserved_variables)(Md_INDEX))/
-                                        (*conserved_variables)(Ml_INDEX);
-            const auto dF_SS_dalpha_l = dF_LS_dalpha_l
-                                        +1.0/3.0*std::pow(alpha_l, -4.0/3.0)*aux_SS;
-            const auto dF_dalpha_l    = (*conserved_variables)(Md_INDEX)*dF_SS_dalpha_l
-                                      + (*conserved_variables)(Ml_INDEX)*dF_LS_dalpha_l;
+            const auto ddelta_p_dalpha_l = -(*conserved_variables)(Ml_INDEX)/(alpha_l*alpha_l)*
+                                           EOS_phase_liq.c_value(rho_liq)*EOS_phase_liq.c_value(rho_liq)
+                                           -(*conserved_variables)(Mg_INDEX)/(alpha_g*alpha_g)*
+                                           EOS_phase_gas.c_value(rho_g)*EOS_phase_gas.c_value(rho_g)*
+                                           ((*conserved_variables)(Ml_INDEX) + (*conserved_variables)(Md_INDEX))/
+                                           (*conserved_variables)(Ml_INDEX);
+            const auto dF_LS_dalpha_l    = (*conserved_variables)(Ml_INDEX)*ddelta_p_dalpha_l;
+            const auto dF_SS_dalpha_l    = (*conserved_variables)(Md_INDEX)*ddelta_p_dalpha_l
+                                         + 1.0/3.0*std::pow(alpha_l, -4.0/3.0)*aux_SS;
+            const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 
             // Compute the large-scale volume fraction update
             dalpha_l = -F/dF_dalpha_l;

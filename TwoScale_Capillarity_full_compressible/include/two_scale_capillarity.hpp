@@ -706,14 +706,14 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
     const auto dH = H_loc - H_lim;
 
     // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
-    const auto aux_SS = 2.0/3.0*sigma*
-                        (*local_conserved_variables)(RHO_Z_INDEX)*
-                        std::pow((*local_conserved_variables)(Ml_INDEX), 1.0/3.0)/
-                        ((*local_conserved_variables)(Md_INDEX) + 1e-13);
-    const auto F_SS   = p_liq_loc - p_g_loc - std::pow(alpha_l_loc, -1.0/3.0)*aux_SS;
-    const auto F_LS   = p_liq_loc - p_g_loc - sigma*H_lim;
-    const auto F      = (*local_conserved_variables)(Md_INDEX)*F_SS
-                      + (*local_conserved_variables)(Ml_INDEX)*F_LS;
+    const auto delta_p = p_liq_loc - p_g_loc;
+    const auto F_LS    = (*local_conserved_variables)(Ml_INDEX)*(delta_p - sigma*H_lim);
+    const auto aux_SS  = 2.0/3.0*sigma*
+                         (*local_conserved_variables)(RHO_Z_INDEX)*
+                         std::pow((*local_conserved_variables)(Ml_INDEX), 1.0/3.0);
+    const auto F_SS    = (*local_conserved_variables)(Md_INDEX)*delta_p
+                       - std::pow(alpha_l_loc, -1.0/3.0)*aux_SS;
+    const auto F       = F_LS + F_SS;
 
     // Perform the relaxation only where really needed
     if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase_liq.get_p0(), sigma*std::abs(H_lim)) &&
@@ -723,16 +723,16 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
       local_relaxation_applied = true;
 
       // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-      const auto dF_LS_dalpha_l = -(*local_conserved_variables)(Ml_INDEX)/(alpha_l_loc*alpha_l_loc)*
-                                  EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)
-                                  -(*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
-                                  EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                  ((*local_conserved_variables)(Ml_INDEX) + (*local_conserved_variables)(Md_INDEX))/
-                                  (*local_conserved_variables)(Ml_INDEX);
-      const auto dF_SS_dalpha_l = dF_LS_dalpha_l
-                                + 1.0/3.0*std::pow(alpha_l_loc, -4.0/3.0)*aux_SS;
-      const auto dF_dalpha_l    = (*local_conserved_variables)(Md_INDEX)*dF_SS_dalpha_l
-                                + (*local_conserved_variables)(Ml_INDEX)*dF_LS_dalpha_l;
+      const auto ddelta_p_dalpha_l = -(*local_conserved_variables)(Ml_INDEX)/(alpha_l_loc*alpha_l_loc)*
+                                     EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)
+                                     -(*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
+                                     EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
+                                     ((*local_conserved_variables)(Ml_INDEX) + (*local_conserved_variables)(Md_INDEX))/
+                                     (*local_conserved_variables)(Ml_INDEX);
+      const auto dF_LS_dalpha_l    = (*local_conserved_variables)(Ml_INDEX)*ddelta_p_dalpha_l;
+      const auto dF_SS_dalpha_l    = (*local_conserved_variables)(Md_INDEX)*ddelta_p_dalpha_l
+                                   + 1.0/3.0*std::pow(alpha_l_loc, -4.0/3.0)*aux_SS;
+      const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 
       // Compute the pseudo time step starting as initial guess from the ideal unmodified Newton method
       auto dtau_ov_epsilon = std::numeric_limits<typename Field::value_type>::infinity();
@@ -761,30 +761,26 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
       }
 
       // Bound preserving condition for large-scale volume fraction
-      const auto dF_SS_drhoz_times_md = -2.0/3.0*std::pow(rho_liq_loc, 1.0/3.0);
-      const auto dF_LS_dmd            = -(*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
-                                        EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)/
-                                        rho_liq_loc;
-      const auto dF_SS_dmd            = dF_LS_dmd
-                                      + aux_SS/(std::pow(alpha_d_loc, 1.0/3.0)*(*local_conserved_variables)(Md_INDEX) + 1e-13);
-      const auto dF_LS_dml            = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)/alpha_l_loc
-                                      + (*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
-                                        EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                        (alpha_l_loc*(*local_conserved_variables)(Md_INDEX))/
-                                        ((*local_conserved_variables)(Ml_INDEX)*(*local_conserved_variables)(Ml_INDEX));
-      const auto dF_SS_dml            = dF_LS_dml
-                                      - 1.0/3.0*aux_SS/(std::pow(alpha_l_loc, 1.0/3.0)*(*local_conserved_variables)(Ml_INDEX));
+      const auto dF_drhoz     = -2.0/3.0*std::pow(rho_liq_loc, 1.0/3.0);
 
-      const auto dF_drhoz             = dF_SS_drhoz_times_md;
-      const auto dF_dmd               = F_SS
-                                      + (*local_conserved_variables)(Md_INDEX)*dF_SS_dmd
-                                      + (*local_conserved_variables)(Ml_INDEX)*dF_LS_dmd;
-      const auto dF_dml               = F_LS
-                                      + (*local_conserved_variables)(Ml_INDEX)*dF_LS_dml
-                                      + (*local_conserved_variables)(Md_INDEX)*dF_SS_dml;
+      const auto ddelta_p_dmd = -(*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
+                                EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)/rho_liq_loc;
+      const auto dF_LS_dmd    = (*local_conserved_variables)(Ml_INDEX)*ddelta_p_dmd;
+      const auto dF_SS_dmd    = delta_p + (*local_conserved_variables)(Md_INDEX)*ddelta_p_dmd;
+      const auto dF_dmd       = dF_LS_dmd + dF_SS_dmd;
 
-      const auto R                    = dF_dml - dF_dmd - dF_drhoz*(3.0*Hmax/(kappa*std::pow(rho_liq_loc, 1.0/3.0)));
-                                        /*equivalent to dF_drhoz*(S_avg/m_avg)*((rho*z/Sigma))*/
+      const auto ddelta_p_dml = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)/alpha_l_loc
+                              + (*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
+                                EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
+                                (alpha_l_loc*(*local_conserved_variables)(Md_INDEX))/
+                                ((*local_conserved_variables)(Ml_INDEX)*(*local_conserved_variables)(Ml_INDEX));
+      const auto dF_LS_dml    = (delta_p - sigma*H_lim) + (*local_conserved_variables)(Ml_INDEX)*ddelta_p_dml;
+      const auto dF_SS_dml    = (*local_conserved_variables)(Md_INDEX)*ddelta_p_dml
+                              - 1.0/3.0*aux_SS/(std::pow(alpha_l_loc, 1.0/3.0)*(*local_conserved_variables)(Ml_INDEX));
+      const auto dF_dml       = dF_LS_dml + dF_SS_dml;
+
+      const auto R            = dF_dml - dF_dmd - dF_drhoz*(3.0*Hmax/(kappa*std::pow(rho_liq_loc, 1.0/3.0)));
+                                /*equivalent to dF_drhoz*(S_avg/m_avg)*((rho*z/Sigma))*/
 
       // Upper bound
       const auto R_ml          = -(*local_conserved_variables)(Ml_INDEX)*sigma*dH;
