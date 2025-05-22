@@ -38,8 +38,11 @@ namespace EquationData {
 
   /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
   static constexpr std::size_t ALPHA_l_INDEX = RHO_ALPHA_l_INDEX;
-  //static constexpr std::size_t U_INDEX       = RHO_U_INDEX;
+  static constexpr std::size_t U_INDEX       = RHO_U_INDEX;
   static constexpr std::size_t Z_INDEX       = RHO_Z_INDEX;
+  static constexpr std::size_t Pl_INDEX      = Ml_INDEX;
+  static constexpr std::size_t Pg_INDEX      = Mg_INDEX;
+  static constexpr std::size_t ALPHA_d_INDEX = Md_INDEX;
 }
 
 namespace samurai {
@@ -249,13 +252,19 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
-    FluxValue<cfg> prim = cons;
+    FluxValue<cfg> prim;
 
     const auto rho      = cons(Ml_INDEX) + cons(Mg_INDEX) + cons(Md_INDEX);
     prim(ALPHA_l_INDEX) = cons(RHO_ALPHA_l_INDEX)/rho;
-    /*for(std::size_t d = 0; d < Field::dim; ++d) {
+    prim(ALPHA_d_INDEX) = prim(ALPHA_l_INDEX)*cons(Md_INDEX)/cons(Ml_INDEX);
+    const auto rho_liq  = (cons(Ml_INDEX) + cons(Md_INDEX))/
+                          (prim(ALPHA_l_INDEX) + prim(ALPHA_d_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    prim(Pl_INDEX)      = EOS_phase_liq.pres_value(rho_liq);
+    prim(Pg_INDEX)      = EOS_phase_gas.pres_value(cons(Mg_INDEX)/(1.0 - prim(ALPHA_l_INDEX) - prim(ALPHA_d_INDEX)));
+    /*--- TODO: Add a check in case of zero volume fraction ---*/
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
-    }*/
+    }
     prim(Z_INDEX) = cons(RHO_Z_INDEX)/rho;
 
     return prim;
@@ -265,13 +274,18 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
-    FluxValue<cfg> cons = prim;
+    FluxValue<cfg> cons;
 
+    const auto rho_liq      = EOS_phase_liq.rho_value(prim(Pl_INDEX));
+    const auto rho_g        = EOS_phase_gas.rho_value(prim(Pg_INDEX));
+    cons(Ml_INDEX)          = prim(ALPHA_l_INDEX)*rho_liq;
+    cons(Md_INDEX)          = prim(ALPHA_d_INDEX)*rho_liq;
+    cons(Mg_INDEX)          = (1.0 - prim(ALPHA_l_INDEX) - prim(ALPHA_d_INDEX))*rho_g;
     const auto rho          = cons(Ml_INDEX) + cons(Mg_INDEX) + cons(Md_INDEX);
     cons(RHO_ALPHA_l_INDEX) = rho*prim(ALPHA_l_INDEX);
-    /*for(std::size_t d = 0; d < Field::dim; ++d) {
+    for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
-    }*/
+    }
     cons(RHO_Z_INDEX) = rho*prim(Z_INDEX);
 
     return cons;
