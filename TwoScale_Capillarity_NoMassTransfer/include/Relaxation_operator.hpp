@@ -17,7 +17,7 @@ namespace samurai {
   class RelaxationOperator {
   public:
     /*--- Definitions and sanity checks ---*/
-    static constexpr std::size_t output_field_size = Field::size;
+    static constexpr std::size_t output_field_size = Field::n_comp;
 
     using cfg = samurai::LocalCellSchemeConfig<SchemeType::NonLinear, output_field_size, Field>;
 

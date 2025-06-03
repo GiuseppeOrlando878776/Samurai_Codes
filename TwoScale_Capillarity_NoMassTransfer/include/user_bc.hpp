@@ -56,7 +56,7 @@ auto Inlet(const Field& Q,
     const auto rho2   = Q[cell_in](M2_INDEX)/alpha2;
 
     /*--- Compute the corresponding ghost state ---*/
-    xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::size>> Q_ghost;
+    xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
     const auto alpha2_D       = 1.0 - alpha1_D;
     Q_ghost[M1_INDEX]         = alpha1_D*rho1;
     Q_ghost[M2_INDEX]         = alpha2_D*rho2;

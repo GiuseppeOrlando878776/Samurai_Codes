@@ -247,38 +247,6 @@ namespace samurai {
                                            {
                                              #ifdef ORDER_2
                                                // MUSCL reconstruction
-                                               /*FluxValue<typename Flux<Field>::cfg> primLL;
-                                               try {
-                                                 primLL = this->cons2prim(field[0]);
-                                               }
-                                               catch(const std::exception& e) {
-                                                 std::cout << e.what() << std::endl;
-                                                 std::cout << data.cells[0] << std::endl;
-                                               }
-                                               FluxValue<typename Flux<Field>::cfg> primL;
-                                               try {
-                                                 primL = this->cons2prim(field[1]);
-                                               }
-                                               catch(const std::exception& e) {
-                                                 std::cout << e.what() << std::endl;
-                                                 std::cout << data.cells[1] << std::endl;
-                                               }
-                                               FluxValue<typename Flux<Field>::cfg> primR;
-                                               try {
-                                                 primR = this->cons2prim(field[2]);
-                                               }
-                                               catch(const std::exception& e) {
-                                                 std::cout << e.what() << std::endl;
-                                                 std::cout << data.cells[2] << std::endl;
-                                               }
-                                               FluxValue<typename Flux<Field>::cfg> primRR;
-                                               try {
-                                                 primRR = this->cons2prim(field[3]);
-                                               }
-                                               catch(const std::exception& e) {
-                                                 std::cout << e.what() << std::endl;
-                                                 std::cout << data.cells[3] << std::endl;
-                                               }*/
                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
                                                const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);

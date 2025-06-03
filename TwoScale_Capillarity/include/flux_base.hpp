@@ -54,7 +54,7 @@ namespace samurai {
   class Flux {
   public:
     /*--- Definitions and sanity checks ---*/
-    static constexpr std::size_t field_size = Field::size;
+    static constexpr std::size_t field_size = Field::n_comp;
     static_assert(field_size == EquationData::NVARS, "The number of elements in the state does not correspond to the number of equations");
     static_assert(Field::dim == EquationData::dim, "The spatial dimensions between Field and the parameter list do not match");
     static constexpr std::size_t output_field_size = field_size;
@@ -306,7 +306,7 @@ namespace samurai {
 
       /*--- Perform the reconstruction ---*/
       const double beta = 1.0; // MINMOD limiter
-      for(std::size_t comp = 0; comp < Field::size; ++comp) {
+      for(std::size_t comp = 0; comp < Field::n_comp; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
                                                                    primR(comp) - primL(comp)),

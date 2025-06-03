@@ -221,8 +221,8 @@ namespace samurai {
                                                FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
                                                #ifdef RELAX_RECONSTRUCTION
-                                                 this->relax_reconstruction(qL, H[data.cells[1]]);
-                                                 this->relax_reconstruction(qR, H[data.cells[2]]);
+                                                 this->relax_reconstruction(qL, H[data.cells[1]][0]);
+                                                 this->relax_reconstruction(qR, H[data.cells[2]][0]);
                                                #endif
                                              #else
                                                // Extract the states

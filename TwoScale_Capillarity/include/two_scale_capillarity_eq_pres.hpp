@@ -71,9 +71,10 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
-  using Field_Vect   = samurai::Field<decltype(mesh), typename Field::value_type, dim, false>;
+  using Field              = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
+  using Field_Scalar       = samurai::ScalarField<decltype(mesh), typename Field::value_type>;
+  using Field_Vect         = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
+  using Field_ScalarVector = samurai::VectorField<decltype(mesh), typename Field::value_type, 1, false>;
 
   bool apply_relax; /*--- Choose whether to apply or not the relaxation ---*/
 
@@ -88,7 +89,6 @@ private:
   /*--- Now we declare a bunch of fields which depend from the state, but it is useful
         to have it so as to avoid recomputation ---*/
   Field_Scalar alpha1_bar,
-               H_bar,
                dalpha1_bar,
                p1,
                p2,
@@ -100,16 +100,18 @@ private:
   Field_Scalar alpha1_d,
                Dt_alpha1_d,
                CV_alpha1_d,
-               div_vel,
                alpha1;
 
   Field_Vect grad_alpha1_d,
              vel,
              grad_alpha1;
 
-  samurai::Field<decltype(mesh), std::size_t, 1, false> to_be_relaxed;
-  samurai::Field<decltype(mesh), std::size_t, 1, false> Newton_iterations;
-  samurai::Field<decltype(mesh), std::size_t, 1, false> type_relaxation;
+  Field_ScalarVector H_bar,
+                     div_vel;
+
+  samurai::ScalarField<decltype(mesh), std::size_t> to_be_relaxed;
+  samurai::ScalarField<decltype(mesh), std::size_t> Newton_iterations;
+  samurai::ScalarField<decltype(mesh), std::size_t> type_relaxation;
 
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1_bar)>());
   gradient_type gradient;
@@ -242,9 +244,9 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << std::endl;
     }
     init_variables(sim_param.R, sim_param.eps_over_R, sim_param.alpha_residual);
-    to_be_relaxed     = samurai::make_field<std::size_t, 1>("to_be_relaxed", mesh);
-    Newton_iterations = samurai::make_field<std::size_t, 1>("Newton_iterations", mesh);
-    type_relaxation   = samurai::make_field<std::size_t, 1>("type_relaxation", mesh);
+    to_be_relaxed     = samurai::make_scalar_field<std::size_t>("to_be_relaxed", mesh);
+    Newton_iterations = samurai::make_scalar_field<std::size_t>("Newton_iterations", mesh);
+    type_relaxation   = samurai::make_scalar_field<std::size_t>("type_relaxation", mesh);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -278,27 +280,27 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_over_R, const double alpha_residual) {
   /*--- Create conserved and auxiliary fields ---*/
-  conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  alpha1_bar      = samurai::make_field<typename Field::value_type, 1>("alpha1_bar", mesh);
-  grad_alpha1_bar = samurai::make_field<typename Field::value_type, dim>("grad_alpha1_bar", mesh);
-  normal          = samurai::make_field<typename Field::value_type, dim>("normal", mesh);
-  H_bar           = samurai::make_field<typename Field::value_type, 1>("H_bar", mesh);
+  alpha1_bar      = samurai::make_scalar_field<typename Field::value_type>("alpha1_bar", mesh);
+  grad_alpha1_bar = samurai::make_vector_field<typename Field::value_type, dim>("grad_alpha1_bar", mesh);
+  normal          = samurai::make_vector_field<typename Field::value_type, dim>("normal", mesh);
+  H_bar           = samurai::make_vector_field<typename Field::value_type, 1>("H_bar", mesh);
 
-  dalpha1_bar     = samurai::make_field<typename Field::value_type, 1>("dalpha1_bar", mesh);
+  dalpha1_bar     = samurai::make_scalar_field<typename Field::value_type>("dalpha1_bar", mesh);
 
-  p1              = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
-  p2              = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
-  p_bar           = samurai::make_field<typename Field::value_type, 1>("p_bar", mesh);
+  p1              = samurai::make_scalar_field<typename Field::value_type>("p1", mesh);
+  p2              = samurai::make_scalar_field<typename Field::value_type>("p2", mesh);
+  p_bar           = samurai::make_scalar_field<typename Field::value_type>("p_bar", mesh);
 
-  alpha1_d        = samurai::make_field<typename Field::value_type, 1>("alpha1_d", mesh);
-  grad_alpha1_d   = samurai::make_field<typename Field::value_type, dim>("grad_alpha1_d", mesh);
-  vel             = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
-  div_vel         = samurai::make_field<typename Field::value_type, 1>("div_vel", mesh);
-  Dt_alpha1_d     = samurai::make_field<typename Field::value_type, 1>("Dt_alpha1_d", mesh);
-  CV_alpha1_d     = samurai::make_field<typename Field::value_type, 1>("CV_alpha1_d", mesh);
-  alpha1          = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
-  grad_alpha1     = samurai::make_field<typename Field::value_type, dim>("grad_alpha1", mesh);
+  alpha1_d        = samurai::make_scalar_field<typename Field::value_type>("alpha1_d", mesh);
+  grad_alpha1_d   = samurai::make_vector_field<typename Field::value_type, dim>("grad_alpha1_d", mesh);
+  vel             = samurai::make_vector_field<typename Field::value_type, dim>("vel", mesh);
+  div_vel         = samurai::make_vector_field<typename Field::value_type, 1>("div_vel", mesh);
+  Dt_alpha1_d     = samurai::make_scalar_field<typename Field::value_type>("Dt_alpha1_d", mesh);
+  CV_alpha1_d     = samurai::make_scalar_field<typename Field::value_type>("CV_alpha1_d", mesh);
+  alpha1          = samurai::make_scalar_field<typename Field::value_type>("alpha1", mesh);
+  grad_alpha1     = samurai::make_vector_field<typename Field::value_type, dim>("grad_alpha1", mesh);
 
   /*--- Declare some constant parameters associated to the grid and to the
         initial state ---*/
@@ -433,7 +435,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
 //
 template<std::size_t dim>
 double TwoScaleCapillarity<dim>::get_max_lambda() {
-  double res = 0.0;
+  double local_res = 0.0;
 
   alpha1.resize();
   samurai::for_each_cell(mesh,
@@ -466,12 +468,15 @@ double TwoScaleCapillarity<dim>::get_max_lambda() {
                            const double r = sigma*std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())/(rho*c*c);
 
                            /*--- Update eigenvalue estimate ---*/
-                           res = std::max(std::max(std::abs(vel_x) + c*(1.0 + 0.125*r),
-                                                   std::abs(vel_y) + c*(1.0 + 0.125*r)),
-                                          res);
+                           local_res = std::max(std::max(std::abs(vel_x) + c*(1.0 + 0.125*r),
+                                                         std::abs(vel_y) + c*(1.0 + 0.125*r)),
+                                                local_res);
                          });
 
-  return res;
+  double global_res;
+  MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+  return global_res;
 }
 
 // Perform the mesh adaptation strategy.
@@ -503,7 +508,7 @@ template<std::size_t dim>
 void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
   std::string op;
   if(flag == 0) {
-    op = "after hyperbolic opeator (i.e. at the beginning of the relaxation)";
+    op = "after hyperbolic operator (i.e. at the beginning of the relaxation)";
   }
   else {
     op = "after mesh adptation";
@@ -577,7 +582,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            // Sanity check for alpha1_d
                            if(conserved_variables[cell][ALPHA1_D_INDEX] > 1.0) {
                              std::cerr << cell << std::endl;
-                             std::cerr << "Exceding value of small-scale volume fraction " + op << std::endl;
+                             std::cerr << "Exceeding value of small-scale volume fraction " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                              exit(1);
                            }
@@ -621,16 +626,16 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
   Newton_iterations.fill(0);
   dalpha1_bar.fill(std::numeric_limits<typename Field::value_type>::infinity());
   H_bar.fill(nan(""));
-  bool relaxation_applied = true;
+  bool gloal_relaxation_applied = true;
 
   samurai::times::timers.stop("apply_relaxation");*/
 
   /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
         over each cell would (could?) be more logic, but this would lead to issues to call 'update_geometry' ---*/
-  /*while(relaxation_applied == true) {
+  /*while(global_relaxation_applied == true) {
     samurai::times::timers.start("apply_relaxation");
 
-    relaxation_applied = false;
+    bool local_relaxation_applied = false;
     Newton_iter++;
 
     // Loop over all cells.
@@ -640,7 +645,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              try {
                                perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                               H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
-                                                              to_be_relaxed[cell], Newton_iterations[cell], relaxation_applied, type_relaxation[cell],
+                                                              to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied, type_relaxation[cell],
                                                               grad_alpha1_bar[cell], false);
                              }
                              catch(std::exception& e) {
@@ -652,8 +657,11 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              }
                            });
 
+    mpi::communicator world;
+    boost::mpi::all_reduce(world, local_relaxation_applied, global_relaxation_applied, std::logical_or<bool>());
+
     // Newton cycle diverged
-    if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+    if(Newton_iter > max_Newton_iters && global_elaxation_applied == true) {
       std::cerr << "First Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
            conserved_variables, alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
@@ -677,18 +685,18 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
   std::size_t Newton_iter = 0;
   Newton_iterations.fill(0);
   dalpha1_bar.fill(std::numeric_limits<typename Field::value_type>::infinity());
-  bool relaxation_applied = true;
-  bool mass_transfer_NR   = mass_transfer; // In principle we might think to disable it after a certain
-                                           // number of iterations (as in Arthur's code), not done here.
+  bool global_relaxation_applied = true;
+  bool mass_transfer_NR          = mass_transfer; // In principle we might think to disable it after a certain
+                                                 // number of iterations (as in Arthur's code), not done here.
 
   samurai::times::timers.stop("apply_relaxation");
 
   /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
         over each cell would (could?) be more logic, but this would lead to issues to call 'update_geometry' ---*/
-  while(relaxation_applied == true) {
+  while(global_relaxation_applied == true) {
     samurai::times::timers.start("apply_relaxation");
 
-    relaxation_applied = false;
+    bool local_relaxation_applied = false;
     Newton_iter++;
 
     // Loop over all cells.
@@ -698,7 +706,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              try {
                                perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
                                                               H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
-                                                              to_be_relaxed[cell], Newton_iterations[cell], relaxation_applied, type_relaxation[cell],
+                                                              to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied, type_relaxation[cell],
                                                               grad_alpha1_bar[cell], mass_transfer_NR);
                              }
                              catch(std::exception& e) {
@@ -710,8 +718,11 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              }
                            });
 
+    mpi::communicator world;
+    boost::mpi::all_reduce(world, local_relaxation_applied, global_relaxation_applied, std::logical_or<bool>());
+
     // Newton cycle diverged
-    if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+    if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
            conserved_variables, alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
@@ -982,7 +993,7 @@ template<class... Variables>
 void TwoScaleCapillarity<dim>::save(const fs::path& path,
                                     const std::string& suffix,
                                     const Variables&... fields) {
-  auto level_ = samurai::make_field<std::size_t, 1>("level", mesh);
+  auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
   if(!fs::exists(path)) {
     fs::create_directory(path);
@@ -1002,16 +1013,16 @@ void TwoScaleCapillarity<dim>::save(const fs::path& path,
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
   /*--- Initialize relevant integral quantities ---*/
-  typename Field::value_type H_lig               = 0.0;
-  typename Field::value_type m1_int              = 0.0;
-  typename Field::value_type m1_d_int            = 0.0;
-  typename Field::value_type alpha1_bar_int      = 0.0;
-  typename Field::value_type grad_alpha1_bar_int = 0.0;
-  typename Field::value_type Sigma_d_int         = 0.0;
-  typename Field::value_type alpha1_d_int        = 0.0;
-  typename Field::value_type grad_alpha1_d_int   = 0.0;
-  typename Field::value_type grad_alpha1_int     = 0.0;
-  typename Field::value_type grad_alpha1_tot_int = 0.0;
+  typename Field::value_type local_H_lig               = 0.0;
+  typename Field::value_type local_m1_int              = 0.0;
+  typename Field::value_type local_m1_d_int            = 0.0;
+  typename Field::value_type local_alpha1_bar_int      = 0.0;
+  typename Field::value_type local_grad_alpha1_bar_int = 0.0;
+  typename Field::value_type local_Sigma_d_int         = 0.0;
+  typename Field::value_type local_alpha1_d_int        = 0.0;
+  typename Field::value_type local_grad_alpha1_d_int   = 0.0;
+  typename Field::value_type local_grad_alpha1_int     = 0.0;
+  typename Field::value_type local_grad_alpha1_tot_int = 0.0;
 
   samurai::update_ghost_mr(alpha1);
   grad_alpha1.resize();
@@ -1066,33 +1077,55 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                               -grad_alpha1_bar[cell][0]*conserved_variables[cell][RHO_U_INDEX]
                               -grad_alpha1_bar[cell][1]*conserved_variables[cell][RHO_U_INDEX + 1] > 0.0 &&
                               conserved_variables[cell][ALPHA1_D_INDEX] < alpha1d_max) {
-                             H_lig = std::max(H_bar[cell], H_lig);
+                             local_H_lig = std::max(H_bar[cell], local_H_lig);
                            }
 
                            // Compute the integral quantities
-                           m1_int += conserved_variables[cell][M1_INDEX]*std::pow(cell.length, dim);
-                           m1_d_int += conserved_variables[cell][M1_D_INDEX]*std::pow(cell.length, dim);
-                           alpha1_bar_int += alpha1_bar[cell]*std::pow(cell.length, dim);
-                           grad_alpha1_bar_int += std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())*std::pow(cell.length, dim);
-                           Sigma_d_int += conserved_variables[cell][SIGMA_D_INDEX]*std::pow(cell.length, dim);
-                           grad_alpha1_d_int += std::sqrt(xt::sum(grad_alpha1_d[cell]*grad_alpha1_d[cell])())*std::pow(cell.length, dim);
-                           alpha1_d_int += alpha1_d[cell]*std::pow(cell.length, dim);
-                           grad_alpha1_int += std::sqrt(xt::sum(grad_alpha1[cell]*grad_alpha1[cell])())*std::pow(cell.length, dim);
-                           grad_alpha1_tot_int += std::sqrt(xt::sum((grad_alpha1[cell] + grad_alpha1_d[cell])*
-                                                                    (grad_alpha1[cell] + grad_alpha1_d[cell]))())*std::pow(cell.length, dim);
+                           local_m1_int += conserved_variables[cell][M1_INDEX]*std::pow(cell.length, dim);
+                           local_m1_d_int += conserved_variables[cell][M1_D_INDEX]*std::pow(cell.length, dim);
+                           local_alpha1_bar_int += alpha1_bar[cell]*std::pow(cell.length, dim);
+                           local_grad_alpha1_bar_int += std::sqrt(xt::sum(grad_alpha1_bar[cell]*grad_alpha1_bar[cell])())*std::pow(cell.length, dim);
+                           local_Sigma_d_int += conserved_variables[cell][SIGMA_D_INDEX]*std::pow(cell.length, dim);
+                           local_grad_alpha1_d_int += std::sqrt(xt::sum(grad_alpha1_d[cell]*grad_alpha1_d[cell])())*std::pow(cell.length, dim);
+                           local_alpha1_d_int += alpha1_d[cell]*std::pow(cell.length, dim);
+                           local_grad_alpha1_int += std::sqrt(xt::sum(grad_alpha1[cell]*grad_alpha1[cell])())*std::pow(cell.length, dim);
+                           local_grad_alpha1_tot_int += std::sqrt(xt::sum((grad_alpha1[cell] + grad_alpha1_d[cell])*
+                                                                          (grad_alpha1[cell] + grad_alpha1_d[cell]))())*std::pow(cell.length, dim);
                          });
 
+  /*--- Perform MPI collective operations ---*/
+  typename Field::value_type global_H_lig;
+  MPI_Allreduce(&local_H_lig, &global_H_lig, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+  typename Field::value_type global_m1_int;
+  MPI_Allreduce(&local_m1_int, &global_m1_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  typename Field::value_type global_m1_d_int;
+  MPI_Allreduce(&local_m1_d_int, &global_m1_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  typename Field::value_type global_alpha1_bar_int;
+  MPI_Allreduce(&local_alpha1_bar_int, &global_alpha1_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  typename Field::value_type global_grad_alpha1_bar_int;
+  MPI_Allreduce(&local_grad_alpha1_bar_int, &global_grad_alpha1_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  typename Field::value_type global_Sigma_d_int;
+  MPI_Allreduce(&local_Sigma_d_int, &global_Sigma_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  typename Field::value_type global_alpha1_d_int;
+  MPI_Allreduce(&local_alpha1_d_int, &global_alpha1_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  typename Field::value_type global_grad_alpha1_d_int;
+  MPI_Allreduce(&local_grad_alpha1_d_int, &global_grad_alpha1_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  typename Field::value_type global_grad_alpha1_int;
+  MPI_Allreduce(&local_grad_alpha1_int, &global_grad_alpha1_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  typename Field::value_type global_grad_alpha1_tot_int;
+  MPI_Allreduce(&local_grad_alpha1_tot_int, &global_grad_alpha1_tot_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
   /*--- Save the data ---*/
-  Hlig                     << std::fixed << std::setprecision(12) << time << '\t' << H_lig               << std::endl;
-  m1_integral              << std::fixed << std::setprecision(12) << time << '\t' << m1_int              << std::endl;
-  m1_d_integral            << std::fixed << std::setprecision(12) << time << '\t' << m1_d_int            << std::endl;
-  alpha1_bar_integral      << std::fixed << std::setprecision(12) << time << '\t' << alpha1_bar_int      << std::endl;
-  grad_alpha1_bar_integral << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_bar_int << std::endl;
-  Sigma_d_integral         << std::fixed << std::setprecision(12) << time << '\t' << Sigma_d_int         << std::endl;
-  alpha1_d_integral        << std::fixed << std::setprecision(12) << time << '\t' << alpha1_d_int        << std::endl;
-  grad_alpha1_d_integral   << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_d_int   << std::endl;
-  grad_alpha1_integral     << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_int     << std::endl;
-  grad_alpha1_tot_integral << std::fixed << std::setprecision(12) << time << '\t' << grad_alpha1_tot_int << std::endl;
+  Hlig                     << std::fixed << std::setprecision(12) << time << '\t' << global_H_lig               << std::endl;
+  m1_integral              << std::fixed << std::setprecision(12) << time << '\t' << global_m1_int              << std::endl;
+  m1_d_integral            << std::fixed << std::setprecision(12) << time << '\t' << global_m1_d_int            << std::endl;
+  alpha1_bar_integral      << std::fixed << std::setprecision(12) << time << '\t' << global_alpha1_bar_int      << std::endl;
+  grad_alpha1_bar_integral << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha1_bar_int << std::endl;
+  Sigma_d_integral         << std::fixed << std::setprecision(12) << time << '\t' << global_Sigma_d_int         << std::endl;
+  alpha1_d_integral        << std::fixed << std::setprecision(12) << time << '\t' << global_alpha1_d_int        << std::endl;
+  grad_alpha1_d_integral   << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha1_d_int   << std::endl;
+  grad_alpha1_integral     << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha1_int     << std::endl;
+  grad_alpha1_tot_integral << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha1_tot_int << std::endl;
 }
 
 /*---- IMPLEMENT THE FUNCTION THAT EFFECTIVELY SOLVES THE PROBLEM ---*/
@@ -1130,10 +1163,10 @@ void TwoScaleCapillarity<dim>::run() {
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
   /*--- Create the flux variable ---*/
   #ifdef RUSANOV_FLUX
@@ -1215,6 +1248,7 @@ void TwoScaleCapillarity<dim>::run() {
     // Apply the numerical scheme without relaxation
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
+    samurai::update_ghost_mr(H_bar);
     try {
       auto flux_hyp = numerical_flux_hyp(conserved_variables);
       #ifdef ORDER_2
@@ -1280,6 +1314,7 @@ void TwoScaleCapillarity<dim>::run() {
       // Apply the numerical scheme
       // Convective operator
       samurai::update_ghost_mr(conserved_variables);
+      samurai::update_ghost_mr(H_bar);
       try {
         auto flux_hyp = numerical_flux_hyp(conserved_variables);
         conserved_variables_tmp = conserved_variables - dt*flux_hyp;
@@ -1351,7 +1386,7 @@ void TwoScaleCapillarity<dim>::run() {
       Dt_alpha1_d.resize();
       CV_alpha1_d.resize();
 
-      // Compute axuliary variables for saving
+      // Compute auxiliary variables for saving
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
@@ -1373,7 +1408,7 @@ void TwoScaleCapillarity<dim>::run() {
                                                  + vel[cell][0]*grad_alpha1_d[cell][0] + vel[cell][1]*grad_alpha1_d[cell][1];
 
                                CV_alpha1_d[cell] = Dt_alpha1_d[cell]
-                                                 + conserved_variables[cell][ALPHA1_D_INDEX]*div_vel[cell];
+                                                 + conserved_variables[cell][ALPHA1_D_INDEX]*div_vel[cell][0];
                              });
 
       // Perform the saving

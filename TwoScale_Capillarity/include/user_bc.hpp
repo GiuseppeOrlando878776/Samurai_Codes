@@ -60,7 +60,7 @@ auto Inlet(const Field& Q,
     const auto rho2       = Q[cell_in](M2_INDEX)/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
 
     /*--- Compute the corresponding ghost state ---*/
-    xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::size>> Q_ghost;
+    xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
     const auto alpha1_D           = alpha1_bar_D*(1.0 - alpha1_d_D);
     const auto alpha2_D           = 1.0 - alpha1_D - alpha1_d_D;
     Q_ghost[M1_INDEX]             = alpha1_D*rho1;

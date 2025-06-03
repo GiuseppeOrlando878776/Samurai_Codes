@@ -72,9 +72,10 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
-  using Field_Vect   = samurai::Field<decltype(mesh), typename Field::value_type, dim, false>;
+  using Field              = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
+  using Field_Scalar       = samurai::ScalarField<decltype(mesh), typename Field::value_type>;
+  using Field_Vect         = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
+  using Field_ScalarVector = samurai::VectorField<decltype(mesh), typename Field::value_type, 1, false>;
 
   bool apply_relax; /*--- Choose whether to apply or not the relaxation ---*/
 
@@ -89,14 +90,15 @@ private:
   /*--- Now we declare a bunch of fields which depend from the state, but it is useful
         to have it so as to avoid recomputation ---*/
   Field_Scalar alpha1,
-               H,
                dalpha1;
 
   Field_Vect normal,
              grad_alpha1;
 
-  samurai::Field<decltype(mesh), std::size_t, 1, false> to_be_relaxed;
-  samurai::Field<decltype(mesh), std::size_t, 1, false> Newton_iterations;
+  Field_ScalarVector H;
+
+  samurai::ScalarField<decltype(mesh), std::size_t> to_be_relaxed;
+  samurai::ScalarField<decltype(mesh), std::size_t> Newton_iterations;
 
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1)>());
   gradient_type gradient;
@@ -198,8 +200,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << std::endl;
     }
     init_variables(sim_param.R, sim_param.eps_over_R, sim_param.alpha_residual);
-    to_be_relaxed     = samurai::make_field<std::size_t, 1>("to_be_relaxed", mesh);
-    Newton_iterations = samurai::make_field<std::size_t, 1>("Newton_iterations", mesh);
+    to_be_relaxed     = samurai::make_scalar_field<std::size_t>("to_be_relaxed", mesh);
+    Newton_iterations = samurai::make_scalar_field<std::size_t>("Newton_iterations", mesh);
   }
 
 // Auxiliary routine to compute normals and curvature
@@ -233,14 +235,14 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_over_R, const double alpha_residual) {
   /*--- Create conserved and auxiliary fields ---*/
-  conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  alpha1      = samurai::make_field<typename Field::value_type, 1>("alpha1", mesh);
-  grad_alpha1 = samurai::make_field<typename Field::value_type, dim>("grad_alpha1", mesh);
-  normal      = samurai::make_field<typename Field::value_type, dim>("normal", mesh);
-  H           = samurai::make_field<typename Field::value_type, 1>("H", mesh);
+  alpha1      = samurai::make_scalar_field<typename Field::value_type>("alpha1", mesh);
+  grad_alpha1 = samurai::make_vector_field<typename Field::value_type, dim>("grad_alpha1", mesh);
+  normal      = samurai::make_vector_field<typename Field::value_type, dim>("normal", mesh);
+  H           = samurai::make_vector_field<typename Field::value_type, 1>("H", mesh);
 
-  dalpha1     = samurai::make_field<typename Field::value_type, 1>("dalpha1", mesh);
+  dalpha1     = samurai::make_scalar_field<typename Field::value_type>("dalpha1", mesh);
 
   /*--- Declare some constant parameters associated to the grid and to the
         initial state ---*/
@@ -292,8 +294,8 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
                            }
                            else {
                              p1 = EOS_phase2.get_p0();
-                             if(r >= R && r < R + eps_R && !std::isnan(H[cell])) {
-                               p1 += sigma*H[cell];
+                             if(r >= R && r < R + eps_R && !std::isnan(H[cell][0])) {
+                               p1 += sigma*H[cell][0];
                              }
                              else {
                                p1 += sigma/R;
@@ -335,7 +337,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
 //
 template<std::size_t dim>
 double TwoScaleCapillarity<dim>::get_max_lambda() {
-  double res = 0.0;
+  double local_res = 0.0;
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -363,12 +365,15 @@ double TwoScaleCapillarity<dim>::get_max_lambda() {
                            const double r = sigma*std::sqrt(xt::sum(grad_alpha1[cell]*grad_alpha1[cell])())/(rho*c*c);
 
                            /*--- Update eigenvalue estimate ---*/
-                           res = std::max(std::max(std::abs(vel_x) + c*(1.0 + 0.125*r),
-                                                   std::abs(vel_y) + c*(1.0 + 0.125*r)),
-                                          res);
+                           local_res = std::max(std::max(std::abs(vel_x) + c*(1.0 + 0.125*r),
+                                                         std::abs(vel_y) + c*(1.0 + 0.125*r)),
+                                                local_res);
                          });
 
-  return res;
+  double global_res;
+  MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+  return global_res;
 }
 
 // Perform the mesh adaptation strategy.
@@ -472,16 +477,16 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
   std::size_t Newton_iter = 0;
   Newton_iterations.fill(0);
   dalpha1.fill(std::numeric_limits<typename Field::value_type>::infinity());
-  bool relaxation_applied = true;
+  bool global_relaxation_applied = true;
 
   samurai::times::timers.stop("apply_relaxation");
 
   /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
         over each cell would (could?) be more logic, but this would lead to issues to call 'update_geometry' ---*/
-  while(relaxation_applied == true) {
+  while(global_relaxation_applied == true) {
     samurai::times::timers.start("apply_relaxation");
 
-    relaxation_applied = false;
+    bool local_relaxation_applied = false;
     Newton_iter++;
 
     // Loop over all cells.
@@ -490,8 +495,8 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                            {
                              try {
                                perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                              H[cell], dalpha1[cell], alpha1[cell],
-                                                              to_be_relaxed[cell], Newton_iterations[cell], relaxation_applied);
+                                                              H[cell][0], dalpha1[cell], alpha1[cell],
+                                                              to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied);
                              }
                              catch(std::exception& e) {
                                std::cerr << e.what() << std::endl;
@@ -502,8 +507,11 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              }
                            });
 
+    mpi::communicator world;
+    boost::mpi::all_reduce(world, local_relaxation_applied, global_relaxation_applied, std::logical_or<bool>());
+
     // Newton cycle diverged
-    if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+    if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
            conserved_variables, alpha1, dalpha1, grad_alpha1, normal, H,
@@ -587,7 +595,7 @@ template<class... Variables>
 void TwoScaleCapillarity<dim>::save(const fs::path& path,
                                     const std::string& suffix,
                                     const Variables&... fields) {
-  auto level_ = samurai::make_field<std::size_t, 1>("level", mesh);
+  auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
   if(!fs::exists(path)) {
     fs::create_directory(path);
@@ -630,10 +638,10 @@ void TwoScaleCapillarity<dim>::run() {
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_old = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
-    auto conserved_variables_tmp = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
   /*--- Create the flux variable ---*/
   #ifdef RUSANOV_FLUX
@@ -703,6 +711,7 @@ void TwoScaleCapillarity<dim>::run() {
     // Apply the numerical scheme without relaxation
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
+    samurai::update_ghost_mr(H);
     try {
       auto flux_hyp = numerical_flux_hyp(conserved_variables);
       #ifdef ORDER_2
@@ -766,6 +775,7 @@ void TwoScaleCapillarity<dim>::run() {
       // Apply the numerical scheme
       // Convective operator
       samurai::update_ghost_mr(conserved_variables);
+      samurai::update_ghost_mr(H);
       try {
         auto flux_hyp = numerical_flux_hyp(conserved_variables);
         conserved_variables_tmp = conserved_variables - dt*flux_hyp;
