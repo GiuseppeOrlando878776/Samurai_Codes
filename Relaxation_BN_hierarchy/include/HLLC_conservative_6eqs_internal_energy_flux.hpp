@@ -17,21 +17,22 @@ namespace samurai {
   class HLLCFlux_Conservative: public Flux<Field> {
   public:
     HLLCFlux_Conservative(const SG_EOS<typename Field::value_type>& EOS_phase1,
-                          const SG_EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in input the equations of state of the two phases
+                          const SG_EOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input
+                                                                                       the equations of state of the two phases ---*/
 
-    auto make_flux(); // Compute the flux over all cells
+    auto make_flux(); /*--- Compute the flux over all cells ---*/
 
   private:
     auto compute_middle_state(const FluxValue<typename Flux<Field>::cfg>& q,
                               const typename Field::value_type S,
                               const typename Field::value_type S_star,
-                              const std::size_t curr_d) const; // Compute the middle state
+                              const std::size_t curr_d) const; /*--- Compute the middle state ---*/
 
     void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                const FluxValue<typename Flux<Field>::cfg>& qR,
                                const std::size_t curr_d,
                                FluxValue<typename Flux<Field>::cfg>& F_minus,
-                               FluxValue<typename Flux<Field>::cfg>& F_plus); // HLLC flux along direction d
+                               FluxValue<typename Flux<Field>::cfg>& F_plus); /*--- HLLC flux along direction d ---*/
   };
 
   // Constructor derived from base class
@@ -48,22 +49,22 @@ namespace samurai {
                                                           const typename Field::value_type S,
                                                           const typename Field::value_type S_star,
                                                           const std::size_t curr_d) const {
-    // Save mixture density and velocity current direction
+    /*--- Save mixture density and velocity current direction ---*/
     const auto rho   = q(ALPHA1_RHO1_INDEX) + q(ALPHA2_RHO2_INDEX);
     const auto vel_d = q(RHO_U_INDEX + curr_d)/rho;
 
-    // Phase 1
+    /*--- Phase 1 ---*/
     const auto alpha1 = q(ALPHA1_INDEX);
     const auto rho1   = q(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e1     = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p1     = this->phase1.pres_value(rho1, e1);
 
-    // Phase 2
+    /*--- Phase 2 ---*/
     const auto rho2 = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2   = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p2   = this->phase2.pres_value(rho2, e2);
 
-    // Compute middle state
+    /*--- Compute middle state ---*/
     FluxValue<typename Flux<Field>::cfg> q_star;
 
     q_star(ALPHA1_INDEX)         = alpha1;

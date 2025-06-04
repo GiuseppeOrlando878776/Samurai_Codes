@@ -67,19 +67,19 @@ namespace samurai {
     /*--- Pressure phase 1 left state ---*/
     const auto alpha1L = qL(ALPHA1_INDEX);
     const auto rho1L   = qL(ALPHA1_RHO1_INDEX)/alpha1L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e1L           = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    typename Field::value_type norm2_velL = 0.0;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      e1L -= 0.5*(qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
+      norm2_velL += (qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
     }
+    const auto e1L = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX)
+                   - 0.5*norm2_velL; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p1L = this->phase1.pres_value(rho1L, e1L);
 
     /*--- Pressure phase 2 left state ---*/
     const auto rho2L = qL(ALPHA2_RHO2_INDEX)/(1.0 - alpha1L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e2L         = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      e2L -= 0.5*(qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
-    }
-    const auto p2L = this->phase2.pres_value(rho2L, e2L);
+    const auto e2L   = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX)
+                     - 0.5*norm2_velL; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p2L   = this->phase2.pres_value(rho2L, e2L);
 
     /*--- Compute velocity and mass fractions right state ---*/
     const auto rhoR = qR(ALPHA1_RHO1_INDEX) + qR(ALPHA2_RHO2_INDEX);
@@ -90,19 +90,19 @@ namespace samurai {
     /*--- Pressure phase 1 right state ---*/
     const auto alpha1R = qR(ALPHA1_INDEX);
     const auto rho1R   = qR(ALPHA1_RHO1_INDEX)/alpha1R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e1R           = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    typename Field::value_type norm2_velR = 0.0;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      e1R -= 0.5*(qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
+      norm2_velR += (qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
     }
+    const auto e1R = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX)
+                   - 0.5*norm2_velR; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p1R = this->phase1.pres_value(rho1R, e1R);
 
     /*--- Pressure phase 2 right state ---*/
     const auto rho2R = qR(ALPHA2_RHO2_INDEX)/(1.0 - alpha1R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e2R         = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      e2R -= 0.5*(qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
-    }
-    const auto p2R = this->phase2.pres_value(rho2R, e2R);
+    const auto e2R   = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX)
+                     - 0.5*norm2_velR; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p2R   = this->phase2.pres_value(rho2R, e2R);
 
     /*--- Build the non conservative flux (a lot of approximations to be checked here) ---*/
     #ifdef BR_ORLANDO

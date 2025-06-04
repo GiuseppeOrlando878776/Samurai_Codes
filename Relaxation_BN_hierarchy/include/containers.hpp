@@ -64,5 +64,4 @@ struct Riemann_Parameters {
   double p2R;
 };
 
-
 #endif

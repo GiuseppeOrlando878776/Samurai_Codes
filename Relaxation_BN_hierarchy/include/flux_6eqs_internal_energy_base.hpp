@@ -42,7 +42,7 @@ namespace samurai {
   template<class Field>
   class Flux {
   public:
-    // Definitions and sanity checks
+    /*--- Definitions and sanity checks ---*/
     static constexpr std::size_t field_size = Field::size;
     static_assert(field_size == EquationData::NVARS, "The number of elements in the state does not correpsond to the number of equations");
     static_assert(Field::dim == EquationData::dim, "The spatial dimesions between Field and EquationData do not match");
@@ -56,26 +56,26 @@ namespace samurai {
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
     Flux(const SG_EOS<typename Field::value_type>& EOS_phase1,
-         const SG_EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in input the equations of state of the two phases
+         const SG_EOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
   protected:
     const SG_EOS<typename Field::value_type>& phase1; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
     const SG_EOS<typename Field::value_type>& phase2; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
 
-    FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d); // Evaluate the 'continuous' flux for the state q
-                                                                                                // along direction curr_d
+    FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q
+                                                                                                      along direction curr_d ---*/
 
     #ifdef ORDER_2
-      FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; // Conversion from conservative to primitive variables
+      FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conservative to primitive variables ---*/
 
-      FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; // Conversion from primitive to conservative variables
+      FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conservative variables ---*/
 
       void perform_reconstruction(const FluxValue<cfg>& primLL,
                                   const FluxValue<cfg>& primL,
                                   const FluxValue<cfg>& primR,
                                   const FluxValue<cfg>& primRR,
                                   FluxValue<cfg>& primL_recon,
-                                  FluxValue<cfg>& primR_recon); // Reconstruction for second order scheme
+                                  FluxValue<cfg>& primR_recon); /*--- Reconstruction for second order scheme ---*/
     #endif
   };
 
@@ -90,39 +90,39 @@ namespace samurai {
   //
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d) {
-    // Sanity check in terms of dimensions
+    /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
 
     FluxValue<cfg> res = q;
 
-    // Save the mixture density and the velocity along the direction of interest
+    /*--- Save the mixture density and the velocity along the direction of interest ---*/
     const auto rho   = q(ALPHA1_RHO1_INDEX) + q(ALPHA2_RHO2_INDEX);
     const auto vel_d = q(RHO_U_INDEX + curr_d)/rho;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       res(RHO_U_INDEX + d) *= vel_d;
     }
 
-    // Compute density and pressure of phase 1
+    /*--- Compute density and pressure of phase 1 ---*/
     const auto alpha1 = q(ALPHA1_INDEX);
     const auto rho1   = q(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e1     = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p1     = this->phase1.pres_value(rho1, e1);
+    const auto p1     = phase1.pres_value(rho1, e1);
 
-    // Compute the flux for the equations "associated" to phase 1
+    /*--- Compute the flux for the equations "associated" to phase 1 ---*/
     res(ALPHA1_INDEX) = 0.0;
     res(ALPHA1_RHO1_INDEX) *= vel_d;
     res(ALPHA1_RHO1_E1_INDEX) *= vel_d;
 
-    // Compute density and pressure of phase 2
+    /*--- Compute density and pressure of phase 2 ---*/
     const auto rho2 = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2   = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p2   = this->phase2.pres_value(rho2, e2);
+    const auto p2   = phase2.pres_value(rho2, e2);
 
-    // Compute the flux for the equations "associated" to phase 2
+    /*--- Compute the flux for the equations "associated" to phase 2 ---*/
     res(ALPHA2_RHO2_INDEX) *= vel_d;
     res(ALPHA2_RHO2_E2_INDEX) *= vel_d;
 
-    // Add the mixture pressure contribution to the momentum equation
+    /*--- Add the mixture pressure contribution to the momentum equation ---*/
     res(RHO_U_INDEX + curr_d) += (alpha1*p1 + (1.0 - alpha1)*p2);
 
     return res;
@@ -135,27 +135,27 @@ namespace samurai {
     //
     template<class Field>
     FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
-      // Create a state to store the primitive variables
+      /*--- Create a state to store the primitive variables ---*/
       FluxValue<cfg> prim;
 
-      // Start with phase 1
+      /*--- Start with phase 1 ---*/
       prim(ALPHA1_INDEX) = cons(ALPHA1_INDEX);
       prim(RHO1_INDEX)   = cons(ALPHA1_RHO1_INDEX)/cons(ALPHA1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto rho     = cons(ALPHA1_RHO1_INDEX) + cons(ALPHA2_RHO2_INDEX);
       for(std::size_t d = 0; d < Field::dim; ++d) {
         prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
       }
-      /*--- Compute internal energy ---*/
+      // Compute internal energy
       const auto e1  = cons(ALPHA1_RHO1_E1_INDEX)/cons(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       prim(P1_INDEX) = phase1.pres_value(prim(RHO1_INDEX), e1);
 
-      // Proceed with phase 2
+      /*--- Proceed with phase 2 ---*/
       prim(RHO2_INDEX) = cons(ALPHA2_RHO2_INDEX)/(1.0 - cons(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      /*--- Compute internal energy ---*/
+      // Compute internal energy
       const auto e2  = cons(ALPHA2_RHO2_E2_INDEX)/cons(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       prim(P2_INDEX) = phase2.pres_value(prim(RHO2_INDEX), e2);
 
-      // Set primitive equal to conservative
+      /*--- Set primitive equal to conservative ---*/
       return prim;
     }
 
@@ -163,29 +163,29 @@ namespace samurai {
     //
     template<class Field>
     FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
-      // Create a suitable variable to save the conserved variables
+      /*--- Create a suitable variable to save the conserved variables ---*/
       FluxValue<cfg> cons;
 
-      // Start with phase 1
+      /*--- Start with phase 1 ---*/
       cons(ALPHA1_INDEX)      = prim(ALPHA1_INDEX);
       cons(ALPHA1_RHO1_INDEX) = prim(RHO1_INDEX)*prim(ALPHA1_INDEX);
-      /*--- Compute internal energy ---*/
+      // Compute internal energy
       const auto e1 = phase1.e_value(prim(RHO1_INDEX), prim(P1_INDEX));
       cons(ALPHA1_RHO1_E1_INDEX) = cons(ALPHA1_RHO1_INDEX)*e1;
 
-      // Proceed with phase 2
+      /*--- Proceed with phase 2 ---*/
       cons(ALPHA2_RHO2_INDEX) = prim(RHO2_INDEX)*(1.0 - prim(ALPHA1_INDEX));
-      /*--- Compute internal energy ---*/
+      // Compute internal energy
       const auto e2 = phase2.e_value(prim(RHO2_INDEX), prim(P2_INDEX));
       cons(ALPHA2_RHO2_E2_INDEX) = cons(ALPHA2_RHO2_INDEX)*e2;
 
-      // Upate momentum
+      /*--- Update momentum ---*/
       const auto rho = cons(ALPHA1_RHO1_INDEX) + cons(ALPHA2_RHO2_INDEX);
       for(std::size_t d = 0; d < Field::dim; ++d) {
         cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
       }
 
-      // Return computed conserved variables
+      /*--- Return computed conserved variables ---*/
       return cons;
     }
 
@@ -198,12 +198,12 @@ namespace samurai {
                                              const FluxValue<cfg>& primRR,
                                              FluxValue<cfg>& primL_recon,
                                              FluxValue<cfg>& primR_recon) {
-      // Initialize with the original state
+      /*--- Initialize with the original state ---*/
       primL_recon = primL;
       primR_recon = primR;
 
-      // Perform the reconstruction
-      const double beta = 1.0; /*--- MINMOD limiter ---*/
+      /*--- Perform the reconstruction ---*/
+      const double beta = 1.0; // MINMOD limiter
       for(std::size_t comp = 0; comp < Field::size; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),

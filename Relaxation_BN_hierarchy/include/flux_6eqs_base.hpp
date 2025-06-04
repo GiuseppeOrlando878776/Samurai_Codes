@@ -105,11 +105,13 @@ namespace samurai {
     /*--- Compute density and pressure of phase 1 ---*/
     const auto alpha1 = q(ALPHA1_INDEX);
     const auto rho1   = q(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e1           = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    typename Field::value_type norm2_vel = 0.0;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      e1 -= 0.5*(q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
+      norm2_vel += (q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
     }
-    const auto p1 = this->phase1.pres_value(rho1, e1);
+    const auto e1 = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX)
+                  - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p1 = phase1.pres_value(rho1, e1);
 
     /*--- Compute the flux for the equations "associated" to phase 1 ---*/
     res(ALPHA1_INDEX) = 0.0;
@@ -118,12 +120,10 @@ namespace samurai {
     res(ALPHA1_RHO1_E1_INDEX) += alpha1*p1*vel_d;
 
     /*--- Compute density and pressure of phase 2 ---*/
-    const auto rho2   = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto e2           = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      e2 -= 0.5*(q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
-    }
-    const auto p2 = this->phase2.pres_value(rho2, e2);
+    const auto rho2 = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto e2   = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX)
+                    - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto p2   = phase2.pres_value(rho2, e2);
 
     /*--- Compute the flux for the equations "associated" to phase 2 ---*/
     res(ALPHA2_RHO2_INDEX) *= vel_d;
@@ -156,7 +156,7 @@ namespace samurai {
       // Compute internal energy
       typename Field::value_type norm2_vel = 0.0;
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        norm2_vel += (prim(U_INDEX + d)*prim(U_INDEX + d));
+        norm2_vel += prim(U_INDEX + d)*prim(U_INDEX + d);
       }
       const auto e1 = cons(ALPHA1_RHO1_E1_INDEX)/cons(ALPHA1_RHO1_INDEX)
                     - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -186,7 +186,7 @@ namespace samurai {
       // Compute internal energy
       typename Field::value_type norm2_vel = 0.0;
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        norm2_vel += (prim(U_INDEX + d)*prim(U_INDEX + d));
+        norm2_vel += prim(U_INDEX + d)*prim(U_INDEX + d);
       }
       const auto E1 = phase1.e_value(prim(RHO1_INDEX), prim(P1_INDEX))
                     + 0.5*norm2_vel;
@@ -223,7 +223,7 @@ namespace samurai {
       primR_recon = primR;
 
       /*--- Perform the reconstruction ---*/
-      const double beta = 1.0; /*--- MINMOD limiter ---*/
+      const double beta = 1.0; // MINMOD limiter
       for(std::size_t comp = 0; comp < Field::size; ++comp) {
         if(primR(comp) - primL(comp) > 0.0) {
           primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),

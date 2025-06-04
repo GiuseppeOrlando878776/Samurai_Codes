@@ -21,16 +21,17 @@ namespace samurai {
   class NonConservativeFlux: public Flux<Field> {
   public:
     NonConservativeFlux(const SG_EOS<typename Field::value_type>& EOS_phase1,
-                        const SG_EOS<typename Field::value_type>& EOS_phase2); // Constructor which accepts in input the equations of state of the two phases
+                        const SG_EOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input
+                                                                                     the equations of state of the two phases ---*/
 
-    auto make_flux(); // Compute the flux over all cells
+    auto make_flux(); /*--- Compute the flux over all cells ---*/
 
   private:
     void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                const FluxValue<typename Flux<Field>::cfg>& qR,
                                const std::size_t curr_d,
                                FluxValue<typename Flux<Field>::cfg>& F_minus,
-                               FluxValue<typename Flux<Field>::cfg>& F_plus); // Non-conservative flux
+                               FluxValue<typename Flux<Field>::cfg>& F_plus); /*--- Non-conservative flux ---*/
   };
 
   // Constructor derived from base class
@@ -48,7 +49,7 @@ namespace samurai {
                                                          const std::size_t curr_d,
                                                          FluxValue<typename Flux<Field>::cfg>& F_minus,
                                                          FluxValue<typename Flux<Field>::cfg>& F_plus) {
-    // Zero contribution from continuity and momentum equations
+    /*--- Zero contribution from continuity and momentum equations ---*/
     F_minus(ALPHA1_RHO1_INDEX) = 0.0;
     F_plus(ALPHA1_RHO1_INDEX)  = 0.0;
     F_minus(ALPHA2_RHO2_INDEX) = 0.0;
@@ -58,37 +59,37 @@ namespace samurai {
       F_plus(RHO_U_INDEX + d) = 0.0;
     }
 
-    // Compute velocity and mass fractions left state
+    /*--- Compute velocity and mass fractions left state ---*/
     const auto rhoL = qL(ALPHA1_RHO1_INDEX) + qL(ALPHA2_RHO2_INDEX);
     const auto velL = qL(RHO_U_INDEX + curr_d)/rhoL;
 
-    // Pressure phase 1 left state
+    /*--- Pressure phase 1 left state ---*/
     const auto alpha1L = qL(ALPHA1_INDEX);
     const auto rho1L   = qL(ALPHA1_RHO1_INDEX)/alpha1L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e1L     = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p1L     = this->phase1.pres_value(rho1L, e1L);
 
-    // Pressure phase 2 left state
+    /*--- Pressure phase 2 left state ---*/
     const auto rho2L = qL(ALPHA2_RHO2_INDEX)/(1.0 - alpha1L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2L   = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p2L   = this->phase2.pres_value(rho2L, e2L);
 
-    // Compute velocity and mass fractions right state
+    /*--- Compute velocity and mass fractions right state ---*/
     const auto rhoR = qR(ALPHA1_RHO1_INDEX) + qR(ALPHA2_RHO2_INDEX);
     const auto velR = qR(RHO_U_INDEX + curr_d)/rhoR;
 
-    // Pressure phase 1 right state
+    /*--- Pressure phase 1 right state ---*/
     const auto alpha1R = qR(ALPHA1_INDEX);
     const auto rho1R   = qR(ALPHA1_RHO1_INDEX)/alpha1R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e1R     = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p1R     = this->phase1.pres_value(rho1R, e1R);
 
-    // Pressure phase 2 right state
+    /*--- Pressure phase 2 right state ---*/
     const auto rho2R = qR(ALPHA2_RHO2_INDEX)/(1.0 - alpha1R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2R   = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p2R   = this->phase2.pres_value(rho2R, e2R);
 
-    // Build the non conservative flux (a lot of approximations to be checked here)
+    /*--- Build the non conservative flux (a lot of approximations to be checked here) ---*/
     #ifdef BR_ORLANDO
       #ifdef APPLY_NON_CONS_VOLUME_FRACTION
         F_minus(ALPHA1_INDEX) = (0.5*(velL*alpha1L + velR*alpha1R) -
