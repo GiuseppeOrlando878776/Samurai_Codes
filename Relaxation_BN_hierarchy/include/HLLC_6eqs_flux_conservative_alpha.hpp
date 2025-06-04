@@ -167,7 +167,7 @@ namespace samurai {
 
     /*--- Compute the fluctuations (wave propagation formalism) ---*/
     if(sL >= 0.0) {
-      for(std::size_t idx = 0; idx < Field::size; ++idx) {
+      for(std::size_t idx = 0; idx < Field::n_comp; ++idx) {
         H_minus(idx) = 0.0;
       }
       H_plus = sR*(q_star_R - qR) + s_star*(q_star_L - q_star_R) + sL*(qL - q_star_L);
@@ -182,7 +182,7 @@ namespace samurai {
     }
     else if(sR < 0.0) {
       H_minus = sL*(q_star_L - qL) + s_star*(q_star_R - q_star_L) + sR*(qR - q_star_R);
-      for(std::size_t idx = 0; idx < Field::size; ++idx) {
+      for(std::size_t idx = 0; idx < Field::n_comp; ++idx) {
         H_plus(idx) = 0.0;
       }
     }

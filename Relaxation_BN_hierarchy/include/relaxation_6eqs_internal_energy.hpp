@@ -65,9 +65,9 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field        = samurai::Field<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::Field<decltype(mesh), typename Field::value_type, 1, false>;
-  using Field_Vect   = samurai::Field<decltype(mesh), typename Field::value_type, dim, false>;
+  using Field        = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
+  using Field_Scalar = samurai::ScalarField<decltype(mesh), typename Field::value_type>;
+  using Field_Vect   = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
 
   double Tf;  /*--- Final time of the simulation ---*/
   double cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
@@ -174,35 +174,35 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
 template<std::size_t dim>
 void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
   /*--- Create conserved and auxiliary fields ---*/
-  conserved_variables = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
-  rho    = samurai::make_field<typename Field::value_type, 1>("rho", mesh);
-  p      = samurai::make_field<typename Field::value_type, 1>("p", mesh);
+  rho    = samurai::make_scalar_field<typename Field::value_type>("rho", mesh);
+  p      = samurai::make_scalar_field<typename Field::value_type>("p", mesh);
 
-  rho1   = samurai::make_field<typename Field::value_type, 1>("rho1", mesh);
-  p1     = samurai::make_field<typename Field::value_type, 1>("p1", mesh);
-  c1     = samurai::make_field<typename Field::value_type, 1>("c1", mesh);
-  T1     = samurai::make_field<typename Field::value_type, 1>("T1", mesh);
+  rho1   = samurai::make_scalar_field<typename Field::value_type>("rho1", mesh);
+  p1     = samurai::make_scalar_field<typename Field::value_type>("p1", mesh);
+  c1     = samurai::make_scalar_field<typename Field::value_type>("c1", mesh);
+  T1     = samurai::make_scalar_field<typename Field::value_type>("T1", mesh);
 
-  rho2   = samurai::make_field<typename Field::value_type, 1>("rho2", mesh);
-  p2     = samurai::make_field<typename Field::value_type, 1>("p2", mesh);
-  c2     = samurai::make_field<typename Field::value_type, 1>("c2", mesh);
-  T2     = samurai::make_field<typename Field::value_type, 1>("T2", mesh);
+  rho2   = samurai::make_scalar_field<typename Field::value_type>("rho2", mesh);
+  p2     = samurai::make_scalar_field<typename Field::value_type>("p2", mesh);
+  c2     = samurai::make_scalar_field<typename Field::value_type>("c2", mesh);
+  T2     = samurai::make_scalar_field<typename Field::value_type>("T2", mesh);
 
-  c      = samurai::make_field<typename Field::value_type, 1>("c", mesh);
+  c      = samurai::make_scalar_field<typename Field::value_type>("c", mesh);
 
-  vel    = samurai::make_field<typename Field::value_type, dim>("vel", mesh);
+  vel    = samurai::make_vector_field<typename Field::value_type, dim>("vel", mesh);
 
-  alpha2 = samurai::make_field<typename Field::value_type, 1>("alpha2", mesh);
-  Y2     = samurai::make_field<typename Field::value_type, 1>("Y2", mesh);
+  alpha2 = samurai::make_scalar_field<typename Field::value_type>("alpha2", mesh);
+  Y2     = samurai::make_scalar_field<typename Field::value_type>("Y2", mesh);
 
-  e1     = samurai::make_field<typename Field::value_type, 1>("e1", mesh);
-  e1_0   = samurai::make_field<typename Field::value_type, 1>("e1_0", mesh);
-  de1    = samurai::make_field<typename Field::value_type, 1>("de1", mesh);
+  e1     = samurai::make_scalar_field<typename Field::value_type>("e1", mesh);
+  e1_0   = samurai::make_scalar_field<typename Field::value_type>("e1_0", mesh);
+  de1    = samurai::make_scalar_field<typename Field::value_type>("de1", mesh);
 
-  e2     = samurai::make_field<typename Field::value_type, 1>("e2", mesh);
-  e2_0   = samurai::make_field<typename Field::value_type, 1>("e2_0", mesh);
-  de2    = samurai::make_field<typename Field::value_type, 1>("de2", mesh);
+  e2     = samurai::make_scalar_field<typename Field::value_type>("e2", mesh);
+  e2_0   = samurai::make_scalar_field<typename Field::value_type>("e2_0", mesh);
+  de2    = samurai::make_scalar_field<typename Field::value_type>("de2", mesh);
 
   /*--- Initialize the fields with a loop over all cells ---*/
   samurai::for_each_cell(mesh,
@@ -215,25 +215,25 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                            if(x <= Riemann_param.xd) {
                              conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1L;
 
-                             vel[cell]  = Riemann_param.uL;
+                             vel[cell][0] = Riemann_param.uL;
 
-                             p1[cell]   = Riemann_param.p1L;
-                             rho1[cell] = Riemann_param.rho1L;
+                             p1[cell]     = Riemann_param.p1L;
+                             rho1[cell]   = Riemann_param.rho1L;
 
-                             p2[cell]   = Riemann_param.p2L;
-                             rho2[cell] = Riemann_param.rho2L;
+                             p2[cell]     = Riemann_param.p2L;
+                             rho2[cell]   = Riemann_param.rho2L;
                            }
                            // Right state (primitive variables)
                            else {
                              conserved_variables[cell][ALPHA1_INDEX] = Riemann_param.alpha1R;
 
-                             vel[cell]  = Riemann_param.uR;
+                             vel[cell][0] = Riemann_param.uR;
 
-                             p1[cell]   = Riemann_param.p1R;
-                             rho1[cell] = Riemann_param.rho1R;
+                             p1[cell]     = Riemann_param.p1R;
+                             rho1[cell]   = Riemann_param.rho1R;
 
-                             p2[cell]   = Riemann_param.p2R;
-                             rho2[cell] = Riemann_param.rho2R;
+                             p2[cell]     = Riemann_param.p2R;
+                             rho2[cell]   = Riemann_param.rho2R;
                            }
 
                            // Complete the conserved variables (and some auxiliary fields for the sake of completeness)
@@ -243,8 +243,9 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
 
                            rho[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]
                                      + conserved_variables[cell][ALPHA2_RHO2_INDEX];
-                           conserved_variables[cell][RHO_U_INDEX] = rho[cell]*vel[cell];
-
+                           for(std::size_t d = 0; d < Field::dim; ++d) {
+                             conserved_variables[cell][RHO_U_INDEX + d] = rho[cell]*vel[cell][d];
+                           }
 
                            e1[cell] = EOS_phase1.e_value(rho1[cell], p1[cell]);
                            conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*e1[cell];
@@ -448,9 +449,10 @@ double Relaxation<dim>::get_max_lambda() const {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                          {
-                           local_res = std::max(std::max(std::abs(vel[cell]) + c1[cell],
-                                                         std::abs(vel[cell]) + c2[cell]),
-                                                local_res);
+                           for(std::size_t d = 0; d < Field::dim; ++d) {
+                             local_res = std::max(std::abs(vel[cell][d]) + c[cell],
+                                                  local_res);
+                           }
                          });
 
   double global_res;
@@ -469,7 +471,9 @@ void Relaxation<dim>::update_auxiliary_fields() {
                            rho[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]
                                      + conserved_variables[cell][ALPHA2_RHO2_INDEX];
 
-                           vel[cell] = conserved_variables[cell][RHO_U_INDEX]/rho[cell];
+                           for(std::size_t d = 0; d < Field::dim; ++d) {
+                             vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho[cell];
+                           }
 
                            /*--- Phase 1 ---*/
                            rho1[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]/
@@ -512,7 +516,7 @@ template<class... Variables>
 void Relaxation<dim>::save(const fs::path& path,
                            const std::string& suffix,
                            const Variables&... fields) {
-  auto level_ = samurai::make_field<std::size_t, 1>("level", mesh);
+  auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
   if(!fs::exists(path)) {
     fs::create_directory(path);
@@ -551,10 +555,10 @@ void Relaxation<dim>::run() {
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
 
   /*--- Create the flux variables ---*/
   #ifdef RUSANOV_FLUX
