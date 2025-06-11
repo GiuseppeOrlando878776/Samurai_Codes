@@ -54,7 +54,6 @@ namespace samurai {
     }
     const auto e1L = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX)
                    - 0.5*norm2_velL; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    for(std::size_t d = 0; d < Field::dim; ++d) {
     const auto p1L = this->phase1.pres_value(rho1L, e1L);
     const auto c1L = this->phase1.c_value(rho1L, p1L);
 
