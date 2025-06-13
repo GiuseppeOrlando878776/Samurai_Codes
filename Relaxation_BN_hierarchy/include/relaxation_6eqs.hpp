@@ -179,8 +179,12 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
     numerical_flux_non_cons(EOS_phase1, EOS_phase2)
   #endif
   {
-    std::cout << "Initializing variables" << std::endl;
-    std::cout << std::endl;
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if(rank == 0) {
+      std::cout << "Initializing variables " << std::endl;
+      std::cout << std::endl;
+    }
     init_variables(Riemann_param);
   }
 
@@ -299,8 +303,7 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                          });
 
   /*--- Apply bcs ---*/
-  const xt::xtensor_fixed<int, xt::xshape<1>> left{-1};
-  const xt::xtensor_fixed<int, xt::xshape<1>> right{1};
+  const samurai::DirectionVector<dim> left = {-1};
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.alpha1L,
                                           Riemann_param.alpha1L*Riemann_param.rho1L,
@@ -313,6 +316,8 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters& Riemann_param) {
                                           (1.0- Riemann_param.alpha1L)*Riemann_param.rho2L*
                                           (EOS_phase2.e_value(Riemann_param.rho2L, Riemann_param.p2L) +
                                            0.5*Riemann_param.uL*Riemann_param.uL))->on(left);
+
+  const samurai::DirectionVector<dim> right = {1};
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.alpha1R,
                                           Riemann_param.alpha1R*Riemann_param.rho1R,
@@ -833,8 +838,15 @@ void Relaxation<dim>::run() {
   /*--- Save mesh size (max level) ---*/
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
   const double dx = mesh.cell_length(mesh.max_level());
-  std::cout << "Number of elements = " << mesh[mesh_id_t::cells].nb_cells() << std::endl;
-  std::cout << std::endl;
+  const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
+  unsigned int n_elements;
+  MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if(rank == 0) {
+    std::cout << "Number of initial elements = " <<  n_elements << std::endl;
+    std::cout << std::endl;
+  }
 
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
@@ -845,7 +857,10 @@ void Relaxation<dim>::run() {
   while(t != Tf) {
     t += dt;
 
-    std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if(rank == 0) {
+      std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    }
 
     // Save current state in case of order 2
     #ifdef ORDER_2
