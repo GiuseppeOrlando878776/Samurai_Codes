@@ -102,7 +102,8 @@ namespace samurai {
 
     template<typename Gradient>
     FluxValue<cfg> evaluate_surface_tension_operator(const Gradient& grad_alpha1_bar,
-                                                     const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q along direction curr_d ---*/
+                                                     const std::size_t curr_d); /*--- Evaluate the surface tension operator
+                                                                                      for the state q along direction curr_d ---*/
 
     FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
 
@@ -372,13 +373,13 @@ namespace samurai {
           relaxation_applied = true;
 
           // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-          const auto dF_dalpha1 = -(*conserved_variables)(M1_INDEX)/(alpha1_bar*alpha1_bar)*
-                                   EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
-                                  -(*conserved_variables)(M2_INDEX)/((1.0 - alpha1_bar)*(1.0 - alpha1_bar))*
-                                   EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
+          const auto dF_dalpha1_bar = -(*conserved_variables)(M1_INDEX)/(alpha1_bar*alpha1_bar)*
+                                       EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
+                                      -(*conserved_variables)(M2_INDEX)/((1.0 - alpha1_bar)*(1.0 - alpha1_bar))*
+                                       EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
 
           // Compute the large-scale volume fraction update
-          dalpha1_bar = -F/dF_dalpha1;
+          dalpha1_bar = -F/dF_dalpha1_bar;
           if(dalpha1_bar > 0.0) {
             dalpha1_bar = std::min(dalpha1_bar, lambda*(1.0 - alpha1_bar));
           }

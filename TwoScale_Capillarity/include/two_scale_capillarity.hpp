@@ -499,7 +499,7 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
   #endif
 }
 
-// Auxiliary fuction to check if spurious values are present
+// Auxiliary function to check if spurious values are present
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
@@ -563,7 +563,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            }
 
                            // Sanity check for m1_d
-                           if(conserved_variables[cell][M1_D_INDEX] < 0.0) {
+                           if(conserved_variables[cell][M1_D_INDEX] < -1e-15) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative small-scale mass of phase 1 " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
@@ -583,7 +583,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                              exit(1);
                            }
-                           else if(conserved_variables[cell][ALPHA1_D_INDEX] < 0.0) {
+                           else if(conserved_variables[cell][ALPHA1_D_INDEX] < -1e-15) {
                              std::cerr << cell << std::endl;
                              std::cerr << "Negative small-scale volume fraction " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
@@ -597,9 +597,9 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                            }
 
                            // Sanity check for Sigma_d
-                           if(conserved_variables[cell][SIGMA_D_INDEX] < 0.0) {
+                           if(conserved_variables[cell][SIGMA_D_INDEX] < -1e-15) {
                              std::cerr << cell << std::endl;
-                             std::cerr << "Negative small-scale interfacial area" + op << std::endl;
+                             std::cerr << "Negative small-scale interfacial area " + op << std::endl;
                              save(fs::current_path(), "_diverged", conserved_variables, alpha1_bar);
                              exit(1);
                            }
@@ -623,8 +623,8 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
   Newton_iterations.fill(0);
   dalpha1_bar.fill(std::numeric_limits<typename Field::value_type>::infinity());
   bool global_relaxation_applied = true;
-  bool mass_transfer_NR = mass_transfer; // In principle we might think to disable it after a certain
-                                         // number of iterations (as in Arthur's code), not done here.
+  bool mass_transfer_NR          = mass_transfer; // In principle we might think to disable it after a certain
+                                                  // number of iterations (as in Arthur's code), not done here.
 
   samurai::times::timers.stop("apply_relaxation");
 
@@ -743,11 +743,11 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
 
     const auto dH = H_bar_loc - H_lim;
 
-    // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
+    /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
     const auto F = (1.0 - (*local_conserved_variables)(ALPHA1_D_INDEX))*(p1_loc - p2_loc)
                  - sigma*H_lim;
 
-    // Perform the relaxation only where really needed
+    /*--- Perform the relaxation only where really needed ---*/
     if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
        std::abs(dalpha1_bar_loc) > atol_Newton) {
       to_be_relaxed_loc = 1;
@@ -838,10 +838,10 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
         dalpha1_bar_loc = -F/dF_dalpha1_bar;
 
         /*if(dalpha1_bar_loc > 0.0) {
-          dalpha1_bar = std::min(-F/dF_dalpha1_bar, lambda*(1.0 - alpha1_bar_loc));
+          dalpha1_bar_loc = std::min(-F/dF_dalpha1_bar, lambda*(1.0 - alpha1_bar_loc));
         }
-        else if(dalpha1_bar < 0.0) {
-          dalpha1_bar = std::max(-F/dF_dalpha1_bar, -lambda*alpha1_bar_loc);
+        else if(dalpha1_bar_loc < 0.0) {
+          dalpha1_bar_loc = std::max(-F/dF_dalpha1_bar, -lambda*alpha1_bar_loc);
         }*/
       }
       else {
@@ -973,8 +973,8 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                                                EOS_phase1.get_rho0();
                            p1[cell]         = EOS_phase1.pres_value(rho1);
                            const auto rho2  = conserved_variables[cell][M2_INDEX]/
-                                              (1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX]);
-                           /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                              (1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX]); /*--- TODO: Add a check in case of
+                                                                                                                            zero volume fraction ---*/
                            p2[cell]         = EOS_phase2.pres_value(rho2);
                            p_bar[cell]      = alpha1_bar[cell]*p1[cell]
                                             + (1.0 - alpha1_bar[cell])*p2[cell];
@@ -1169,7 +1169,13 @@ void TwoScaleCapillarity<dim>::run() {
     // Apply the numerical scheme without relaxation
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_ghost_mr(H_bar);
+    #ifdef RELAX_RECONSTRUCTION
+      normal.resize();
+      H_bar.resize();
+      grad_alpha1_bar.resize();
+      update_geometry();
+      samurai::update_ghost_mr(H_bar);
+    #endif
     try {
       auto flux_hyp = numerical_flux_hyp(conserved_variables);
       #ifdef ORDER_2
@@ -1200,9 +1206,11 @@ void TwoScaleCapillarity<dim>::run() {
     #ifdef VERBOSE
       check_data();
     #endif
-    normal.resize();
-    H_bar.resize();
-    grad_alpha1_bar.resize();
+    #ifndef RELAX_RECONSTRUCTION
+      normal.resize();
+      H_bar.resize();
+      grad_alpha1_bar.resize();
+    #endif
     update_geometry();
 
     // Capillarity contribution
@@ -1234,7 +1242,9 @@ void TwoScaleCapillarity<dim>::run() {
       // Apply the numerical scheme
       // Convective operator
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_ghost_mr(H_bar);
+      #ifdef RELAX_RECONSTRUCTION
+        samurai::update_ghost_mr(H_bar);
+      #endif
       try {
         auto flux_hyp = numerical_flux_hyp(conserved_variables);
         conserved_variables_tmp = conserved_variables - dt*flux_hyp;

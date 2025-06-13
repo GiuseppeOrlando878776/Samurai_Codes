@@ -91,7 +91,7 @@ namespace samurai {
     /*--- Loop of Newton method ---*/
     std::size_t Newton_iter = 0;
     while(Newton_iter < this->max_Newton_iters && alpha1_d > 0.0 && 1.0 - alpha1_d > 0.0 &&
-          std::abs(dalpha1_d)/alpha1_d > this->tol_Newton_alpha1_d) {
+          std::abs(dalpha1_d) > this->tol_Newton_alpha1_d*alpha1_d) {
       Newton_iter++;
 
       // Unmodified Newton-Rapson increment
@@ -141,7 +141,8 @@ namespace samurai {
     const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
                               + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     const auto c_L            = std::sqrt(rhoc_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
-    const auto p_bar_L        = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L) + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
+    const auto p_bar_L        = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L)
+                              + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
 
     /*--- Right state useful variables ---*/
     const auto rho_R          = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
@@ -153,8 +154,8 @@ namespace samurai {
     const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
                               + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     const auto c_R            = std::sqrt(rhoc_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
-
-    const auto p_bar_R      = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R) + (1.0 - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
+    const auto p_bar_R        = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R)
+                              + (1.0 - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
 
     if(p_star <= p0_L || p_bar_L <= p0_L) {
       throw std::runtime_error("Non-admissible value for the pressure at the beginning of the Newton method to compute p* in Godunov solver");
@@ -419,7 +420,7 @@ namespace samurai {
       // 1-wave right shock
       if(p_star > p_bar_R) {
         const auto r = 1.0 + (1.0 - qR(ALPHA1_D_INDEX))/
-                             (qR(ALPHA1_D_INDEX) + (rhoc_squared_R*(1.0 - qR(ALPHA1_D_INDEX)))/(p_star - p_bar_R));
+                             (qR(ALPHA1_D_INDEX) + (rho_R*c_R*c_R*(1.0 - qR(ALPHA1_D_INDEX)))/(p_star - p_bar_R));
 
         const auto m1_R_star       = qR(M1_INDEX)*r;
         const auto m2_R_star       = qR(M2_INDEX)*r;

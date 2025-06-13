@@ -534,7 +534,7 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
   #endif
 }
 
-// Auxiliary fuction to check if spurious values are present
+// Auxiliary function to check if spurious values are present
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
@@ -1164,7 +1164,13 @@ void TwoScaleCapillarity<dim>::run() {
     // Apply the numerical scheme without relaxation
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_ghost_mr(H_bar);
+    #ifdef RELAX_RECONSTRUCTION
+      normal.resize();
+      H.resize();
+      grad_alpha1.resize();
+      update_geometry();
+      samurai::update_ghost_mr(H);
+    #endif
     try {
       auto flux_hyp = numerical_flux_hyp(conserved_variables);
       #ifdef ORDER_2
@@ -1195,9 +1201,11 @@ void TwoScaleCapillarity<dim>::run() {
     #ifdef VERBOSE
       check_data();
     #endif
-    normal.resize();
-    H.resize();
-    grad_alpha1.resize();
+    #ifndef RELAX_RECONSTRUCTION
+      normal.resize();
+      H.resize();
+      grad_alpha1.resize();
+    #endif
     update_geometry();
 
     // Capillarity contribution
@@ -1229,7 +1237,9 @@ void TwoScaleCapillarity<dim>::run() {
       // Apply the numerical scheme
       // Convective operator
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_ghost_mr(H_bar);
+      #ifdef RELAX_RECONSTRUCTION
+        samurai::update_ghost_mr(H);
+      #endif
       try {
         auto flux_hyp = numerical_flux_hyp(conserved_variables);
         conserved_variables_tmp = conserved_variables - dt*flux_hyp;
@@ -1314,6 +1324,7 @@ void TwoScaleCapillarity<dim>::run() {
       samurai::update_ghost_mr(vel);
       div_vel = divergence(vel);
 
+      normal_bar.resize();
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
@@ -1330,6 +1341,7 @@ void TwoScaleCapillarity<dim>::run() {
                              });
 
       samurai::update_ghost_mr(normal_bar);
+      H_bar.resize();
       H_bar = -divergence(normal_bar);
 
       // Perform the saving

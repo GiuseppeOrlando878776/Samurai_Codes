@@ -98,7 +98,8 @@ namespace samurai {
 
     template<typename Gradient>
     FluxValue<cfg> evaluate_surface_tension_operator(const Gradient& grad_alpha1_bar,
-                                                     const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q along direction curr_d ---*/
+                                                     const std::size_t curr_d); /*--- Evaluate the surface tension operator
+                                                                                      for the state q along direction curr_d ---*/
 
     FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
 

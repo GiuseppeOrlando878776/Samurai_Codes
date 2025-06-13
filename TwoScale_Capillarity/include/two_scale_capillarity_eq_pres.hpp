@@ -23,8 +23,8 @@ namespace fs = std::filesystem;
 
 /*--- Include the headers with the numerical fluxes ---*/
 //#define RUSANOV_FLUX
-//#define GODUNOV_FLUX
-#define HLLC_FLUX
+#define GODUNOV_FLUX
+//#define HLLC_FLUX
 
 #ifdef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
@@ -267,7 +267,7 @@ void TwoScaleCapillarity<dim>::update_geometry() {
                            }
                            else {
                              for(std::size_t d = 0; d < dim; ++d) {
-                               normal[cell][d] = nan("");
+                               normal[cell][d] = 0.0;
                              }
                            }
                          });
@@ -357,8 +357,8 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
                            }
                            else {
                              p1[cell] = EOS_phase2.get_p0();
-                             if(r >= R && r < R + eps_R && !std::isnan(H_bar[cell])) {
-                               p1[cell] += sigma*H_bar[cell];
+                             if(r >= R && r < R + eps_R && !std::isnan(H_bar[cell][0])) {
+                               p1[cell] += sigma*H_bar[cell][0];
                              }
                              else {
                                p1[cell] += sigma/R;
@@ -502,7 +502,7 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
   #endif
 }
 
-// Auxiliary fuction to check if spurious values are present
+// Auxiliary function to check if spurious values are present
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
@@ -619,67 +619,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::apply_relaxation() {
-  /*--- Initialize the variables for the first Newton method ---*/
-  /*samurai::times::timers.start("apply_relaxation");
-
-  std::size_t Newton_iter = 0;
-  Newton_iterations.fill(0);
-  dalpha1_bar.fill(std::numeric_limits<typename Field::value_type>::infinity());
-  H_bar.fill(nan(""));
-  bool gloal_relaxation_applied = true;
-
-  samurai::times::timers.stop("apply_relaxation");*/
-
-  /*--- Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
-        over each cell would (could?) be more logic, but this would lead to issues to call 'update_geometry' ---*/
-  /*while(global_relaxation_applied == true) {
-    samurai::times::timers.start("apply_relaxation");
-
-    bool local_relaxation_applied = false;
-    Newton_iter++;
-
-    // Loop over all cells.
-    samurai::for_each_cell(mesh,
-                           [&](const auto& cell)
-                           {
-                             try {
-                               perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
-                                                              to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied, type_relaxation[cell],
-                                                              grad_alpha1_bar[cell], false);
-                             }
-                             catch(std::exception& e) {
-                               std::cerr << e.what() << std::endl;
-                               save(fs::current_path(), "_diverged",
-                                    conserved_variables, alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
-                                    to_be_relaxed, Newton_iterations, type_relaxation);
-                               exit(1);
-                             }
-                           });
-
-    mpi::communicator world;
-    boost::mpi::all_reduce(world, local_relaxation_applied, global_relaxation_applied, std::logical_or<bool>());
-
-    // Newton cycle diverged
-    if(Newton_iter > max_Newton_iters && global_elaxation_applied == true) {
-      std::cerr << "First Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
-      save(fs::current_path(), "_diverged",
-           conserved_variables, alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
-           to_be_relaxed, Newton_iterations, type_relaxation);
-      exit(1);
-    }
-
-    samurai::times::timers.stop("apply_relaxation");
-
-    // Recompute geometric quantities (curvature potentially changed in the Newton loop)
-    update_geometry();
-    H_bar.fill(nan(""));
-  }*/
-
-  /*--- Recompute geometric quantities after first Newton (alpha1_bar changed) ---*/
-  //update_geometry();
-
-  /*--- Initialize the variables for the second Newton method ---*/
+  /*--- Initialize the variables ---*/
   samurai::times::timers.start("apply_relaxation");
 
   std::size_t Newton_iter = 0;
@@ -687,7 +627,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
   dalpha1_bar.fill(std::numeric_limits<typename Field::value_type>::infinity());
   bool global_relaxation_applied = true;
   bool mass_transfer_NR          = mass_transfer; // In principle we might think to disable it after a certain
-                                                 // number of iterations (as in Arthur's code), not done here.
+                                                  // number of iterations (as in Arthur's code), not done here.
 
   samurai::times::timers.stop("apply_relaxation");
 
@@ -705,7 +645,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                            {
                              try {
                                perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
-                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
+                                                              H_bar[cell][0], dalpha1_bar[cell], alpha1_bar[cell],
                                                               to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied, type_relaxation[cell],
                                                               grad_alpha1_bar[cell], mass_transfer_NR);
                              }
@@ -773,19 +713,19 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
   // Compute first ordrer integral reminder "specific enthalpy"
   const auto p_bar_loc = alpha1_bar_loc*p1_loc
                        + (1.0 - alpha1_bar_loc)*p2_loc;
-  typename Field::value_type p2_minus_p1_times_h;
+  typename Field::value_type p2_minus_p1_times_theta;
   try {
-    p2_minus_p1_times_h = rho1_loc/(1.0 - alpha1_bar_loc)*
-                          (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
-                          p_bar_loc/rho1d_loc - p1_loc/rho1_loc) -
-                          (p2_loc - p1_loc);
+    p2_minus_p1_times_theta = rho1_loc/(1.0 - alpha1_bar_loc)*
+                              (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
+                               p_bar_loc/rho1d_loc - p1_loc/rho1_loc) -
+                              (p2_loc - p1_loc);
   }
   catch(std::exception& e) {
     std::cerr << e.what() << std::endl;
     throw std::runtime_error("Error when computing the internal energy");
   }
 
-  // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
+  /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
   typename Field::value_type F,
                              fac_Ru,
                              H_lim,
@@ -796,7 +736,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
     H_lim  = std::min(H_bar_loc, Hmax);
     fac_Ru = sigma*(3.0*H_lim/(kappa*rho1d_loc))*(rho1_loc/(1.0 - alpha1_bar_loc)) -
              sigma*H_lim/(1.0 - (*local_conserved_variables)(ALPHA1_D_INDEX)) +
-             p2_minus_p1_times_h;
+             p2_minus_p1_times_theta;
 
     if(mass_transfer_NR) {
       if(fac_Ru > 0.0 &&
@@ -826,7 +766,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
     F = (1.0 - (*local_conserved_variables)(ALPHA1_D_INDEX))*(p1_loc - p2_loc);
   }
 
-  // Perform the relaxation only where really needed
+  /*--- Perform the relaxation only where really needed ---*/
   if(std::abs(F) > atol_Newton + rtol_Newton*((type_relaxation_applied == PRESSURE_EQUILIBRIUM) ?
                                               EOS_phase1.get_p0() : std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim))) &&
      std::abs(dalpha1_bar_loc) > atol_Newton) {
@@ -918,10 +858,10 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<St
       dalpha1_bar_loc = -F/dF_dalpha1_bar;
 
       /*if(dalpha1_bar_loc > 0.0) {
-        dalpha1_bar = std::min(-F/dF_dalpha1_bar, lambda*(1.0 - alpha1_bar_loc));
+        dalpha1_bar_loc = std::min(-F/dF_dalpha1_bar, lambda*(1.0 - alpha1_bar_loc));
       }
-      else if(dalpha1_bar < 0.0) {
-        dalpha1_bar = std::max(-F/dF_dalpha1_bar, -lambda*alpha1_bar_loc);
+      else if(dalpha1_bar_loc < 0.0) {
+        dalpha1_bar_loc = std::max(-F/dF_dalpha1_bar, -lambda*alpha1_bar_loc);
       }*/
     }
     else {
@@ -1052,18 +992,18 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                                                EOS_phase1.get_rho0();
                            p1[cell]         = EOS_phase1.pres_value(rho1);
                            const auto rho2  = conserved_variables[cell][M2_INDEX]/
-                                              (1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX]);
-                                              /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                              (1.0 - alpha1[cell] - conserved_variables[cell][ALPHA1_D_INDEX]); /*--- TODO: Add a check in case of
+                                                                                                                            zero volume fraction ---*/
                            p2[cell]         = EOS_phase2.pres_value(rho2);
                            p_bar[cell]      = alpha1_bar[cell]*p1[cell]
                                             + (1.0 - alpha1_bar[cell])*p2[cell];
-                           const auto H_lim = std::min(H_bar[cell], Hmax);
-                           typename Field::value_type p2_minus_p1_times_h;
+                           const auto H_lim = std::min(H_bar[cell][0], Hmax);
+                           typename Field::value_type p2_minus_p1_times_theta;
                            try {
-                             p2_minus_p1_times_h = rho1/(1.0 - alpha1_bar[cell])*
-                                                   (EOS_phase1.e_value(rho1d) - EOS_phase1.e_value(rho1) +
-                                                   p_bar[cell]/rho1d - p1[cell]/rho1) -
-                                                   (p2[cell] - p1[cell]);
+                             p2_minus_p1_times_theta = rho1/(1.0 - alpha1_bar[cell])*
+                                                       (EOS_phase1.e_value(rho1d) - EOS_phase1.e_value(rho1) +
+                                                        p_bar[cell]/rho1d - p1[cell]/rho1) -
+                                                       (p2[cell] - p1[cell]);
                            }
                            catch(std::exception& e) {
                              std::cerr << e.what() << std::endl;
@@ -1071,13 +1011,13 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
                            }
                            const auto fac_Ru = sigma*(3.0*H_lim/(kappa*rho1d))*(rho1/(1.0 - alpha1_bar[cell])) -
                                                sigma*H_lim/(1.0 - conserved_variables[cell](ALPHA1_D_INDEX)) +
-                                               p2_minus_p1_times_h;
+                                               p2_minus_p1_times_theta;
                            if(fac_Ru > 0.0 &&
                               alpha1_bar[cell] > alpha1_bar_min && alpha1_bar[cell] < alpha1_bar_max &&
                               -grad_alpha1_bar[cell][0]*conserved_variables[cell][RHO_U_INDEX]
                               -grad_alpha1_bar[cell][1]*conserved_variables[cell][RHO_U_INDEX + 1] > 0.0 &&
                               conserved_variables[cell][ALPHA1_D_INDEX] < alpha1d_max) {
-                             local_H_lig = std::max(H_bar[cell], local_H_lig);
+                             local_H_lig = std::max(H_bar[cell][0], local_H_lig);
                            }
 
                            // Compute the integral quantities
@@ -1248,7 +1188,13 @@ void TwoScaleCapillarity<dim>::run() {
     // Apply the numerical scheme without relaxation
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
-    samurai::update_ghost_mr(H_bar);
+    #ifdef RELAX_RECONSTRUCTION
+      normal.resize();
+      H_bar.resize();
+      grad_alpha1_bar.resize();
+      update_geometry();
+      samurai::update_ghost_mr(H_bar);
+    #endif
     try {
       auto flux_hyp = numerical_flux_hyp(conserved_variables);
       #ifdef ORDER_2
@@ -1279,9 +1225,11 @@ void TwoScaleCapillarity<dim>::run() {
     #ifdef VERBOSE
       check_data();
     #endif
-    normal.resize();
-    H_bar.resize();
-    grad_alpha1_bar.resize();
+    #ifndef RELAX_RECONSTRUCTION
+      normal.resize();
+      H_bar.resize();
+      grad_alpha1_bar.resize();
+    #endif
     update_geometry();
 
     // Capillarity contribution
@@ -1314,7 +1262,9 @@ void TwoScaleCapillarity<dim>::run() {
       // Apply the numerical scheme
       // Convective operator
       samurai::update_ghost_mr(conserved_variables);
-      samurai::update_ghost_mr(H_bar);
+      #ifdef RELAX_RECONSTRUCTION
+        samurai::update_ghost_mr(H_bar);
+      #endif
       try {
         auto flux_hyp = numerical_flux_hyp(conserved_variables);
         conserved_variables_tmp = conserved_variables - dt*flux_hyp;
