@@ -18,8 +18,8 @@ namespace samurai {
   template<class Field>
   class GodunovFlux: public Flux<Field> {
   public:
-    GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
-                const LinearizedBarotropicEOS<>& EOS_phase2_,
+    GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                 const double sigma_,
                 const double mod_grad_alpha1_bar_min_,
                 const double lambda_,
@@ -61,8 +61,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
-                                  const LinearizedBarotropicEOS<>& EOS_phase2_,
+  GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                                   const double sigma_,
                                   const double mod_grad_alpha1_bar_min_,
                                   const double lambda_,

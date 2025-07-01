@@ -325,10 +325,23 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
 
   /*--- Apply bcs ---*/
   const samurai::DirectionVector<dim> left  = {-1, 0};
-  const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<Default>(conserved_variables,
                             Inlet(conserved_variables, U_0, 0.0, alpha_residual))->on(left);
+  /*samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables, alpha_residual*EOS_phase1.get_rho0(),
+                                                               (1.0 - alpha_residual)*EOS_phase2.get_rho0(),
+                                                               (alpha_residual*EOS_phase1.get_rho0() + (1.0 - alpha_residual)*EOS_phase2.get_rho0())*
+                                                               alpha_residual,
+                                                               (alpha_residual*EOS_phase1.get_rho0() +
+                                                                (1.0 - alpha_residual)*EOS_phase2.get_rho0())*U_0, 0.0)->on(left);*/
+
+  const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
+
+  /*const samurai::DirectionVector<dim> top = {0, 1};
+  samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0)->on(top);
+
+  const samurai::DirectionVector<dim> bottom = {0, -1};
+  samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0)->on(bottom);*/
 }
 
 /*---- FOCUS NOW ON THE AUXILIARY FUNCTIONS ---*/

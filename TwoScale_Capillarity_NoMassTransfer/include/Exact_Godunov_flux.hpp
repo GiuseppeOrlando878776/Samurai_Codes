@@ -26,8 +26,8 @@ namespace samurai {
                 const double atol_Newton_,
                 const double rtol_Newton_,
                 const std::size_t max_Newton_iters_,
-                const double atol_Newton_p_star_ = 1e-6,
-                const double rtol_Newton_p_star_ = 1e-3); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+                const double atol_Newton_p_star_ = 1e-10,
+                const double rtol_Newton_p_star_ = 1e-8); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
       template<typename Field_Scalar>
@@ -251,8 +251,8 @@ namespace samurai {
     const auto p_R = alpha1_R*this->EOS_phase1.pres_value(rho1_R)
                    + (1.0 - alpha1_R)*this->EOS_phase2.pres_value(rho2_R);
 
-    const auto p0_L = p_L - rhoc_squared_L;
-    const auto p0_R = p_R - rhoc_squared_R;
+    const auto p0_L = p_L - rho_L*c_L*c_L;
+    const auto p0_R = p_R - rho_R*c_R*c_R;
 
     auto p_star = std::max(0.5*(p_L + p_R),
                            std::max(p0_L, p0_R) + 0.1*std::abs(std::max(p0_L, p0_R)));
@@ -266,7 +266,7 @@ namespace samurai {
     if(u_star > 0.0) {
       // 1-wave left shock
       if(p_star > p_L) {
-        const auto r = 1.0 + 1.0/(rhoc_squared_L/(p_star - p_L));
+        const auto r = 1.0 + 1.0/(rho_L*c_L*c_L/(p_star - p_L));
 
         const auto m1_L_star  = qL(M1_INDEX)*r;
         const auto m2_L_star  = qL(M2_INDEX)*r;
@@ -339,7 +339,7 @@ namespace samurai {
     else {
       // 1-wave right shock
       if(p_star > p_R) {
-        const auto r = 1.0 + 1.0/(rhoc_squared_R/(p_star - p_R));
+        const auto r = 1.0 + 1.0/(rho_R*c_R*c_R/(p_star - p_R));
 
         const auto m1_R_star  = qR(M1_INDEX)*r;
         const auto m2_R_star  = qR(M2_INDEX)*r;

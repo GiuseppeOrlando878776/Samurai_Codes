@@ -260,8 +260,9 @@ namespace samurai {
     const auto rho_liq  = (cons(Ml_INDEX) + cons(Md_INDEX))/
                           (prim(ALPHA_l_INDEX) + prim(ALPHA_d_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(Pl_INDEX)      = EOS_phase_liq.pres_value(rho_liq);
-    prim(Pg_INDEX)      = EOS_phase_gas.pres_value(cons(Mg_INDEX)/(1.0 - prim(ALPHA_l_INDEX) - prim(ALPHA_d_INDEX)));
-    /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g    = cons(Mg_INDEX)/
+                          (1.0 - prim(ALPHA_l_INDEX) - prim(ALPHA_d_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    prim(Pg_INDEX)      = EOS_phase_gas.pres_value(rho_g);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
     }
@@ -412,7 +413,6 @@ namespace samurai {
                          + (*conserved_variables)(Mg_INDEX)
                          + (*conserved_variables)(Md_INDEX);
           (*conserved_variables)(RHO_ALPHA_l_INDEX) = rho*alpha_l;
-          /*--- TODO: This approach is not compatible with small-scale Laplace law, to be reanalyzed.... ----*/
         }
       }
 
