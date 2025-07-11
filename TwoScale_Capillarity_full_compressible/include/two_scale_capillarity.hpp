@@ -1139,7 +1139,7 @@ void TwoScaleCapillarity<dim>::run() {
       grad_alpha_l.resize();
       update_geometry();
       samurai::update_ghost_mr(H);
-    #endif  
+    #endif
     try {
       auto flux_hyp = numerical_flux_hyp(conserved_variables);
       #ifdef ORDER_2
@@ -1179,6 +1179,7 @@ void TwoScaleCapillarity<dim>::run() {
 
     // Capillarity contribution
     samurai::update_ghost_mr(conserved_variables);
+    samurai::update_ghost_mr(grad_alpha_l);
     auto flux_st = numerical_flux_st(conserved_variables);
     #ifdef ORDER_2
       conserved_variables_tmp = conserved_variables - dt*flux_st;
@@ -1236,6 +1237,7 @@ void TwoScaleCapillarity<dim>::run() {
 
       // Capillarity contribution
       samurai::update_ghost_mr(conserved_variables);
+      samurai::update_ghost_mr(grad_alpha_l);
       flux_st = numerical_flux_st(conserved_variables);
       conserved_variables_tmp = conserved_variables - dt*flux_st;
       std::swap(conserved_variables.array(), conserved_variables_tmp.array());
