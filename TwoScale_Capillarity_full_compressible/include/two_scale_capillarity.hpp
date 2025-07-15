@@ -915,6 +915,10 @@ void TwoScaleCapillarity<dim>::save(const fs::path& path,
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
+  #ifndef RELAX_RECONSTRUCTION
+    update_geometry();
+  #endif
+
   /*--- Initialize relevant integral quantities ---*/
   typename Field::value_type local_H_lig                = 0.0;
   typename Field::value_type local_m_l_int              = 0.0;
