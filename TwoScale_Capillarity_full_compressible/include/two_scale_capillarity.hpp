@@ -75,12 +75,45 @@ private:
   using Field_Vect         = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
   using Field_ScalarVector = samurai::VectorField<decltype(mesh), typename Field::value_type, 1, false>;
 
+  double Tf; /*--- Final time of the simulation ---*/
+
+  const double sigma; /*--- Surface tension coefficient ---*/
+
   bool apply_relax; /*--- Choose whether to apply or not the relaxation ---*/
 
-  double Tf;  /*--- Final time of the simulation ---*/
+  const bool   mass_transfer; /*--- Choose wheter to apply or not the mass transfer ---*/
+  const double Hmax;          /*--- Threshold length scale ---*/
+  const double kappa;         /*--- Parameter related to the radius of small-scale droplets ---*/
+  const double alpha_d_max;   /*--- Maximum threshold of small-scale volume fraction ---*/
+  const double alpha_l_min;    /*--- Minimum effective volume fraction to identify the mixture region ---*/
+  const double alpha_l_max;    /*--- Maximum effective volume fraction to identify the mixture region ---*/
+
   double cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
 
+  const double mod_grad_alpha_l_min; /*--- Minimum threshold for which not computing anymore the unit normal ---*/
+
+  const double      lambda;           /*--- Parameter for bound preserving strategy ---*/
+  const double      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
+  const double      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
+  const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
+
+  double MR_param;      /*--- Multiresolution parameter ---*/
+  double MR_regularity; /*--- Multiresolution regularity ---*/
+
+  LinearizedBarotropicEOS<typename Field::value_type> EOS_phase_liq,
+                                                      EOS_phase_gas; /*--- The two variables which take care of the
+                                                                           barotropic EOS to compute the speed of sound ---*/
+
+  #ifdef RUSANOV_FLUX
+    samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
+  #elifdef HLLC_FLUX
+    samurai::HLLCFlux<Field> HLLC_flux; /*--- Auxiliary variable to compute the flux ---*/
+  #endif
+  samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
+
   std::size_t nfiles; /*--- Number of files desired for output ---*/
+
+  std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
                                    namely the varialbes for which we solve a PDE system ---*/
@@ -117,38 +150,6 @@ private:
 
   using divergence_type = decltype(samurai::make_divergence_order2<decltype(normal)>());
   divergence_type divergence;
-
-  const double sigma; /*--- Surface tension coefficient ---*/
-
-  const double mod_grad_alpha_l_min; /*--- Minimum threshold for which not computing anymore the unit normal ---*/
-
-  const bool   mass_transfer; /*--- Choose wheter to apply or not the mass transfer ---*/
-  const double Hmax;          /*--- Threshold length scale ---*/
-  const double kappa;         /*--- Parameter related to the radius of small-scale droplets ---*/
-  const double alpha_d_max;   /*--- Maximum threshold of small-scale volume fraction ---*/
-  const double alpha_l_min;    /*--- Minimum effective volume fraction to identify the mixture region ---*/
-  const double alpha_l_max;    /*--- Maximum effective volume fraction to identify the mixture region ---*/
-
-  const double      lambda;           /*--- Parameter for bound preserving strategy ---*/
-  const double      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
-  const double      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
-  const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
-
-  LinearizedBarotropicEOS<typename Field::value_type> EOS_phase_liq,
-                                                      EOS_phase_gas; /*--- The two variables which take care of the
-                                                                           barotropic EOS to compute the speed of sound ---*/
-
-  #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
-  #elifdef HLLC_FLUX
-    samurai::HLLCFlux<Field> HLLC_flux; /*--- Auxiliary variable to compute the flux ---*/
-  #endif
-  samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
-
-  std::string filename; /*--- Auxiliary variable to store the name of output ---*/
-
-  double MR_param;      /*--- Multiresolution parameter ---*/
-  double MR_regularity; /*--- Multiresolution regularity ---*/
 
   /*--- Auxiliary output streams for post-processing ---*/
   std::ofstream Hlig;
@@ -202,16 +203,15 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
                                               const Simulation_Paramaters& sim_param,
                                               const EOS_Parameters& eos_param):
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false, true}}),
-  apply_relax(sim_param.apply_relaxation), Tf(sim_param.Tf),
-  cfl(sim_param.Courant), nfiles(sim_param.nfiles),
-  gradient(samurai::make_gradient_order2<decltype(alpha_l)>()),
-  divergence(samurai::make_divergence_order2<decltype(normal)>()),
-  sigma(sim_param.sigma), mod_grad_alpha_l_min(sim_param.mod_grad_alpha_l_min),
+  Tf(sim_param.Tf), sigma(sim_param.sigma),
+  apply_relax(sim_param.apply_relaxation),
   mass_transfer(sim_param.mass_transfer), Hmax(sim_param.Hmax),
   kappa(sim_param.kappa), alpha_d_max(sim_param.alpha_d_max),
   alpha_l_min(sim_param.alpha_l_min), alpha_l_max(sim_param.alpha_l_max),
+  cfl(sim_param.Courant), mod_grad_alpha_l_min(sim_param.mod_grad_alpha_l_min),
   lambda(sim_param.lambda), atol_Newton(sim_param.atol_Newton),
   rtol_Newton(sim_param.rtol_Newton), max_Newton_iters(sim_param.max_Newton_iters),
+  MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   EOS_phase_liq(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase_gas(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
@@ -226,7 +226,9 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   SurfaceTension_flux(EOS_phase_liq, EOS_phase_gas,
                       sigma, mod_grad_alpha_l_min,
                       lambda, atol_Newton, rtol_Newton, max_Newton_iters),
-  MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity)
+  nfiles(sim_param.nfiles),
+  gradient(samurai::make_gradient_order2<decltype(alpha_l)>()),
+  divergence(samurai::make_divergence_order2<decltype(normal)>())
   {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
