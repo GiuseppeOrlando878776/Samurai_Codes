@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef SurfaceTension_flux_hpp
 #define SurfaceTension_flux_hpp
 
@@ -78,14 +80,14 @@ namespace samurai {
         SurfaceTension_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
                                                      const StencilData<typename Flux<Field>::cfg>& data,
                                                      const StencilValues<typename Flux<Field>::cfg> /*field*/)
-                                                    {
-                                                      // Compute the numerical flux
-                                                      #ifdef ORDER_2
-                                                        flux = compute_discrete_flux(grad_alpha_l[data.cells[1]], grad_alpha_l[data.cells[2]], d);
-                                                      #else
-                                                        flux = compute_discrete_flux(grad_alpha_l[data.cells[0]], grad_alpha_l[data.cells[1]], d);
-                                                      #endif
-                                                    };
+                                                     {
+                                                        // Compute the numerical flux
+                                                        #ifdef ORDER_2
+                                                          flux = compute_discrete_flux(grad_alpha_l[data.cells[1]], grad_alpha_l[data.cells[2]], d);
+                                                        #else
+                                                          flux = compute_discrete_flux(grad_alpha_l[data.cells[0]], grad_alpha_l[data.cells[1]], d);
+                                                        #endif
+                                                     };
     });
 
     auto scheme = make_flux_based_scheme(SurfaceTension_f);

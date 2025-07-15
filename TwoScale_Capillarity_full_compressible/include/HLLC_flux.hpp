@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef HLLC_flux_hpp
 #define HLLC_flux_hpp
 
@@ -143,8 +145,12 @@ namespace samurai {
     const auto rho_liq_L = (qL(Ml_INDEX) + qL(Md_INDEX))/(alpha_l_L + alpha_d_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g_L   = qL(Mg_INDEX)/alpha_g_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto Sigma_d_L = qL(RHO_Z_INDEX)/std::pow(rho_liq_L, 2.0/3.0);
-    const auto c_L       = std::sqrt((1.0 - Y_g_L)*this->EOS_phase_liq.c_value(rho_liq_L)*this->EOS_phase_liq.c_value(rho_liq_L) +
-                                     Y_g_L*this->EOS_phase_gas.c_value(rho_g_L)*this->EOS_phase_gas.c_value(rho_g_L) -
+    const auto c_L       = std::sqrt((1.0 - Y_g_L)*
+                                     this->EOS_phase_liq.c_value(rho_liq_L)*
+                                     this->EOS_phase_liq.c_value(rho_liq_L) +
+                                     Y_g_L*
+                                     this->EOS_phase_gas.c_value(rho_g_L)*
+                                     this->EOS_phase_gas.c_value(rho_g_L) -
                                      2.0/9.0*this->sigma*Sigma_d_L/rho_L);
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
@@ -159,8 +165,12 @@ namespace samurai {
     const auto rho_liq_R = (qR(Ml_INDEX) + qR(Md_INDEX))/(alpha_l_R + alpha_d_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g_R   = qR(Mg_INDEX)/alpha_g_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto Sigma_d_R = qR(RHO_Z_INDEX)/std::pow(rho_liq_R, 2.0/3.0);
-    const auto c_R       = std::sqrt((1.0 - Y_g_R)*this->EOS_phase_liq.c_value(rho_liq_R)*this->EOS_phase_liq.c_value(rho_liq_R) +
-                                     Y_g_R*this->EOS_phase_gas.c_value(rho_g_R)*this->EOS_phase_gas.c_value(rho_g_R) -
+    const auto c_R       = std::sqrt((1.0 - Y_g_R)*
+                                     this->EOS_phase_liq.c_value(rho_liq_R)*
+                                     this->EOS_phase_liq.c_value(rho_liq_R) +
+                                     Y_g_R*
+                                     this->EOS_phase_gas.c_value(rho_g_R)*
+                                     this->EOS_phase_gas.c_value(rho_g_R) -
                                      2.0/9.0*this->sigma*Sigma_d_R/rho_R);
 
     /*--- Compute speeds of wave propagation ---*/
@@ -224,34 +234,35 @@ namespace samurai {
                                            const StencilData<typename Flux<Field>::cfg>& data,
                                            const StencilValues<typename Flux<Field>::cfg> field)
                                            {
-                                             #ifdef ORDER_2
-                                               // MUSCL reconstruction
-                                               const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                               const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                               const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                               const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+                                              #ifdef ORDER_2
+                                                // MUSCL reconstruction
+                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                               FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                    primR_recon;
-                                               this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                            primL_recon, primR_recon);
+                                                FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                     primR_recon;
+                                                this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                             primL_recon, primR_recon);
 
-                                               FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                               FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                               #ifdef RELAX_RECONSTRUCTION
-                                                 this->relax_reconstruction(qL, H[data.cells[1]][0]);
-                                                 this->relax_reconstruction(qR, H[data.cells[2]][0]);
-                                               #endif
-                                             #else
-                                               // Extract the states
-                                               const FluxValue<typename Flux<Field>::cfg> qL = field[0];
-                                               const FluxValue<typename Flux<Field>::cfg> qR = field[1];
-                                             #endif
+                                                #ifdef RELAX_RECONSTRUCTION
+                                                  this->relax_reconstruction(qL, H[data.cells[1]][0]);
+                                                  this->relax_reconstruction(qR, H[data.cells[2]][0]);
+                                                #endif
+                                              #else
+                                                // Extract the states
+                                                const FluxValue<typename Flux<Field>::cfg> qL = field[0];
+                                                const FluxValue<typename Flux<Field>::cfg> qR = field[1];
+                                              #endif
 
-                                             flux = compute_discrete_flux(qL, qR, d);
+                                              flux = compute_discrete_flux(qL, qR, d);
                                            };
-    });
+      }
+    );
 
     auto scheme = make_flux_based_scheme(HLLC_f);
     scheme.set_name("HLLC");

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef containers_hpp
 #define containers_hpp
 
@@ -9,29 +11,33 @@
 // (domain, levels, final time, and Courant number)
 //
 struct Simulation_Paramaters {
+  /*--- Physical paramters ---*/
   double xL;
   double xR;
   double yL;
   double yR;
 
-  std::size_t min_level;
-  std::size_t max_level;
-  double      MR_param;
-  double      MR_regularity;
+  double Tf;
+
+  double sigma;
+
+  bool   apply_relaxation;
+  bool   mass_transfer;
+  double Hmax;
+  double kappa;
+  double alpha_d_max;
+  double alpha_l_min;
+  double alpha_l_max;
 
   double R;
   double eps_over_R;
-  double sigma;
 
-  double Tf;
+  /*--- Numerical parameters ---*/
   double Courant;
-
-  std::size_t nfiles;
 
   double alpha_residual;
   double mod_grad_alpha_l_min;
 
-  bool        apply_relaxation;
   double      lambda;
   double      atol_Newton;
   double      rtol_Newton;
@@ -41,12 +47,14 @@ struct Simulation_Paramaters {
   double rtol_Newton_p_star;
   double tol_Newton_alpha_d;
 
-  bool   mass_transfer;
-  double Hmax;
-  double kappa;
-  double alpha_d_max;
-  double alpha_l_min;
-  double alpha_l_max;
+  /*--- MR parameters ---*/
+  std::size_t min_level;
+  std::size_t max_level;
+  double      MR_param;
+  double      MR_regularity;
+
+  /*--- Output parameters ---*/
+  std::size_t nfiles;
 };
 
 // Declare a struct with EOS parameters

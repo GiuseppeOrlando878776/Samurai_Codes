@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef flux_base_hpp
 #define flux_base_hpp
 
@@ -92,14 +94,17 @@ namespace samurai {
     template<typename Gradient>
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
                                             const std::size_t curr_d,
-                                            const Gradient& grad_alpha_l); /*--- Evaluate the 'continuous' flux for the state q along direction curr_d ---*/
+                                            const Gradient& grad_alpha_l); /*--- Evaluate the 'continuous' flux for the state q
+                                                                                 along direction curr_d ---*/
 
     FluxValue<cfg> evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
-                                                const std::size_t curr_d); /*--- Evaluate the hyperbolic operator for the state q along direction curr_d --*/
+                                                const std::size_t curr_d); /*--- Evaluate the hyperbolic operator for the state q
+                                                                                 along direction curr_d --*/
 
     template<typename Gradient>
     FluxValue<cfg> evaluate_surface_tension_operator(const Gradient& grad_alpha_l,
-                                                     const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q along direction curr_d ---*/
+                                                     const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q
+                                                                                      along direction curr_d ---*/
 
     FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
 
@@ -407,8 +412,9 @@ namespace samurai {
             }
           }
 
-          /*--- Update the vector of conserved variables (probably not the optimal choice since I need this update only at the end of the Newton loop,
-                but the most coherent one thinking about the transfer of mass) ---*/
+          /*--- Update the vector of conserved variables
+                (probably not the optimal choice since I need this update only at the end of the Newton loop,
+                 but the most coherent one thinking about the transfer of mass) ---*/
           const auto rho = (*conserved_variables)(Ml_INDEX)
                          + (*conserved_variables)(Mg_INDEX)
                          + (*conserved_variables)(Md_INDEX);

@@ -1,3 +1,9 @@
+// Copyright 2021 SAMURAI TEAM. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+// Author: Giuseppe Orlando, 2025
+//
 #pragma once
 
 #ifndef user_bc_hpp
@@ -54,7 +60,8 @@ auto Inlet(const Field& Q,
     const auto alpha_l = Q[cell_in](RHO_ALPHA_l_INDEX)/rho;
     const auto alpha_d = alpha_l*Q[cell_in](Md_INDEX)/Q[cell_in](Ml_INDEX); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_g = 1.0 - alpha_l - alpha_d;
-    const auto rho_liq = (Q[cell_in](Ml_INDEX) + Q[cell_in](Md_INDEX))/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq = (Q[cell_in](Ml_INDEX) + Q[cell_in](Md_INDEX))/
+                         (alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g   = Q[cell_in](Mg_INDEX)/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
 
     /*--- Compute the corresponding ghost state ---*/

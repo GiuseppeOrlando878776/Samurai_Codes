@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef Rusanov_flux_hpp
 #define Rusanov_flux_hpp
 
@@ -102,8 +104,12 @@ namespace samurai {
     const auto rho_liq_L = (qL(Ml_INDEX) + qL(Md_INDEX))/(alpha_l_L + alpha_d_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g_L   = qL(Mg_INDEX)/alpha_g_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto Sigma_d_L = qL(RHO_Z_INDEX)/std::pow(rho_liq_L, 2.0/3.0);
-    const auto c_L       = std::sqrt((1.0 - Y_g_L)*this->EOS_phase_liq.c_value(rho_liq_L)*this->EOS_phase_liq.c_value(rho_liq_L) +
-                                     Y_g*this->EOS_phase_gas.c_value(rho_g_L)*this->EOS_phase_gas.c_value(rho_g_L) -
+    const auto c_L       = std::sqrt((1.0 - Y_g_L)*
+                                     this->EOS_phase_liq.c_value(rho_liq_L)*
+                                     this->EOS_phase_liq.c_value(rho_liq_L) +
+                                     Y_g*
+                                     this->EOS_phase_gas.c_value(rho_g_L)*
+                                     this->EOS_phase_gas.c_value(rho_g_L) -
                                      2.0/9.0*sigma*Sigma_d_L/rho_L);
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
@@ -118,8 +124,11 @@ namespace samurai {
     const auto rho_liq_R = (qR(Ml_INDEX) + qR(Md_INDEX))/(alpha_l_R + alpha_d_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g_R   = qR(Mg_INDEX)/alpha_g_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto Sigma_d_R = qR(RHO_Z_INDEX)/std::pow(rho_liq_R, 2.0/3.0);
-    const auto c_R       = std::sqrt((1.0 - Y_g_R)*EOS_phase_liq.c_value(rho_liq_R)*EOS_phase_liq.c_value(rho_liq_R) +
-                                     Y_g*EOS_phase_gas.c_value(rho_g_R)*EOS_phase_gas.c_value(rho_g_R) -
+    const auto c_R       = std::sqrt((1.0 - Y_g_R)*
+                                     EOS_phase_liq.c_value(rho_liq_R)*
+                                     EOS_phase_liq.c_value(rho_liq_R) +
+                                     Y_g*EOS_phase_gas.c_value(rho_g_R)*
+                                     EOS_phase_gas.c_value(rho_g_R) -
                                      2.0/9.0*sigma*Sigma_d_R/rho_R);
 
     /*--- Compute the estimate of the eigenvalue ---*/
@@ -182,7 +191,8 @@ namespace samurai {
                                                 // Compute the numerical flux
                                                 flux = compute_discrete_flux(qL, qR, d);
                                               };
-    });
+      }
+    );
 
     auto scheme = make_flux_based_scheme(Rusanov_f);
     scheme.set_name("Rusanov");
