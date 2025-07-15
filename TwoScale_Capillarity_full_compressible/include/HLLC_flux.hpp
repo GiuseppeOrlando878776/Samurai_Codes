@@ -234,32 +234,32 @@ namespace samurai {
                                            const StencilData<typename Flux<Field>::cfg>& data,
                                            const StencilValues<typename Flux<Field>::cfg> field)
                                            {
-                                              #ifdef ORDER_2
-                                                // MUSCL reconstruction
-                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                                const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                                const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+                                             #ifdef ORDER_2
+                                               // MUSCL reconstruction
+                                               const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                               const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                               const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                               const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                                FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                     primR_recon;
-                                                this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                             primL_recon, primR_recon);
+                                               FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                    primR_recon;
+                                               this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                            primL_recon, primR_recon);
 
-                                                FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                               FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                               FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                                #ifdef RELAX_RECONSTRUCTION
-                                                  this->relax_reconstruction(qL, H[data.cells[1]][0]);
-                                                  this->relax_reconstruction(qR, H[data.cells[2]][0]);
-                                                #endif
-                                              #else
-                                                // Extract the states
-                                                const FluxValue<typename Flux<Field>::cfg> qL = field[0];
-                                                const FluxValue<typename Flux<Field>::cfg> qR = field[1];
-                                              #endif
+                                               #ifdef RELAX_RECONSTRUCTION
+                                                 this->relax_reconstruction(qL, H[data.cells[1]][0]);
+                                                 this->relax_reconstruction(qR, H[data.cells[2]][0]);
+                                               #endif
+                                             #else
+                                               // Extract the states
+                                               const FluxValue<typename Flux<Field>::cfg> qL = field[0];
+                                               const FluxValue<typename Flux<Field>::cfg> qR = field[1];
+                                             #endif
 
-                                              flux = compute_discrete_flux(qL, qR, d);
+                                             flux = compute_discrete_flux(qL, qR, d);
                                            };
       }
     );
