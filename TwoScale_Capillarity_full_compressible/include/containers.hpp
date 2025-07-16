@@ -29,6 +29,11 @@ struct Simulation_Paramaters {
   double alpha_l_min;
   double alpha_l_max;
 
+  double x0;
+  double y0;
+  double U0;
+  double U1;
+  double V0;
   double R;
   double eps_over_R;
 

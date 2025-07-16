@@ -4,6 +4,12 @@
  "yL": 0.0,
  "yR": 2.0,
 
+ "x0": 1.0,
+ "y0": 1.0,
+ "U0": 6.66,
+ "U1": 0.0,
+ "V0": 0.0,
+
  "mass_transfer": true,
  "kappa": 1.0,
  "Hmax": 40.0,
@@ -15,12 +21,12 @@
  "eps_over_R": 0.2,
  "sigma": 1e-2,
 
- "min-level": 5,
+ "min-level": 8,
  "max-level": 8,
  "MR_param": 1e-1,
  "MR_regularity": 0,
 
- "Tf": 1.5,
+ "Tf": 2.5,
  "cfl": 0.4,
 
  "nfiles": 20,

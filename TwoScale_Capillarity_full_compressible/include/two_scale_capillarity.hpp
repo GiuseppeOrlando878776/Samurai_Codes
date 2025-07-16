@@ -142,6 +142,8 @@ private:
                      H_bar,
                      div_vel;
 
+  Field_Scalar Mach;
+
   samurai::ScalarField<decltype(mesh), std::size_t> to_be_relaxed;
   samurai::ScalarField<decltype(mesh), std::size_t> Newton_iterations;
 
@@ -167,7 +169,9 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
 
-  void init_variables(const double R, const double eps_over_R,
+  void init_variables(const double x0, const double y0,
+                      const double U0, const double U1, const double V0,
+                      const double R, const double eps_over_R,
                       const double alpha_residual); /*--- Routine to initialize the variables
                                                           (both conserved and auxiliary, this is problem dependent) ---*/
 
@@ -236,7 +240,10 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << "Initializing variables " << std::endl;
       std::cout << std::endl;
     }
-    init_variables(sim_param.R, sim_param.eps_over_R, sim_param.alpha_residual);
+    init_variables(sim_param.x0, sim_param.y0,
+                   sim_param.U0, sim_param.U1, sim_param.V0,
+                   sim_param.R, sim_param.eps_over_R,
+                   sim_param.alpha_residual);
     to_be_relaxed     = samurai::make_scalar_field<std::size_t>("to_be_relaxed", mesh);
     Newton_iterations = samurai::make_scalar_field<std::size_t>("Newton_iterations", mesh);
   }
@@ -271,7 +278,10 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_over_R, const double alpha_residual) {
+void TwoScaleCapillarity<dim>::init_variables(const double x0, const double y0,
+                                              const double U0, const double U1, const double V0,
+                                              const double R, const double eps_over_R,
+                                              const double alpha_residual) {
   /*--- Create conserved and auxiliary fields ---*/
   conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
@@ -297,15 +307,11 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
   normal_bar       = samurai::make_vector_field<typename Field::value_type, dim>("normal_bar", mesh);
   H_bar            = samurai::make_vector_field<typename Field::value_type, 1>("H_bar", mesh);
 
+  Mach = samurai::make_scalar_field<typename Field::value_type>("Mach", mesh);
+
   /*--- Declare some constant parameters associated to the grid and to the
         initial state ---*/
-  const double x0    = 1.0;
-  const double y0    = 1.0;
   const double eps_R = eps_over_R*R;
-
-  const double U_0 = 6.66;
-  const double U_1 = 0.0;
-  const double V   = 0.0;
 
   /*--- Initialize some fields to define the bubble with a loop over all cells ---*/
   samurai::for_each_cell(mesh,
@@ -384,12 +390,23 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
                               conserved_variables[cell][RHO_ALPHA_l_INDEX] = rho*alpha_l[cell];
 
                               // Set momentum
-                              conserved_variables[cell][RHO_U_INDEX]     = conserved_variables[cell][Ml_INDEX]*U_1
-                                                                         + conserved_variables[cell][Mg_INDEX]*U_0;
-                              conserved_variables[cell][RHO_U_INDEX + 1] = rho*V;
+                              conserved_variables[cell][RHO_U_INDEX]     = conserved_variables[cell][Ml_INDEX]*U1
+                                                                         + conserved_variables[cell][Mg_INDEX]*U0;
+                              conserved_variables[cell][RHO_U_INDEX + 1] = rho*V0;
 
-                              vel[cell][0] = conserved_variables[cell][RHO_U_INDEX]/rho;
-                              vel[cell][1] = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
+                              vel[cell][0]  = conserved_variables[cell][RHO_U_INDEX]/rho;
+                              vel[cell][1]  = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
+
+                              typename Field::value_type norm2_vel = vel[cell][0]*vel[cell][0]
+                                                                   + vel[cell][1]*vel[cell][1];
+                              const auto Y_g = conserved_variables[cell](Mg_INDEX)/rho;
+                              const auto cf  = std::sqrt((1.0 - Y_g)*
+                                                         EOS_phase_liq.c_value(rho_liq)*
+                                                         EOS_phase_liq.c_value(rho_liq) +
+                                                         Y_g*
+                                                         EOS_phase_gas.c_value(rho_g)*
+                                                         EOS_phase_gas.c_value(rho_g));
+                              Mach[cell] = norm2_vel/cf;
                             }
                         );
 
@@ -424,7 +441,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double R, const double eps_o
   /*--- Apply bcs ---*/
   const samurai::DirectionVector<dim> left = {-1, 0};
   samurai::make_bc<Default>(conserved_variables,
-                            Inlet(conserved_variables, U_0, V, alpha_residual, 0.0, 0.0))->on(left);
+                            Inlet(conserved_variables, U0, V0, alpha_residual, 0.0, 0.0))->on(left);
 
   const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)->on(right);
@@ -448,6 +465,7 @@ double TwoScaleCapillarity<dim>::get_max_lambda() {
   alpha_d.resize();
   Sigma_d.resize();
   vel.resize();
+  Mach.resize();
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
@@ -483,6 +501,15 @@ double TwoScaleCapillarity<dim>::get_max_lambda() {
                                                              EOS_phase_gas.c_value(rho_g)*
                                                              EOS_phase_gas.c_value(rho_g) -
                                                              2.0/9.0*sigma*Sigma_d[cell]/rho);
+                              typename Field::value_type norm2_vel = vel[cell][0]*vel[cell][0]
+                                                                   + vel[cell][1]*vel[cell][1];
+                              const auto cf = std::sqrt((1.0 - Y_g)*
+                                                        EOS_phase_liq.c_value(rho_liq)*
+                                                        EOS_phase_liq.c_value(rho_liq) +
+                                                        Y_g*
+                                                        EOS_phase_gas.c_value(rho_g)*
+                                                        EOS_phase_gas.c_value(rho_g));
+                              Mach[cell] = norm2_vel/cf;
 
                               /*--- Add term due to surface tension ---*/
                               const double r = sigma*std::sqrt(xt::sum(grad_alpha_l[cell]*grad_alpha_l[cell])())/(rho*c*c);
@@ -1107,7 +1134,8 @@ void TwoScaleCapillarity<dim>::run() {
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
   save(path, suffix_init, conserved_variables, alpha_l, grad_alpha_l, normal, H, p_liq, p_g, p,
                           alpha_d, Sigma_d, grad_alpha_d, vel, div_vel,
-                          alpha_l_bar, grad_alpha_l_bar, H_bar);
+                          alpha_l_bar, grad_alpha_l_bar, H_bar,
+                          Mach);
   Hlig.open("Hlig.dat", std::ofstream::out);
   m_l_integral.open("m_l_integral.dat", std::ofstream::out);
   m_d_integral.open("m_d_integral.dat", std::ofstream::out);
@@ -1339,7 +1367,8 @@ void TwoScaleCapillarity<dim>::run() {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, suffix, conserved_variables, alpha_l, grad_alpha_l, normal, H, p_liq, p_g, p,
                          alpha_d, Sigma_d, grad_alpha_d, vel, div_vel,
-                         alpha_l_bar, grad_alpha_l_bar, H_bar, Newton_iterations);
+                         alpha_l_bar, grad_alpha_l_bar, H_bar, Newton_iterations,
+                         Mach);
     }
   }
 
