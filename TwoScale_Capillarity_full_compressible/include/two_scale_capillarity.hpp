@@ -406,7 +406,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double x0, const double y0,
                                                          Y_g*
                                                          EOS_phase_gas.c_value(rho_g)*
                                                          EOS_phase_gas.c_value(rho_g));
-                              Mach[cell] = norm2_vel/cf;
+                              Mach[cell] = std::sqrt(norm2_vel)/cf;
                             }
                         );
 
@@ -509,7 +509,7 @@ double TwoScaleCapillarity<dim>::get_max_lambda() {
                                                         Y_g*
                                                         EOS_phase_gas.c_value(rho_g)*
                                                         EOS_phase_gas.c_value(rho_g));
-                              Mach[cell] = norm2_vel/cf;
+                              Mach[cell] = std::sqrt(norm2_vel)/cf;
 
                               /*--- Add term due to surface tension ---*/
                               const double r = sigma*std::sqrt(xt::sum(grad_alpha_l[cell]*grad_alpha_l[cell])())/(rho*c*c);
