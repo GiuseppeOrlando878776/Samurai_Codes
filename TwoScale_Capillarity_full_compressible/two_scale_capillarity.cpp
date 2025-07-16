@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
   sim_param.x0 = input.value("x0", 1.0);
   sim_param.y0 = input.value("y0", 1.0);
   sim_param.U0 = input.value("U0", 6.66);
-  sim_param.U0 = input.value("U1", 0.0);
+  sim_param.U1 = input.value("U1", 0.0);
   sim_param.V0 = input.value("V0", 0.0);
 
   sim_param.sigma = input.value("sigma", 1e-2);
