@@ -205,7 +205,8 @@ namespace samurai {
                                                 // Compute the numerical flux
                                                 flux = compute_discrete_flux(qL, qR, d);
                                               };
-    });
+      }
+    );
 
     auto scheme = make_flux_based_scheme(Rusanov_f);
     scheme.set_name("Rusanov");

@@ -66,7 +66,9 @@ namespace samurai {
                                   const std::size_t max_Newton_iters_,
                                   const double atol_Newton_p_star_,
                                   const double rtol_Newton_p_star_):
-    Flux<Field>(EOS_phase1_, EOS_phase2_, sigma_, mod_grad_alpha1_min_, lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_),
+    Flux<Field>(EOS_phase1_, EOS_phase2_,
+                sigma_, mod_grad_alpha1_min_,
+                lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_),
     atol_Newton_p_star(atol_Newton_p_star_), rtol_Newton_p_star(rtol_Newton_p_star_) {}
 
   // Compute p* through Newton-Rapson method
@@ -471,7 +473,8 @@ namespace samurai {
 
                                                 flux = compute_discrete_flux(qL, qR, d);
                                               };
-    });
+      }
+    );
 
     auto scheme = make_flux_based_scheme(Godunov_f);
     scheme.set_name("Godunov exact");

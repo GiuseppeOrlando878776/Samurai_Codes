@@ -9,29 +9,38 @@
 // (domain, levels, final time, and Courant number)
 //
 struct Simulation_Paramaters {
+  /*--- Physical paramters ---*/
   double xL;
   double xR;
   double yL;
   double yR;
 
-  std::size_t min_level;
-  std::size_t max_level;
-  double      MR_param;
-  double      MR_regularity;
+  double Tf;
 
-  double R;
-  double eps_over_R;
   double sigma;
 
-  double Tf;
-  double Courant;
+  bool   apply_relaxation;
+  bool   mass_transfer;
+  double Hmax;
+  double kappa;
+  double alpha1d_max;
+  double alpha1_bar_min;
+  double alpha1_bar_max;
 
-  std::size_t nfiles;
+  double x0;
+  double y0;
+  double U0;
+  double U1;
+  double V0;
+  double R;
+  double eps_over_R;
+
+  /*--- Numerical parameters ---*/
+  double Courant;
 
   double alpha_residual;
   double mod_grad_alpha1_bar_min;
 
-  bool        apply_relaxation;
   double      lambda;
   double      atol_Newton;
   double      rtol_Newton;
@@ -41,12 +50,14 @@ struct Simulation_Paramaters {
   double rtol_Newton_p_star;
   double tol_Newton_alpha1_d;
 
-  bool   mass_transfer;
-  double Hmax;
-  double kappa;
-  double alpha1d_max;
-  double alpha1_bar_min;
-  double alpha1_bar_max;
+  /*--- MR parameters ---*/
+  std::size_t min_level;
+  std::size_t max_level;
+  double      MR_param;
+  double      MR_regularity;
+
+  /*--- Output parameters ---*/
+  std::size_t nfiles;
 };
 
 // Declare a struct with EOS parameters

@@ -243,7 +243,8 @@ namespace samurai {
 
                                              flux = compute_discrete_flux(qL, qR, d);
                                            };
-    });
+      }
+    );
 
     auto scheme = make_flux_based_scheme(HLLC_f);
     scheme.set_name("HLLC");

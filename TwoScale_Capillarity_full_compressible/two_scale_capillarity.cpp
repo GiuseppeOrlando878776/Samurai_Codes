@@ -29,22 +29,21 @@ int main(int argc, char* argv[]) {
 
   sim_param.Tf = input.value("Tf", 2.5);
 
-  sim_param.x0 = input.value("x0", 1.0);
-  sim_param.y0 = input.value("y0", 1.0);
-  sim_param.U0 = input.value("U0", 6.66);
-  sim_param.U1 = input.value("U1", 0.0);
-  sim_param.V0 = input.value("V0", 0.0);
-
   sim_param.sigma = input.value("sigma", 1e-2);
 
   sim_param.apply_relaxation = input.value("apply_relaxation", true);
   sim_param.mass_transfer    = input.value("mass_transfer", false);
-  sim_param.kappa            = input.value("kappa", 1.0);
   sim_param.Hmax             = input.value("Hmax", 40.0);
+  sim_param.kappa            = input.value("kappa", 1.0);
   sim_param.alpha_d_max      = input.value("alpha_d_max", 0.5);
   sim_param.alpha_l_min      = input.value("alpha_l_min", 0.01);
   sim_param.alpha_l_max      = input.value("alpha_l_max", 0.1);
 
+  sim_param.x0         = input.value("x0", 1.0);
+  sim_param.y0         = input.value("y0", 1.0);
+  sim_param.U0         = input.value("U0", 6.66);
+  sim_param.U1         = input.value("U1", 0.0);
+  sim_param.V0         = input.value("V0", 0.0);
   sim_param.R          = input.value("R", 0.15);
   sim_param.eps_over_R = input.value("eps_over_R", 0.2);
 

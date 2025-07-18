@@ -75,7 +75,7 @@ private:
   using Field_Vect         = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
   using Field_ScalarVector = samurai::VectorField<decltype(mesh), typename Field::value_type, 1, false>;
 
-  double Tf; /*--- Final time of the simulation ---*/
+  const double Tf; /*--- Final time of the simulation ---*/
 
   const double sigma; /*--- Surface tension coefficient ---*/
 
@@ -85,8 +85,8 @@ private:
   const double Hmax;          /*--- Threshold length scale ---*/
   const double kappa;         /*--- Parameter related to the radius of small-scale droplets ---*/
   const double alpha_d_max;   /*--- Maximum threshold of small-scale volume fraction ---*/
-  const double alpha_l_min;    /*--- Minimum effective volume fraction to identify the mixture region ---*/
-  const double alpha_l_max;    /*--- Maximum effective volume fraction to identify the mixture region ---*/
+  const double alpha_l_min;   /*--- Minimum large-scale volume fraction to identify the mixture region ---*/
+  const double alpha_l_max;   /*--- Maximum large-scale volume fraction to identify the mixture region ---*/
 
   double cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
 
@@ -184,7 +184,7 @@ private:
   void apply_relaxation(); /*--- Apply the relaxation ---*/
 
   template<typename State, typename Gradient>
-  void perform_Newton_step_relaxation(std::unique_ptr<State> local_conserved_variables,
+  void perform_Newton_step_relaxation(State local_conserved_variables,
                                       const typename Field::value_type H_loc,
                                       typename Field::value_type& dalpha_l_loc,
                                       typename Field::value_type& alpha_l_loc,
@@ -309,8 +309,7 @@ void TwoScaleCapillarity<dim>::init_variables(const double x0, const double y0,
 
   Mach = samurai::make_scalar_field<typename Field::value_type>("Mach", mesh);
 
-  /*--- Declare some constant parameters associated to the grid and to the
-        initial state ---*/
+  /*--- Declare some constant parameters associated to the initial state ---*/
   const double eps_R = eps_over_R*R;
 
   /*--- Initialize some fields to define the bubble with a loop over all cells ---*/
@@ -674,7 +673,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                            [&](const auto& cell)
                               {
                                 try {
-                                  perform_Newton_step_relaxation(std::make_unique<decltype(conserved_variables[cell])>(conserved_variables[cell]),
+                                  perform_Newton_step_relaxation(conserved_variables[cell],
                                                                  H[cell][0], dalpha_l[cell], alpha_l[cell],
                                                                  to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied,
                                                                  grad_alpha_l[cell], mass_transfer_NR);
@@ -713,7 +712,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
 //
 template<std::size_t dim>
 template<typename State, typename Gradient>
-void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(std::unique_ptr<State> local_conserved_variables,
+void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conserved_variables,
                                                               const typename Field::value_type H_loc,
                                                               typename Field::value_type& dalpha_l_loc,
                                                               typename Field::value_type& alpha_l_loc,
@@ -962,10 +961,6 @@ void TwoScaleCapillarity<dim>::save(const fs::path& path,
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::execute_postprocess(const double time) {
-  #ifndef RELAX_RECONSTRUCTION
-    update_geometry();
-  #endif
-
   /*--- Initialize relevant integral quantities ---*/
   typename Field::value_type local_H_lig                = 0.0;
   typename Field::value_type local_m_l_int              = 0.0;
@@ -1330,6 +1325,9 @@ void TwoScaleCapillarity<dim>::run() {
     #endif
 
     /*--- Compute updated time step ---*/
+    #ifndef RELAX_RECONSTRUCTION
+      update_geometry();
+    #endif
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
     /*--- Postprocess data ---*/

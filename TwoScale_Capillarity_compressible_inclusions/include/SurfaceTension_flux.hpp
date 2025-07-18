@@ -16,8 +16,8 @@ namespace samurai {
   template<class Field>
   class SurfaceTensionFlux: public Flux<Field> {
   public:
-    SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
-                       const LinearizedBarotropicEOS<>& EOS_phase2_,
+    SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                       const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                        const double sigma_,
                        const double mod_grad_alpha1_min_,
                        const double lambda_,
@@ -40,8 +40,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
-                                                const LinearizedBarotropicEOS<>& EOS_phase2_,
+  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                                                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                                                 const double sigma_,
                                                 const double mod_grad_alpha1_min_,
                                                 const double lambda_,
@@ -91,7 +91,8 @@ namespace samurai {
                                                         flux = compute_discrete_flux(grad_alpha1[data.cells[0]], grad_alpha1[data.cells[1]], d);
                                                       #endif
                                                     };
-    });
+      }
+    );
 
     auto scheme = make_flux_based_scheme(SurfaceTension_f);
     scheme.set_name("Surface tension");

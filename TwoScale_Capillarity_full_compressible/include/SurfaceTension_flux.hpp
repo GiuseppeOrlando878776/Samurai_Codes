@@ -18,8 +18,8 @@ namespace samurai {
   template<class Field>
   class SurfaceTensionFlux: public Flux<Field> {
   public:
-    SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase_liq_,
-                       const LinearizedBarotropicEOS<>& EOS_phase_gas_,
+    SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_liq_,
+                       const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_gas_,
                        const double sigma_,
                        const double mod_grad_alpha_l_min_,
                        const double lambda_,

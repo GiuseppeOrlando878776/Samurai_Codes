@@ -16,8 +16,8 @@ namespace samurai {
   template<class Field>
   class SurfaceTensionFlux: public Flux<Field> {
   public:
-    SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
-                       const LinearizedBarotropicEOS<>& EOS_phase2_,
+    SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                       const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                        const double sigma_,
                        const double mod_grad_alpha1_min_,
                        const double lambda_,
@@ -38,8 +38,8 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<>& EOS_phase1_,
-                                                const LinearizedBarotropicEOS<>& EOS_phase2_,
+  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
+                                                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
                                                 const double sigma_,
                                                 const double mod_grad_alpha1_min_,
                                                 const double lambda_,
@@ -78,15 +78,16 @@ namespace samurai {
         SurfaceTension_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
                                                      const StencilData<typename Flux<Field>::cfg>& data,
                                                      const StencilValues<typename Flux<Field>::cfg> /*field*/)
-                                                    {
-                                                      // Compute the numerical flux
-                                                      #ifdef ORDER_2
-                                                        flux = compute_discrete_flux(grad_alpha1[data.cells[1]], grad_alpha1[data.cells[2]], d);
-                                                      #else
-                                                        flux = compute_discrete_flux(grad_alpha1[data.cells[0]], grad_alpha1[data.cells[1]], d);
-                                                      #endif
-                                                    };
-    });
+                                                     {
+                                                       // Compute the numerical flux
+                                                       #ifdef ORDER_2
+                                                         flux = compute_discrete_flux(grad_alpha1[data.cells[1]], grad_alpha1[data.cells[2]], d);
+                                                       #else
+                                                         flux = compute_discrete_flux(grad_alpha1[data.cells[0]], grad_alpha1[data.cells[1]], d);
+                                                       #endif
+                                                     };
+      }
+    );
 
     auto scheme = make_flux_based_scheme(SurfaceTension_f);
     scheme.set_name("Surface tension");

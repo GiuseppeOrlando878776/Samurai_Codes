@@ -86,7 +86,8 @@ namespace samurai {
                                                         flux = compute_discrete_flux(grad_alpha1_bar[data.cells[0]], grad_alpha1_bar[data.cells[1]], d);
                                                       #endif
                                                     };
-    });
+      }
+    );
 
     auto scheme = make_flux_based_scheme(SurfaceTension_f);
     scheme.set_name("Surface tension");
