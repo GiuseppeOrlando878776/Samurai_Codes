@@ -71,6 +71,8 @@ int main(int argc, char* argv[]) {
   // Output parameters
   sim_param.nfiles = input.value("nfiles", 10);
 
+  /*--- Allow for parsing from command line ---*/
+  // Physical parameters
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Physical parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Physical parameters");
   app.add_option("--yL", sim_param.yL, "y Bottom-end of the domain")->capture_default_str()->group("Physical parameters");

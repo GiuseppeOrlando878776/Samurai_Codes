@@ -58,10 +58,6 @@ int main(int argc, char* argv[]) {
   sim_param.rtol_Newton      = input.value("rtol_Newton", 1e-12);
   sim_param.max_Newton_iters = input.value("max_Newton_iters", 60);
 
-  sim_param.atol_Newton_p_star = input.value("atol_Newton_p_star", 1e-10);
-  sim_param.rtol_Newton_p_star = input.value("rtol_Newton_p_star", 1e-8);
-  sim_param.tol_Newton_alpha_d = input.value("tol_Newton_alpha_d", 1e-8);
-
   // MR paramters
   sim_param.min_level     = input.value("min-level", 8);
   sim_param.max_level     = input.value("max-level", 8);
@@ -120,12 +116,6 @@ int main(int argc, char* argv[]) {
                  "Relative tolerance of Newton method for the relaxation")->capture_default_str()->group("Numerical parameters");
   app.add_option("--max_Newton_iters", sim_param.max_Newton_iters,
                  "Maximum number of Newton iterations")->capture_default_str()->group("Numerical parameters");
-  app.add_option("--atol_Newton_p_star", sim_param.atol_Newton_p_star,
-                 "Absolute tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
-  app.add_option("--rtol_Newton_p_star", sim_param.rtol_Newton_p_star,
-                 "Relative tolerance of Newton method to compute p* for the exact solver")->capture_default_str()->group("Numerical parameters");
-  app.add_option("--tol_Newton_alpha_d", sim_param.tol_Newton_alpha_d,
-                 "Tolerance of Newton method to compute small-scale volume fraction for the exact solver")->capture_default_str()->group("Numerical parameters");
 
   // MR parameters
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
