@@ -726,20 +726,20 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
   if(!std::isnan(H_loc)) {
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto alpha_d_loc = alpha_l_loc*
-                             (*local_conserved_variables)(Md_INDEX)/(*local_conserved_variables)(Ml_INDEX);
+                             local_conserved_variables(Md_INDEX)/local_conserved_variables(Ml_INDEX);
                              /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_g_loc = 1.0 - alpha_l_loc - alpha_d_loc;
 
-    const auto rho_liq_loc = ((*local_conserved_variables)(Ml_INDEX) + (*local_conserved_variables)(Md_INDEX))/
+    const auto rho_liq_loc = (local_conserved_variables(Ml_INDEX) + local_conserved_variables(Md_INDEX))/
                              (alpha_l_loc + alpha_d_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p_liq_loc   = EOS_phase_liq.pres_value(rho_liq_loc);
-    const auto rho_g_loc   = (*local_conserved_variables)(Mg_INDEX)/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g_loc   = local_conserved_variables(Mg_INDEX)/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p_g_loc     = EOS_phase_gas.pres_value(rho_g_loc);
 
     /*--- Prepare for mass transfer if desired ---*/
-    const auto rho_loc = (*local_conserved_variables)(Ml_INDEX)
-                       + (*local_conserved_variables)(Mg_INDEX)
-                       + (*local_conserved_variables)(Md_INDEX);
+    const auto rho_loc = local_conserved_variables(Ml_INDEX)
+                       + local_conserved_variables(Mg_INDEX)
+                       + local_conserved_variables(Md_INDEX);
 
     // Compute first ordrer integral reminder "specific enthalpy"
     typename Field::value_type H_lim = std::min(H_loc, Hmax);
@@ -747,8 +747,8 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     if(mass_transfer_NR) {
       if(fac_Ru > 0.0 &&
          alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
-         -grad_alpha_l_loc[0]*(*local_conserved_variables)(RHO_U_INDEX)
-         -grad_alpha_l_loc[1]*(*local_conserved_variables)(RHO_U_INDEX + 1) > 0.0 &&
+         -grad_alpha_l_loc[0]*local_conserved_variables(RHO_U_INDEX)
+         -grad_alpha_l_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > 0.0 &&
          alpha_d_loc < alpha_d_max) {
         ;
       }
@@ -764,11 +764,11 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
 
     // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
     const auto delta_p = p_liq_loc - p_g_loc;
-    const auto F_LS    = (*local_conserved_variables)(Ml_INDEX)*(delta_p - sigma*H_lim);
+    const auto F_LS    = local_conserved_variables(Ml_INDEX)*(delta_p - sigma*H_lim);
     const auto aux_SS  = 2.0/3.0*sigma*
-                         (*local_conserved_variables)(RHO_Z_INDEX)*
-                         std::pow((*local_conserved_variables)(Ml_INDEX), 1.0/3.0);
-    const auto F_SS    = (*local_conserved_variables)(Md_INDEX)*delta_p
+                         local_conserved_variables(RHO_Z_INDEX)*
+                         std::pow(local_conserved_variables(Ml_INDEX), 1.0/3.0);
+    const auto F_SS    = local_conserved_variables(Md_INDEX)*delta_p
                        - std::pow(alpha_l_loc, -1.0/3.0)*aux_SS;
     const auto F       = F_LS + F_SS;
 
@@ -780,14 +780,14 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       local_relaxation_applied = true;
 
       // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-      const auto ddelta_p_dalpha_l = -(*local_conserved_variables)(Ml_INDEX)/(alpha_l_loc*alpha_l_loc)*
+      const auto ddelta_p_dalpha_l = -local_conserved_variables(Ml_INDEX)/(alpha_l_loc*alpha_l_loc)*
                                      EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)
-                                     -(*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
+                                     -local_conserved_variables(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
                                      EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                     ((*local_conserved_variables)(Ml_INDEX) + (*local_conserved_variables)(Md_INDEX))/
-                                     (*local_conserved_variables)(Ml_INDEX);
-      const auto dF_LS_dalpha_l    = (*local_conserved_variables)(Ml_INDEX)*ddelta_p_dalpha_l;
-      const auto dF_SS_dalpha_l    = (*local_conserved_variables)(Md_INDEX)*ddelta_p_dalpha_l
+                                     (local_conserved_variables(Ml_INDEX) + local_conserved_variables(Md_INDEX))/
+                                     local_conserved_variables(Ml_INDEX);
+      const auto dF_LS_dalpha_l    = local_conserved_variables(Ml_INDEX)*ddelta_p_dalpha_l;
+      const auto dF_SS_dalpha_l    = local_conserved_variables(Md_INDEX)*ddelta_p_dalpha_l
                                    + 1.0/3.0*std::pow(alpha_l_loc, -4.0/3.0)*aux_SS;
       const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 
@@ -803,8 +803,8 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         }
 
         // Bound preserving for the velocity
-        const auto mom_dot_vel   = ((*local_conserved_variables)(RHO_U_INDEX)*(*local_conserved_variables)(RHO_U_INDEX) +
-                                    (*local_conserved_variables)(RHO_U_INDEX + 1)*(*local_conserved_variables)(RHO_U_INDEX + 1))/rho_loc;
+        const auto mom_dot_vel   = (local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX) +
+                                    local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
         auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(alpha_l_loc*sigma*dH*fac_Ru);
         dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
         if(dtau_ov_epsilon < 0.0) {
@@ -820,27 +820,27 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       // Bound preserving condition for large-scale volume fraction
       const auto dF_drhoz     = -2.0/3.0*std::pow(rho_liq_loc, 1.0/3.0);
 
-      const auto ddelta_p_dmd = -(*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
+      const auto ddelta_p_dmd = -local_conserved_variables(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)/rho_liq_loc;
-      const auto dF_LS_dmd    = (*local_conserved_variables)(Ml_INDEX)*ddelta_p_dmd;
-      const auto dF_SS_dmd    = delta_p + (*local_conserved_variables)(Md_INDEX)*ddelta_p_dmd;
+      const auto dF_LS_dmd    = local_conserved_variables(Ml_INDEX)*ddelta_p_dmd;
+      const auto dF_SS_dmd    = delta_p + local_conserved_variables(Md_INDEX)*ddelta_p_dmd;
       const auto dF_dmd       = dF_LS_dmd + dF_SS_dmd;
 
       const auto ddelta_p_dml = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)/alpha_l_loc
-                              + (*local_conserved_variables)(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
+                              + local_conserved_variables(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                (alpha_l_loc*(*local_conserved_variables)(Md_INDEX))/
-                                ((*local_conserved_variables)(Ml_INDEX)*(*local_conserved_variables)(Ml_INDEX));
-      const auto dF_LS_dml    = (delta_p - sigma*H_lim) + (*local_conserved_variables)(Ml_INDEX)*ddelta_p_dml;
-      const auto dF_SS_dml    = (*local_conserved_variables)(Md_INDEX)*ddelta_p_dml
-                              - 1.0/3.0*aux_SS/(std::pow(alpha_l_loc, 1.0/3.0)*(*local_conserved_variables)(Ml_INDEX));
+                                (alpha_l_loc*local_conserved_variables(Md_INDEX))/
+                                (local_conserved_variables(Ml_INDEX)*local_conserved_variables(Ml_INDEX));
+      const auto dF_LS_dml    = (delta_p - sigma*H_lim) + local_conserved_variables(Ml_INDEX)*ddelta_p_dml;
+      const auto dF_SS_dml    = local_conserved_variables(Md_INDEX)*ddelta_p_dml
+                              - 1.0/3.0*aux_SS/(std::pow(alpha_l_loc, 1.0/3.0)*local_conserved_variables(Ml_INDEX));
       const auto dF_dml       = dF_LS_dml + dF_SS_dml;
 
       const auto R            = dF_dml - dF_dmd - dF_drhoz*(3.0*Hmax/(kappa*std::pow(rho_liq_loc, 1.0/3.0)));
                                 /*equivalent to dF_drhoz*(S_avg/m_avg)*((rho*z/Sigma))*/
 
       // Upper bound
-      const auto R_ml          = -(*local_conserved_variables)(Ml_INDEX)*sigma*dH;
+      const auto R_ml          = -local_conserved_variables(Ml_INDEX)*sigma*dH;
       const auto a             = (R_ml/rho_liq_loc)*R;
       auto b                   = (F + lambda*(1.0 - alpha_l_loc)*dF_dalpha_l)/rho_liq_loc;
       auto D                   = b*b - 4.0*a*(-lambda*(1.0 - alpha_l_loc));
@@ -890,19 +890,19 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
           throw std::runtime_error("Negative sign of mass transfer inside Newton step");
         }
         else {
-          (*local_conserved_variables)(Ml_INDEX) += dm_l;
-          if((*local_conserved_variables)(Ml_INDEX) < 0.0) {
+          local_conserved_variables(Ml_INDEX) += dm_l;
+          if(local_conserved_variables(Ml_INDEX) < 0.0) {
             throw std::runtime_error("Negative mass of large-scale phase 1 inside Newton step");
           }
 
-          (*local_conserved_variables)(Md_INDEX) -= dm_l;
-          if((*local_conserved_variables)(Md_INDEX) < 0.0) {
+          local_conserved_variables(Md_INDEX) -= dm_l;
+          if(local_conserved_variables(Md_INDEX) < 0.0) {
             throw std::runtime_error("Negative mass of small-scale phase 1 inside Newton step");
           }
         }
 
         const auto R_Sigma_D = -dm_l*3.0*Hmax/(kappa*rho_liq_loc);
-        (*local_conserved_variables)(RHO_Z_INDEX) += (std::pow(rho_liq_loc, 2.0/3.0))*R_Sigma_D;
+        local_conserved_variables(RHO_Z_INDEX) += (std::pow(rho_liq_loc, 2.0/3.0))*R_Sigma_D;
       }
 
       if(alpha_l_loc + dalpha_l_loc < 0.0 || alpha_l_loc + dalpha_l_loc > 1.0) {
@@ -914,15 +914,15 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
 
       if(dH > 0.0) {
         double drho_fac_Ru = 0.0;
-        const auto mom_squared = (*local_conserved_variables)(RHO_U_INDEX)*(*local_conserved_variables)(RHO_U_INDEX)
-                               + (*local_conserved_variables)(RHO_U_INDEX + 1)*(*local_conserved_variables)(RHO_U_INDEX + 1);
+        const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
+                               + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
         if(mom_squared > 0.0) {
           drho_fac_Ru = dtau_ov_epsilon*
                         sigma*dH*fac_Ru*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
         }
 
         for(std::size_t d = 0; d < Field::dim; ++d) {
-          (*local_conserved_variables)(RHO_U_INDEX + d) -= drho_fac_Ru*(*local_conserved_variables)(RHO_U_INDEX + d);
+          local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
         }
       }
     }
@@ -930,7 +930,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     // Update "conservative counter part" of large-scale volume fraction.
     // Do it outside because this can change either because of relaxation or
     // alpha_l.
-    (*local_conserved_variables)(RHO_ALPHA_l_INDEX) = rho_loc*alpha_l_loc;
+    local_conserved_variables(RHO_ALPHA_l_INDEX) = rho_loc*alpha_l_loc;
   }
 }
 
