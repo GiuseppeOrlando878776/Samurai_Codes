@@ -20,11 +20,11 @@ namespace samurai {
   public:
     SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_liq_,
                        const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_gas_,
-                       const double sigma_,
-                       const double mod_grad_alpha_l_min_,
-                       const double lambda_,
-                       const double atol_Newton_,
-                       const double rtol_Newton_,
+                       const typename Field::value_type sigma_,
+                       const typename Field::value_type mod_grad_alpha_l_min_,
+                       const typename Field::value_type lambda_,
+                       const typename Field::value_type atol_Newton_,
+                       const typename Field::value_type rtol_Newton_,
                        const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Gradient>
@@ -42,11 +42,11 @@ namespace samurai {
   template<class Field>
   SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_liq_,
                                                 const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_gas_,
-                                                const double sigma_,
-                                                const double mod_grad_alpha_l_min_,
-                                                const double lambda_,
-                                                const double atol_Newton_,
-                                                const double rtol_Newton_,
+                                                const typename Field::value_type sigma_,
+                                                const typename Field::value_type mod_grad_alpha_l_min_,
+                                                const typename Field::value_type lambda_,
+                                                const typename Field::value_type atol_Newton_,
+                                                const typename Field::value_type rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase_liq_, EOS_phase_gas_,
                 sigma_, mod_grad_alpha_l_min_,
@@ -59,8 +59,9 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> SurfaceTensionFlux<Field>::compute_discrete_flux(const Gradient& grad_alpha_l_L,
                                                                                         const Gradient& grad_alpha_l_R,
                                                                                         const std::size_t curr_d) {
-    return 0.5*(this->evaluate_surface_tension_operator(grad_alpha_l_L, curr_d) +
-                this->evaluate_surface_tension_operator(grad_alpha_l_R, curr_d));
+    return static_cast<typename Field::value_type>(0.5)*
+           (this->evaluate_surface_tension_operator(grad_alpha_l_L, curr_d) +
+            this->evaluate_surface_tension_operator(grad_alpha_l_R, curr_d));
   }
 
   // Implement the contribution of the discrete flux for all the directions.

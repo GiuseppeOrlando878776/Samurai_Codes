@@ -22,11 +22,11 @@ namespace samurai {
   public:
     HLLCFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_liq_,
              const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_gas_,
-             const double sigma_,
-             const double mod_grad_alpha_l_min_,
-             const double lambda_,
-             const double atol_Newton_,
-             const double rtol_Newton_,
+             const typename Field::value_type sigma_,
+             const typename Field::value_type mod_grad_alpha_l_min_,
+             const typename Field::value_type lambda_,
+             const typename Field::value_type atol_Newton_,
+             const typename Field::value_type rtol_Newton_,
              const std::size_t max_Newton_iters_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
@@ -52,11 +52,11 @@ namespace samurai {
   template<class Field>
   HLLCFlux<Field>::HLLCFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_liq_,
                             const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_gas_,
-                            const double sigma_,
-                            const double mod_grad_alpha_l_min_,
-                            const double lambda_,
-                            const double atol_Newton_,
-                            const double rtol_Newton_,
+                            const typename Field::value_type sigma_,
+                            const typename Field::value_type mod_grad_alpha_l_min_,
+                            const typename Field::value_type lambda_,
+                            const typename Field::value_type atol_Newton_,
+                            const typename Field::value_type rtol_Newton_,
                             const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase_liq_, EOS_phase_gas_,
                 sigma_, mod_grad_alpha_l_min_,
@@ -100,35 +100,35 @@ namespace samurai {
                                                                               const std::size_t curr_d) {
     /*--- Verify if left and right state are coherent ---*/
     #ifdef VERBOSE_FLUX
-      if(qL(Ml_INDEX) < 0.0) {
+      if(qL(Ml_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative mass large-scale liquid left state: " + std::to_string(qL(Ml_INDEX))));
       }
-      if(qL(Mg_INDEX) < 0.0) {
+      if(qL(Mg_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative mass gas left state: " + std::to_string(qL(Mg_INDEX))));
       }
-      if(qL(Md_INDEX) < -1e-15) {
+      if(qL(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative mass small-scale liquid left state: " + std::to_string(qL(Md_INDEX))));
       }
-      if(qL(RHO_ALPHA_l_INDEX) < 0.0) {
+      if(qL(RHO_ALPHA_l_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid left state: " + std::to_string(qL(RHO_ALPHA_l_INDEX))));
       }
-      if(qL(RHO_Z_INDEX) < -1e-15) {
+      if(qL(RHO_Z_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(qL(RHO_Z_INDEX))));
       }
 
-      if(qR(Ml_INDEX) < 0.0) {
+      if(qR(Ml_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative mass large-scale liquid right state: " + std::to_string(qR(Ml_INDEX))));
       }
-      if(qR(Mg_INDEX) < 0.0) {
+      if(qR(Mg_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative mass gas right state: " + std::to_string(qR(Mg_INDEX))));
       }
-      if(qR(Md_INDEX) < -1e-15) {
+      if(qR(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative mass small-scale liquid right state: " + std::to_string(qR(Md_INDEX))));
       }
-      if(qR(RHO_ALPHA_l_INDEX) < 0.0) {
+      if(qR(RHO_ALPHA_l_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid right state: " + std::to_string(qR(RHO_ALPHA_l_INDEX))));
       }
-      if(qR(RHO_Z_INDEX) < -1e-15) {
+      if(qR(RHO_Z_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(qR(RHO_Z_INDEX))));
       }
     #endif
@@ -139,19 +139,19 @@ namespace samurai {
 
     const auto alpha_l_L = qL(RHO_ALPHA_l_INDEX)/rho_L;
     const auto alpha_d_L = alpha_l_L*qL(Md_INDEX)/qL(Ml_INDEX); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha_g_L = 1.0 - alpha_l_L - alpha_d_L;
+    const auto alpha_g_L = static_cast<typename Field::value_type>(1.0) - alpha_l_L - alpha_d_L;
 
     const auto Y_g_L     = qL(Mg_INDEX)/rho_L;
     const auto rho_liq_L = (qL(Ml_INDEX) + qL(Md_INDEX))/(alpha_l_L + alpha_d_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g_L   = qL(Mg_INDEX)/alpha_g_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto Sigma_d_L = qL(RHO_Z_INDEX)/std::pow(rho_liq_L, 2.0/3.0);
-    const auto c_L       = std::sqrt((1.0 - Y_g_L)*
+    const auto Sigma_d_L = qL(RHO_Z_INDEX)/std::pow(rho_liq_L, static_cast<typename Field::value_type>(2.0/3.0));
+    const auto c_L       = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g_L)*
                                      this->EOS_phase_liq.c_value(rho_liq_L)*
                                      this->EOS_phase_liq.c_value(rho_liq_L) +
                                      Y_g_L*
                                      this->EOS_phase_gas.c_value(rho_g_L)*
                                      this->EOS_phase_gas.c_value(rho_g_L) -
-                                     2.0/9.0*this->sigma*Sigma_d_L/rho_L);
+                                     static_cast<typename Field::value_type>(2.0/9.0)*this->sigma*Sigma_d_L/rho_L);
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
     const auto rho_R     = qR(Ml_INDEX) + qR(Mg_INDEX) + qR(Md_INDEX);
@@ -159,29 +159,29 @@ namespace samurai {
 
     const auto alpha_l_R = qR(RHO_ALPHA_l_INDEX)/rho_R;
     const auto alpha_d_R = alpha_l_R*qR(Md_INDEX)/qR(Ml_INDEX); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha_g_R = 1.0 - alpha_l_R - alpha_d_R;
+    const auto alpha_g_R = static_cast<typename Field::value_type>(1.0) - alpha_l_R - alpha_d_R;
 
     const auto Y_g_R     = qR(Mg_INDEX)/rho_R;
     const auto rho_liq_R = (qR(Ml_INDEX) + qR(Md_INDEX))/(alpha_l_R + alpha_d_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g_R   = qR(Mg_INDEX)/alpha_g_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto Sigma_d_R = qR(RHO_Z_INDEX)/std::pow(rho_liq_R, 2.0/3.0);
-    const auto c_R       = std::sqrt((1.0 - Y_g_R)*
+    const auto Sigma_d_R = qR(RHO_Z_INDEX)/std::pow(rho_liq_R, static_cast<typename Field::value_type>(2.0/3.0));
+    const auto c_R       = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g_R)*
                                      this->EOS_phase_liq.c_value(rho_liq_R)*
                                      this->EOS_phase_liq.c_value(rho_liq_R) +
                                      Y_g_R*
                                      this->EOS_phase_gas.c_value(rho_g_R)*
                                      this->EOS_phase_gas.c_value(rho_g_R) -
-                                     2.0/9.0*this->sigma*Sigma_d_R/rho_R);
+                                     static_cast<typename Field::value_type>(2.0/9.0)*this->sigma*Sigma_d_R/rho_R);
 
     /*--- Compute speeds of wave propagation ---*/
     const auto s_L    = std::min(vel_d_L - c_L, vel_d_R - c_R);
     const auto s_R    = std::max(vel_d_L + c_L, vel_d_R + c_R);
     const auto p_L    = (alpha_l_L + alpha_d_L)*this->EOS_phase_liq.pres_value(rho_liq_L)
                       + alpha_g_L*this->EOS_phase_gas.pres_value(rho_g_L)
-                      - 2.0/3.0*this->sigma*Sigma_d_L;
+                      - static_cast<typename Field::value_type>(2.0/3.0)*this->sigma*Sigma_d_L;
     const auto p_R    = (alpha_l_R + alpha_d_R)*this->EOS_phase_liq.pres_value(rho_liq_R)
                       + alpha_g_R*this->EOS_phase_gas.pres_value(rho_g_R)
-                      - 2.0/3.0*this->sigma*Sigma_d_R;
+                      - static_cast<typename Field::value_type>(2.0/3.0)*this->sigma*Sigma_d_R;
     const auto s_star = (p_R - p_L + rho_L*vel_d_L*(s_L - vel_d_L) - rho_R*vel_d_R*(s_R - vel_d_R))/
                         (rho_L*(s_L - vel_d_L) - rho_R*(s_R - vel_d_R));
 
@@ -189,24 +189,26 @@ namespace samurai {
     const auto q_star_L = compute_middle_state(qL, s_L, s_star, curr_d);
     const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
 
-    if(q_star_L(Md_INDEX) < -1e-15) {
+    if(q_star_L(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
       throw std::runtime_error("Negative mass small-scale left star state");
     }
-    if(q_star_R(Md_INDEX) < -1e-15) {
+    if(q_star_R(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
       throw std::runtime_error("Negative mass small-scale right star state");
     }
 
     /*--- Compute the flux ---*/
-    if(s_L >= 0.0) {
+    if(s_L >= static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_hyperbolic_operator(qL, curr_d);
     }
-    else if(s_L < 0.0 && s_star >= 0.0) {
+    else if(s_L < static_cast<typename Field::value_type>(0.0) &&
+            s_star >= static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_hyperbolic_operator(qL, curr_d) + s_L*(q_star_L - qL);
     }
-    else if(s_star < 0.0 && s_R >= 0.0) {
+    else if(s_star < static_cast<typename Field::value_type>(0.0) &&
+            s_R >= static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_hyperbolic_operator(qR, curr_d) + s_R*(q_star_R - qR);
     }
-    else if(s_R < 0.0) {
+    else if(s_R < static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_hyperbolic_operator(qR, curr_d);
     }
   }
