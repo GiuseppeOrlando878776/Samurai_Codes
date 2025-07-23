@@ -399,11 +399,12 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                                                                          + conserved_variables[cell][Mg_INDEX]*U0;
                               conserved_variables[cell][RHO_U_INDEX + 1] = rho*V0;
 
-                              vel[cell][0]  = conserved_variables[cell][RHO_U_INDEX]/rho;
-                              vel[cell][1]  = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
+                              typename Field::value_type norm2_vel = 0.0;
+                              for(std::size_t d = 0; d < dim; ++d) {
+                                vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho;
+                                norm2_vel += vel[cell][d]*vel[cell][d];
+                              }
 
-                              auto norm2_vel = vel[cell][0]*vel[cell][0]
-                                             + vel[cell][1]*vel[cell][1];
                               const auto Y_g = conserved_variables[cell](Mg_INDEX)/rho;
                               const auto cf  = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g)*
                                                          EOS_phase_liq.c_value(rho_liq)*
@@ -511,12 +512,10 @@ typename TwoScaleCapillarity<dim>::Field::value_type TwoScaleCapillarity<dim>::g
                               vel[cell][1]   = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
 
                               /*--- Compute frozen speed of sound ---*/
-                              alpha_d[cell]      = alpha_l[cell]*
-                                                   conserved_variables[cell](Md_INDEX)/conserved_variables[cell](Ml_INDEX);
-                              /*--- TODO: Add a check in case of zero volume fraction ---*/
                               const auto rho_liq = (conserved_variables[cell][Ml_INDEX] + conserved_variables[cell][Md_INDEX])/
                                                    (alpha_l[cell] + alpha_d[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
                               alpha_d[cell]      = alpha_l[cell]*conserved_variables[cell](Md_INDEX)/conserved_variables[cell](Ml_INDEX);
+                              /*--- TODO: Add a check in case of zero volume fraction ---*/
                               const auto alpha_g = static_cast<typename Field::value_type>(1.0) - alpha_l[cell] - alpha_d[cell];
                               const auto rho_g   = conserved_variables[cell][Mg_INDEX]/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
                               const auto Y_g     = conserved_variables[cell](Mg_INDEX)/rho;
@@ -530,15 +529,13 @@ typename TwoScaleCapillarity<dim>::Field::value_type TwoScaleCapillarity<dim>::g
                                                              EOS_phase_gas.c_value(rho_g) -
                                                              static_cast<typename Field::value_type>(2.0/9.0)*sigma*Sigma_d[cell]/rho);
 
-                              auto norm2_vel = vel[cell][0]*vel[cell][0]
-                                             + vel[cell][1]*vel[cell][1];
-                              const auto cf  = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g)*
-                                                         EOS_phase_liq.c_value(rho_liq)*
-                                                         EOS_phase_liq.c_value(rho_liq) +
-                                                         Y_g*
-                                                         EOS_phase_gas.c_value(rho_g)*
-                                                         EOS_phase_gas.c_value(rho_g));
-                              Mach[cell]     = std::sqrt(norm2_vel)/cf;
+                              const auto cf = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g)*
+                                                        EOS_phase_liq.c_value(rho_liq)*
+                                                        EOS_phase_liq.c_value(rho_liq) +
+                                                        Y_g*
+                                                        EOS_phase_gas.c_value(rho_g)*
+                                                        EOS_phase_gas.c_value(rho_g));
+                              Mach[cell]    = std::sqrt(norm2_vel)/cf;
 
                               /*--- Add term due to surface tension ---*/
                               const auto r = sigma*std::sqrt(xt::sum(grad_alpha_l[cell]*grad_alpha_l[cell])())/(rho*c*c);
