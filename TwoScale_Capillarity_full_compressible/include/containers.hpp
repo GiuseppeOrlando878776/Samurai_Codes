@@ -13,10 +13,10 @@
 template<typename T = double>
 struct Simulation_Paramaters {
   /*--- Physical paramters ---*/
-  T xL;
-  T xR;
-  T yL;
-  T yR;
+  double xL;
+  double xR;
+  double yL;
+  double yR;
 
   T Tf;
 

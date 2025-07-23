@@ -120,7 +120,7 @@ namespace samurai {
 
       #ifdef RELAX_RECONSTRUCTION
         template<typename State>
-        void perform_Newton_step_relaxation(State conserved_variables,
+        void perform_Newton_step_relaxation(State& conserved_variables,
                                             const typename Field::value_type H,
                                             typename Field::value_type& dalpha_l,
                                             typename Field::value_type& alpha_l,
@@ -362,7 +362,7 @@ namespace samurai {
       //
       template<class Field>
       template<typename State>
-      void Flux<Field>::perform_Newton_step_relaxation(State conserved_variables,
+      void Flux<Field>::perform_Newton_step_relaxation(State& conserved_variables,
                                                        const typename Field::value_type H,
                                                        typename Field::value_type& dalpha_l,
                                                        typename Field::value_type& alpha_l,
