@@ -399,7 +399,7 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                                                                          + conserved_variables[cell][Mg_INDEX]*U0;
                               conserved_variables[cell][RHO_U_INDEX + 1] = rho*V0;
 
-                              typename Field::value_type norm2_vel = 0.0;
+                              auto norm2_vel = static_cast<typename Field::value_type>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho;
                                 norm2_vel += vel[cell][d]*vel[cell][d];
@@ -508,7 +508,7 @@ typename TwoScaleCapillarity<dim>::Field::value_type TwoScaleCapillarity<dim>::g
                               const auto rho = conserved_variables[cell][Ml_INDEX]
                                              + conserved_variables[cell][Mg_INDEX]
                                              + conserved_variables[cell][Md_INDEX];
-                              typename Field::value_type norm2_vel = 0.0;
+                              auto norm2_vel = static_cast<typename Field::value_type>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho;
                                 norm2_vel += vel[cell][d]*vel[cell][d];
