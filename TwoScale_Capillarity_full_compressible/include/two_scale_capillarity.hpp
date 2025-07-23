@@ -504,12 +504,15 @@ typename TwoScaleCapillarity<dim>::Field::value_type TwoScaleCapillarity<dim>::g
                                                  conserved_variables[cell][Md_INDEX]);
                               #endif
 
-                              /*--- Compute the velocity along both horizontal and vertical direction ---*/
+                              /*--- Compute the velocity along all the directions ---*/
                               const auto rho = conserved_variables[cell][Ml_INDEX]
                                              + conserved_variables[cell][Mg_INDEX]
                                              + conserved_variables[cell][Md_INDEX];
-                              vel[cell][0]   = conserved_variables[cell][RHO_U_INDEX]/rho;
-                              vel[cell][1]   = conserved_variables[cell][RHO_U_INDEX + 1]/rho;
+                              typename Field::value_type norm2_vel = 0.0;
+                              for(std::size_t d = 0; d < dim; ++d) {
+                                vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho;
+                                norm2_vel += vel[cell][d]*vel[cell][d];
+                              }
 
                               /*--- Compute frozen speed of sound ---*/
                               const auto rho_liq = (conserved_variables[cell][Ml_INDEX] + conserved_variables[cell][Md_INDEX])/
