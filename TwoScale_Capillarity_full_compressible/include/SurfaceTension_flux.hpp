@@ -74,22 +74,23 @@ namespace samurai {
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
-      {
-        static constexpr int d = decltype(integral_constant_d)::value;
+         {
+           static constexpr int d = decltype(integral_constant_d)::value;
 
-        // Compute now the "discrete" flux function
-        SurfaceTension_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
-                                                     const StencilData<typename Flux<Field>::cfg>& data,
-                                                     const StencilValues<typename Flux<Field>::cfg> /*field*/)
-                                                     {
-                                                        // Compute the numerical flux
-                                                        #ifdef ORDER_2
-                                                          flux = compute_discrete_flux(grad_alpha_l[data.cells[1]], grad_alpha_l[data.cells[2]], d);
-                                                        #else
-                                                          flux = compute_discrete_flux(grad_alpha_l[data.cells[0]], grad_alpha_l[data.cells[1]], d);
-                                                        #endif
-                                                     };
-    });
+           // Compute now the "discrete" flux function
+           SurfaceTension_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
+                                                        const StencilData<typename Flux<Field>::cfg>& data,
+                                                        const StencilValues<typename Flux<Field>::cfg> /*field*/)
+                                                        {
+                                                          // Compute the numerical flux
+                                                          #ifdef ORDER_2
+                                                            flux = compute_discrete_flux(grad_alpha_l[data.cells[1]], grad_alpha_l[data.cells[2]], d);
+                                                          #else
+                                                            flux = compute_discrete_flux(grad_alpha_l[data.cells[0]], grad_alpha_l[data.cells[1]], d);
+                                                          #endif
+                                                        };
+        }
+    );
 
     auto scheme = make_flux_based_scheme(SurfaceTension_f);
     scheme.set_name("Surface tension");

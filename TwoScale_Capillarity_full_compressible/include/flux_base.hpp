@@ -120,7 +120,7 @@ namespace samurai {
 
       #ifdef RELAX_RECONSTRUCTION
         template<typename State>
-        void perform_Newton_step_relaxation(State& conserved_variables,
+        void perform_Newton_step_relaxation(State conserved_variables,
                                             const typename Field::value_type H,
                                             typename Field::value_type& dalpha_l,
                                             typename Field::value_type& alpha_l,
@@ -179,7 +179,7 @@ namespace samurai {
     FluxValue<cfg> res = q;
 
     /*--- Compute the current velocity ---*/
-    const auto rho  = q(Ml_INDEX) + q(Mg_INDEX) + q(Md_INDEX);
+    const auto rho   = q(Ml_INDEX) + q(Mg_INDEX) + q(Md_INDEX);
     const auto vel_d = q(RHO_U_INDEX + curr_d)/rho;
 
     /*--- Multiply the state the velcoity along the direction of interest ---*/
@@ -362,7 +362,7 @@ namespace samurai {
       //
       template<class Field>
       template<typename State>
-      void Flux<Field>::perform_Newton_step_relaxation(State& conserved_variables,
+      void Flux<Field>::perform_Newton_step_relaxation(State conserved_variables,
                                                        const typename Field::value_type H,
                                                        typename Field::value_type& dalpha_l,
                                                        typename Field::value_type& alpha_l,

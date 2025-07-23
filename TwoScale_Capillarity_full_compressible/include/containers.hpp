@@ -18,6 +18,7 @@ struct Simulation_Paramaters {
   double yL;
   double yR;
 
+  T t0;
   T Tf;
 
   T sigma;
@@ -61,6 +62,9 @@ struct Simulation_Paramaters {
 
   /*--- Output parameters ---*/
   std::size_t nfiles;
+
+  /*--- Restart file ---*/
+  std::string restart_file;
 };
 
 // Declare a struct with EOS parameters

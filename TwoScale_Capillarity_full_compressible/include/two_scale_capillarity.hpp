@@ -8,6 +8,7 @@
 #include <samurai/mr/mesh.hpp>
 #include <samurai/box.hpp>
 #include <samurai/field.hpp>
+#include <samurai/io/restart.hpp>
 #include <samurai/io/hdf5.hpp>
 #include <numbers>
 
@@ -75,6 +76,7 @@ private:
   using Field_Vect         = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
   using Field_ScalarVector = samurai::VectorField<decltype(mesh), typename Field::value_type, 1, false>;
 
+  const typename Field::value_type t0; /*--- Initial time of the simulation ---*/
   const typename Field::value_type Tf; /*--- Final time of the simulation ---*/
 
   const typename Field::value_type sigma; /*--- Surface tension coefficient ---*/
@@ -113,7 +115,8 @@ private:
 
   std::size_t nfiles; /*--- Number of files desired for output ---*/
 
-  std::string filename; /*--- Auxiliary variable to store the name of output ---*/
+  std::string filename;     /*--- Auxiliary variable to store the name of output ---*/
+  std::string restart_file; /*--- String for the restart file ---*/
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
                                    namely the varialbes for which we solve a PDE system ---*/
@@ -169,11 +172,18 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
 
+  void create_fields(); /*--- Auxiliary routine to initialize the fileds to the mesh ---*/
+
   void init_variables(const typename Field::value_type x0, const typename Field::value_type y0,
-                      const typename Field::value_type U0, const typename Field::value_type U1, const typename Field::value_type V0,
+                      const typename Field::value_type U0, const typename Field::value_type U1,
+                      const typename Field::value_type V0,
                       const typename Field::value_type R, const typename Field::value_type eps_over_R,
                       const typename Field::value_type alpha_residual); /*--- Routine to initialize the variables
                                                                               (both conserved and auxiliary, this is problem dependent) ---*/
+
+  void apply_bcs(const typename Field::value_type U0,
+                 const typename Field::value_type V0,
+                 const typename Field::value_type alpha_residual); /*--- Auxiliary routine for the boundary conditions ---*/
 
   typename Field::value_type get_max_lambda(); /*--- Compute the estimate of the maximum eigenvalue ---*/
 
@@ -197,7 +207,9 @@ private:
   void execute_postprocess(const typename Field::value_type time); /*--- Execute the postprocess ---*/
 };
 
+//////////////////////////////////////////////////////////////
 /*---- START WITH THE IMPLEMENTATION OF THE CONSTRUCTOR ---*/
+//////////////////////////////////////////////////////////////
 
 // Implement class constructor
 //
@@ -206,8 +218,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
                                               const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                                               const Simulation_Paramaters<double>& sim_param,
                                               const EOS_Parameters<double>& eos_param):
-  box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false, true}}),
-  Tf(sim_param.Tf), sigma(sim_param.sigma),
+  box(min_corner, max_corner),
+  t0(sim_param.t0), Tf(sim_param.Tf), sigma(sim_param.sigma),
   apply_relax(sim_param.apply_relaxation),
   mass_transfer(sim_param.mass_transfer), Hmax(sim_param.Hmax),
   kappa(sim_param.kappa), alpha_d_max(sim_param.alpha_d_max),
@@ -230,7 +242,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   SurfaceTension_flux(EOS_phase_liq, EOS_phase_gas,
                       sigma, mod_grad_alpha_l_min,
                       lambda, atol_Newton, rtol_Newton, max_Newton_iters),
-  nfiles(sim_param.nfiles),
+  nfiles(sim_param.nfiles), restart_file(sim_param.restart_file),
   gradient(samurai::make_gradient_order2<decltype(alpha_l)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>())
   {
@@ -240,49 +252,38 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << "Initializing variables " << std::endl;
       std::cout << std::endl;
     }
-    init_variables(sim_param.x0, sim_param.y0,
-                   sim_param.U0, sim_param.U1, sim_param.V0,
-                   sim_param.R, sim_param.eps_over_R,
-                   sim_param.alpha_residual);
-    to_be_relaxed     = samurai::make_scalar_field<std::size_t>("to_be_relaxed", mesh);
-    Newton_iterations = samurai::make_scalar_field<std::size_t>("Newton_iterations", mesh);
+
+    /*--- Attach the fields to the mesh ---*/
+    create_fields();
+
+    /*--- Initialize the fields ---*/
+    if(restart_file.empty()) {
+      mesh = {box, sim_param.min_level, sim_param.max_level, {{false, true}}};
+      init_variables(sim_param.x0, sim_param.y0,
+                     sim_param.U0, sim_param.U1,
+                     sim_param.V0,
+                     sim_param.R, sim_param.eps_over_R,
+                     sim_param.alpha_residual);
+    }
+    else {
+      samurai::load(restart_file, mesh, conserved_variables,
+                                        alpha_l, grad_alpha_l, normal, H,
+                                        p_liq, p_g, p,
+                                        alpha_d, Sigma_d, grad_alpha_d,
+                                        vel, div_vel,
+                                        alpha_l_bar, grad_alpha_l_bar, H_bar,
+                                        Mach);
+      /*--- TO DO: Likely periodic bcs will not work ---*/
+    }
+
+    /*--- Apply boundary conditions ---*/
+    apply_bcs(sim_param.U0, sim_param.V0, sim_param.alpha_residual);
   }
 
-// Auxiliary routine to compute normals and curvature
+// Auxiliary routine to create the fields
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::update_geometry() {
-  samurai::update_ghost_mr(alpha_l);
-
-  grad_alpha_l = gradient(alpha_l);
-
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                            {
-                              const auto mod_grad_alpha_l = std::sqrt(xt::sum(grad_alpha_l[cell]*grad_alpha_l[cell])());
-
-                              if(mod_grad_alpha_l > mod_grad_alpha_l_min) {
-                                normal[cell] = grad_alpha_l[cell]/mod_grad_alpha_l;
-                              }
-                              else {
-                                for(std::size_t d = 0; d < dim; ++d) {
-                                  normal[cell][d] = static_cast<typename Field::value_type>(nan(""));
-                                }
-                              }
-                            }
-                        );
-  samurai::update_ghost_mr(normal);
-  H = -divergence(normal);
-}
-
-// Initialization of conserved and auxiliary variables
-//
-template<std::size_t dim>
-void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x0, const typename Field::value_type y0,
-                                              const typename Field::value_type U0, const typename Field::value_type U1, const typename Field::value_type V0,
-                                              const typename Field::value_type R, const typename Field::value_type eps_over_R,
-                                              const typename Field::value_type alpha_residual) {
-  /*--- Create conserved and auxiliary fields ---*/
+void TwoScaleCapillarity<dim>::create_fields() {
   conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
 
   alpha_l      = samurai::make_scalar_field<typename Field::value_type>("alpha_l", mesh);
@@ -309,10 +310,45 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
 
   Mach = samurai::make_scalar_field<typename Field::value_type>("Mach", mesh);
 
+  to_be_relaxed     = samurai::make_scalar_field<std::size_t>("to_be_relaxed", mesh);
+  Newton_iterations = samurai::make_scalar_field<std::size_t>("Newton_iterations", mesh);
+}
+
+// Initialization of conserved and auxiliary variables
+//
+template<std::size_t dim>
+void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x0, const typename Field::value_type y0,
+                                              const typename Field::value_type U0, const typename Field::value_type U1,
+                                              const typename Field::value_type V0,
+                                              const typename Field::value_type R, const typename Field::value_type eps_over_R,
+                                              const typename Field::value_type alpha_residual) {
+  /*--- Resize the fields since now mesh has been created ---*/
+  conserved_variables.resize();
+  alpha_l.resize();
+  grad_alpha_l.resize();
+  normal.resize();
+  H.resize();
+  dalpha_l.resize();
+  p_liq.resize();
+  p_g.resize();
+  p.resize();
+  alpha_d.resize();
+  grad_alpha_d.resize();
+  Sigma_d.resize();
+  vel.resize();
+  div_vel.resize();
+  alpha_l_bar.resize();
+  grad_alpha_l_bar.resize();
+  normal_bar.resize();
+  H_bar.resize();
+  Mach.resize();
+  to_be_relaxed.resize();
+  Newton_iterations.resize();
+
   /*--- Declare some constant parameters associated to the initial state ---*/
   const auto eps_R = eps_over_R*R;
 
-  /*--- Initialize some fields to define the bubble with a loop over all cells ---*/
+  /*--- Initialize the large-scale volume fraction to define the liquid column with a loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
@@ -320,18 +356,16 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                               const auto center = cell.center();
                               const auto x      = static_cast<typename Field::value_type>(center[0]);
                               const auto y      = static_cast<typename Field::value_type>(center[1]);
-
-                              const auto r  = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
-
-                              const auto w  = (r >= R && r < R + eps_R) ?
-                                              std::max(std::exp(static_cast<typename Field::value_type>(2.0)*
-                                                                (r - R)*(r - R)/(eps_R*eps_R)*
-                                                                ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<typename Field::value_type>(3.0))/
-                                                                (((r - R)*(r - R)/(eps_R*eps_R) - static_cast<typename Field::value_type>(1.0))*
-                                                                ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<typename Field::value_type>(1.0)))),
-                                                       static_cast<typename Field::value_type>(0.0)) :
-                                              ((r < R) ? static_cast<typename Field::value_type>(1.0) :
-                                                         static_cast<typename Field::value_type>(0.0));
+                              const auto r      = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
+                              const auto w      = (r >= R && r < R + eps_R) ?
+                                                  std::max(std::exp(static_cast<typename Field::value_type>(2.0)*
+                                                                    (r - R)*(r - R)/(eps_R*eps_R)*
+                                                                    ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<typename Field::value_type>(3.0))/
+                                                                    (((r - R)*(r - R)/(eps_R*eps_R) - static_cast<typename Field::value_type>(1.0))*
+                                                                     ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<typename Field::value_type>(1.0)))),
+                                                           static_cast<typename Field::value_type>(0.0)) :
+                                                  ((r < R) ? static_cast<typename Field::value_type>(1.0) :
+                                                             static_cast<typename Field::value_type>(0.0));
 
                               alpha_l[cell] = std::min(std::max(alpha_residual, w),
                                                        static_cast<typename Field::value_type>(1.0) - alpha_residual);
@@ -355,8 +389,7 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                               const auto center = cell.center();
                               const auto x      = static_cast<typename Field::value_type>(center[0]);
                               const auto y      = static_cast<typename Field::value_type>(center[1]);
-
-                              const auto r = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
+                              const auto r      = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
 
                               // Set mass large-scale phase 1
                               if(r >= R + eps_R) {
@@ -373,7 +406,6 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                               }
                               const auto rho_liq = EOS_phase_liq.rho_value(p_liq[cell]);
 
-                              alpha_l_bar[cell] = alpha_l[cell]/(static_cast<typename Field::value_type>(1.0) - alpha_d[cell]);
                               conserved_variables[cell][Ml_INDEX] = alpha_l[cell]*rho_liq;
 
                               // Set mass phase 2
@@ -383,9 +415,10 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                               const auto alpha_g = static_cast<typename Field::value_type>(1.0) - alpha_l[cell] - alpha_d[cell];
                               conserved_variables[cell][Mg_INDEX] = alpha_g*rho_g;
 
-                              // Set mixture pressure
+                              // Save mixture pressure for post-processing
                               p[cell] = (alpha_l[cell] + alpha_d[cell])*p_liq[cell]
-                                      + alpha_g*p_g[cell] - static_cast<typename Field::value_type>(2.0/3.0)*sigma*Sigma_d[cell];
+                                      + alpha_g*p_g[cell]
+                                      - static_cast<typename Field::value_type>(2.0/3.0)*sigma*Sigma_d[cell];
 
                               // Set conserved variable associated to large-scale volume fraction
                               const auto rho = conserved_variables[cell][Ml_INDEX]
@@ -399,12 +432,17 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                                                                          + conserved_variables[cell][Mg_INDEX]*U0;
                               conserved_variables[cell][RHO_U_INDEX + 1] = rho*V0;
 
+                              // Save velocity for post-processing
                               auto norm2_vel = static_cast<typename Field::value_type>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho;
                                 norm2_vel += vel[cell][d]*vel[cell][d];
                               }
 
+                              // Save 'bar' volume fraction for post-processing
+                              alpha_l_bar[cell] = alpha_l[cell]/(static_cast<typename Field::value_type>(1.0) - alpha_d[cell]);
+
+                              // Save Mach number for post-processing
                               const auto Y_g = conserved_variables[cell](Mg_INDEX)/rho;
                               const auto cf  = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g)*
                                                          EOS_phase_liq.c_value(rho_liq)*
@@ -443,12 +481,19 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                         );
   samurai::update_ghost_mr(normal_bar);
   H_bar = -divergence(normal_bar);
+}
 
-  /*--- Apply bcs ---*/
+// Auxiliary routine to impose the boundary conditions
+//
+template<std::size_t dim>
+void TwoScaleCapillarity<dim>::apply_bcs(const typename Field::value_type U0,
+                                         const typename Field::value_type V0,
+                                         const typename Field::value_type alpha_residual) {
   const samurai::DirectionVector<dim> left = {-1, 0};
   samurai::make_bc<Default>(conserved_variables,
                             Inlet(conserved_variables, U0, V0, alpha_residual,
-                                  static_cast<typename Field::value_type>(0.0), static_cast<typename Field::value_type>(0.0)))->on(left);
+                                  static_cast<typename Field::value_type>(0.0),
+                                  static_cast<typename Field::value_type>(0.0)))->on(left);
 
   const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables,
@@ -481,7 +526,37 @@ void TwoScaleCapillarity<dim>::init_variables(const typename Field::value_type x
                                         static_cast<typename Field::value_type>(0.0))->on(bottom);*/
 }
 
+
+//////////////////////////////////////////////////////////////
 /*---- FOCUS NOW ON THE AUXILIARY FUNCTIONS ---*/
+/////////////////////////////////////////////////////////////
+
+// Auxiliary routine to compute normals and curvature
+//
+template<std::size_t dim>
+void TwoScaleCapillarity<dim>::update_geometry() {
+  samurai::update_ghost_mr(alpha_l);
+
+  grad_alpha_l = gradient(alpha_l);
+
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                            {
+                              const auto mod_grad_alpha_l = std::sqrt(xt::sum(grad_alpha_l[cell]*grad_alpha_l[cell])());
+
+                              if(mod_grad_alpha_l > mod_grad_alpha_l_min) {
+                                normal[cell] = grad_alpha_l[cell]/mod_grad_alpha_l;
+                              }
+                              else {
+                                for(std::size_t d = 0; d < dim; ++d) {
+                                  normal[cell][d] = static_cast<typename Field::value_type>(nan(""));
+                                }
+                              }
+                            }
+                        );
+  samurai::update_ghost_mr(normal);
+  H = -divergence(normal);
+}
 
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
@@ -493,7 +568,6 @@ typename TwoScaleCapillarity<dim>::Field::value_type TwoScaleCapillarity<dim>::g
   alpha_d.resize();
   Sigma_d.resize();
   vel.resize();
-  Mach.resize();
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
@@ -508,17 +582,15 @@ typename TwoScaleCapillarity<dim>::Field::value_type TwoScaleCapillarity<dim>::g
                               const auto rho = conserved_variables[cell][Ml_INDEX]
                                              + conserved_variables[cell][Mg_INDEX]
                                              + conserved_variables[cell][Md_INDEX];
-                              auto norm2_vel = static_cast<typename Field::value_type>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho;
-                                norm2_vel += vel[cell][d]*vel[cell][d];
                               }
 
                               /*--- Compute frozen speed of sound ---*/
-                              const auto rho_liq = (conserved_variables[cell][Ml_INDEX] + conserved_variables[cell][Md_INDEX])/
-                                                   (alpha_l[cell] + alpha_d[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
                               alpha_d[cell]      = alpha_l[cell]*conserved_variables[cell](Md_INDEX)/conserved_variables[cell](Ml_INDEX);
                               /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto rho_liq = (conserved_variables[cell][Ml_INDEX] + conserved_variables[cell][Md_INDEX])/
+                                                   (alpha_l[cell] + alpha_d[cell]); /*--- TODO: Add a check in case of zero volume fraction ---*/
                               const auto alpha_g = static_cast<typename Field::value_type>(1.0) - alpha_l[cell] - alpha_d[cell];
                               const auto rho_g   = conserved_variables[cell][Mg_INDEX]/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
                               const auto Y_g     = conserved_variables[cell](Mg_INDEX)/rho;
@@ -532,15 +604,7 @@ typename TwoScaleCapillarity<dim>::Field::value_type TwoScaleCapillarity<dim>::g
                                                              EOS_phase_gas.c_value(rho_g) -
                                                              static_cast<typename Field::value_type>(2.0/9.0)*sigma*Sigma_d[cell]/rho);
 
-                              const auto cf = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g)*
-                                                        EOS_phase_liq.c_value(rho_liq)*
-                                                        EOS_phase_liq.c_value(rho_liq) +
-                                                        Y_g*
-                                                        EOS_phase_gas.c_value(rho_g)*
-                                                        EOS_phase_gas.c_value(rho_g));
-                              Mach[cell]    = std::sqrt(norm2_vel)/cf;
-
-                              /*--- Add term due to surface tension ---*/
+                              // Add term due to surface tension
                               const auto r = sigma*std::sqrt(xt::sum(grad_alpha_l[cell]*grad_alpha_l[cell])())/(rho*c*c);
 
                               /*--- Update eigenvalue estimate ---*/
@@ -676,6 +740,10 @@ void TwoScaleCapillarity<dim>::check_data(unsigned int flag) {
                         );
 }
 
+//////////////////////////////////////////////////////////////
+/*---- FOCUS NOW ON THE RELAXATION FUNCTIONS ---*/
+/////////////////////////////////////////////////////////////
+
 // Apply the relaxation. This procedure is valid for a generic EOS
 //
 template<std::size_t dim>
@@ -728,7 +796,8 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
     if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
-           conserved_variables, alpha_l, dalpha_l, grad_alpha_l, normal, H,
+           conserved_variables,
+           alpha_l, dalpha_l, grad_alpha_l, normal, H,
            to_be_relaxed, Newton_iterations);
       exit(1);
     }
@@ -871,9 +940,11 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                                 (std::pow(alpha_l_loc, static_cast<typename Field::value_type>(1.0/3.0))*local_conserved_variables(Ml_INDEX));
       const auto dF_dml       = dF_LS_dml + dF_SS_dml;
 
-      const auto R            = dF_dml - dF_dmd - dF_drhoz*(static_cast<typename Field::value_type>(3.0)*Hmax/
-                                                            (kappa*std::pow(rho_liq_loc, static_cast<typename Field::value_type>(1.0/3.0))));
-                                /*equivalent to dF_drhoz*(S_avg/m_avg)*((rho*z/Sigma))*/
+      const auto R            = dF_dml
+                              - dF_dmd
+                              - dF_drhoz*(static_cast<typename Field::value_type>(3.0)*Hmax/
+                                          (kappa*std::pow(rho_liq_loc, static_cast<typename Field::value_type>(1.0/3.0))));
+                                /*NOTE: equivalent to dF_drhoz*(S_avg/m_avg)*((rho*z/Sigma))*/
 
       // Upper bound
       const auto R_ml          = -local_conserved_variables(Ml_INDEX)*sigma*dH;
@@ -925,7 +996,8 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       else {
         const auto dm_l = dtau_ov_epsilon*R_ml;
 
-        dalpha_l_loc = (dtau_ov_epsilon/rho_liq_loc)/((static_cast<typename Field::value_type>(1.0) - dtau_ov_epsilon/rho_liq_loc*dF_dalpha_l))*
+        dalpha_l_loc = (dtau_ov_epsilon/rho_liq_loc)/
+                       ((static_cast<typename Field::value_type>(1.0) - dtau_ov_epsilon/rho_liq_loc*dF_dalpha_l))*
                        (F + dm_l*R);
 
         if(dm_l > static_cast<typename Field::value_type>(0.0)) {
@@ -977,6 +1049,10 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
   }
 }
 
+//////////////////////////////////////////////////////////////
+/*---- FOCUS NOW ON THE POST-PROCESSING FUNCTIONS ---*/
+/////////////////////////////////////////////////////////////
+
 // Save desired fields and info
 //
 template<std::size_t dim>
@@ -998,6 +1074,7 @@ void TwoScaleCapillarity<dim>::save(const fs::path& path,
                         );
 
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
+  samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields..., level_);
 }
 
 // Execute postprocessing
@@ -1035,6 +1112,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const typename Field::value_t
   p_liq.resize();
   p_g.resize();
   p.resize();
+  Mach.resize();
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
@@ -1113,7 +1191,9 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const typename Field::value_t
   grad_alpha_l_bar_integral << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha_l_bar_int << std::endl;
 }
 
+//////////////////////////////////////////////////////////////
 /*---- IMPLEMENT THE FUNCTION THAT EFFECTIVELY SOLVES THE PROBLEM ---*/
+/////////////////////////////////////////////////////////////
 
 // Implement the function that effectively performs the temporal loop
 //
@@ -1169,8 +1249,11 @@ void TwoScaleCapillarity<dim>::run() {
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables, alpha_l, grad_alpha_l, normal, H, p_liq, p_g, p,
-                          alpha_d, Sigma_d, grad_alpha_d, vel, div_vel,
+  save(path, suffix_init, conserved_variables,
+                          alpha_l, grad_alpha_l, normal, H,
+                          p_liq, p_g, p,
+                          alpha_d, Sigma_d, grad_alpha_d,
+                          vel, div_vel,
                           alpha_l_bar, grad_alpha_l_bar, H_bar,
                           Mach);
   Hlig.open("Hlig.dat", std::ofstream::out);
@@ -1184,7 +1267,7 @@ void TwoScaleCapillarity<dim>::run() {
   grad_alpha_l_tot_integral.open("grad_alpha_l_tot_integral.dat", std::ofstream::out);
   alpha_l_bar_integral.open("alpha_l_bar_integral.dat", std::ofstream::out);
   grad_alpha_l_bar_integral.open("grad_alpha_l_bar_integral.dat", std::ofstream::out);
-  auto t = static_cast<typename Field::value_type>(0.0);
+  auto t = static_cast<typename Field::value_type>(t0);
   execute_postprocess(t);
 
   /*--- Set initial time step ---*/
@@ -1383,6 +1466,7 @@ void TwoScaleCapillarity<dim>::run() {
       div_vel = divergence(vel);
 
       normal_bar.resize();
+      Mach.resize();
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                                 {
@@ -1396,6 +1480,29 @@ void TwoScaleCapillarity<dim>::run() {
                                       normal_bar[cell][d] = static_cast<typename Field::value_type>(nan(""));
                                     }
                                   }
+
+                                  // Save Mach number for post-processing
+                                  auto norm2_vel = static_cast<typename Field::value_type>(0.0);
+                                  for(std::size_t d = 0; d < dim; ++d) {
+                                    norm2_vel += vel[cell][d]*vel[cell][d];
+                                  }
+                                  const auto rho_liq = (conserved_variables[cell][Ml_INDEX] + conserved_variables[cell][Md_INDEX])/
+                                                       (alpha_l[cell] + alpha_d[cell]);
+                                                       /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                  const auto alpha_g = static_cast<typename Field::value_type>(1.0) - alpha_l[cell] - alpha_d[cell];
+                                  const auto rho_g   = conserved_variables[cell][Mg_INDEX]/alpha_g;
+                                                       /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                  const auto Y_g     = conserved_variables[cell](Mg_INDEX)/
+                                                       (conserved_variables[cell][Ml_INDEX] +
+                                                        conserved_variables[cell][Mg_INDEX] +
+                                                        conserved_variables[cell][Md_INDEX]);
+                                  const auto cf      = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g)*
+                                                                 EOS_phase_liq.c_value(rho_liq)*
+                                                                 EOS_phase_liq.c_value(rho_liq) +
+                                                                 Y_g*
+                                                                 EOS_phase_gas.c_value(rho_g)*
+                                                                 EOS_phase_gas.c_value(rho_g));
+                                  Mach[cell]         = std::sqrt(norm2_vel)/cf;
                                 }
                             );
 
@@ -1405,10 +1512,13 @@ void TwoScaleCapillarity<dim>::run() {
 
       // Perform the saving
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, suffix, conserved_variables, alpha_l, grad_alpha_l, normal, H, p_liq, p_g, p,
-                         alpha_d, Sigma_d, grad_alpha_d, vel, div_vel,
-                         alpha_l_bar, grad_alpha_l_bar, H_bar, Newton_iterations,
-                         Mach);
+      save(path, suffix, conserved_variables,
+                         alpha_l, grad_alpha_l, normal, H,
+                         p_liq, p_g, p,
+                         alpha_d, Sigma_d, grad_alpha_d,
+                         vel, div_vel,
+                         alpha_l_bar, grad_alpha_l_bar, H_bar,
+                         Newton_iterations, Mach);
     }
   }
 
