@@ -2,31 +2,33 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef eos_hpp
 #define eos_hpp
 
 /**
-  * Implementation of a generic lcass to handle the EOS. It has several
-    pure virtual functions to be implementede for the specific EOS
+  * Implementation of a generic class to handle the (incomplete) EOS. It has several
+    pure virtual functions to be implemented for the employed EOS
   */
 template<typename T = double>
 class EOS {
 public:
   static_assert(std::is_arithmetic_v<T>, "Template argument EOS not well suited for arithemtic operations");
 
-  EOS() = default; // Default constructor
+  EOS() = default; /*--- Default constructor ---*/
 
-  EOS(const EOS&) = default; // Default copy-constructor
+  EOS(const EOS&) = default; /*--- Default copy-constructor ---*/
 
-  virtual ~EOS() {} // Virtual destructor (it can be useful since we work thourgh the base class)
+  virtual ~EOS() {} /*--- Virtual destructor (it can be useful since we work thourgh the base class) ---*/
 
-  inline virtual T pres_value(const T rho, const T e) const = 0; // Function to compute the pressure from the density and the internal energy
+  inline virtual T pres_value(const T rho, const T e) const = 0; /*--- Function to compute the pressure from the density and the internal energy ---*/
 
-  inline virtual T rho_value(const T pres, const T e) const = 0; // Function to compute the density from the pressure and the internal energy
+  inline virtual T rho_value(const T pres, const T e) const = 0; /*--- Function to compute the density from the pressure and the internal energy ---*/
 
-  inline virtual T e_value(const T rho, const T pres) const = 0; // Function to compute the internal energy from density and pressure
+  inline virtual T e_value(const T rho, const T pres) const = 0; /*--- Function to compute the internal energy from density and pressure ---*/
 
-  inline virtual T c_value(const T rho, const T pres) const = 0; // Function to compute the speed of sound from density and pressure
+  inline virtual T c_value(const T rho, const T pres) const = 0; /*--- Function to compute the speed of sound from density and pressure ---*/
 };
 
 
@@ -36,38 +38,40 @@ public:
 template<typename T = double>
 class SG_EOS: public EOS<T> {
 public:
-  SG_EOS() = default; // Default constructor
+  SG_EOS() = default; /*--- Default constructor ---*/
 
-  SG_EOS(const SG_EOS&) = default; // Default copy-constructor
+  SG_EOS(const SG_EOS&) = default; /*--- Default copy-constructor ---*/
 
-  SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_ = 0.0); // Constructor which accepts as arguments
-                                                                                    // the isentropic exponent and the two parameters
-                                                                                    // that characterize the fluid
+  SG_EOS(const T gamma_,
+         const T pi_infty_,
+         const T q_infty_ = 0.0); /*--- Constructor which accepts as arguments
+                                        the isentropic exponent and the two parameters
+                                        that characterize the fluid ---*/
 
-  inline virtual T pres_value(const T rho, const T e) const override; // Function to compute the pressure from the density and the internal energy
+  inline virtual T pres_value(const T rho, const T e) const override; /*--- Function to compute the pressure from the density and the internal energy ---*/
 
-  inline virtual T rho_value(const T pres, const T e) const override; // Function to compute the density from the pressure and the internal energy
+  inline virtual T rho_value(const T pres, const T e) const override; /*--- Function to compute the density from the pressure and the internal energy ---*/
 
-  inline virtual T e_value(const T rho, const T pres) const override; // Function to compute the internal energy from density and pressure
+  inline virtual T e_value(const T rho, const T pres) const override; /*--- Function to compute the internal energy from density and pressure ---*/
 
-  inline virtual T c_value(const T rho, const T pres) const override; // Function to compute the speed of sound from density and pressure
+  inline virtual T c_value(const T rho, const T pres) const override; /*--- Function to compute the speed of sound from density and pressure ---*/
 
-  inline T get_gamma() const; // Auxiliary function to return parameter gamma of EOS
+  inline T get_gamma() const; /*--- Auxiliary function to return parameter gamma of EOS ---*/
 
-  inline T get_pi_infty() const; // Auxiliary function to return parameter pi_infty of EOS
+  inline T get_pi_infty() const; /*--- Auxiliary function to return parameter pi_infty of EOS ---*/
 
-  inline T get_q_infty() const; // Auxiliary function to return parameter q_infty of EOS
+  inline T get_q_infty() const; /*--- Auxiliary function to return parameter q_infty of EOS ---*/
 
 private:
-  const double gamma;    // Isentropic exponent
-  const double pi_infty; // Pressure at 'infinite'
-  const double q_infty;  // Internal energy at 'infinite'
+  const T gamma;    /*--- Isentropic exponent ---*/
+  const T pi_infty; /*--- Pressure at 'infinite' ---*/
+  const T q_infty;  /*--- Internal energy at 'infinite' ---*/
 };
 
 // Implement the constructor
 //
 template<typename T>
-SG_EOS<T>::SG_EOS(const double gamma_, const double pi_infty_, const double q_infty_):
+SG_EOS<T>::SG_EOS(const T gamma_, const T pi_infty_, const T q_infty_):
   EOS<T>(), gamma(gamma_), pi_infty(pi_infty_), q_infty(q_infty_) {}
 
 // Compute the pressure value from the density and the internal energy

@@ -2,48 +2,65 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef containers_hpp
 #define containers_hpp
 
 // Declare a struct with the simulation parameters
 // (domain, levels, final time, and Courant number)
+//
+template<typename T = double>
 struct Simulation_Paramaters {
+  /*--- Physical parameters ---*/
   double xL;
   double xR;
   double yL;
   double yR;
+
+  T t0;
+  T Tf;
+
+  /*--- Numerical parameters ---*/
+  T Courant;
+
+  /*--- MR parameters ---*/
   std::size_t min_level;
   std::size_t max_level;
-  double MR_param;
-  double MR_regularity;
+  double      MR_param;
+  double      MR_regularity;
 
-  double Tf;
-  double Courant;
-
+  /*--- Output parameters ---*/
   std::size_t nfiles;
+
+  /*--- Restart file ---*/
+  std::string restart_file;
 };
 
 // Declare a struct with EOS parameters
+//
+template<typename T = double>
 struct EOS_Parameters {
-  double gamma;
-  double pi_infty;
-  double q_infty;
+  T gamma;
+  T pi_infty;
+  T q_infty;
 };
 
 // Declare a struct with Riemann problem parameters
+//
+template<typename T = double>
 struct Riemann_Parameters {
-  double xd;
+  T xd;
 
-  double rhoL;
-  double pL;
-  double uL;
-  double vL;
+  T rhoL;
+  T pL;
+  T uL;
+  T vL;
 
-  double rhoR;
-  double pR;
-  double uR;
-  double vR;
+  T rhoR;
+  T pR;
+  T uR;
+  T vR;
 };
-
 
 #endif

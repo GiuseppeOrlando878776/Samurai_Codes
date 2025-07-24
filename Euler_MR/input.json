@@ -1,0 +1,29 @@
+{
+ "xL": 0.0,
+ "xR": 1.0,
+
+ "Tf": 0.15,
+
+ "cfl": 0.45,
+
+ "min-level": 7,
+ "max-level": 10,
+ "MR_param": 1e-2,
+ "MR_regularity": 0,
+
+ "nfiles": 10,
+
+ "gamma": 1.4,
+ "pi_infty": 0.0,
+ "q_infty": 0.0,
+
+ "xd": 0.5,
+
+ "rhoL": 1.0,
+ "pL": 0.4,
+ "uL": -2.0,
+
+ "rhoR": 1.0,
+ "pR": 0.4,
+ "uR": 2.0
+}
