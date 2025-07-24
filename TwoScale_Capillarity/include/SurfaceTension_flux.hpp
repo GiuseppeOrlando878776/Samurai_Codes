@@ -18,11 +18,11 @@ namespace samurai {
   public:
     SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
                        const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                       const double sigma_,
-                       const double mod_grad_alpha1_bar_min_,
-                       const double lambda_,
-                       const double atol_Newton_,
-                       const double rtol_Newton_,
+                       const typename Field::value_type sigma_,
+                       const typename Field::value_type mod_grad_alpha1_bar_min_,
+                       const typename Field::value_type lambda_,
+                       const typename Field::value_type atol_Newton_,
+                       const typename Field::value_type rtol_Newton_,
                        const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Gradient>
@@ -40,11 +40,11 @@ namespace samurai {
   template<class Field>
   SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
                                                 const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                                                const double sigma_,
-                                                const double mod_grad_alpha1_bar_min_,
-                                                const double lambda_,
-                                                const double atol_Newton_,
-                                                const double rtol_Newton_,
+                                                const typename Field::value_type sigma_,
+                                                const typename Field::value_type mod_grad_alpha1_bar_min_,
+                                                const typename Field::value_type lambda_,
+                                                const typename Field::value_type atol_Newton_,
+                                                const typename Field::value_type rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_bar_min_,
@@ -57,8 +57,9 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> SurfaceTensionFlux<Field>::compute_discrete_flux(const Gradient& grad_alpha1_bar_L,
                                                                                         const Gradient& grad_alpha1_bar_R,
                                                                                         const std::size_t curr_d) {
-    return 0.5*(this->evaluate_surface_tension_operator(grad_alpha1_bar_L, curr_d) +
-                this->evaluate_surface_tension_operator(grad_alpha1_bar_R, curr_d));
+    return static_cast<typename Field::value_type>(0.5)*
+           (this->evaluate_surface_tension_operator(grad_alpha1_bar_L, curr_d) +
+            this->evaluate_surface_tension_operator(grad_alpha1_bar_R, curr_d));
   }
 
   // Implement the contribution of the discrete flux for all the directions.
@@ -71,22 +72,22 @@ namespace samurai {
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
-      {
-        static constexpr int d = decltype(integral_constant_d)::value;
+         {
+           static constexpr int d = decltype(integral_constant_d)::value;
 
-        // Compute now the "discrete" flux function
-        SurfaceTension_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
-                                                     const StencilData<typename Flux<Field>::cfg>& data,
-                                                     const StencilValues<typename Flux<Field>::cfg> /*field*/)
-                                                    {
-                                                      // Compute the numerical flux
-                                                      #ifdef ORDER_2
-                                                        flux = compute_discrete_flux(grad_alpha1_bar[data.cells[1]], grad_alpha1_bar[data.cells[2]], d);
-                                                      #else
-                                                        flux = compute_discrete_flux(grad_alpha1_bar[data.cells[0]], grad_alpha1_bar[data.cells[1]], d);
-                                                      #endif
-                                                    };
-      }
+           // Compute now the "discrete" flux function
+           SurfaceTension_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
+                                                        const StencilData<typename Flux<Field>::cfg>& data,
+                                                        const StencilValues<typename Flux<Field>::cfg> /*field*/)
+                                                        {
+                                                          // Compute the numerical flux
+                                                          #ifdef ORDER_2
+                                                            flux = compute_discrete_flux(grad_alpha1_bar[data.cells[1]], grad_alpha1_bar[data.cells[2]], d);
+                                                          #else
+                                                            flux = compute_discrete_flux(grad_alpha1_bar[data.cells[0]], grad_alpha1_bar[data.cells[1]], d);
+                                                          #endif
+                                                        };
+        }
     );
 
     auto scheme = make_flux_based_scheme(SurfaceTension_f);

@@ -23,10 +23,10 @@ namespace samurai {
 
     RelaxationOperator(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
                        const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                       const double sigma_,
-                       const double lambda_ = 0.9,
-                       const double atol_Newton_ = 1e-14,
-                       const double rtol_Newton_ = 1e-12,
+                       const typename Field::value_type sigma_,
+                       const typename Field::value_type lambda_ = static_cast<typename Field::value_type>(0.9),
+                       const typename Field::value_type atol_Newton_ = static_cast<typename Field::value_type>(1e-14),
+                       const typename Field::value_type rtol_Newton_ = static_cast<typename Field::value_type>(1e-12),
                        const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Field_Scalar, typename Field_Scalar_Unsigned>
@@ -41,12 +41,12 @@ namespace samurai {
     const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1;
     const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2;
 
-    const double sigma; /*--- Surface tension coefficient ---*/
+    const typename Field::value_type sigma; /*--- Surface tension coefficient ---*/
 
-    const double      lambda;           /*--- Parameter for bound preserving strategy ---*/
-    const double      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
-    const double      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
-    const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
+    const typename Field::value_type lambda;           /*--- Parameter for bound preserving strategy ---*/
+    const typename Field::value_type atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
+    const typename Field::value_type rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
+    const std::size_t                max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
   };
 
   // Constructor derived from the base class
@@ -54,10 +54,10 @@ namespace samurai {
   template<class Field>
   RelaxationOperator<Field>::RelaxationOperator(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
                                                 const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                                                const double sigma_,
-                                                const double lambda_,
-                                                const double atol_Newton_,
-                                                const double rtol_Newton_,
+                                                const typename Field::value_type sigma_,
+                                                const typename Field::value_type lambda_,
+                                                const typename Field::value_type atol_Newton_,
+                                                const typename Field::value_type rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
     EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_), sigma(sigma_),
     lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
@@ -83,7 +83,8 @@ namespace samurai {
                                                const auto rho1 = local_field(M1_INDEX)/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
                                                const auto p1   = EOS_phase1.pres_value(rho1);
 
-                                               const auto rho2 = local_field(M2_INDEX)/(1.0 - alpha1[cell]);
+                                               const auto rho2 = local_field(M2_INDEX)/
+                                                                 (static_cast<typename Field::value_type>(1.0) - alpha1[cell]);
                                                /*--- TODO: Add a check in case of zero volume fraction ---*/
                                                const auto p2   = EOS_phase2.pres_value(rho2);
 
@@ -100,19 +101,23 @@ namespace samurai {
                                                  // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
                                                  const auto dF_dalpha1 = -local_field(M1_INDEX)/(alpha1[cell]*alpha1[cell])*
                                                                           EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
-                                                                         -local_field(M2_INDEX)/((1.0 - alpha1[cell])*(1.0 - alpha1[cell]))*
+                                                                         -local_field(M2_INDEX)/
+                                                                          ((static_cast<typename Field::value_type>(1.0) - alpha1[cell])*
+                                                                           (static_cast<typename Field::value_type>(1.0) - alpha1[cell]))*
                                                                           EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
 
                                                  // Compute the large-scale volume fraction update
                                                  dalpha1[cell] = -F/dF_dalpha1;
-                                                 if(dalpha1[cell] > 0.0) {
-                                                   dalpha1[cell] = std::min(dalpha1[cell], lambda*(1.0 - alpha1[cell]));
+                                                 if(dalpha1[cell] > static_cast<typename Field::value_type>(0.0)) {
+                                                   dalpha1[cell] = std::min(dalpha1[cell],
+                                                                            lambda*(static_cast<typename Field::value_type>(1.0) - alpha1[cell]));
                                                  }
-                                                 else if(dalpha1[cell] < 0.0) {
+                                                 else if(dalpha1[cell] < static_cast<typename Field::value_type>(0.0)) {
                                                    dalpha1[cell] = std::max(dalpha1[cell], -lambda*alpha1[cell]);
                                                  }
 
-                                                 if(alpha1[cell] + dalpha1[cell] < 0.0 || alpha1[cell] + dalpha1[cell] > 1.0) {
+                                                 if(alpha1[cell] + dalpha1[cell] < static_cast<typename Field::value_type>(0.0) ||
+                                                    alpha1[cell] + dalpha1[cell] > static_cast<typename Field::value_type>(1.0)) {
                                                    throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step ");
                                                  }
                                                  else {

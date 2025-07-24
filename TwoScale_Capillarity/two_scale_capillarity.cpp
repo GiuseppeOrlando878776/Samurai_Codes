@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
   json input = json::parse(ifs);
 
   /*--- Set and declare simulation parameters ---*/
-  Simulation_Paramaters sim_param;
+  Simulation_Paramaters<double> sim_param;
 
   // Physical parameters
   sim_param.xL = input.value("xL", 0.0);
@@ -27,6 +27,7 @@ int main(int argc, char* argv[]) {
   sim_param.yL = input.value("yL", 0.0);
   sim_param.yR = input.value("yR", 2.0);
 
+  sim_param.t0 = input.value("t0", 0.0);
   sim_param.Tf = input.value("Tf", 2.5);
 
   sim_param.sigma = input.value("sigma", 1e-2);
@@ -78,6 +79,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--yL", sim_param.yL, "y Bottom-end of the domain")->capture_default_str()->group("Physical parameters");
   app.add_option("--yR", sim_param.yR, "y Top-end of the domain")->capture_default_str()->group("Physical parameters");
 
+  app.add_option("--t0", sim_param.t0, "Initial time")->capture_default_str()->group("Physical parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Physical parameters");
 
   app.add_option("--sigma", sim_param.sigma, "Surface tension coefficient")->capture_default_str()->group("Physical parameters");
@@ -136,8 +138,14 @@ int main(int argc, char* argv[]) {
   // Output parameters
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
+  // Restart file
+  app.add_option("--restart°file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
+
+  // Restart file
+  sim_param.restart_file = input.value("restart_file","");
+
   /*--- Set and declare simulation parameters related to EOS ---*/
-  EOS_Parameters eos_param;
+  EOS_Parameters<double> eos_param;
 
   eos_param.p0_phase1   = input.value("p0_phase1", 1e5);
   eos_param.rho0_phase1 = input.value("rho0_phase1", 1e3);

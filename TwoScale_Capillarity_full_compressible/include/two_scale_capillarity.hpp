@@ -55,8 +55,8 @@ public:
   TwoScaleCapillarity(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                       const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
                       const Simulation_Paramaters<double>& sim_param,
-                      const EOS_Parameters<double>& eos_param); /*--- Class constrcutor with the arguments related
-                                                              to the grid, to the physics and to the relaxation. ---*/
+                      const EOS_Parameters<double>& eos_param); /*--- Class constructor with the arguments related
+                                                                      to the grid, to the physics and to the relaxation. ---*/
 
   void run(); /*--- Function which actually executes the temporal loop ---*/
 
@@ -782,7 +782,8 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                   std::cerr << e.what() << std::endl;
                                   std::cerr << cell << std::endl;
                                   save(fs::current_path(), "_diverged",
-                                       conserved_variables, alpha_l, dalpha_l, grad_alpha_l, normal, H,
+                                       conserved_variables,
+                                       alpha_l, dalpha_l, grad_alpha_l, normal, H,
                                        to_be_relaxed, Newton_iterations);
                                   exit(1);
                                 }
@@ -1028,7 +1029,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       }
 
       if(dH > static_cast<typename Field::value_type>(0.0)) {
-        typename Field::value_type drho_fac_Ru = static_cast<typename Field::value_type>(0.0);
+        auto drho_fac_Ru = static_cast<typename Field::value_type>(0.0);
         const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
                                + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
         if(mom_squared > static_cast<typename Field::value_type>(0.0)) {
@@ -1431,7 +1432,8 @@ void TwoScaleCapillarity<dim>::run() {
 
       // Complete evaluation
       conserved_variables_np1.resize();
-      conserved_variables_np1 = static_cast<typename Field::value_type>(0.5)*(conserved_variables_old + conserved_variables);
+      conserved_variables_np1 = static_cast<typename Field::value_type>(0.5)*
+                                (conserved_variables_old + conserved_variables);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
       // Recompute volume fraction gradient and curvature for the next time step

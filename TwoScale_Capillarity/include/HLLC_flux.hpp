@@ -20,11 +20,11 @@ namespace samurai {
   public:
     HLLCFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
              const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-             const double sigma_,
-             const double mod_grad_alpha1_bar_min_,
-             const double lambda_,
-             const double atol_Newton_,
-             const double rtol_Newton_,
+             const typename Field::value_type sigma_,
+             const typename Field::value_type mod_grad_alpha1_bar_min_,
+             const typename Field::value_type lambda_,
+             const typename Field::value_type atol_Newton_,
+             const typename Field::value_type rtol_Newton_,
              const std::size_t max_Newton_iters_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
@@ -50,17 +50,17 @@ namespace samurai {
   template<class Field>
   HLLCFlux<Field>::HLLCFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
                             const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                            const double sigma_,
-                            const double mod_grad_alpha1_bar_min_,
-                            const double lambda_,
-                            const double atol_Newton_,
-                            const double rtol_Newton_,
+                            const typename Field::value_type sigma_,
+                            const typename Field::value_type mod_grad_alpha1_bar_min_,
+                            const typename Field::value_type lambda_,
+                            const typename Field::value_type atol_Newton_,
+                            const typename Field::value_type rtol_Newton_,
                             const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_bar_min_,
                 lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
-  // Implement the auxliary routine that computes the middle state
+  // Implement the auxiliary routine that computes the middle state
   //
   template<class Field>
   auto HLLCFlux<Field>::compute_middle_state(const FluxValue<typename Flux<Field>::cfg>& q,
@@ -99,41 +99,41 @@ namespace samurai {
                                                                               const std::size_t curr_d) {
     /*--- Verify if left and right state are coherent ---*/
     #ifdef VERBOSE_FLUX
-      if(qL(M1_INDEX) < 0.0) {
+      if(qL(M1_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative mass large-scale phase 1 left state: " + std::to_string(qL(M1_INDEX))));
       }
-      if(qL(M2_INDEX) < 0.0) {
+      if(qL(M2_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(qL(M2_INDEX))));
       }
-      if(qL(M1_D_INDEX) < -1e-15) {
+      if(qL(M1_D_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative mass small-scale phase 1 left state: " + std::to_string(qL(M1_D_INDEX))));
       }
-      if(qL(RHO_ALPHA1_BAR_INDEX) < 0.0) {
+      if(qL(RHO_ALPHA1_BAR_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative large-scale volume fraction phase 1 left state: " + std::to_string(qL(RHO_ALPHA1_BAR_INDEX))));
       }
-      if(qL(ALPHA1_D_INDEX) < -1e-15) {
+      if(qL(ALPHA1_D_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 left state: " + std::to_string(qL(ALPHA1_D_INDEX))));
       }
-      if(qL(SIGMA_D_INDEX) < -1e-15) {
+      if(qL(SIGMA_D_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(qL(SIGMA_D_INDEX))));
       }
 
-      if(qR(M1_INDEX) < 0.0) {
+      if(qR(M1_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative mass large-scale phase 1 right state: " + std::to_string(qR(M1_INDEX))));
       }
-      if(qR(M2_INDEX) < 0.0) {
+      if(qR(M2_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(qR(M2_INDEX))));
       }
-      if(qR(M1_D_INDEX) < -1e-15) {
+      if(qR(M1_D_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative mass small-scale phase 1 right state: " + std::to_string(qR(M1_D_INDEX))));
       }
-      if(qR(RHO_ALPHA1_BAR_INDEX) < 0.0) {
+      if(qR(RHO_ALPHA1_BAR_INDEX) < static_cast<typename Field::value_type>(0.0)) {
         throw std::runtime_error(std::string("Negative large-scale volume fraction phase 1 right state: " + std::to_string(qR(RHO_ALPHA1_BAR_INDEX))));
       }
-      if(qR(ALPHA1_D_INDEX) < -1e-15) {
+      if(qR(ALPHA1_D_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 right state: " + std::to_string(qR(ALPHA1_D_INDEX))));
       }
-      if(qR(SIGMA_D_INDEX) < -1e-15) {
+      if(qR(SIGMA_D_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
         throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(qR(SIGMA_D_INDEX))));
       }
     #endif
@@ -143,34 +143,36 @@ namespace samurai {
     const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)/rho_L;
 
     const auto alpha1_bar_L   = qL(RHO_ALPHA1_BAR_INDEX)/rho_L;
-    const auto alpha1_L       = alpha1_bar_L*(1.0 - qL(ALPHA1_D_INDEX));
+    const auto alpha1_L       = alpha1_bar_L*(static_cast<typename Field::value_type>(1.0) - qL(ALPHA1_D_INDEX));
     const auto rho1_L         = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_L       = 1.0 - alpha1_L - qL(ALPHA1_D_INDEX);
+    const auto alpha2_L       = static_cast<typename Field::value_type>(1.0) - alpha1_L - qL(ALPHA1_D_INDEX);
     const auto rho2_L         = qL(M2_INDEX)/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
                               + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
-    const auto c_L            = std::sqrt(rhoc_squared_L/rho_L)/(1.0 - qL(ALPHA1_D_INDEX));
+    const auto c_L            = std::sqrt(rhoc_squared_L/rho_L)/
+                                (static_cast<typename Field::value_type>(1.0) - qL(ALPHA1_D_INDEX));
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
     const auto rho_R          = qR(M1_INDEX) + qR(M2_INDEX) + qR(M1_D_INDEX);
     const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)/rho_R;
 
     const auto alpha1_bar_R   = qR(RHO_ALPHA1_BAR_INDEX)/rho_R;
-    const auto alpha1_R       = alpha1_bar_R*(1.0 - qR(ALPHA1_D_INDEX));
+    const auto alpha1_R       = alpha1_bar_R*(static_cast<typename Field::value_type>(1.0) - qR(ALPHA1_D_INDEX));
     const auto rho1_R         = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_R       = 1.0 - alpha1_R - qR(ALPHA1_D_INDEX);
+    const auto alpha2_R       = static_cast<typename Field::value_type>(1.0) - alpha1_R - qR(ALPHA1_D_INDEX);
     const auto rho2_R         = qR(M2_INDEX)/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
                               + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
-    const auto c_R            = std::sqrt(rhoc_squared_R/rho_R)/(1.0 - qR(ALPHA1_D_INDEX));
+    const auto c_R            = std::sqrt(rhoc_squared_R/rho_R)/
+                                (static_cast<typename Field::value_type>(1.0) - qR(ALPHA1_D_INDEX));
 
     /*--- Compute speeds of wave propagation ---*/
     const auto s_L     = std::min(vel_d_L - c_L, vel_d_R - c_R);
     const auto s_R     = std::max(vel_d_L + c_L, vel_d_R + c_R);
     const auto p_bar_L = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L)
-                       + (1.0 - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
+                       + (static_cast<typename Field::value_type>(1.0) - alpha1_bar_L)*this->EOS_phase2.pres_value(rho2_L);
     const auto p_bar_R = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R)
-                       + (1.0 - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
+                       + (static_cast<typename Field::value_type>(1.0) - alpha1_bar_R)*this->EOS_phase2.pres_value(rho2_R);
     const auto s_star  = (p_bar_R - p_bar_L + rho_L*vel_d_L*(s_L - vel_d_L) - rho_R*vel_d_R*(s_R - vel_d_R))/
                          (rho_L*(s_L - vel_d_L) - rho_R*(s_R - vel_d_R));
 
@@ -179,16 +181,18 @@ namespace samurai {
     const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
 
     /*--- Compute the flux ---*/
-    if(s_L >= 0.0) {
+    if(s_L >= static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_hyperbolic_operator(qL, curr_d);
     }
-    else if(s_L < 0.0 && s_star >= 0.0) {
+    else if(s_L < static_cast<typename Field::value_type>(0.0) &&
+            s_star >= static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_hyperbolic_operator(qL, curr_d) + s_L*(q_star_L - qL);
     }
-    else if(s_star < 0.0 && s_R >= 0.0) {
+    else if(s_star < static_cast<typename Field::value_type>(0.0) &&
+            s_R >= static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_hyperbolic_operator(qR, curr_d) + s_R*(q_star_R - qR);
     }
-    else if(s_R < 0.0) {
+    else if(s_R < static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_hyperbolic_operator(qR, curr_d);
     }
   }
@@ -208,42 +212,42 @@ namespace samurai {
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
-      {
-        static constexpr int d = decltype(integral_constant_d)::value;
+         {
+           static constexpr int d = decltype(integral_constant_d)::value;
 
-        // Compute now the "discrete" flux function, in this case a HLLC flux
-        HLLC_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
-                                           const StencilData<typename Flux<Field>::cfg>& data,
-                                           const StencilValues<typename Flux<Field>::cfg> field)
-                                           {
-                                             #ifdef ORDER_2
-                                               // MUSCL reconstruction
-                                               const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                               const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                               const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                               const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+           // Compute now the "discrete" flux function, in this case a HLLC flux
+           HLLC_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
+                                              const StencilData<typename Flux<Field>::cfg>& data,
+                                              const StencilValues<typename Flux<Field>::cfg> field)
+                                              {
+                                                #ifdef ORDER_2
+                                                  // MUSCL reconstruction
+                                                  const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                  const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                               FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                    primR_recon;
-                                               this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                            primL_recon, primR_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                       primR_recon;
+                                                  this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                               primL_recon, primR_recon);
 
-                                               FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                               FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                  FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                               #ifdef RELAX_RECONSTRUCTION
-                                                 this->relax_reconstruction(qL, H_bar[data.cells[1]][0]);
-                                                 this->relax_reconstruction(qR, H_bar[data.cells[2]][0]);
+                                                  #ifdef RELAX_RECONSTRUCTION
+                                                    this->relax_reconstruction(qL, H_bar[data.cells[1]][0]);
+                                                    this->relax_reconstruction(qR, H_bar[data.cells[2]][0]);
+                                                  #endif
+                                               #else
+                                                  // Extract the states
+                                                  const FluxValue<typename Flux<Field>::cfg> qL = field[0];
+                                                  const FluxValue<typename Flux<Field>::cfg> qR = field[1];
                                                #endif
-                                             #else
-                                               // Extract the states
-                                               const FluxValue<typename Flux<Field>::cfg> qL = field[0];
-                                               const FluxValue<typename Flux<Field>::cfg> qR = field[1];
-                                             #endif
 
-                                             flux = compute_discrete_flux(qL, qR, d);
-                                           };
-      }
+                                               flux = compute_discrete_flux(qL, qR, d);
+                                             };
+        }
     );
 
     auto scheme = make_flux_based_scheme(HLLC_f);

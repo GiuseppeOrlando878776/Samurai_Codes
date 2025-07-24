@@ -73,9 +73,9 @@ namespace samurai {
          const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase_gas_,
          const typename Field::value_type sigma_,
          const typename Field::value_type mod_grad_alpha_l_min_,
-         const typename Field::value_type lambda_ = 0.9,
-         const typename Field::value_type atol_Newton_ = 1e-14,
-         const typename Field::value_type rtol_Newton_ = 1e-12,
+         const typename Field::value_type lambda_ = static_cast<typename Field::value_type>(0.9),
+         const typename Field::value_type atol_Newton_ = static_cast<typename Field::value_type>(1e-14),
+         const typename Field::value_type rtol_Newton_ = static_cast<typename Field::value_type>(1e-12),
          const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
   protected:

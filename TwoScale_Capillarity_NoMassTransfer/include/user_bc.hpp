@@ -52,12 +52,12 @@ auto Inlet(const Field& Q,
                         (Q[cell_in](M1_INDEX) + Q[cell_in](M2_INDEX));
     const auto rho1   = Q[cell_in](M1_INDEX)/alpha1;
 
-    const auto alpha2 = 1.0 - alpha1;
+    const auto alpha2 = static_cast<typename Field::value_type>(1.0) - alpha1;
     const auto rho2   = Q[cell_in](M2_INDEX)/alpha2;
 
     /*--- Compute the corresponding ghost state ---*/
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
-    const auto alpha2_D       = 1.0 - alpha1_D;
+    const auto alpha2_D       = static_cast<typename Field::value_type>(1.0) - alpha1_D;
     Q_ghost[M1_INDEX]         = alpha1_D*rho1;
     Q_ghost[M2_INDEX]         = alpha2_D*rho2;
     Q_ghost[RHO_ALPHA1_INDEX] = (Q_ghost[M1_INDEX] + Q_ghost[M2_INDEX])*alpha1_D;

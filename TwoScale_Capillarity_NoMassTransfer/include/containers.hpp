@@ -8,6 +8,7 @@
 // Declare a struct with the simulation parameters
 // (domain, levels, final time, and Courant number)
 //
+template<typename T = double>
 struct Simulation_Paramaters {
   /*--- Physical paramters ---*/
   double xL;
@@ -15,33 +16,34 @@ struct Simulation_Paramaters {
   double yL;
   double yR;
 
-  double Tf;
+  T t0;
+  T Tf;
 
-  double sigma;
+  T sigma;
 
   bool   apply_relaxation;
 
-  double x0;
-  double y0;
-  double U0;
-  double U1;
-  double V0;
-  double R;
-  double eps_over_R;
+  T x0;
+  T y0;
+  T U0;
+  T U1;
+  T V0;
+  T R;
+  T eps_over_R;
 
   /*--- Numerical parameters ---*/
-  double Courant;
+  T Courant;
 
-  double alpha_residual;
-  double mod_grad_alpha1_min;
+  T alpha_residual;
+  T mod_grad_alpha1_min;
 
-  double      lambda;
-  double      atol_Newton;
-  double      rtol_Newton;
+  T           lambda;
+  T           atol_Newton;
+  T           rtol_Newton;
   std::size_t max_Newton_iters;
 
-  double atol_Newton_p_star;
-  double rtol_Newton_p_star;
+  T atol_Newton_p_star;
+  T rtol_Newton_p_star;
 
   /*--- MR parameters ---*/
   std::size_t min_level;
@@ -51,18 +53,22 @@ struct Simulation_Paramaters {
 
   /*--- Output parameters ---*/
   std::size_t nfiles;
+
+  /*--- Restart file ---*/
+  std::string restart_file;
 };
 
 // Declare a struct with EOS parameters
 //
+template<typename T = double>
 struct EOS_Parameters {
-  double p0_phase1;
-  double rho0_phase1;
-  double c0_phase1;
+  T p0_phase1;
+  T rho0_phase1;
+  T c0_phase1;
 
-  double p0_phase2;
-  double rho0_phase2;
-  double c0_phase2;
+  T p0_phase2;
+  T rho0_phase2;
+  T c0_phase2;
 };
 
 #endif
