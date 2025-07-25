@@ -17,6 +17,7 @@ namespace fs = std::filesystem;
 
 /*--- Add header file for the multiresolution ---*/
 #include <samurai/mr/adapt.hpp>
+#include "prediction.hpp"
 
 /*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
@@ -48,7 +49,7 @@ using namespace EquationData;
 template<std::size_t dim>
 class Euler_MR {
 public:
-  using Config = samurai::MRConfig<dim, 2>;
+  using Config = samurai::MRConfig<dim, 2, 2, 1>;
 
   Euler_MR() = default; /*--- Default constructor. This will do nothing
                               and basically will never be used ---*/
@@ -275,9 +276,16 @@ void Euler_MR<dim>::perform_mesh_adaptation() {
   save(fs::current_path(), "_before_mesh_adaptation", conserved_variables,
                                                       vel, p, c);
 
+  auto prediction_fn = [&](auto& new_field, const auto& old_field) {
+    return make_field_operator_function<Euler_prediction_op>(new_field, old_field, Euler_EOS);
+  };
+
   samurai::update_ghost_mr(c);
-  auto MRadaptation = samurai::make_MRAdapt(c);
-  MRadaptation(MR_param, MR_regularity, conserved_variables);
+  auto MRadaptation = samurai::make_MRAdapt(prediction_fn, c);
+  auto mra_config   = samurai::mra_config();
+  mra_config.epsilon(MR_param);
+  mra_config.regularity(MR_regularity);
+  MRadaptation(mra_config, conserved_variables);
 
   #ifdef VERBOSE
     check_data(1);
