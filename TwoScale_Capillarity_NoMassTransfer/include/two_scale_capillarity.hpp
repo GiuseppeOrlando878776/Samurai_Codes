@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #include <samurai/algorithm/update.hpp>
 #include <samurai/mr/mesh.hpp>
 #include <samurai/bc.hpp>
@@ -15,6 +17,7 @@ namespace fs = std::filesystem;
 
 /*--- Add header file for the multiresolution ---*/
 #include <samurai/mr/adapt.hpp>
+#include "prediction.hpp"
 
 /*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
@@ -140,7 +143,7 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
 
-  void create_fields(); /*--- Auxiliary routine to initialize the fileds to the mesh ---*/
+  void create_fields(); /*--- Auxiliary routine to initialize the fields to the mesh ---*/
 
   void init_variables(const typename Field::value_type x0, const typename Field::value_type y0,
                       const typename Field::value_type U0, const typename Field::value_type U1,
@@ -481,9 +484,16 @@ void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
     save(fs::current_path(), "_before_mesh_adaptation", conserved_variables, alpha1);
   #endif
 
-  samurai::update_ghost_mr(grad_alpha1);
-  auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
-  MRadaptation(MR_param, MR_regularity, conserved_variables);
+  auto prediction_fn = [&](auto& new_field, const auto& old_field) {
+    return make_field_operator_function<TwoScaleCapillarity_prediction_op>(new_field, old_field);
+  };
+
+  //samurai::update_ghost_mr(conserved_variables);
+  auto MRadaptation = samurai::make_MRAdapt(/*prediction_fn,*/ conserved_variables);
+  auto mra_config   = samurai::mra_config();
+  mra_config.epsilon(MR_param);
+  mra_config.regularity(MR_regularity);
+  MRadaptation(mra_config);
 
   /*--- Sanity check after mesh adaptation ---*/
   alpha1.resize();

@@ -139,7 +139,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
   // Restart file
-  app.add_option("--restart°file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
+  app.add_option("--restart_file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
 
   // Restart file
   sim_param.restart_file = input.value("restart_file","");

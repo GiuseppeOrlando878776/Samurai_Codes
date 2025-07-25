@@ -50,10 +50,6 @@ struct Simulation_Paramaters {
   T           rtol_Newton;
   std::size_t max_Newton_iters;
 
-  T atol_Newton_p_star;
-  T rtol_Newton_p_star;
-  T tol_Newton_alpha_d;
-
   /*--- MR parameters ---*/
   std::size_t min_level;
   std::size_t max_level;

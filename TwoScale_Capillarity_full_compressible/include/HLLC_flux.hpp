@@ -189,12 +189,14 @@ namespace samurai {
     const auto q_star_L = compute_middle_state(qL, s_L, s_star, curr_d);
     const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
 
-    if(q_star_L(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
-      throw std::runtime_error("Negative mass small-scale left star state");
-    }
-    if(q_star_R(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
-      throw std::runtime_error("Negative mass small-scale right star state");
-    }
+    #ifdef VERBOSE_FLUX
+      if(q_star_L(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
+        throw std::runtime_error("Negative mass small-scale left star state");
+      }
+      if(q_star_R(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
+        throw std::runtime_error("Negative mass small-scale right star state");
+      }
+    #endif
 
     /*--- Compute the flux ---*/
     if(s_L >= static_cast<typename Field::value_type>(0.0)) {
