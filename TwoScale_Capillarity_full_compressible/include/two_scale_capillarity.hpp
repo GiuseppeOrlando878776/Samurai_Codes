@@ -929,7 +929,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       }
 
       // Bound preserving condition for large-scale volume fraction
-      const auto dF_drhoz     = static_cast<typename Field::value_type>(-2.0/3.0)*
+      const auto dF_drhoz     = static_cast<typename Field::value_type>(-2.0/3.0)*sigma*
                                 std::pow(rho_liq_loc, static_cast<typename Field::value_type>(1.0/3.0));
 
       const auto ddelta_p_dmd = -local_conserved_variables(Mg_INDEX)/(alpha_g_loc*alpha_g_loc)*
