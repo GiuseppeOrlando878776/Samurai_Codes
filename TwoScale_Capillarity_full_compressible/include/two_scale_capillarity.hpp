@@ -803,7 +803,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
 
     // Newton cycle diverged
     if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
-      std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
+      std::cerr << "Newton method not converged in the post-hyperbolic relaxation" << std::endl;
       save(fs::current_path(), "_diverged",
            conserved_variables,
            alpha_l, dalpha_l, grad_alpha_l, normal, H,
