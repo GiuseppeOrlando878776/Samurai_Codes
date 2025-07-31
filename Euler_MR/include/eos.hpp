@@ -14,13 +14,13 @@
 template<typename T = double>
 class EOS {
 public:
-  static_assert(std::is_arithmetic_v<T>, "Template argument EOS not well suited for arithemtic operations");
+  static_assert(std::is_arithmetic_v<T>, "Template argument EOS not well suited for arithmetic operations");
 
   EOS() = default; /*--- Default constructor ---*/
 
   EOS(const EOS&) = default; /*--- Default copy-constructor ---*/
 
-  virtual ~EOS() {} /*--- Virtual destructor (it can be useful since we work thourgh the base class) ---*/
+  virtual ~EOS() {} /*--- Virtual destructor (it can be useful since we work through the base class) ---*/
 
   inline virtual T pres_value(const T rho, const T e) const = 0; /*--- Function to compute the pressure from the density and the internal energy ---*/
 

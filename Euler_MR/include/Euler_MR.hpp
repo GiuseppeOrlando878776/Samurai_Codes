@@ -78,6 +78,7 @@ private:
   using Field_Scalar = samurai::ScalarField<decltype(mesh), typename Field::value_type>;
   using Field_Vect   = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
 
+  const typename Field::value_type t0; /*--- Initial time of the simulation ---*/
   const typename Field::value_type Tf; /*--- Final time of the simulation ---*/
 
   typename Field::value_type cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
@@ -123,7 +124,7 @@ private:
 
   void perform_mesh_adaptation(); /*--- Perform the mesh adaptation ---*/
 
-  void update_auxiliary_fields(); // Routine to update auxiliary fields for output and time step update
+  void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output and time step update ---*/
 
   typename Field::value_type get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
 
@@ -143,7 +144,7 @@ Euler_MR<dim>::Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
                         const EOS_Parameters<double>& eos_param,
                         const Riemann_Parameters<double>& Riemann_param):
   box(min_corner, max_corner),
-  Tf(sim_param.Tf), cfl(sim_param.Courant),
+  t0(sim_param.t0), Tf(sim_param.Tf), cfl(sim_param.Courant),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   Euler_EOS(eos_param.gamma, eos_param.pi_infty, eos_param.q_infty),
   numerical_flux(Euler_EOS),
@@ -230,15 +231,15 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters<double>& Riemann_par
                               }
 
                               // Complete the conserved variables (and some auxiliary fields for the sake of completeness)
-                              auto norm2_vel = static_cast<typename Field::value_type>(0.0);
+                              auto norm2_vel_loc = static_cast<typename Field::value_type>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 conserved_variables[cell][RHOU_INDEX + d] = conserved_variables[cell][RHO_INDEX]*vel[cell][d];
-                                norm2_vel += vel[cell][d]*vel[cell][d];
+                                norm2_vel_loc += vel[cell][d]*vel[cell][d];
                               }
 
-                              const auto e = Euler_EOS.e_value(conserved_variables[cell][RHO_INDEX], p[cell]);
+                              const auto e_loc = Euler_EOS.e_value(conserved_variables[cell][RHO_INDEX], p[cell]);
                               conserved_variables[cell][RHOE_INDEX] = conserved_variables[cell][RHO_INDEX]*
-                                                                      (e + static_cast<typename Field::value_type>(0.5)*norm2_vel);
+                                                                      (e_loc + static_cast<typename Field::value_type>(0.5)*norm2_vel_loc);
 
                               c[cell] = Euler_EOS.c_value(conserved_variables[cell][RHO_INDEX], p[cell]);
                             }
@@ -280,7 +281,7 @@ void Euler_MR<dim>::perform_mesh_adaptation() {
     return make_field_operator_function<Euler_prediction_op>(new_field, old_field, Euler_EOS);
   };
 
-  samurai::update_ghost_mr(c);
+  //samurai::update_ghost_mr(c);
   auto MRadaptation = samurai::make_MRAdapt(prediction_fn, c);
   auto mra_config   = samurai::mra_config();
   mra_config.epsilon(MR_param);
@@ -311,7 +312,7 @@ void Euler_MR<dim>::check_data(unsigned int flag) {
                          [&](const auto& cell)
                             {
                               // Sanity check for the density
-                              if(conserved_variables[cell][RHO_INDEX] < 0.0) {
+                              if(conserved_variables[cell][RHO_INDEX] < static_cast<typename Field::value_type>(0.0)) {
                                 std::cerr << "Negative density " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables,
                                                                       vel, p, c);
@@ -319,7 +320,7 @@ void Euler_MR<dim>::check_data(unsigned int flag) {
                               }
 
                               // Sanity check for the pressure
-                              if(p[cell] < 0.0) {
+                              if(p[cell] < static_cast<typename Field::value_type>(0.0)) {
                                 std::cerr << "Negative pressure " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables,
                                                                       vel, p, c);
@@ -333,15 +334,18 @@ void Euler_MR<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 typename Euler_MR<dim>::Field::value_type Euler_MR<dim>::get_max_lambda() const {
-  auto res = static_cast<typename Field::value_type>(0.0);
+  auto local_res = static_cast<typename Field::value_type>(0.0);
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
-                              res = std::max(std::abs(vel[cell][0]) + c[cell], res);
+                              local_res = std::max(std::abs(vel[cell][0]) + c[cell], local_res);
                             });
 
-  return res;
+  typename Field::value_type global_res;
+  MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+  return global_res;
 }
 
 // Update auxiliary fields after solution of the system
@@ -355,17 +359,19 @@ void Euler_MR<dim>::update_auxiliary_fields() {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
-                              auto norm2_vel = static_cast<typename Field::value_type>(0.0);
+                              const auto rho_loc     = conserved_variables[cell][RHO_INDEX];
+                              const auto inv_rho_loc = static_cast<typename Field::value_type>(1.0)/rho_loc;
+                              auto norm2_vel_loc     = static_cast<typename Field::value_type>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel[cell][d] = conserved_variables[cell][RHOU_INDEX + d]/
-                                               conserved_variables[cell][RHO_INDEX];
-                                norm2_vel += vel[cell][d]*vel[cell][d];
+                                const auto vel_d_loc = conserved_variables[cell][RHOU_INDEX + d]*inv_rho_loc;
+                                vel[cell][d]         = vel_d_loc;
+                                norm2_vel_loc        += vel_d_loc*vel_d_loc;
                               }
-                              auto e  = conserved_variables[cell][RHOE_INDEX]/
-                                        conserved_variables[cell][RHO_INDEX]
-                                      - static_cast<typename Field::value_type>(0.5)*norm2_vel;
-                              p[cell] = Euler_EOS.pres_value(conserved_variables[cell][RHO_INDEX], e);
-                              c[cell] = Euler_EOS.c_value(conserved_variables[cell][RHO_INDEX], p[cell]);
+                              auto e_loc       = conserved_variables[cell][RHOE_INDEX]*inv_rho_loc
+                                               - static_cast<typename Field::value_type>(0.5)*norm2_vel_loc;
+                              const auto p_loc = Euler_EOS.pres_value(rho_loc, e_loc);
+                              p[cell]          = p_loc;
+                              c[cell]          = Euler_EOS.c_value(rho_loc, p_loc);
                             }
                         );
 }
@@ -436,12 +442,22 @@ void Euler_MR<dim>::run() {
                           p, vel, c);
 
   /*--- Save mesh size ---*/
-  const auto dx = static_cast<typename Field::value_type>(mesh.cell_length(mesh.max_level()));
+  const auto dx   = static_cast<typename Field::value_type>(mesh.cell_length(mesh.max_level()));
+  using mesh_id_t = typename decltype(mesh)::mesh_id_t;
+  const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
+  unsigned int n_elements;
+  MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if(rank == 0) {
+    std::cout << "Number of initial elements = " <<  n_elements << std::endl;
+    std::cout << std::endl;
+  }
 
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
-  auto t            = static_cast<typename Field::value_type>(0.0);
+  auto t            = static_cast<typename Field::value_type>(t0);
   auto dt           = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
     t += dt;
@@ -450,6 +466,12 @@ void Euler_MR<dim>::run() {
 
     // Apply mesh adaptation
     perform_mesh_adaptation();
+
+    // Save current state in case of order 2
+    #ifdef ORDER_2
+      conserved_variables_old.resize();
+      conserved_variables_old = conserved_variables;
+    #endif
 
     // Apply the numerical scheme
     samurai::update_ghost_mr(conserved_variables);

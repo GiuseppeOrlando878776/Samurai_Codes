@@ -71,7 +71,7 @@ namespace samurai {
                                   const FluxValue<cfg>& primR,
                                   const FluxValue<cfg>& primRR,
                                   FluxValue<cfg>& primL_recon,
-                                  FluxValue<cfg>& primR_recon); // Reconstruction for second order scheme
+                                  FluxValue<cfg>& primR_recon); /*--- Reconstruction for second order scheme ---*/
     #endif
   };
 
@@ -92,6 +92,10 @@ namespace samurai {
     /*--- Initialize with the state ---*/
     FluxValue<cfg> res = q;
 
+    /*--- Pre-fetch density that will be used several times ---*/
+    const auto rho     = q(RHO_INDEX);
+    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+
     /*--- Start computing the flux ---*/
     const auto vel_d = q(RHOU_INDEX + curr_d)/q(RHO_INDEX);
     res(RHO_INDEX) *= vel_d;
@@ -101,12 +105,12 @@ namespace samurai {
     res(RHOE_INDEX) *= vel_d;
 
     /*--- Compute the pressure ---*/
-    auto e = q(RHOE_INDEX)/q(RHO_INDEX);
+    auto e = q(RHOE_INDEX)*inv_rho;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e -= static_cast<typename Field::value_type>(0.5)*
-           (q(RHOU_INDEX + d)/q(RHO_INDEX))*(q(RHOU_INDEX + d)/q(RHO_INDEX));
+           (q(RHOU_INDEX + d)*inv_rho)*(q(RHOU_INDEX + d)*inv_rho);
     }
-    const auto p = this->Euler_EOS.pres_value(q(RHO_INDEX), e);
+    const auto p = this->Euler_EOS.pres_value(rho, e);
 
     /*--- Add the pressure contribution to the momentum equation and energy equation ---*/
     res(RHOU_INDEX + curr_d) += p;
@@ -126,16 +130,18 @@ namespace samurai {
       FluxValue<cfg> prim;
 
       /*--- Compute primitive variables ---*/
-      prim(RHO_INDEX) = cons(RHO_INDEX);
+      const auto rho     = prim(RHO_INDEX);
+      const autp inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+      prim(RHO_INDEX)    = rho;
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/cons(RHO_INDEX);
+        prim(U_INDEX + d) = cons(RHO_U_INDEX + d)*inv_rho;
       }
-      auto e = cons(RHOE_INDEX)/cons(RHO_INDEX);
+      auto e = cons(RHOE_INDEX)*inv_rho;
       for(std::size_t d = 0; d < Field::dim; ++d) {
         e -= static_cast<typename Field::value_type>(0.5)*
              (prim(U_INDEX + d)*prim(U_INDEX + d));
       }
-      prim(P_INDEX) = this->Euler_EOS.pres_value(cons(RHO_INDEX), e);
+      prim(P_INDEX) = this->Euler_EOS.pres_value(rho, e);
 
       /*--- Return primitive variables ---*/
       return prim;
@@ -149,16 +155,18 @@ namespace samurai {
       FluxValue<cfg> cons;
 
       /*--- Compute conserved variables ---*/
-      cons(RHO_INDEX) = prim(RHO_INDEX);
+      const auto rho  = prim(RHO_INDEX);
+      const auto p    = prim(P_INDEX);
+      cons(RHO_INDEX) = rho;
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        cons(RHOU_INDEX + d) = prim(RHO_INDEX)*prim(U_INDEX + d);
+        cons(RHOU_INDEX + d) = rho*prim(U_INDEX + d);
       }
-      auto E = this->Euler_EOS.e_value(prim(RHO_INDEX), prim(P_INDEX));
+      auto E = this->Euler_EOS.e_value(rho, p);
       for(std::size_t d = 0; d < Field::dim; ++d) {
         E += static_cast<typename Field::value_type>(0.5)*
              (prim(U_INDEX + d)*prim(U_INDEX + d));
       }
-      cons(RHOE_INDEX) = prim(RHO_INDEX)*E;
+      cons(RHOE_INDEX) = rho*E;
 
       /*--- Return conserved variables ---*/
       return cons;
