@@ -55,14 +55,19 @@ auto Inlet(const Field& Q,
   return[&Q, ux_D, uy_D, alpha_l_D, alpha_d_D, z_D]
   (const auto& /*normal*/, const auto& cell_in, const auto& /*coord*/)
   {
+    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    const auto m_l = Q[cell_in](Ml_INDEX);
+    const auto m_g = Q[cell_in](Mg_INDEX);
+    const auto m_d = Q[cell_in](Md_INDEX);
+
     /*--- Compute phasic pressures form the internal state ---*/
-    const auto rho     = Q[cell_in](Ml_INDEX) + Q[cell_in](Mg_INDEX) + Q[cell_in](Md_INDEX);
+    const auto rho     = m_l + m_g + m_d;
     const auto alpha_l = Q[cell_in](RHO_ALPHA_l_INDEX)/rho;
-    const auto alpha_d = alpha_l*Q[cell_in](Md_INDEX)/Q[cell_in](Ml_INDEX); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_d = alpha_l*m_d/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_g = static_cast<typename Field::value_type>(1.0) - alpha_l - alpha_d;
-    const auto rho_liq = (Q[cell_in](Ml_INDEX) + Q[cell_in](Md_INDEX))/
-                         (alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho_g   = Q[cell_in](Mg_INDEX)/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq = (m_l + m_d)/(alpha_l + alpha_d);
+                         /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g   = m_g/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
 
     /*--- Compute the corresponding ghost state ---*/
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
@@ -70,7 +75,9 @@ auto Inlet(const Field& Q,
     Q_ghost[Ml_INDEX]          = alpha_l_D*rho_liq;
     Q_ghost[Mg_INDEX]          = alpha_g_D*rho_g;
     Q_ghost[Md_INDEX]          = alpha_d_D*rho_liq;
-    const auto rho_ghost       = Q_ghost[Ml_INDEX] + Q_ghost[Mg_INDEX] + Q_ghost[Md_INDEX];
+    const auto rho_ghost       = Q_ghost[Ml_INDEX]
+                               + Q_ghost[Mg_INDEX]
+                               + Q_ghost[Md_INDEX];
     Q_ghost[RHO_Z_INDEX]       = rho_ghost*z_D;
     Q_ghost[RHO_ALPHA_l_INDEX] = rho_ghost*alpha_l_D;
     Q_ghost[RHO_U_INDEX]       = rho_ghost*ux_D;

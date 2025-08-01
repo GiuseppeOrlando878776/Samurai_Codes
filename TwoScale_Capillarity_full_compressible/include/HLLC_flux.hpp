@@ -98,53 +98,67 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> HLLCFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                               const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                               const std::size_t curr_d) {
+    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    const auto m_l_L         = qL(Ml_INDEX);
+    const auto m_g_L         = qL(Mg_INDEX);
+    const auto m_d_L         = qL(Md_INDEX);
+    const auto rho_alpha_l_L = qL(RHO_ALPHA_l_INDEX);
+    const auto rho_z_L       = qL(RHO_Z_INDEX);
+
+    const auto m_l_R         = qR(Ml_INDEX);
+    const auto m_g_R         = qR(Mg_INDEX);
+    const auto m_d_R         = qR(Md_INDEX);
+    const auto rho_alpha_l_R = qR(RHO_ALPHA_l_INDEX);
+    const auto rho_z_R       = qR(RHO_Z_INDEX);
+
     /*--- Verify if left and right state are coherent ---*/
     #ifdef VERBOSE_FLUX
-      if(qL(Ml_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass large-scale liquid left state: " + std::to_string(qL(Ml_INDEX))));
+      if(m_l_L < static_cast<typename Field::value_type>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass large-scale liquid left state: " + std::to_string(m_l_L)));
       }
-      if(qL(Mg_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass gas left state: " + std::to_string(qL(Mg_INDEX))));
+      if(m_g_L < static_cast<typename Field::value_type>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass gas left state: " + std::to_string(m_g_L)));
       }
-      if(qL(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
-        throw std::runtime_error(std::string("Negative mass small-scale liquid left state: " + std::to_string(qL(Md_INDEX))));
+      if(m_d_L < static_cast<typename Field::value_type>(-1e-15)) {
+        throw std::runtime_error(std::string("Negative mass small-scale liquid left state: " + std::to_string(m_d_L)));
       }
-      if(qL(RHO_ALPHA_l_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative volume fraction large-scale liquid left state: " + std::to_string(qL(RHO_ALPHA_l_INDEX))));
+      if(rho_alpha_l_L < static_cast<typename Field::value_type>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction large-scale liquid left state: " + std::to_string(rho_alpha_l_L)));
       }
-      if(qL(RHO_Z_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
-        throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(qL(RHO_Z_INDEX))));
+      if(rho_z_L < static_cast<typename Field::value_type>(-1e-15)) {
+        throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(rho_z_L)));
       }
 
-      if(qR(Ml_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass large-scale liquid right state: " + std::to_string(qR(Ml_INDEX))));
+      if(m_l_R < static_cast<typename Field::value_type>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass large-scale liquid right state: " + std::to_string(m_l_R)));
       }
-      if(qR(Mg_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass gas right state: " + std::to_string(qR(Mg_INDEX))));
+      if(m_g_R < static_cast<typename Field::value_type>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass gas right state: " + std::to_string(m_g_R)));
       }
-      if(qR(Md_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
-        throw std::runtime_error(std::string("Negative mass small-scale liquid right state: " + std::to_string(qR(Md_INDEX))));
+      if(m_d_R < static_cast<typename Field::value_type>(-1e-15)) {
+        throw std::runtime_error(std::string("Negative mass small-scale liquid right state: " + std::to_string(m_d_R)));
       }
-      if(qR(RHO_ALPHA_l_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative volume fraction large-scale liquid right state: " + std::to_string(qR(RHO_ALPHA_l_INDEX))));
+      if(rho_alpha_l_R < static_cast<typename Field::value_type>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction large-scale liquid right state: " + std::to_string(rho_alpha_l_R)));
       }
-      if(qR(RHO_Z_INDEX) < static_cast<typename Field::value_type>(-1e-15)) {
-        throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(qR(RHO_Z_INDEX))));
+      if(rho_z_R < static_cast<typename Field::value_type>(-1e-15)) {
+        throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(rho_z_R)));
       }
     #endif
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
-    const auto rho_L     = qL(Ml_INDEX) + qL(Mg_INDEX) + qL(Md_INDEX);
-    const auto vel_d_L   = qL(RHO_U_INDEX + curr_d)/rho_L;
+    const auto rho_L     = m_l_L + m_g_L + m_d_L;
+    const auto inv_rho_L = static_cast<typename Field::value_type>(1.0)/rho_L;
+    const auto vel_d_L   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
-    const auto alpha_l_L = qL(RHO_ALPHA_l_INDEX)/rho_L;
-    const auto alpha_d_L = alpha_l_L*qL(Md_INDEX)/qL(Ml_INDEX); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_l_L = qL(RHO_ALPHA_l_INDEX)*inv_rho_L;
+    const auto alpha_d_L = alpha_l_L*m_d_L/m_l_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_g_L = static_cast<typename Field::value_type>(1.0) - alpha_l_L - alpha_d_L;
 
-    const auto Y_g_L     = qL(Mg_INDEX)/rho_L;
-    const auto rho_liq_L = (qL(Ml_INDEX) + qL(Md_INDEX))/(alpha_l_L + alpha_d_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho_g_L   = qL(Mg_INDEX)/alpha_g_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto Sigma_d_L = qL(RHO_Z_INDEX)/std::pow(rho_liq_L, static_cast<typename Field::value_type>(2.0/3.0));
+    const auto Y_g_L     = m_g_L*inv_rho_L;
+    const auto rho_liq_L = (m_l_L + m_d_L)/(alpha_l_L + alpha_d_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g_L   = m_g_L/alpha_g_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto Sigma_d_L = rho_z_L/std::pow(rho_liq_L, static_cast<typename Field::value_type>(2.0/3.0));
     const auto c_L       = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g_L)*
                                      this->EOS_phase_liq.c_value(rho_liq_L)*
                                      this->EOS_phase_liq.c_value(rho_liq_L) +
@@ -154,17 +168,18 @@ namespace samurai {
                                      static_cast<typename Field::value_type>(2.0/9.0)*this->sigma*Sigma_d_L/rho_L);
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
-    const auto rho_R     = qR(Ml_INDEX) + qR(Mg_INDEX) + qR(Md_INDEX);
-    const auto vel_d_R   = qR(RHO_U_INDEX + curr_d)/rho_R;
+    const auto rho_R     = m_l_R + m_g_R + m_d_R;
+    const auto inv_rho_R = static_cast<typename Field::value_type>(1.0)/rho_R;
+    const auto vel_d_R   = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
-    const auto alpha_l_R = qR(RHO_ALPHA_l_INDEX)/rho_R;
-    const auto alpha_d_R = alpha_l_R*qR(Md_INDEX)/qR(Ml_INDEX); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_l_R = rho_alpha_l_R*inv_rho_R;
+    const auto alpha_d_R = alpha_l_R*m_d_R/m_l_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_g_R = static_cast<typename Field::value_type>(1.0) - alpha_l_R - alpha_d_R;
 
-    const auto Y_g_R     = qR(Mg_INDEX)/rho_R;
-    const auto rho_liq_R = (qR(Ml_INDEX) + qR(Md_INDEX))/(alpha_l_R + alpha_d_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho_g_R   = qR(Mg_INDEX)/alpha_g_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto Sigma_d_R = qR(RHO_Z_INDEX)/std::pow(rho_liq_R, static_cast<typename Field::value_type>(2.0/3.0));
+    const auto Y_g_R     = m_g_R*inv_rho_R;
+    const auto rho_liq_R = (m_l_R + m_d_R)/(alpha_l_R + alpha_d_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g_R   = m_g_R/alpha_g_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto Sigma_d_R = rho_z_R/std::pow(rho_liq_R, static_cast<typename Field::value_type>(2.0/3.0));
     const auto c_R       = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y_g_R)*
                                      this->EOS_phase_liq.c_value(rho_liq_R)*
                                      this->EOS_phase_liq.c_value(rho_liq_R) +

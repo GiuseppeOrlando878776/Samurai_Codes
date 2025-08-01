@@ -178,9 +178,15 @@ namespace samurai {
     /*--- Initialize the resulting variable ---*/
     FluxValue<cfg> res = q;
 
+    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    const auto m_l = q(Ml_INDEX);
+    const auto m_g = q(Mg_INDEX);
+    const auto m_d = q(Md_INDEX);
+
     /*--- Compute the current velocity ---*/
-    const auto rho   = q(Ml_INDEX) + q(Mg_INDEX) + q(Md_INDEX);
-    const auto vel_d = q(RHO_U_INDEX + curr_d)/rho;
+    const auto rho     = m_l + m_g + m_d;
+    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
     /*--- Multiply the state the velcoity along the direction of interest ---*/
     res(Ml_INDEX) *= vel_d;
@@ -193,17 +199,17 @@ namespace samurai {
     }
 
     /*--- Compute and add the contribution due to the pressure ---*/
-    const auto alpha_l = q(RHO_ALPHA_l_INDEX)/rho;
-    const auto alpha_d = alpha_l*q(Md_INDEX)/q(Ml_INDEX); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_l = q(RHO_ALPHA_l_INDEX)*inv_rho;
+    const auto alpha_d = alpha_l*m_d/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_g = static_cast<typename Field::value_type>(1.0) - alpha_l - alpha_d;
 
-    const auto rho_liq = (q(Ml_INDEX) + q(Md_INDEX))/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
     /*--- Relation alpha_l/Y_l = (alpha_l + alpha_d)/(Y_l + Y_d) holds!!! ---*/
     const auto p_liq   = EOS_phase_liq.pres_value(rho_liq);
-    const auto rho_g   = q(Mg_INDEX)/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g   = m_g/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p_g     = EOS_phase_gas.pres_value(rho_g);
 
-    const auto Sigma_d = q(RHO_Z_INDEX)/std::pow(rho_liq, static_cast<typename Field::value_type>(2.0/3.0));
+    const auto Sigma_d = q(RHO_Z_INDEX)/std::cbrt(rho_liq*rho_liq);
 
     const auto p       = (alpha_l + alpha_d)*p_liq
                        + alpha_g*p_g
@@ -227,17 +233,15 @@ namespace samurai {
     FluxValue<cfg> res;
 
     // Set to zero all the contributions
-    res(Ml_INDEX) = static_cast<typename Field::value_type>(0.0);
-    res(Mg_INDEX) = static_cast<typename Field::value_type>(0.0);
-    res(RHO_ALPHA_l_INDEX) = static_cast<typename Field::value_type>(0.0);
-    for(std::size_t d = 0; d < Field::dim; ++d) {
-      res(RHO_U_INDEX + d) = static_cast<typename Field::value_type>(0.0);
-    }
-    res(Md_INDEX) = static_cast<typename Field::value_type>(0.0);
-    res(RHO_Z_INDEX) = static_cast<typename Field::value_type>(0.0);
+    res.fill(static_cast<typename Field::value_type>(0.0));
 
     /*--- Add the contribution due to surface tension ---*/
-    const auto mod_grad_alpha_l = std::sqrt(xt::sum(grad_alpha_l*grad_alpha_l)());
+    //const auto mod_grad_alpha_l = std::sqrt(xt::sum(grad_alpha_l*grad_alpha_l)());
+    auto mod2_grad_alpha_l = static_cast<typename Field::value_type>(0.0);
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      mod2_grad_alpha_l += grad_alpha_l[d]*grad_alpha_l[d];
+    }
+    const auto mod_grad_alpha_l = std::sqrt(mod2_grad_alpha_l);
 
     if(mod_grad_alpha_l > mod_grad_alpha_l_min) {
       const auto n = grad_alpha_l/mod_grad_alpha_l;
@@ -261,20 +265,28 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
     FluxValue<cfg> prim;
 
-    const auto rho      = cons(Ml_INDEX) + cons(Mg_INDEX) + cons(Md_INDEX);
-    prim(ALPHA_l_INDEX) = cons(RHO_ALPHA_l_INDEX)/rho;
-    prim(ALPHA_d_INDEX) = prim(ALPHA_l_INDEX)*cons(Md_INDEX)/cons(Ml_INDEX);
-    const auto rho_liq  = (cons(Ml_INDEX) + cons(Md_INDEX))/
-                          (prim(ALPHA_l_INDEX) + prim(ALPHA_d_INDEX)); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    const auto m_l = cons(Ml_INDEX);
+    const auto m_g = cons(Mg_INDEX);
+    const auto m_d = cons(Md_INDEX);
+
+    /*--- Compute primitive variables ---*/
+    const auto rho      = m_l + m_g + m_d;
+    const auto inv_rho  = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto alpha_l  = cons(RHO_ALPHA_l_INDEX)*inv_rho;
+    prim(ALPHA_l_INDEX) = alpha_l;
+    const auto alpha_d  = alpha_l*m_d/m_l;
+    prim(ALPHA_d_INDEX) = alpha_d;
+
+    const auto rho_liq  = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(Pl_INDEX)      = EOS_phase_liq.pres_value(rho_liq);
-    const auto rho_g    = cons(Mg_INDEX)/
-                          (static_cast<typename Field::value_type>(1.0) - prim(ALPHA_l_INDEX) - prim(ALPHA_d_INDEX));
+    const auto rho_g    = m_g/(static_cast<typename Field::value_type>(1.0) - alpha_l - alpha_d);
                           /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(Pg_INDEX)      = EOS_phase_gas.pres_value(rho_g);
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
+      prim(U_INDEX + d) = cons(RHO_U_INDEX + d)*inv_rho;
     }
-    prim(Z_INDEX) = cons(RHO_Z_INDEX)/rho;
+    prim(Z_INDEX) = cons(RHO_Z_INDEX)*inv_rho;
 
     return prim;
   }
@@ -285,12 +297,22 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
     FluxValue<cfg> cons;
 
+    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    const auto alpha_l = prim(ALPHA_l_INDEX);
+    const auto alpha_d = prim(ALPHA_d_INDEX);
+
+    /*--- Compute conserved variables ---*/
     const auto rho_liq      = EOS_phase_liq.rho_value(prim(Pl_INDEX));
+    const auto m_l          = alpha_l*rho_liq;
+    cons(Ml_INDEX)          = m_l;
+    const auto m_d          = alpha_d*rho_liq;
+    cons(Md_INDEX)          = m_d;
+
     const auto rho_g        = EOS_phase_gas.rho_value(prim(Pg_INDEX));
-    cons(Ml_INDEX)          = prim(ALPHA_l_INDEX)*rho_liq;
-    cons(Md_INDEX)          = prim(ALPHA_d_INDEX)*rho_liq;
-    cons(Mg_INDEX)          = (static_cast<typename Field::value_type>(1.0) - prim(ALPHA_l_INDEX) - prim(ALPHA_d_INDEX))*rho_g;
-    const auto rho          = cons(Ml_INDEX) + cons(Mg_INDEX) + cons(Md_INDEX);
+    const auto m_g          = (static_cast<typename Field::value_type>(1.0) - alpha_l - alpha_d)*rho_g;
+    cons(Mg_INDEX)          = m_g;
+
+    const auto rho          = m_l + m_g + m_d;
     cons(RHO_ALPHA_l_INDEX) = rho*prim(ALPHA_l_INDEX);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
@@ -368,25 +390,27 @@ namespace samurai {
                                                        typename Field::value_type& alpha_l,
                                                        bool& relaxation_applied) {
         if(!std::isnan(H)) {
+          /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+          const auto m_l = conserved_variables(Ml_INDEX);
+          const auto m_g = conserved_variables(Mg_INDEX);
+          const auto m_d = conserved_variables(Md_INDEX);
+
           /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-          const auto alpha_d = alpha_l*conserved_variables(Md_INDEX)/conserved_variables(Ml_INDEX);
+          const auto alpha_d = alpha_l*m_d/m_l;
           const auto alpha_g = static_cast<typename Field::value_type>(1.0) - alpha_l - alpha_d;
 
-          const auto rho_liq = (conserved_variables(Ml_INDEX) + conserved_variables(Md_INDEX))/
-                               (alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
+          const auto rho_liq = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto p_liq   = EOS_phase_liq.pres_value(rho_liq);
 
-          const auto rho_g   = conserved_variables(Mg_INDEX)/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
+          const auto rho_g   = m_g/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto p_g     = EOS_phase_gas.pres_value(rho_g);
 
           /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
           const auto delta_p = p_liq - p_g;
-          const auto F_LS    = conserved_variables(Ml_INDEX)*(delta_p - sigma*H);
+          const auto F_LS    = m_l*(delta_p - sigma*H);
           const auto aux_SS  = static_cast<typename Field::value_type>(2.0/3.0)*sigma*
-                               conserved_variables(RHO_Z_INDEX)*
-                               std::pow(conserved_variables(Ml_INDEX), static_cast<typename Field::value_type>(1.0/3.0));
-          const auto F_SS    = conserved_variables(Md_INDEX)*delta_p
-                             - std::pow(alpha_l, static_cast<typename Field::value_type>(-1.0/3.0))*aux_SS;
+                               conserved_variables(RHO_Z_INDEX)*std::cbrt(m_l);
+          const auto F_SS    = m_d*delta_p - (1.0/std::cbrt(alpha_l))*aux_SS; /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto F       = F_LS + F_SS;
 
           /*--- Perform the relaxation only where really needed ---*/
@@ -395,14 +419,13 @@ namespace samurai {
             relaxation_applied = true;
 
             // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-            const auto ddelta_p_dalpha_l = -conserved_variables(Ml_INDEX)/(alpha_l*alpha_l)*
+            const auto ddelta_p_dalpha_l = -m_l/(alpha_l*alpha_l)*
                                            EOS_phase_liq.c_value(rho_liq)*EOS_phase_liq.c_value(rho_liq)
-                                           -conserved_variables(Mg_INDEX)/(alpha_g*alpha_g)*
+                                           -m_g/(alpha_g*alpha_g)*
                                            EOS_phase_gas.c_value(rho_g)*EOS_phase_gas.c_value(rho_g)*
-                                           (conserved_variables(Ml_INDEX) + conserved_variables(Md_INDEX))/
-                                           conserved_variables(Ml_INDEX);
-            const auto dF_LS_dalpha_l    = conserved_variables(Ml_INDEX)*ddelta_p_dalpha_l;
-            const auto dF_SS_dalpha_l    = conserved_variables(Md_INDEX)*ddelta_p_dalpha_l
+                                           (m_l + m_d)/m_l;
+            const auto dF_LS_dalpha_l    = m_l*ddelta_p_dalpha_l;
+            const auto dF_SS_dalpha_l    = m_d*ddelta_p_dalpha_l
                                          + static_cast<typename Field::value_type>(1.0/3.0)*
                                            std::pow(alpha_l, static_cast<typename Field::value_type>(-4.0/3.0))*aux_SS;
             const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
@@ -410,7 +433,8 @@ namespace samurai {
             // Compute the large-scale volume fraction update
             dalpha_l = -F/dF_dalpha_l;
             if(dalpha_l > static_cast<typename Field::value_type>(0.0)) {
-              dalpha_l = std::min(dalpha_l, lambda*(static_cast<typename Field::value_type>(1.0) - alpha_l));
+              dalpha_l = std::min(dalpha_l,
+                                  lambda*(static_cast<typename Field::value_type>(1.0) - alpha_l));
             }
             else if(dalpha_l < static_cast<typename Field::value_type>(0.0)) {
               dalpha_l = std::max(dalpha_l, -lambda*alpha_l);
@@ -428,10 +452,7 @@ namespace samurai {
           /*--- Update the vector of conserved variables
                 (probably not the optimal choice since I need this update only at the end of the Newton loop,
                  but the most coherent one thinking about the transfer of mass) ---*/
-          const auto rho = conserved_variables(Ml_INDEX)
-                         + conserved_variables(Mg_INDEX)
-                         + conserved_variables(Md_INDEX);
-          conserved_variables(RHO_ALPHA_l_INDEX) = rho*alpha_l;
+          conserved_variables(RHO_ALPHA_l_INDEX) = (m_l + m_g + m_d)*alpha_l;
         }
       }
 
