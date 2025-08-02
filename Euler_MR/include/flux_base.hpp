@@ -131,7 +131,7 @@ namespace samurai {
 
       /*--- Compute primitive variables ---*/
       const auto rho     = prim(RHO_INDEX);
-      const autp inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+      const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
       prim(RHO_INDEX)    = rho;
       for(std::size_t d = 0; d < Field::dim; ++d) {
         prim(U_INDEX + d) = cons(RHO_U_INDEX + d)*inv_rho;

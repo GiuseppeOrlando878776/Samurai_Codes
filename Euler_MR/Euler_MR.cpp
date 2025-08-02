@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
   json input = json::parse(ifs);
 
   /*--- Set and declare some simulation parameters ---*/
-  Simulation_Paramaters sim_param;
+  Simulation_Paramaters<double> sim_param;
 
   // Physical parameters
   sim_param.xL = input.value("xL", 0.0);
@@ -75,12 +75,13 @@ int main(int argc, char* argv[]) {
   eos_param.pi_infty = input.value("pi_infty", 0.0);
   eos_param.q_infty  = input.value("q_infty", 0.0);
 
+  /*--- Allow for parsing from command line ---*/
   app.add_option("--gammma", eos_param.gamma, "gamma")->capture_default_str()->group("EOS parameters");
   app.add_option("--pi_infty", eos_param.pi_infty, "pi_infty")->capture_default_str()->group("EOS parameters");
   app.add_option("--q_infty", eos_param.q_infty, "q_infty")->capture_default_str()->group("EOS parameters");
 
   /*--- Set and declare simulation parameters related to initial condition ---*/
-  Riemann_Parameters Riemann_param;
+  Riemann_Parameters<double> Riemann_param;
 
   Riemann_param.xd   = input.value("xd", 0.5);
 
@@ -92,6 +93,7 @@ int main(int argc, char* argv[]) {
   Riemann_param.pR   = input.value("pR", 0.4);
   Riemann_param.uR   = input.value("uR", 2.0);
 
+  /*--- Allow for parsing from command line ---*/
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
   app.add_option("--rhoL", Riemann_param.rhoL, "Initial density at left")->capture_default_str()->group("Initial conditions");
   app.add_option("--pL", Riemann_param.pL, "Initial pressure at left")->capture_default_str()->group("Initial conditions");

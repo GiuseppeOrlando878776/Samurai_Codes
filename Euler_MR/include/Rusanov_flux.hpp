@@ -91,7 +91,8 @@ namespace samurai {
     #endif
 
     /*--- Compute Rusanov flux ---*/
-    const auto lambda = std::max(std::abs(velL_d) + cL, std::abs(velR_d) + cR);
+    const auto lambda = std::max(std::abs(velL_d) + cL,
+                                 std::abs(velR_d) + cR);
 
     return static_cast<typename Field::value_type>(0.5)*
            (this->evaluate_continuous_flux(qL, curr_d) +

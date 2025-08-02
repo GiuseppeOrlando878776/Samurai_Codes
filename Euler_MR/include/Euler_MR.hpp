@@ -118,7 +118,7 @@ private:
   void create_fields(); /*--- Auxiliary routine to initialize the fileds to the mesh ---*/
 
   void init_variables(const Riemann_Parameters<double>& Riemann_param); /*--- Routine to initialize the variables
-                                                                             (both conserved and auxiliary, this is problem dependent) ---*/
+                                                                              (both conserved and auxiliary, this is problem dependent) ---*/
 
   void apply_bcs(const Riemann_Parameters<double>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
 
@@ -250,8 +250,9 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters<double>& Riemann_par
 //
 template<std::size_t dim>
 void Euler_MR<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param) {
-  const xt::xtensor_fixed<int, xt::xshape<1>> left{-1};
-  const xt::xtensor_fixed<int, xt::xshape<1>> right{1};
+  const xt::xtensor_fixed<int, xt::xshape<1>> left  = {-1};
+  const xt::xtensor_fixed<int, xt::xshape<1>> right = {1};
+
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.rhoL,
                                           Riemann_param.rhoL*Riemann_param.uL,
@@ -318,10 +319,22 @@ void Euler_MR<dim>::check_data(unsigned int flag) {
                                                                       vel, p, c);
                                 exit(1);
                               }
+                              else if(std::isnan(conserved_variables[cell][RHO_INDEX])) {
+                                std::cerr << "NaN density " + op << std::endl;
+                                save(fs::current_path(), "_diverged", conserved_variables,
+                                                                      vel, p, c);
+                                exit(1);
+                              }
 
                               // Sanity check for the pressure
                               if(p[cell] < static_cast<typename Field::value_type>(0.0)) {
                                 std::cerr << "Negative pressure " + op << std::endl;
+                                save(fs::current_path(), "_diverged", conserved_variables,
+                                                                      vel, p, c);
+                                exit(1);
+                              }
+                              else if(std::isnan(p[cell])) {
+                                std::cerr << "NaN pressure " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables,
                                                                       vel, p, c);
                                 exit(1);
@@ -462,7 +475,9 @@ void Euler_MR<dim>::run() {
   while(t != Tf) {
     t += dt;
 
-    std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    if(rank == 0) {
+      std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    }
 
     // Apply mesh adaptation
     perform_mesh_adaptation();
