@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef HLLC_conservative_6eqs_flux_conservative_alpha_hpp
 #define HLLC_conservative_6eqs_flux_conservative_alpha_hpp
 
@@ -16,10 +18,11 @@ namespace samurai {
   template<class Field>
   class HLLCFlux_Conservative: public Flux<Field> {
   public:
-    HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1,
-                          const EOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+    HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1_,
+                          const EOS<typename Field::value_type>& EOS_phase2_); /*--- Constructor which accepts in input
+                                                                                     the equations of state of the two phases ---*/
 
-    auto make_flux(); /*--- Compute the flux over all cells ---*/
+    auto make_flux(); /*--- Compute the flux over all the faces and directions ---*/
 
   private:
     auto compute_middle_state(const FluxValue<typename Flux<Field>::cfg>& q,
@@ -29,15 +32,15 @@ namespace samurai {
 
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d); /*--- HLLC flux along direction d ---*/
+                                                               const std::size_t curr_d); /*--- HLLC flux along direction curr_d ---*/
   };
 
   // Constructor derived from base class
   //
   template<class Field>
-  HLLCFlux_Conservative<Field>::HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1,
-                                                      const EOS<typename Field::value_type>& EOS_phase2):
-    Flux<Field>(EOS_phase1, EOS_phase2) {}
+  HLLCFlux_Conservative<Field>::HLLCFlux_Conservative(const EOS<typename Field::value_type>& EOS_phase1_,
+                                                      const EOS<typename Field::value_type>& EOS_phase2_):
+    Flux<Field>(EOS_phase1_, EOS_phase2_) {}
 
   // Implement the auxliary routine that computes the middle state
   //
@@ -46,44 +49,55 @@ namespace samurai {
                                                           const typename Field::value_type S,
                                                           const typename Field::value_type S_star,
                                                           const std::size_t curr_d) const {
+    /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization
+          (as well as enhance readability) ---*/
+    const auto m1   = q(ALPHA1_RHO1_INDEX);
+    const auto m2   = q(ALPHA2_RHO2_INDEX);
+    const auto m1E1 = q(ALPHA1_RHO1_E1_INDEX);
+    const auto m2E2 = q(ALPHA2_RHO2_E2_INDEX);
+
     /*--- Save mixture density and velocity current direction ---*/
-    const auto rho   = q(ALPHA1_RHO1_INDEX) + q(ALPHA2_RHO2_INDEX);
-    const auto vel_d = q(RHO_U_INDEX + curr_d)/rho;
+    const auto rho     = m1 + m2;
+    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
     /*--- Phase 1 ---*/
-    const auto alpha1 = q(ALPHA1_INDEX)/rho;
-    const auto rho1   = q(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    typename Field::value_type norm2_vel = 0.0;
+    const auto alpha1 = q(RHO_ALPHA1_INDEX)*inv_rho;
+    const auto rho1   = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto norm2_vel    = static_cast<typename Field::value_type>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      norm2_vel += (q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
+      norm2_vel += (q(RHO_U_INDEX + d)*inv_rho)*
+                   (q(RHO_U_INDEX + d)*inv_rho);
     }
-    const auto e1 = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX)
-                  - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p1 = this->phase1.pres_value(rho1, e1);
+    const auto e1 = m1E1/m1 /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                  - static_cast<typename Field::value_type>(0.5)*norm2_vel;
+    const auto p1 = this->EOS_phase1.pres_value(rho1, e1);
 
     /*--- Phase 2 ---*/
-    const auto rho2 = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto e2   = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX)
-                    - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p2   = this->phase2.pres_value(rho2, e2);
+    const auto rho2 = m2/(static_cast<typename Field::value_type>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto e2   = m2E2/m2 /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                    - static_cast<typename Field::value_type>(0.5)*norm2_vel;
+    const auto p2   = this->EOS_phase2.pres_value(rho2, e2);
 
     /*--- Compute middle state ---*/
     FluxValue<typename Flux<Field>::cfg> q_star;
 
-    q_star(ALPHA1_RHO1_INDEX)    = q(ALPHA1_RHO1_INDEX)*((S - vel_d)/(S - S_star));
-    q_star(ALPHA2_RHO2_INDEX)    = q(ALPHA2_RHO2_INDEX)*((S - vel_d)/(S - S_star));
-    const auto rho_star          = q_star(ALPHA1_RHO1_INDEX) + q_star(ALPHA2_RHO2_INDEX);
-    q_star(ALPHA1_INDEX)         = rho_star*alpha1;
+    const auto m1_star           = m1*((S - vel_d)/(S - S_star));
+    q_star(ALPHA1_RHO1_INDEX)    = m1_star;
+    const auto m2_star           = m2*((S - vel_d)/(S - S_star));
+    q_star(ALPHA2_RHO2_INDEX)    = m2_star;
+    const auto rho_star          = m1_star + m2_star;
+    q_star(RHO_ALPHA1_INDEX)     = rho_star*alpha1;
     q_star(RHO_U_INDEX + curr_d) = rho_star*S_star;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       if(d != curr_d) {
-        q_star(RHO_U_INDEX + d) = rho_star*(q(RHO_U_INDEX + d)/rho);
+        q_star(RHO_U_INDEX + d) = rho_star*(q(RHO_U_INDEX + d)*inv_rho);
       }
     }
-    q_star(ALPHA1_RHO1_E1_INDEX) = q_star(ALPHA1_RHO1_INDEX)*
-                                   (q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX) + (S_star - vel_d)*(S_star + p1/(rho1*(S - vel_d))));
-    q_star(ALPHA2_RHO2_E2_INDEX) = q_star(ALPHA2_RHO2_INDEX)*
-                                   (q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX) + (S_star - vel_d)*(S_star + p2/(rho2*(S - vel_d))));
+    q_star(ALPHA1_RHO1_E1_INDEX) = m1_star*(m1E1/m1 + (S_star - vel_d)*(S_star + p1/(rho1*(S - vel_d))));
+                                   /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    q_star(ALPHA2_RHO2_E2_INDEX) = m2_star*(m2E2/m2 + (S_star - vel_d)*(S_star + p2/(rho2*(S - vel_d))));
+                                   /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
     return q_star;
   }
@@ -94,83 +108,109 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> HLLCFlux_Conservative<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                            const FluxValue<typename Flux<Field>::cfg>& qR,
                                                                                            std::size_t curr_d) {
-    /*--- Save mixture density and velocity current direction left state ---*/
-    const auto rhoL   = qL(ALPHA1_RHO1_INDEX) + qL(ALPHA2_RHO2_INDEX);
-    const auto velL_d = qL(RHO_U_INDEX + curr_d)/rhoL;
+    /*--- Left state ---*/
+    // Pre-fetch variables that will be used several times so as to exploit possible vectorization
+    // (as well as to enhance readability)
+    const auto alpha1_L = qL(ALPHA1_INDEX);
+    const auto m1_L     = qL(ALPHA1_RHO1_INDEX);
+    const auto m2_L     = qL(ALPHA2_RHO2_INDEX);
+    const auto m1E1_L   = qL(ALPHA1_RHO1_E1_INDEX);
+    const auto m2E2_L   = qL(ALPHA2_RHO2_E2_INDEX);
 
-    /*--- Left state phase 1 ---*/
-    const auto alpha1L = qL(ALPHA1_INDEX)/rhoL;
-    const auto rho1L   = qL(ALPHA1_RHO1_INDEX)/alpha1L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    typename Field::value_type norm2_velL = 0.0;
+    // Save mixture density and velocity current direction left state
+    const auto rho_L     = m1_L + m2_L;
+    const auto inv_rho_L = static_cast<typename Field::value_type>(1.0)/rho_L;
+    const auto vel_L_d   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
+
+    // Phase 1
+    const auto rho1_L = m1_L/alpha1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto norm2_vel_L  = static_cast<typename Field::value_type>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      norm2_velL += (qL(RHO_U_INDEX + d)/rhoL)*(qL(RHO_U_INDEX + d)/rhoL);
+      norm2_vel_L += (qL(RHO_U_INDEX + d)*inv_rho_L)*
+                     (qL(RHO_U_INDEX + d)*inv_rho_L);
     }
-    const auto e1L = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX)
-                   - 0.5*norm2_velL; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p1L = this->phase1.pres_value(rho1L, e1L);
-    const auto c1L = this->phase1.c_value(rho1L, p1L);
+    const auto e1_L = m1E1_L/m1_L /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                    - static_cast<typename Field::value_type>(0.5)*norm2_vel_L;
+    const auto p1_L = this->EOS_phase1.pres_value(rho1_L, e1_L);
+    const auto c1_L = this->EOS_phase1.c_value(rho1_L, p1_L);
 
-    /*--- Left state phase 2 ---*/
-    const auto rho2L = qL(ALPHA2_RHO2_INDEX)/(1.0 - alpha1L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto e2L   = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX)
-                     - 0.5*norm2_velL; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p2L   = this->phase2.pres_value(rho2L, e2L);
-    const auto c2L   = this->phase2.c_value(rho2L, p2L);
+    // Phase 2
+    const auto rho2_L = m2_L/(static_cast<typename Field::value_type>(1.0) - alpha1_L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto e2_L   = m2E2_L/m2_L /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                      - static_cast<typename Field::value_type>(0.5)*norm2_vel_L;
+    const auto p2_L   = this->EOS_phase2.pres_value(rho2_L, e2_L);
+    const auto c2_L   = this->EOS_phase2.c_value(rho2_L, p2_L);
 
-    /*--- Compute frozen speed of sound and mixture pressure left state ---*/
-    const auto Y1L = qL(ALPHA1_RHO1_INDEX)/rhoL;
-    const auto cL  = std::sqrt(Y1L*c1L*c1L + (1.0 - Y1L)*c2L*c2L);
-    const auto pL  = alpha1L*p1L + (1.0 - alpha1L)*p2L;
+    // Compute frozen speed of sound and mixture pressure left state
+    const auto Y1_L = m1_L*inv_rho_L;
+    const auto c_L  = std::sqrt(Y1_L*c1_L*c1_L +
+                                (static_cast<typename Field::value_type>(1.0) - Y1_L)*c2_L*c2_L);
+    const auto p_L  = alpha1_L*p1_L
+                    + (static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L;
 
-    /*--- Save mixture density and velocity current direction right state ---*/
-    const auto rhoR   = qR(ALPHA1_RHO1_INDEX) + qR(ALPHA2_RHO2_INDEX);
-    const auto velR_d = qR(RHO_U_INDEX + curr_d)/rhoR;
+    /*--- Right state ---*/
+    // Pre-fetch variables that will be used several times so as to exploit possible vectorization
+    // (as well as to enhance readability)
+    const auto alpha1_R = qR(ALPHA1_INDEX);
+    const auto m1_R     = qR(ALPHA1_RHO1_INDEX);
+    const auto m2_R     = qR(ALPHA2_RHO2_INDEX);
+    const auto m1E1_R   = qR(ALPHA1_RHO1_E1_INDEX);
+    const auto m2E2_R   = qR(ALPHA2_RHO2_E2_INDEX);
 
-    /*--- Right state phase 1 ---*/
-    const auto alpha1R = qR(ALPHA1_INDEX)/rhoR;
-    const auto rho1R   = qR(ALPHA1_RHO1_INDEX)/alpha1R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    typename Field::value_type norm2_velR = 0.0;
+    // Save mixture density and velocity current direction left state
+    const auto rho_R     = m1_R + m2_R;
+    const auto inv_rho_R = static_cast<typename Field::value_type>(1.0)/rho_R;
+    const auto vel_R_d   = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
+
+    // Phase 1
+    const auto rho1_R = m1_R/alpha1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto norm2_vel_R  = static_cast<typename Field::value_type>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      norm2_velR += (qR(RHO_U_INDEX + d)/rhoR)*(qR(RHO_U_INDEX + d)/rhoR);
+      norm2_vel_R += (qR(RHO_U_INDEX + d)*inv_rho_R)*
+                     (qR(RHO_U_INDEX + d)*inv_rho_R);
     }
-    const auto e1R = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX)
-                   - 0.5*norm2_velR; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p1R = this->phase1.pres_value(rho1R, e1R);
-    const auto c1R = this->phase1.c_value(rho1R, p1R);
+    const auto e1_R = m1E1_R/m1_R /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                    - static_cast<typename Field::value_type>(0.5)*norm2_vel_R;
+    const auto p1_R = this->EOS_phase1.pres_value(rho1_R, e1_R);
+    const auto c1_R = this->EOS_phase1.c_value(rho1_R, p1_R);
 
-    /*--- Right state phase 2 ---*/
-    const auto rho2R = qR(ALPHA2_RHO2_INDEX)/(1.0 - alpha1R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto e2R   = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX)
-                     - 0.5*norm2_velR; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p2R   = this->phase2.pres_value(rho2R, e2R);
-    const auto c2R   = this->phase2.c_value(rho2R, p2R);
+    // Phase 2
+    const auto rho2_R = m2_R/(static_cast<typename Field::value_type>(1.0) - alpha1_R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto e2_R   = m2E2_R/m2_R /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                      - static_cast<typename Field::value_type>(0.5)*norm2_vel_R;
+    const auto p2_R   = this->EOS_phase2.pres_value(rho2_R, e2_R);
+    const auto c2_R   = this->EOS_phase2.c_value(rho2_R, p2_R);
 
-    /*--- Compute frozen speed of sound and mixture pressure right state ---*/
-    const auto Y1R = qR(ALPHA1_RHO1_INDEX)/rhoR;
-    const auto cR  = std::sqrt(Y1R*c1R*c1R + (1.0 - Y1R)*c2R*c2R);
-    const auto pR  = alpha1R*p1R + (1.0 - alpha1R)*p2R;
+    // Compute frozen speed of sound and mixture pressure right state
+    const auto Y1_R = m1_R*inv_rho_R;
+    const auto c_R  = std::sqrt(Y1_R*c1_R*c1_R +
+                                (static_cast<typename Field::value_type>(1.0) - Y1_R)*c2_R*c2_R);
+    const auto p_R  = alpha1_R*p1_R
+                    + (static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R;
 
     /*--- Compute speeds of wave propagation ---*/
-    const auto sL     = std::min(velL_d - cL, velR_d - cR);
-    const auto sR     = std::max(velL_d + cL, velR_d + cR);
-    const auto s_star = (pR - pL + rhoL*velL_d*(sL - velL_d) - rhoR*velR_d*(sR - velR_d))/
-                        (rhoL*(sL - velL_d) - rhoR*(sR - velR_d));
+    const auto s_L     = std::min(vel_L_d - c_L, vel_R_d - c_R);
+    const auto s_R     = std::max(vel_L_d + c_L, vel_R_d + c_R);
+    const auto s_star  = (p_R - p_L + rho_L*vel_L_d*(s_L - vel_L_d) - rho_R*vel_R_d*(s_R - vel_R_d))/
+                         (rho_L*(s_L - vel_L_d) - rho_R*(s_R - vel_R_d));
 
     /*--- Compute intermediate states ---*/
-    const auto q_star_L = compute_middle_state(qL, sL, s_star, curr_d);
-    const auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
+    const auto q_star_L = compute_middle_state(qL, s_L, s_star, curr_d);
+    const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
 
     /*--- Compute the flux ---*/
-    if(sL >= 0.0) {
-      return this->evaluate_continuous_flux(qL, curr_d);
+    if(s_L >= static_cast<typename Field::value_type>(0.0)) {
+      return evaluate_continuous_flux(qL, curr_d);
     }
-    else if(sL < 0.0 && s_star >= 0.0) {
-      return this->evaluate_continuous_flux(qL, curr_d) + sL*(q_star_L - qL);
+    else if(s_L < static_cast<typename Field::value_type>(0.0) &&
+            s_star >= static_cast<typename Field::value_type>(0.0)) {
+      return evaluate_continuous_flux(qL, curr_d) + s_L*(q_star_L - qL);
     }
-    else if(s_star < 0.0 && sR >= 0.0) {
-      return this->evaluate_continuous_flux(qR, curr_d) + sR*(q_star_R - qR);
+    else if(s_star < static_cast<typename Field::value_type>(0.0) &&
+            s_R >= static_cast<typename Field::value_type>(0.0)) {
+      return this->evaluate_continuous_flux(qR, curr_d) + s_R*(q_star_R - qR);
     }
-    else if(sR < 0.0) {
+    else if(s_R < static_cast<typename Field::value_type>(0.0)) {
       return this->evaluate_continuous_flux(qR, curr_d);
     }
   }

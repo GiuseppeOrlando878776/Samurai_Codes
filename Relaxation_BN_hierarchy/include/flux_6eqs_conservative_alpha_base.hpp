@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef flux_6eqs_conservative_alpha_base_hpp
 #define flux_6eqs_conservative_alpha_base_hpp
 
@@ -17,20 +19,22 @@ namespace EquationData {
                                               direclty from Field, but I need to move the definition of these indices ---*/
 
   /*--- Declare suitable static variables for the sake of generalities in the indices ---*/
-  static constexpr std::size_t ALPHA1_INDEX         = 0;
+  static constexpr std::size_t RHO_ALPHA1_INDEX     = 0;
   static constexpr std::size_t ALPHA1_RHO1_INDEX    = 1;
   static constexpr std::size_t ALPHA2_RHO2_INDEX    = 2;
   static constexpr std::size_t RHO_U_INDEX          = 3;
   static constexpr std::size_t ALPHA1_RHO1_E1_INDEX = RHO_U_INDEX + dim;
   static constexpr std::size_t ALPHA2_RHO2_E2_INDEX = ALPHA1_RHO1_E1_INDEX + 1;
 
-  static constexpr std::size_t RHO1_INDEX = 1;
-  static constexpr std::size_t RHO2_INDEX = 2;
-  static constexpr std::size_t U_INDEX    = 3;
-  static constexpr std::size_t P1_INDEX   = U_INDEX + dim;
-  static constexpr std::size_t P2_INDEX   = P1_INDEX + 1;
-
   static constexpr std::size_t NVARS = ALPHA2_RHO2_E2_INDEX + 1;
+
+  /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
+  static constexpr std::size_t ALPHA1_INDEX = RHO_ALPHA1_INDEX;
+  static constexpr std::size_t RHO1_INDEX   = ALPHA1_RHO1_INDEX;
+  static constexpr std::size_t RHO2_INDEX   = ALPHA2_RHO2_INDEX;
+  static constexpr std::size_t U_INDEX      = RHO_U_INDEX;
+  static constexpr std::size_t P1_INDEX     = ALPHA1_RHO1_E1_INDEX;
+  static constexpr std::size_t P2_INDEX     = ALPHA2_RHO2_E2_INDEX;
 }
 
 namespace samurai {
@@ -55,20 +59,21 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const EOS<typename Field::value_type>& EOS_phase1,
-         const EOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+    Flux(const EOS<typename Field::value_type>& EOS_phase1_,
+         const EOS<typename Field::value_type>& EOS_phase2_); /*--- Constructor which accepts in input
+                                                                    the equations of state of the two phases ---*/
 
   protected:
-    const EOS<typename Field::value_type>& phase1; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
-    const EOS<typename Field::value_type>& phase2; // Pass it by reference because pure virtual (not so nice, maybe moving to pointers)
+    const EOS<typename Field::value_type>& EOS_phase1; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
+    const EOS<typename Field::value_type>& EOS_phase2; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
 
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q
                                                                                                       along direction curr_d ---*/
 
     #ifdef ORDER_2
-      FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conservative to primitive variables ---*/
+      FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
 
-      FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conservative variables ---*/
+      FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conserved variables ---*/
 
       void perform_reconstruction(const FluxValue<cfg>& primLL,
                                   const FluxValue<cfg>& primL,
@@ -82,9 +87,9 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const EOS<typename Field::value_type>& EOS_phase1,
-                    const EOS<typename Field::value_type>& EOS_phase2):
-    phase1(EOS_phase1), phase2(EOS_phase2) {}
+  Flux<Field>::Flux(const EOS<typename Field::value_type>& EOS_phase1_,
+                    const EOS<typename Field::value_type>& EOS_phase2_):
+    EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_) {}
 
   // Evaluate the 'continuous flux' along direction 'curr_d'
   //
@@ -93,25 +98,33 @@ namespace samurai {
     /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
 
+    /*--- Initialize with the state ---*/
     FluxValue<cfg> res = q;
 
+    /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization ---*/
+    const auto m1 = q(ALPHA1_RHO1_INDEX);
+    const auto m2 = q(ALPHA2_RHO2_INDEX);
+
     /*--- Save the mixture density and the velocity along the direction of interest ---*/
-    const auto rho   = q(ALPHA1_RHO1_INDEX) + q(ALPHA2_RHO2_INDEX);
-    const auto vel_d = q(RHO_U_INDEX + curr_d)/rho;
+    const auto rho     = m1 + m2;
+    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       res(RHO_U_INDEX + d) *= vel_d;
     }
 
     /*--- Compute density and pressure of phase 1 ---*/
-    const auto alpha1 = q(ALPHA1_INDEX)/rho;
-    const auto rho1   = q(ALPHA1_RHO1_INDEX)/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    typename Field::value_type norm2_vel = 0.0;
+    const auto alpha1 = q(RHO_ALPHA1_INDEX)*inv_rho;
+    const auto rho1   = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto norm2_vel    = static_cast<typename Field::value_type>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      norm2_vel += (q(RHO_U_INDEX + d)/rho)*(q(RHO_U_INDEX + d)/rho);
+      norm2_vel += (q(RHO_U_INDEX + d)*inv_rho)*
+                   (q(RHO_U_INDEX + d)*inv_rho);
     }
-    const auto e1 = q(ALPHA1_RHO1_E1_INDEX)/q(ALPHA1_RHO1_INDEX)
-                  - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p1 = phase1.pres_value(rho1, e1);
+    const auto m1E1 = q(ALPHA1_RHO1_E1_INDEX);
+    const auto e1   = m1E1/m1 /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                    - static_cast<typename Field::value_type>(0.5)*norm2_vel;
+    const auto p1   = EOS_phase1.pres_value(rho1, e1);
 
     /*--- Compute the flux for the equations "associated" to phase 1 ---*/
     res(ALPHA1_INDEX) *= vel_d;
@@ -120,18 +133,20 @@ namespace samurai {
     res(ALPHA1_RHO1_E1_INDEX) += alpha1*p1*vel_d;
 
     /*--- Compute density and pressure of phase 2 ---*/
-    const auto rho2 = q(ALPHA2_RHO2_INDEX)/(1.0 - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto e2   = q(ALPHA2_RHO2_E2_INDEX)/q(ALPHA2_RHO2_INDEX)
-                    - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto p2   = phase2.pres_value(rho2, e2);
+    const auto rho2 = m2/(static_cast<typename Field::value_type>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto m2E2 = q(ALPHA2_RHO2_E2_INDEX);
+    const auto e2   = m2E2/m2 /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                    - static_cast<typename Field::value_type>(0.5)*norm2_vel;
+    const auto p2   = EOS_phase2.pres_value(rho2, e2);
 
     /*--- Compute the flux for the equations "associated" to phase 2 ---*/
     res(ALPHA2_RHO2_INDEX) *= vel_d;
     res(ALPHA2_RHO2_E2_INDEX) *= vel_d;
-    res(ALPHA2_RHO2_E2_INDEX) += (1.0 - alpha1)*p2*vel_d;
+    res(ALPHA2_RHO2_E2_INDEX) += (static_cast<typename Field::value_type>(1.0) - alpha1)*p2*vel_d;
 
     /*--- Add the mixture pressure contribution to the momentum equation ---*/
-    res(RHO_U_INDEX + curr_d) += (alpha1*p1 + (1.0 - alpha1)*p2);
+    res(RHO_U_INDEX + curr_d) += (alpha1*p1 +
+                                  (static_cast<typename Field::value_type>(1.0) - alpha1)*p2);
 
     return res;
   }
@@ -146,28 +161,34 @@ namespace samurai {
       /*--- Create a state to store the primitive variables ---*/
       FluxValue<cfg> prim;
 
+      /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization ---*/
+      const auto m1     = cons(ALPHA1_RHO1_INDEX);
+      const auto m2     = cons(ALPHA2_RHO2_INDEX);
+      const auto m1E1   = cons(ALPHA1_RHO1_E1_INDEX);
+      const auto m2E2   = cons(ALPHA2_RHO2_E2_INDEX);
+
       /*--- Start with phase 1 ---*/
-      const auto rho     = cons(ALPHA1_RHO1_INDEX) + cons(ALPHA2_RHO2_INDEX);
-      prim(ALPHA1_INDEX) = cons(ALPHA1_INDEX)/rho;
-      prim(RHO1_INDEX)   = cons(ALPHA1_RHO1_INDEX)/cons(ALPHA1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      const auto rho     = m1 + m2;
+      const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+      const auto alpha1  = cons(RHO_ALPHA1_INDEX)*inv_rho;
+      prim(ALPHA1_INDEX) = alpha1;
+      const auto rho1    = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      prim(RHO1_INDEX)   = rho1;
+      auto norm2_vel     = static_cast<typename Field::value_type>(0.0);
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        prim(U_INDEX + d) = cons(RHO_U_INDEX + d)/rho;
-      }
-      // Compute internal energy
-      typename Field::value_type norm2_vel = 0.0;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
+        prim(U_INDEX + d) = cons(RHO_U_INDEX + d)*inv_rho;
         norm2_vel += prim(U_INDEX + d)*prim(U_INDEX + d);
       }
-      const auto e1 = cons(ALPHA1_RHO1_E1_INDEX)/cons(ALPHA1_RHO1_INDEX)
-                    - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      prim(P1_INDEX) = phase1.pres_value(prim(RHO1_INDEX), e1);
+      const auto e1  = m1E1/m1 /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                     - static_cast<typename Field::value_type>(0.5)*norm2_vel;
+      prim(P1_INDEX) = EOS_phase1.pres_value(rho1, e1);
 
       /*--- Proceed with phase 2 ---*/
-      prim(RHO2_INDEX) = cons(ALPHA2_RHO2_INDEX)/(1.0 - cons(ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      // Compute internal energy
-      const auto e2 = cons(ALPHA2_RHO2_E2_INDEX)/cons(ALPHA2_RHO2_INDEX)
-                    - 0.5*norm2_vel; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      prim(P2_INDEX) = phase2.pres_value(prim(RHO2_INDEX), e2);
+      const auto rho2  = m2/(static_cast<typename Field::value_type>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      prim(RHO2_INDEX) = rho2;
+      const auto e2    = m2E2/m2 /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                       - 0.5*norm2_vel;
+      prim(P2_INDEX)   = EOS_phase2.pres_value(rho2, e2);
 
       /*--- Return primitive variables ---*/
       return prim;
@@ -180,30 +201,37 @@ namespace samurai {
       /*--- Create a suitable variable to save the conserved variables ---*/
       FluxValue<cfg> cons;
 
+      /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization ---*/
+      const auto alpha1 = prim(ALPHA1_INDEX);
+      const auto rho1   = prim(RHO1_INDEX);
+      const auto rho2   = prim(RHO2_INDEX);
+      const auto p1     = prim(P1_INDEX);
+      const auto p2     = prim(P2_INDEX);
+
       /*--- Start with phase 1 ---*/
-      cons(ALPHA1_RHO1_INDEX) = prim(RHO1_INDEX)*prim(ALPHA1_INDEX);
-      // Compute internal energy
-      typename Field::value_type norm2_vel = 0.0;
+      const auto m1           = alpha1*rho1;
+      cons(ALPHA1_RHO1_INDEX) = m1;
+      auto norm2_vel          = static_cast<typename Field::value_type>(0.0);
       for(std::size_t d = 0; d < Field::dim; ++d) {
         norm2_vel += prim(U_INDEX + d)*prim(U_INDEX + d);
       }
-      const auto E1 = phase1.e_value(prim(RHO1_INDEX), prim(P1_INDEX))
-                    + 0.5*norm2_vel;
-      cons(ALPHA1_RHO1_E1_INDEX) = cons(ALPHA1_RHO1_INDEX)*E1;
+      const auto E1 = EOS_phase1.e_value(rho1, p1)
+                    + static_cast<typename Field::value_type>(0.5)*norm2_vel;
+      cons(ALPHA1_RHO1_E1_INDEX) = m1*E1;
 
       /*--- Proceed with phase 2 ---*/
-      cons(ALPHA2_RHO2_INDEX) = prim(RHO2_INDEX)*(1.0 - prim(ALPHA1_INDEX));
-      // Compute internal energy
-      const auto E2 = phase2.e_value(prim(RHO2_INDEX), prim(P2_INDEX))
-                    + 0.5*norm2_vel;
-      cons(ALPHA2_RHO2_E2_INDEX) = cons(ALPHA2_RHO2_INDEX)*E2;
+      const auto m2              = (static_cast<typename Field::value_type>(1.0) - alpha1)*rho2;
+      cons(ALPHA2_RHO2_INDEX)    = m2;
+      const auto E2              = EOS_phase2.e_value(rho2, p2)
+                                 + static_cast<typename Field::value_type>(0.5)*norm2_vel;
+      cons(ALPHA2_RHO2_E2_INDEX) = m2*E2;
 
-      /*--- Upate momentum and rho*alpha1 ---*/
-      const auto rho = cons(ALPHA1_RHO1_INDEX) + cons(ALPHA2_RHO2_INDEX);
+      /*--- Update momentum and rho*alpha1 ---*/
+      const auto rho         = m1 + m2;
+      cons(RHO_ALPHA1_INDEX) = rho*alpha1;
       for(std::size_t d = 0; d < Field::dim; ++d) {
         cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
       }
-      cons(ALPHA1_INDEX) = rho*prim(ALPHA1_INDEX);
 
       /*--- Return computed conserved variables ---*/
       return cons;
@@ -223,32 +251,40 @@ namespace samurai {
       primR_recon = primR;
 
       /*--- Perform the reconstruction ---*/
-      const double beta = 1.0; // MINMOD limiter
+      const auto beta = static_cast<typename Field::value_type>(1.0); // MINMOD limiter
       for(std::size_t comp = 0; comp < Field::n_comp; ++comp) {
-        if(primR(comp) - primL(comp) > 0.0) {
-          primL_recon(comp) += 0.5*std::max(0.0, std::max(std::min(beta*(primL(comp) - primLL(comp)),
-                                                                   primR(comp) - primL(comp)),
-                                                          std::min(primL(comp) - primLL(comp),
-                                                                   beta*(primR(comp) - primL(comp)))));
+        if(primR(comp) - primL(comp) > static_cast<typename Field::value_type>(0.0)) {
+          primL_recon(comp) += static_cast<typename Field::value_type>(0.5)*
+                               std::max(static_cast<typename Field::value_type>(0.0),
+                                        std::max(std::min(beta*(primL(comp) - primLL(comp)),
+                                                          primR(comp) - primL(comp)),
+                                                 std::min(primL(comp) - primLL(comp),
+                                                          beta*(primR(comp) - primL(comp)))));
         }
-        else if(primR(comp) - primL(comp) < 0.0) {
-          primL_recon(comp) += 0.5*std::min(0.0, std::min(std::max(beta*(primL(comp) - primLL(comp)),
-                                                                   primR(comp) - primL(comp)),
-                                                          std::max(primL(comp) - primLL(comp),
-                                                                   beta*(primR(comp) - primL(comp)))));
+        else if(primR(comp) - primL(comp) < static_cast<typename Field::value_type>(0.0)) {
+          primL_recon(comp) += static_cast<typename Field::value_type>(0.5)*
+                               std::min(static_cast<typename Field::value_type>(0.0),
+                                        std::min(std::max(beta*(primL(comp) - primLL(comp)),
+                                                          primR(comp) - primL(comp)),
+                                                 std::max(primL(comp) - primLL(comp),
+                                                          beta*(primR(comp) - primL(comp)))));
         }
 
-        if(primRR(comp) - primR(comp) > 0.0) {
-          primR_recon(comp) -= 0.5*std::max(0.0, std::max(std::min(beta*(primR(comp) - primL(comp)),
-                                                                   primRR(comp) - primR(comp)),
-                                                          std::min(primR(comp) - primL(comp),
-                                                                   beta*(primRR(comp) - primR(comp)))));
+        if(primRR(comp) - primR(comp) > static_cast<typename Field::value_type>(0.0)) {
+          primR_recon(comp) -= static_cast<typename Field::value_type>(0.5)*
+                               std::max(static_cast<typename Field::value_type>(0.0),
+                                        std::max(std::min(beta*(primR(comp) - primL(comp)),
+                                                          primRR(comp) - primR(comp)),
+                                                 std::min(primR(comp) - primL(comp),
+                                                          beta*(primRR(comp) - primR(comp)))));
         }
-        else if(primRR(comp) - primR(comp) < 0.0) {
-          primR_recon(comp) -= 0.5*std::min(0.0, std::min(std::max(beta*(primR(comp) - primL(comp)),
-                                                                   primRR(comp) - primR(comp)),
-                                                          std::max(primR(comp) - primL(comp),
-                                                                   beta*(primRR(comp) - primR(comp)))));
+        else if(primRR(comp) - primR(comp) < static_cast<typename Field::value_type>(0.0)) {
+          primR_recon(comp) -= static_cast<typename Field::value_type>(0.5)*
+                               std::min(static_cast<typename Field::value_type>(0.0),
+                                        std::min(std::max(beta*(primR(comp) - primL(comp)),
+                                                          primRR(comp) - primR(comp)),
+                                                 std::max(primR(comp) - primL(comp),
+                                                          beta*(primRR(comp) - primR(comp)))));
         }
       }
     }

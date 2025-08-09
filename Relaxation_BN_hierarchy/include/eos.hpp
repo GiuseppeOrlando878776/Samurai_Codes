@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef eos_hpp
 #define eos_hpp
 
@@ -42,10 +44,12 @@ public:
 
   SG_EOS(const SG_EOS&) = default; /*--- Default copy-constructor ---*/
 
-  SG_EOS(const T gamma_, const T pi_infty_ = 0.0,
-         const T q_infty_ = 0.0, const T c_v_ = 1.0); /*--- Constructor which accepts as arguments
-                                                            the isentropic exponent and the parameters
-                                                            that characterize the fluid ---*/
+  SG_EOS(const T gamma_,
+         const T pi_infty_ = 0.0,
+         const T q_infty_ = 0.0,
+         const T c_v_ = 1.0); /*--- Constructor which accepts as arguments
+                                    the isentropic exponent and the parameters
+                                    that characterize the fluid ---*/
 
   inline virtual T pres_value(const T rho, const T e) const override; /*--- Function to compute the pressure from the density and the internal energy ---*/
 
