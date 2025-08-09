@@ -27,21 +27,34 @@ def line_plot(ax, x_1, y_1, \
                   x_6, y_6, \
                   x_7, y_7):
     #Plot results
-    plot_1 = ax.plot(x_1, y_1, 'b-', linewidth=1, markersize=4)[0]
-    plot_2 = ax.plot(x_2, y_2, 'ro', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
-    plot_3 = ax.plot(x_3, y_3, 'gx', linewidth=1, markersize=4, alpha=1, markevery=2)[0]
-    plot_4 = ax.plot(x_4, y_4, 'ys', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
-    plot_5 = ax.plot(x_5, y_5, 'o', color='orange', linewidth=1, markersize=4, alpha=1, markevery=256)[0]
-    plot_6 = ax.plot(x_6, y_6, 'bd', linewidth=1, markersize=4, alpha=1, markevery=2)[0]
-    plot_7 = ax.plot(x_7, y_7, 'k-', linewidth=1, markersize=4, alpha=1)[0]
+    plot_1 = ax.plot(x_1, y_1, 'b-', linewidth=1, markersize=5)[0]
+    plot_2 = ax.plot(x_2, y_2, 'ro', linewidth=1, markersize=5, alpha=1, markevery=2)[0]
+    plot_3 = ax.plot(x_3, y_3, 'gx', linewidth=1, markersize=5, alpha=1, markevery=2)[0]
+    plot_4 = ax.plot(x_4, y_4, 'ys', linewidth=1, markersize=5, alpha=1, markevery=2)[0]
+    plot_5 = ax.plot(x_5, y_5, 'o', color='orange', linewidth=1, markersize=5, alpha=1, markevery=2)[0]
+    plot_6 = ax.plot(x_6, y_6, 'bd', linewidth=1, markersize=5, alpha=1, markevery=2)[0]
+    plot_7 = ax.plot(x_7, y_7, 'k-', linewidth=1, markersize=5, alpha=1)[0]
 
     ax.tick_params(axis='x', labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
     ax.yaxis.get_offset_text().set_fontsize(20)
-    #np.savetxt('DOUBLE_RAREFACTION/numerical_results_alpha2.dat', \
-    #           np.c_[x_1, y_1,\
-    #                 x_4, y_4, \
-    #                 x_7, y_7])
+
+    zm = ax.inset_axes([0.05,0.05,0.4,0.3])
+    zm.set_xlim((0.64,0.76))
+    zm.set_ylim((0.42,0.54))
+    zm.plot(x_1, y_1, 'b-', linewidth=1, markersize=5)[0]
+    zm.plot(x_2, y_2, 'ro', linewidth=1, markersize=5, alpha=1, markevery=4)[0]
+    zm.plot(x_3, y_3, 'gx', linewidth=1, markersize=5, alpha=1, markevery=4)[0]
+    zm.plot(x_4, y_4, 'ys', linewidth=1, markersize=5, alpha=1, markevery=4)[0]
+    zm.plot(x_5, y_5, 'o', color='orange', linewidth=1, markersize=5, alpha=1, markevery=4)[0]
+    zm.plot(x_6, y_6, 'bd', linewidth=1, markersize=5, alpha=1, markevery=4)[0]
+    zm.plot(x_7, y_7, 'k-', linewidth=1, markersize=5, alpha=1)[0]
+    ax.indicate_inset_zoom(zm,edgecolor="k")
+
+    #np.savetxt('DOUBLE_RAREFACTION/numerical_results_p.dat', \
+    #            np.c_[x_1, y_1, \
+    #                  x_4, y_4, \
+    #                  x_7, y_7])
 
     #Read and plot the analytical results
     if args.analytical is not None:
@@ -63,28 +76,28 @@ def line_plot(ax, x_1, y_1, \
             ax.legend([plot_1, plot_2, plot_3, \
                        plot_4, plot_5, plot_6, plot_7, \
                        plot_analytical, plot_ref], \
-                      ['HLL + BR (27)', 'HLL + BR (28)', 'HLL + Crouzet et al.', \
-                       'HLLC + BR (27)', 'HLLC + BR (28)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
+                      ['Rusanov + BR-2023', 'Rusanov + BR-2015', 'Rusanov + Crouzet et al.', \
+                       'HLLC + BR-2023', 'HLLC + BR-2015', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
                        'Analytical (5 equations)', 'Reference results'], fontsize="20", loc="best")
         else:
             ax.legend([plot_1, plot_2, plot_3, \
                        plot_4, plot_5, plot_6, plot_7, \
                        plot_analytical], \
-                      ['HLL + BR (27)', 'HLL + BR (28)', 'HLL + Crouzet et al.', \
-                       'HLLC + BR (27)', 'HLLC + BR (28)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
+                      ['Rusanov + BR-2023', 'Rusanov + BR-2015', 'Rusanov + Crouzet et al.', \
+                       'HLLC + BR-2023', 'HLLC + BR-2015', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
                        'Analytical (5 equations)'], fontsize="20", loc="best")
     elif args.reference is not None:
         ax.legend([plot_1, plot_2, plot_3, \
                    plot_4, plot_5, plot_6, plot_7, \
                    plot_ref], \
-                  ['HLL + BR (27)', 'HLL + BR (28)', 'HLL + Crouzet et al.', \
-                   'HLLC + BR (27)', 'HLLC + BR (28)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
+                  ['Rusanov + BR-2023', 'Rusanov + BR-2015', 'Rusanov + Crouzet et al.', \
+                   'HLLC + BR-2023', 'HLLC + BR-2015', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)', \
                    'Reference results'], fontsize="20", loc="best")
     else:
         ax.legend([plot_1, plot_2, plot_3, \
                    plot_4, plot_5, plot_6, plot_7], \
-                  ['HLL + BR (27)', 'HLL + BR (28)', 'HLL + Crouzet et al.', \
-                   'HLLC + BR (27)', 'HLLC + BR (28)', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)'], fontsize="20", loc="best")
+                  ['Rusanov + BR-2023', 'Rusanov + BR-2015', 'Rusanov + Crouzet et al.', \
+                   'HLLC + BR-2023', 'HLLC + BR-2015', 'HLLC + Crouzet et al.', 'HLLC (wave-propagation)'], fontsize="20", loc="best")
 
     return plot_1, plot_2, plot_3, \
            plot_4, plot_5, plot_6, plot_7
@@ -133,7 +146,7 @@ class Plot:
                 ax = plt.subplot(1, len(args.field), i + 1)
                 self.plot(ax, mesh_1, mesh_2, mesh_3, \
                               mesh_4, mesh_5, mesh_6, mesh_7, f)
-                ax.set_title(r"$\rho$",fontsize=20)
+                ax.set_title(r"$p_{1}$",fontsize=20)
 
     def plot(self, ax, mesh_1, \
                        mesh_2=None, \
@@ -215,7 +228,7 @@ class Plot:
             segments_7     = np.zeros((connectivity_7.shape[0], 2, 2))
             segments_7[:, :, 0] = points_7[:][connectivity_7[:]][:, :, 0]
             data_7     = mesh_7['fields'][field][:]
-            centers_7  = .5*(segments_7[:, 0, 0] + segments_7[:, 1, 0])
+            centers_7  = 0.5*(segments_7[:, 0, 0] + segments_7[:, 1, 0])
             segments_7[:, :, 1] = data_7[:, np.newaxis]
             index_7 = np.argsort(centers_7)
             if init:
@@ -286,7 +299,8 @@ if args.end is None:
          args.filename_2, \
          args.filename_3, \
          args.filename_4, \
-         args.filename_5, args.filename_6, \
+         args.filename_5, \
+         args.filename_6, \
          args.filename_7)
 else:
     p = Plot(f"{args.filename_1}{args.start}", \

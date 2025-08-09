@@ -2,18 +2,19 @@
  "xL": 0.0,
  "xR": 1.0,
 
+ "Tf": 2.9e-5,
+
+ "apply_pressure_relax": true,
+
+ "cfl": 0.9,
+
+ "apply_finite_rate_relax": false,
+ "use_exact_relax": false,
+
  "min-level": 12,
  "max-level": 12,
 
- "Tf": 2.9e-5,
- "cfl": 0.9,
-
  "nfiles": 10,
-
- "apply_pressure_relax": true,
- "apply_finite_rate_relax": false,
- "tau_p": 1e-8,
- "use_exact_relax": false,
 
  "gamma_1": 2.43,
  "pi_infty_1": 5.3e9,

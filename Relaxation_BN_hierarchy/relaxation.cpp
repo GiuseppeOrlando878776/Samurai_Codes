@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #include <CLI/CLI.hpp>
 
 #include <nlohmann/json.hpp>
@@ -18,44 +20,62 @@ int main(int argc, char* argv[]) {
   std::ifstream ifs("input.json"); // Read a JSON file
   json input = json::parse(ifs);
 
-  /*--- Set and declare simulation parameters related to mesh, final time and Courant ---*/
-  Simulation_Parameters sim_param;
+  /*--- Set and declare some simulation parameters ---*/
+  Simulation_Parameters<double> sim_param;
 
+  // Physical parameters
   sim_param.xL = input.value("xL", 0.0);
   sim_param.xR = input.value("xR", 1.0);
 
-  sim_param.min_level = input.value("min-level", 16);
-  sim_param.max_level = input.value("max-level", 16);
+  sim_param.t0 = input.value("t0", 0.0);
+  sim_param.Tf = input.value("Tf", 2.9e-5);
 
-  sim_param.Tf      = input.value("Tf", 2.9e-5);
+  sim_param.apply_pressure_relax = input.value("apply_pressure_relax", true);
+
+  // Numerical parameters
   sim_param.Courant = input.value("cfl", 0.2);
 
-  sim_param.nfiles = input.value("nfiles", 10);
-
-  sim_param.apply_pressure_relax    = input.value("apply_pressure_relax", true);
   sim_param.apply_finite_rate_relax = input.value("apply_finite_rate_relax", false);
   sim_param.tau_p                   = input.value("tau_p", 1e-8);
   sim_param.use_exact_relax         = input.value("use_exact_relax", false);
 
-  app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Simulation parameters");
+  // Mesh parameters
+  sim_param.min_level = input.value("min-level", 16);
+  sim_param.max_level = input.value("max-level", 16);
+
+  // Output parameters
+
+  sim_param.nfiles = input.value("nfiles", 10);
+
+  /*--- Allow for parsing from command line ---*/
+  // Physical parameters
+  app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Physical parameters");
+  app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Physical parameters");
+
+  app.add_option("--t0", sim_param.t0, "Initial time")->capture_default_str()->group("Physical parameters");
+  app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Physical parameters");
 
   app.add_option("--apply_pressure_relax", sim_param.apply_pressure_relax,
                  "Set whether to apply or not the relaxation of the pressure")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--apply_finite_rate_relax", sim_param.apply_finite_rate_relax,
-                 "Set whether to perform a finite rate mechanical relaxation")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--tau_p", sim_param.tau_p, "Finite rate parameter")->capture_default_str()->group("Simulation parameters");
-  app.add_option("--use_exact_relax", sim_param.use_exact_relax,
-                 "Use pI to obtain exact relaxation in the case of instantaneous relaxation")->capture_default_str()->group("Simulation parameters");
 
-  app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");
-  app.add_option("--max-level", sim_param.max_level, "Maximum level of the AMR")->capture_default_str()->group("AMR parameter");
-  app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Simulation parameters");
+  // Numerical parameters
+  app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Numerical parameters");
+
+  app.add_option("--apply_finite_rate_relax", sim_param.apply_finite_rate_relax,
+                 "Set whether to perform a finite rate mechanical relaxation")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--tau_p", sim_param.tau_p, "Finite rate parameter")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--use_exact_relax", sim_param.use_exact_relax,
+                 "Use pI to obtain exact relaxation in the case of instantaneous relaxation")->capture_default_str()->group("Numerical parameters");
+
+  // Mesh parameters
+  app.add_option("--min-level", sim_param.min_level, "Minimum level of the mesh")->capture_default_str()->group("Mesh parameters");
+  app.add_option("--max-level", sim_param.max_level, "Maximum level of the mesh")->capture_default_str()->group("Mesh parameters");
+
+  // Output parameters
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
   /*--- Set and declare simulation parameters related to EOS ---*/
-  EOS_Parameters eos_param;
+  EOS_Parameters<double> eos_param;
 
   eos_param.gamma_1    = input.value("gamma_1", 2.43);
   eos_param.pi_infty_1 = input.value("pi_infty_1", 5.3e9);
@@ -67,6 +87,7 @@ int main(int argc, char* argv[]) {
   eos_param.q_infty_2  = input.value("q_infty_2", 0.0);
   eos_param.c_v_2      = input.value("c_v_2", 1.0);
 
+  /*--- Allow for parsing from command line ---*/
   app.add_option("--gammma_1", eos_param.gamma_1, "gamma_1")->capture_default_str()->group("EOS parameters");
   app.add_option("--pi_infty_1", eos_param.pi_infty_1, "pi_infty_1")->capture_default_str()->group("EOS parameters");
   app.add_option("--q_infty_1", eos_param.q_infty_1, "q_infty_1")->capture_default_str()->group("EOS parameters");
@@ -78,7 +99,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--c_v_2", eos_param.c_v_2, "c_v_2")->capture_default_str()->group("EOS parameters");
 
   /*--- Set and declare simulation parameters related to initial condition ---*/
-  Riemann_Parameters Riemann_param;
+  Riemann_Parameters<double> Riemann_param;
 
   Riemann_param.xd = input.value("xd", 0.6);
 
@@ -96,6 +117,7 @@ int main(int argc, char* argv[]) {
   Riemann_param.rho2R   = input.value("rho2R", 3622.0);
   Riemann_param.p2R     = input.value("p2R", 1e5);
 
+  /*--- Allow for parsing from command line ---*/
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");
 
   app.add_option("--alpha1L", Riemann_param.alpha1L, "Initial volume fraction at left")->capture_default_str()->group("Initial conditions");

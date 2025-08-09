@@ -2,66 +2,78 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef containers_hpp
 #define containers_hpp
 
 // Declare a struct with the simulation parameters
-// (domain, levels, final time, and Courant number)
 //
+template<typename T = double>
 struct Simulation_Parameters {
+  /*--- Physical parameters ---*/
   double xL;
   double xR;
-  double yL;
-  double yR;
 
+  T t0;
+  T Tf;
+
+  bool apply_pressure_relax;
+
+  /*--- Numerical parameters ---*/
+  T Courant;
+
+  bool apply_finite_rate_relax;
+  T    tau_p;
+  bool use_exact_relax;
+
+  /*--- MR parameters ---*/
   std::size_t min_level;
   std::size_t max_level;
 
-  double Tf;
-  double Courant;
-
+  /*--- Output parameters ---*/
   std::size_t nfiles;
-
-  bool   apply_pressure_relax;
-  bool   apply_finite_rate_relax;
-  double tau_p;
-  bool   use_exact_relax;
 };
 
 // Declare a struct with EOS parameters
 //
+template<typename T = double>
 struct EOS_Parameters {
-  double gamma_1;
-  double pi_infty_1;
-  double q_infty_1;
-  double c_v_1;
+  /*--- SG-EOS parameters phase 1 ---*/
+  T gamma_1;
+  T pi_infty_1;
+  T q_infty_1;
+  T c_v_1;
 
-  double gamma_2;
-  double pi_infty_2;
-  double q_infty_2;
-  double c_v_2;
+  /*--- SG-EOS parameters phase 2 ---*/
+  T gamma_2;
+  T pi_infty_2;
+  T q_infty_2;
+  T c_v_2;
 };
 
 // Declare a struct with Riemann problem parameters
 //
+template<typename T = double>
 struct Riemann_Parameters {
-  double xd;
+  /*--- Initial discontinuity location ----*/
+  T xd;
 
-  double alpha1L;
-  double rho1L;
-  double p1L;
-  double uL;
-  double vL;
-  double rho2L;
-  double p2L;
+  /*--- Left state Riemann problem ---*/
+  T alpha1L;
+  T rho1L;
+  T p1L;
+  T uL;
+  T rho2L;
+  T p2L;
 
-  double alpha1R;
-  double rho1R;
-  double p1R;
-  double uR;
-  double vR;
-  double rho2R;
-  double p2R;
+  /*--- Right state Riemann problem ---*/
+  T alpha1R;
+  T rho1R;
+  T p1R;
+  T uR;
+  T rho2R;
+  T p2R;
 };
 
 #endif
