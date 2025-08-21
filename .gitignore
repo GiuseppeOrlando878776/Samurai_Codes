@@ -1,0 +1,14 @@
+*.xdmf
+*.h5
+*.png
+
+*/CMakeCache.txt
+*/CMakeFiles
+*/Makefile
+*/cmake_install.cmake
+
+*/*
+!*/include
+
+.DS_Store
+*/.DS_Store

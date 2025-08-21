@@ -31,7 +31,6 @@ def line_plot(ax, x, y):
     plot_samurai = ax.plot(x, y, 'C0-', linewidth=2, markersize=4, alpha=0.5)[0]
     ax.tick_params(axis='x',labelsize=20)
     ax.tick_params(axis='y',labelsize=20)
-    #ax.set_ylim(0, 1.2*10**5)
 
     #Add legend
     if args.reference is not None:

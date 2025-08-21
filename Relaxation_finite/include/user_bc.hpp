@@ -1,3 +1,9 @@
+// Copyright 2021 SAMURAI TEAM. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+// Author: Giuseppe Orlando, 2025
+//
 #pragma once
 
 #ifndef user_bc_hpp
@@ -8,7 +14,7 @@
 #include "flux_base.hpp"
 
 // Specify the use of this namespace where we just store the indices
-// and, in this case, some parameters related to EOS
+//
 using namespace EquationData;
 
 // Default boundary condition
@@ -37,7 +43,7 @@ struct Default: public samurai::Bc<Field> {
   }
 };
 
-// Outflow boundary condition for the air-blasted liquid column problem
+// 1D Outflow boundary conditions
 //
 template<class Field>
 auto Outflow(const Field& Q,
@@ -48,24 +54,32 @@ auto Outflow(const Field& Q,
   return[&Q, p1_D, &EOS_phase1, p2_D, &EOS_phase2]
   (const auto& /*normal*/, const auto& cell_in, const auto& /*coord*/)
   {
-    // Compute the corresponding ghost state
-    xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::size>> Q_ghost;
-    Q_ghost[ALPHA1_INDEX]         = Q[cell_in](ALPHA1_INDEX);
-    Q_ghost[ALPHA1_RHO1_INDEX]    = Q[cell_in](ALPHA1_RHO1_INDEX);
-    const auto rho1_plus          = Q[cell_in](ALPHA1_RHO1_INDEX)/Q[cell_in](ALPHA1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto u1_plus            = Q[cell_in](ALPHA1_RHO1_U1_INDEX)/Q[cell_in](ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    Q_ghost[ALPHA1_RHO1_U1_INDEX] = Q_ghost[ALPHA1_RHO1_INDEX]*u1_plus;
-    Q_ghost[ALPHA1_RHO1_E1_INDEX] = Q_ghost[ALPHA1_RHO1_INDEX]*
-                                    (EOS_phase1.e_value_RhoP(rho1_plus, p1_D) +
-                                     0.5*u1_plus*u1_plus);
+    /*--- Pre-fetch some variables in order to exploit possible vectorization ---*/
+    const auto alpha1_plus = Q[cell_in](ALPHA1_INDEX);
+    const auto m1_plus     = Q[cell_in](ALPHA1_RHO1_INDEX);
+    const auto m1u1_plus   = Q[cell_in](ALPHA1_RHO1_U1_INDEX);
+    const auto m2_plus     = Q[cell_in](ALPHA2_RHO2_INDEX);
+    const auto m2u2_plus   = Q[cell_in](ALPHA2_RHO2_U2_INDEX);
 
-    Q_ghost[ALPHA2_RHO2_INDEX]    = Q[cell_in](ALPHA2_RHO2_INDEX);
-    const auto rho2_plus          = Q[cell_in](ALPHA2_RHO2_INDEX)/(1.0 - Q[cell_in](ALPHA1_INDEX)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto u2_plus            = Q[cell_in](ALPHA2_RHO2_U2_INDEX)/Q[cell_in](ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    Q_ghost[ALPHA2_RHO2_U2_INDEX] = Q_ghost[ALPHA2_RHO2_INDEX]*u2_plus;
-    Q_ghost[ALPHA2_RHO2_E2_INDEX] = Q_ghost[ALPHA2_RHO2_INDEX]*
+    /*--- Compute the corresponding ghost state ---*/
+    xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
+    Q_ghost[ALPHA1_INDEX]         = alpha1_plus;
+    Q_ghost[ALPHA1_RHO1_INDEX]    = m1_plus;
+    Q_ghost[ALPHA1_RHO1_U1_INDEX] = m1u1_plus;
+    const auto rho1_plus          = m1_plus/alpha1_plus; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto u1_plus            = m1u1_plus/m1_plus; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    Q_ghost[ALPHA1_RHO1_E1_INDEX] = m1_plus*
+                                    (EOS_phase1.e_value_RhoP(rho1_plus, p1_D) +
+                                     static_cast<typename Field::value_type>(0.5)*u1_plus*u1_plus);
+
+    Q_ghost[ALPHA2_RHO2_INDEX]    = m2_plus;
+    Q_ghost[ALPHA2_RHO2_U2_INDEX] = m2u2_plus;
+    const auto rho2_plus          = m2_plus/(static_cast<typename Field::value_type>(1.0) - alpha1_plus);
+                                    /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto u2_plus            = m2u2_plus/m2_plus; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    Q_ghost[ALPHA2_RHO2_E2_INDEX] = m2_plus*
                                     (EOS_phase2.e_value_RhoP(rho2_plus, p2_D) +
-                                     0.5*u2_plus*u2_plus);
+                                     static_cast<typename Field::value_type>(0.5)*u2_plus*u2_plus);
 
     return Q_ghost;
   };

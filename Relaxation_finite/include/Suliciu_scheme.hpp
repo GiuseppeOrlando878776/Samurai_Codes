@@ -1,3 +1,10 @@
+// Copyright 2021 SAMURAI TEAM. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+// Author: Khaled Saleh, 2017-2019-2024
+//         Giuseppe Orlando, 2025
+//
 #ifndef Suliciu_scheme_hpp
 #define Suliciu_scheme_hpp
 
@@ -14,17 +21,18 @@ namespace samurai {
   public:
     RelaxationFlux(const EOS<typename Field::value_type>& EOS_phase1_,
                    const EOS<typename Field::value_type>& EOS_phase2_,
-                   const double atol_Newton_ = 1e-8,
-                   const double rtol_Newton_ = 1e-6,
-                   const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+                   const typename Field::value_type atol_Newton_ = 1e-8,
+                   const typename Field::value_type rtol_Newton_ = 1e-6,
+                   const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input
+                                                                    the equations of state of the two phases ---*/
 
-    auto make_flux(double& c); /*--- Compute the flux over all cells.
-                                     The input argument is employed to compute the Courant number ---*/
+    auto make_flux(typename Field::value_type& c); /*--- Compute the flux over all the faces and directions.
+                                                         The input argument is employed to compute the Courant number ---*/
 
   private:
-    const double      atol_Newton;      /*--- Absolute tolerance for the Newont method of the Suliciu scheme ---*/
-    const double      rtol_Newton;      /*--- Relative tolerance for the Newont method of the Suliciu scheme ---*/
-    const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
+    const typename Field::value_type atol_Newton;      /*--- Absolute tolerance for the Newont method of the Suliciu scheme ---*/
+    const typename Field::value_type rtol_Newton;      /*--- Relative tolerance for the Newont method of the Suliciu scheme ---*/
+    const std::size_t                max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
     template<typename T>
     inline T M0(const T nu, const T Me) const;
@@ -77,23 +85,16 @@ namespace samurai {
                                  T& alpha_p, T& tau_p, T& w_p, T& pres_p, T& E_p,
                                  T& w_star);
 
-    #ifdef ORDER_2
-      void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                 const FluxValue<typename Flux<Field>::cfg>& qR,
-                                 const typename Field::value_type alpha1L_order1,
-                                 const typename Field::value_type alpha1R_order1,
-                                 const std::size_t curr_d,
-                                 FluxValue<typename Flux<Field>::cfg>& F_minus,
-                                 FluxValue<typename Flux<Field>::cfg>& F_plus,
-                                 double& c); // Compute discrete flux
-    #else
-      void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                 const FluxValue<typename Flux<Field>::cfg>& qR,
-                                 const std::size_t curr_d,
-                                 FluxValue<typename Flux<Field>::cfg>& F_minus,
-                                 FluxValue<typename Flux<Field>::cfg>& F_plus,
-                                 double& c); // Compute discrete flux
-    #endif
+    void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
+                               const FluxValue<typename Flux<Field>::cfg>& qR,
+                               #ifdef ORDER_2
+                                  const typename Field::value_type alpha1_L_order1,
+                                  const typename Field::value_type alpha1_R_order1,
+                               #endif
+                               const std::size_t curr_d,
+                               FluxValue<typename Flux<Field>::cfg>& F_minus,
+                               FluxValue<typename Flux<Field>::cfg>& F_plus,
+                               typename Field::value_type& c); /*--- Compute discrete flux ---*/
   };
 
   // Constructor derived from base class
@@ -101,543 +102,404 @@ namespace samurai {
   template<class Field>
   RelaxationFlux<Field>::RelaxationFlux(const EOS<typename Field::value_type>& EOS_phase1_,
                                         const EOS<typename Field::value_type>& EOS_phase2_,
-                                        const double atol_Newton_,
-                                        const double rtol_Newton_,
+                                        const typename Field::value_type atol_Newton_,
+                                        const typename Field::value_type rtol_Newton_,
                                         const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1_, EOS_phase2_),
     atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_), max_Newton_iters(max_Newton_iters_) {}
 
   // Implementation of the flux (F^{-} and F^{+} as in Saleh 2012 notation)
   //
-  #ifdef ORDER_2
-    template<class Field>
-    void RelaxationFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                                      const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                      const typename Field::value_type alpha1L_order1,
-                                                      const typename Field::value_type alpha1R_order1,
-                                                      std::size_t curr_d,
-                                                      FluxValue<typename Flux<Field>::cfg>& F_minus,
-                                                      FluxValue<typename Flux<Field>::cfg>& F_plus,
-                                                      double& c) {
-      /*--- Compute the relevant variables from left state for phase 1 ---*/
-      const auto alpha1L = qL(ALPHA1_INDEX);
-      const auto rho1L   = qL(ALPHA1_RHO1_INDEX)/alpha1L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto vel1L_d = qL(ALPHA1_RHO1_U1_INDEX + curr_d)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto E1L     = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e1L           = E1L;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
-                    (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      }
-      const auto p1L = this->EOS_phase1.pres_value_Rhoe(rho1L, e1L);
+  template<class Field>
+  void RelaxationFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
+                                                    const FluxValue<typename Flux<Field>::cfg>& qR,
+                                                    #ifdef ORDER_2
+                                                      const typename Field::value_type alpha1_L_order1,
+                                                      const typename Field::value_type alpha1_R_order1,
+                                                    #endif
+                                                    std::size_t curr_d,
+                                                    FluxValue<typename Flux<Field>::cfg>& F_minus,
+                                                    FluxValue<typename Flux<Field>::cfg>& F_plus,
+                                                    typename Field::value_type& c) {
+    /*--- Left state ---*/
+    // Pre-fetch variables that will be used several times so as to exploit possible vectorization
+    // (as well as to enhance readability)
+    const auto alpha1_L = qL(ALPHA1_INDEX);
+    const auto m1_L     = qL(ALPHA1_RHO1_INDEX);
+    const auto m1E1_L   = qL(ALPHA1_RHO1_E1_INDEX);
+    const auto m2_L     = qL(ALPHA2_RHO2_INDEX);
+    const auto m2E2_L   = qL(ALPHA2_RHO2_E2_INDEX);
 
-      /*--- Compute the relevant variables from right state for phase 1 ---*/
-      const auto alpha1R = qR(ALPHA1_INDEX);
-      const auto rho1R   = qR(ALPHA1_RHO1_INDEX)/alpha1R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto vel1R_d = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto E1R     = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e1R           = E1R;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
-                    (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      }
-      const auto p1R = this->EOS_phase1.pres_value_Rhoe(rho1R, e1R);
+    // Phase 1
+    const auto inv_m1_L   = static_cast<typename Field::value_type>(1.0)/m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel1_L_d   = qL(ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho1_L     = m1_L/alpha1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto inv_rho1_L = static_cast<typename Field::value_type>(1.0)/rho1_L;
+    const auto E1_L       = m1E1_L*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto e1_L             = E1_L;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      e1_L -= static_cast<typename Field::value_type>(0.5)*
+              ((qL(ALPHA1_RHO1_U1_INDEX + d)*inv_m1_L)*
+               (qL(ALPHA1_RHO1_U1_INDEX + d)*inv_m1_L)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    }
+    const auto p1_L = this->EOS_phase1.pres_value_Rhoe(rho1_L, e1_L);
+    const auto c1_L = this->EOS_phase1.c_value_RhoP(rho1_L, p1_L);
 
-      /*--- Compute the relevant variables from left state for phase 2 ---*/
-      const auto alpha2L = 1.0 - alpha1L;
-      const auto rho2L   = qL(ALPHA2_RHO2_INDEX)/alpha2L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto vel2L_d = qL(ALPHA2_RHO2_U2_INDEX + curr_d)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto E2L     = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e2L           = E2L;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
-                    (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      }
-      const auto p2L = this->EOS_phase2.pres_value_Rhoe(rho2L, e2L);
+    // Phase 2
+    const auto alpha2_L   = static_cast<typename Field::value_type>(1.0) - alpha1_L;
+    const auto inv_m2_L   = static_cast<typename Field::value_type>(1.0)/m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel2_L_d   = qL(ALPHA2_RHO2_U2_INDEX + curr_d)*inv_m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2_L     = m2_L/alpha2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto inv_rho2_L = static_cast<typename Field::value_type>(1.0)/rho2_L;
+    const auto E2_L       = m2E2_L*inv_m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto e2_L             = E2_L;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      e2_L -= static_cast<typename Field::value_type>(0.5)*
+              ((qL(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)*
+               (qL(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    }
+    const auto p2_L = this->EOS_phase2.pres_value_Rhoe(rho2_L, e2_L);
 
-      /*--- Compute the relevant variables from right state for phase 2 ---*/
-      const auto alpha2R = 1.0 - alpha1R;
-      const auto rho2R   = qR(ALPHA2_RHO2_INDEX)/alpha2R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto vel2R_d = qR(ALPHA2_RHO2_U2_INDEX + curr_d)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto E2R     = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e2R           = E2R;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
-                    (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      }
-      const auto p2R = this->EOS_phase2.pres_value_Rhoe(rho2R, e2R);
+    /*--- Right state ---*/
+    // Pre-fetch variables that will be used several times so as to exploit possible vectorization
+    // (as well as to enhance readability)
+    const auto alpha1_R = qR(ALPHA1_INDEX);
+    const auto m1_R     = qR(ALPHA1_RHO1_INDEX);
+    const auto m1E1_R   = qR(ALPHA1_RHO1_E1_INDEX);
+    const auto m2_R     = qR(ALPHA2_RHO2_INDEX);
+    const auto m2E2_R   = qR(ALPHA2_RHO2_E2_INDEX);
 
-      /*--- Compute first rhs of relaxation related parameters (Whitham's approach) ---*/
-      auto a1 = std::max(this->EOS_phase1.c_value_RhoP(rho1L, p1L)*rho1L,
-                         this->EOS_phase1.c_value_RhoP(rho1R, p1R)*rho1R);
-      auto a2 = std::max(this->EOS_phase2.c_value_RhoP(rho2L, p2L)*rho2L,
-                         this->EOS_phase2.c_value_RhoP(rho2R, p2R)*rho2R);
+    // Phase 1
+    const auto inv_m1_R   = static_cast<typename Field::value_type>(1.0)/m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel1_R_d   = qR(ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho1_R     = m1_R/alpha1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto inv_rho1_R = static_cast<typename Field::value_type>(1.0)/rho1_R;
+    const auto E1_R       = m1E1_R*inv_m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto e1_R             = E1_R;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      e1_R -= static_cast<typename Field::value_type>(0.5)*
+              ((qR(ALPHA1_RHO1_U1_INDEX + d)*inv_m1_R)*
+               (qR(ALPHA1_RHO1_U1_INDEX + d)*inv_m1_R)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    }
+    const auto p1_R = this->EOS_phase1.pres_value_Rhoe(rho1_R, e1_R);
 
-      /*--- Compute the transport step solving a non-linear equation with the Newton method ---*/
+    // Phase 2
+    const auto alpha2_R   = static_cast<typename Field::value_type>(1.0) - alpha1_R;
+    const auto inv_m2_R   = static_cast<typename Field::value_type>(1.0)/m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel2_R_d   = qR(ALPHA2_RHO2_U2_INDEX + curr_d)*inv_m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2_R     = m2_R/alpha2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto inv_rho2_R = static_cast<typename Field::value_type>(1.0)/rho2_R;
+    const auto E2_R       = m2E2_R*inv_m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto e2_R             = E2_R;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      e2_R -= static_cast<typename Field::value_type>(0.5)*
+              ((qR(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)*
+               (qR(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    }
+    const auto p2_R = this->EOS_phase2.pres_value_Rhoe(rho2_R, e2_R);
 
-      // Compute "diesis" state (formulas (3.21) in Saleh ESAIM 2019, starting point for subsonic wave)
-      using field_type = decltype(a2);
-      field_type vel1_diesis, p1_diesis, tau1L_diesis = 0.0, tau1R_diesis = 0.0; /*--- NOTE: tau denotes the specific volume, i.e. the inverse of the density ---*/
-      field_type vel2_diesis, p2_diesis, tau2L_diesis = 0.0, tau2R_diesis = 0.0;
+    /*--- Compute first rhs of relaxation related parameters (Whitham's approach) ---*/
+    auto a1 = std::max(this->EOS_phase1.c_value_RhoP(rho1_L, p1_L)*rho1_L,
+                       this->EOS_phase1.c_value_RhoP(rho1_R, p1_R)*rho1_R);
+    auto a2 = std::max(this->EOS_phase2.c_value_RhoP(rho2_L, p2_L)*rho2_L,
+                       this->EOS_phase2.c_value_RhoP(rho2_R, p2_R)*rho2_R);
 
-      const double fact = 1.01; // Safety factor
-      // Loop to be sure that tau_diesis variables are positive (theorem 3.5, Coquel et al. JCP 2017)
-      while(tau1L_diesis <= 0.0 || tau1R_diesis <= 0.0) {
-        iter++;
+    /*--- Compute the transport step solving a non-linear equation with the Newton method ---*/
+    // Compute "diesis" state (formulas (3.21) in Saleh ESAIM 2019, starting point for subsonic wave)
+    typename Field::value_type vel1_diesis, p1_diesis,
+                               tau1L_diesis = static_cast<typename Field::value_type>(0.0),
+                               tau1R_diesis = static_cast<typename Field::value_type>(0.0),
+                               inv_a1;
+                               /*--- NOTE: tau denotes the specific volume, i.e. the inverse of the density ---*/
+    typename Field::value_type vel2_diesis, p2_diesis,
+                               tau2L_diesis = static_cast<typename Field::value_type>(0.0),
+                               tau2R_diesis = static_cast<typename Field::value_type>(0.0),
+                               inv_a2;
+
+    const auto fact = static_cast<typename Field::value_type>(1.01); // Safety factor
+    // Loop to be sure that tau_diesis variables are positive (theorem 3.5, Coquel et al. JCP 2017)
+    unsigned int iter = 0;
+    while((tau1L_diesis <= static_cast<typename Field::value_type>(0.0) ||
+           tau1R_diesis <= static_cast<typename Field::value_type>(0.0)) &&
+           iter < 1000) {
+      iter++;
+      a1 *= fact;
+
+      inv_a1       = static_cast<typename Field::value_type>(1.0)/a1;
+      vel1_diesis  = static_cast<typename Field::value_type>(0.5)*(vel1_L_d + vel1_R_d)
+                   - static_cast<typename Field::value_type>(0.5)*(p1_R - p1_L)*inv_a1;
+      p1_diesis    = static_cast<typename Field::value_type>(0.5)*(p1_R + p1_L)
+                   - static_cast<typename Field::value_type>(0.5)*a1*(vel1_R_d - vel1_L_d);
+      tau1L_diesis = inv_rho1_L + (vel1_diesis - vel1_L_d)*inv_a1;
+      tau1R_diesis = inv_rho1_R - (vel1_diesis - vel1_R_d)*inv_a1;
+    }
+    if(iter == 1000) {
+      std::cerr << "Maximum iterations in Suliciu flux loop: positivity of tau1" << std::endl;
+      exit(1);
+    }
+    iter = 0;
+    while((tau2L_diesis <= static_cast<typename Field::value_type>(0.0) ||
+           tau2R_diesis <= static_cast<typename Field::value_type>(0.0)) &&
+           iter < 1000) {
+      iter++;
+      a2 *= fact;
+
+      inv_a2       = static_cast<typename Field::value_type>(1.0)/a2;
+      vel2_diesis  = static_cast<typename Field::value_type>(0.5)*(vel2_L_d + vel2_R_d)
+                   - static_cast<typename Field::value_type>(0.5)*(p2_R - p2_L)*inv_a2;
+      p2_diesis    = static_cast<typename Field::value_type>(0.5)*(p2_R + p2_L)
+                   - static_cast<typename Field::value_type>(0.5)*a2*(vel2_R_d - vel2_L_d);
+      tau2L_diesis = inv_rho2_L + (vel2_diesis - vel2_L_d)*inv_a2;
+      tau2R_diesis = inv_rho2_R - (vel2_diesis - vel2_R_d)*inv_a2;
+    }
+    if(iter == 1000) {
+      std::cerr << "Maximum iterations in Suliciu flux loop: positivity of tau2" << std::endl;
+      exit(1);
+    }
+    // Update of a1 and a2 so that a solution for u* surely exists
+    typename Field::value_type rhs = static_cast<typename Field::value_type>(0.0),
+                               sup = static_cast<typename Field::value_type>(0.0),
+                               inf = static_cast<typename Field::value_type>(0.0);
+    const auto mu = static_cast<typename Field::value_type>(0.02);
+    typename Field::value_type cLmax, cRmin;
+    iter = 0;
+    while((rhs - inf <= mu*(sup - inf) || sup - rhs <= mu*(sup - inf)) && iter < 1000) {
+      iter++;
+      if(vel1_diesis - a1*tau1L_diesis > vel2_diesis - a2*tau2L_diesis &&
+         vel1_diesis + a1*tau1R_diesis < vel2_diesis + a2*tau2R_diesis) {
         a1 *= fact;
-        vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5*(p1R - p1L)/a1;
-        p1_diesis    = 0.5*(p1R + p1L) - 0.5*a1*(vel1R_d - vel1L_d);
-        tau1L_diesis = 1.0/rho1L + (vel1_diesis - vel1L_d)/a1;
-        tau1R_diesis = 1.0/rho1R - (vel1_diesis - vel1R_d)/a1;
-      }
-      while(tau2L_diesis <= 0.0 || tau2R_diesis <= 0.0) {
-        iter++;
-        a2 *= fact;
-        vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5*(p2R - p2L)/a2;
-        p2_diesis    = 0.5*(p2R + p2L) - 0.5*a2*(vel2R_d - vel2L_d);
-        tau2L_diesis = 1.0/rho2L + (vel2_diesis - vel2L_d)/a2;
-        tau2R_diesis = 1.0/rho2R - (vel2_diesis - vel2R_d)/a2;
-      }
-
-      // Update of a1 and a2 so that a solution for u* surely exists
-      field_type rhs = 0.0, sup = 0.0, inf = 0.0;
-      const double mu = 0.02;
-      while(rhs - inf <= mu*(sup - inf) || sup - rhs <= mu*(sup - inf)) {
-        iter++;
-        if(vel1_diesis - a1*tau1L_diesis > vel2_diesis - a2*tau2L_diesis &&
-           vel1_diesis + a1*tau1R_diesis < vel2_diesis + a2*tau2R_diesis) {
-          a1 *= fact;
-          vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5/a1*(p1R - p1L);
-          p1_diesis    = 0.5*(p1R + p1L) - 0.5*a1*(vel1R_d - vel1L_d);
-          tau1L_diesis = 1.0/rho1L + 1.0/a1*(vel1_diesis - vel1L_d);
-          tau1R_diesis = 1.0/rho1R - 1.0/a1*(vel1_diesis - vel1R_d);
-        }
-        else {
-          if(vel2_diesis - a2*tau2L_diesis > vel1_diesis - a1*tau1L_diesis &&
-             vel2_diesis + a2*tau2R_diesis < vel1_diesis + a1*tau1R_diesis) {
-            a2 *= fact;
-            vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5/a2*(p2R - p2L);
-            p2_diesis    = 0.5*(p2R + p2L) - 0.5*a2*(vel2R_d - vel2L_d);
-            tau2L_diesis = 1.0/rho2L + 1.0/a2*(vel2_diesis - vel2L_d);
-            tau2R_diesis = 1.0/rho2R - 1.0/a2*(vel2_diesis - vel2R_d);
-          }
-          else {
-            a1 *= fact;
-            vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5/a1*(p1R - p1L);
-            p1_diesis    = 0.5*(p1R + p1L) - 0.5*a1*(vel1R_d - vel1L_d);
-            tau1L_diesis = 1.0/rho1L + 1.0/a1*(vel1_diesis - vel1L_d);
-            tau1R_diesis = 1.0/rho1R - 1.0/a1*(vel1_diesis - vel1R_d);
-
-            a2 *= fact;
-            vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5/a2*(p2R - p2L);
-            p2_diesis    = 0.5*(p2R + p2L) - 0.5*a2*(vel2R_d - vel2L_d);
-            tau2L_diesis = 1.0/rho2L + 1.0/a2*(vel2_diesis - vel2L_d);
-            tau2R_diesis = 1.0/rho2R - 1.0/a2*(vel2_diesis - vel2R_d);
-          }
-        }
-
-        // Compute the rhs of the equation for u*
-        rhs = -p1_diesis*(alpha1R-alpha1L) -p2_diesis*(alpha2R-alpha2L);
-
-        // Limits on u* so that the relative Mach number is below one
-        const auto cLmax = std::max(vel1_diesis - a1*tau1L_diesis, vel2_diesis - a2*tau2L_diesis);
-        const auto cRmin = std::min(vel1_diesis + a1*tau1R_diesis, vel2_diesis + a2*tau2R_diesis);
-
-        // Bounds on the function Psi
-        inf = Psi(cLmax, a1, alpha1L, alpha1R, vel1_diesis,
-                         a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
-        sup = Psi(cRmin, a1, alpha1L, alpha1R, vel1_diesis,
-                         a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
-
-      }
-
-      // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
-                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
-
-      /*--- Compute the "fluxes" ---*/
-      field_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
-                 alpha1_p, tau1_p, u1_p, p1_p, E1_p,
-                 alpha2_m, tau2_m, u2_m, p2_m, E2_m, w2_m,
-                 alpha2_p, tau2_p, u2_p, p2_p, E2_p, w2_p,
-                 u2_star;
-      Riemann_solver_phase_pI(-uI_star,
-                              alpha2L, alpha2R, 1.0/rho2L, 1.0/rho2R, vel2L_d - uI_star, vel2R_d - uI_star,
-                              p2L, p2R, E2L - (vel2L_d - uI_star)*uI_star - 0.5*uI_star*uI_star, E2R - (vel2R_d - uI_star)*uI_star - 0.5*uI_star*uI_star,
-                              vel2_diesis - uI_star, tau2L_diesis, tau2R_diesis, a2,
-                              alpha2_m, tau2_m, w2_m, p2_m, E2_m,
-                              alpha2_p, tau2_p, w2_p, p2_p, E2_p,
-                              u2_star);
-      u2_m = w2_m + uI_star;
-      E2_m += (u2_m - uI_star)*uI_star + 0.5*uI_star*uI_star;
-      u2_p = w2_p + uI_star;
-      E2_p += (u2_p - uI_star)*uI_star + 0.5*uI_star*uI_star;
-      u2_star += uI_star;
-      Riemann_solver_phase_vI(0.0,
-                              alpha1L, alpha1R, 1.0/rho1L, 1.0/rho1R, vel1L_d, vel1R_d, p1L, p1R, E1L, E1R,
-                              a1, uI_star,
-                              alpha1_m, tau1_m, u1_m, p1_m, E1_m,
-                              alpha1_p, tau1_p, u1_p, p1_p, E1_p);
-
-      /*--- Build the "fluxes" ---*/
-      F_minus(ALPHA1_INDEX) = 0.0;
-
-      F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m/tau1_m*u1_m;
-      F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m/tau1_m*u1_m*u1_m + alpha1_m*p1_m;
-      const auto u1_star = uI_star;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        if(d != curr_d) {
-          F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
-                                            - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
-          F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
-        }
-      }
-      F_minus(ALPHA1_RHO1_E1_INDEX)          = alpha1_m/tau1_m*E1_m*u1_m + alpha1_m*p1_m*u1_m;
-
-      F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m/tau2_m*u2_m;
-      F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m/tau2_m*u2_m*u2_m + alpha2_m*p2_m;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        if(d != curr_d) {
-          F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
-                                            - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
-          F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
-        }
-      }
-      F_minus(ALPHA2_RHO2_E2_INDEX) = alpha2_m/tau2_m*E2_m*u2_m + alpha2_m*p2_m*u2_m;
-
-      F_plus(ALPHA1_INDEX) = 0.0;
-
-      F_plus(ALPHA1_RHO1_INDEX)             = alpha1_p/tau1_p*u1_p;
-      F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_p/tau1_p*u1_p*u1_p + alpha1_p*p1_p;
-      F_plus(ALPHA1_RHO1_E1_INDEX)          = alpha1_p/tau1_p*E1_p*u1_p + alpha1_p*p1_p*u1_p;
-
-      F_plus(ALPHA2_RHO2_INDEX)             = alpha2_p/tau2_p*u2_p;
-      F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_p/tau2_p*u2_p*u2_p + alpha2_p*p2_p;
-      F_plus(ALPHA2_RHO2_E2_INDEX)          = alpha2_p/tau2_p*E2_p*u2_p + alpha2_p*p2_p*u2_p;
-
-      /*--- Focus on non-conservative term ---*/
-      const auto pidxalpha2 = p2_diesis*((1.0 - alpha1R_order1) - (1.0 - alpha1L_order1))
-                            + psi(uI_star, a2, 1.0 - alpha1L_order1, 1.0 - alpha1R_order1, vel2_diesis, tau2L_diesis, tau2R_diesis);
-
-      if(uI_star < 0.0) {
-        F_minus(ALPHA1_INDEX) -= -uI_star*(alpha1R_order1 - alpha1L_order1);
-
-        F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) -= -pidxalpha2;
-        F_minus(ALPHA1_RHO1_E1_INDEX) -= -uI_star*pidxalpha2;
-
-        F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) -= pidxalpha2;
-        F_minus(ALPHA2_RHO2_E2_INDEX) -= uI_star*pidxalpha2;
+        inv_a1       = static_cast<typename Field::value_type>(1.0)/a1;
+        vel1_diesis  = static_cast<typename Field::value_type>(0.5)*(vel1_L_d + vel1_R_d)
+                     - static_cast<typename Field::value_type>(0.5)*(p1_R - p1_L)*inv_a1;
+        p1_diesis    = static_cast<typename Field::value_type>(0.5)*(p1_R + p1_L)
+                     - static_cast<typename Field::value_type>(0.5)*a1*(vel1_R_d - vel1_L_d);
+        tau1L_diesis = inv_rho1_L + (vel1_diesis - vel1_L_d)*inv_a1;
+        tau1R_diesis = inv_rho1_R - (vel1_diesis - vel1_R_d)*inv_a1;
       }
       else {
-        F_plus(ALPHA1_INDEX) += -uI_star*(alpha1R_order1 - alpha1L_order1);
-
-        F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) += -pidxalpha2;
-        F_plus(ALPHA1_RHO1_E1_INDEX) += -uI_star*pidxalpha2;
-
-        F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) += pidxalpha2;
-        F_plus(ALPHA2_RHO2_E2_INDEX) += uI_star*pidxalpha2;
-      }
-
-      c = std::max(c, std::max(std::max(std::abs(vel1L_d - a1/rho1L), std::abs(vel1R_d + a1/rho1R)),
-                               std::max(std::abs(vel2L_d - a2/rho2L), std::abs(vel2R_d + a2/rho2R))));
-    }
-  #else
-    template<class Field>
-    void RelaxationFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                                      const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                      std::size_t curr_d,
-                                                      FluxValue<typename Flux<Field>::cfg>& F_minus,
-                                                      FluxValue<typename Flux<Field>::cfg>& F_plus,
-                                                      double& c) {
-      /*--- Compute the relevant variables from left state for phase 1 ---*/
-      const auto alpha1L = qL(ALPHA1_INDEX);
-      const auto rho1L   = qL(ALPHA1_RHO1_INDEX)/alpha1L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto vel1L_d = qL(ALPHA1_RHO1_U1_INDEX + curr_d)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto E1L     = qL(ALPHA1_RHO1_E1_INDEX)/qL(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e1L           = E1L;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        e1L -= 0.5*((qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))*
-                    (qL(ALPHA1_RHO1_U1_INDEX + d)/qL(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      }
-      const auto p1L = this->EOS_phase1.pres_value_Rhoe(rho1L, e1L);
-
-      /*--- Compute the relevant variables from right state for phase 1 ---*/
-      const auto alpha1R = qR(ALPHA1_INDEX);
-      const auto rho1R   = qR(ALPHA1_RHO1_INDEX)/alpha1R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto vel1R_d = qR(ALPHA1_RHO1_U1_INDEX + curr_d)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto E1R     = qR(ALPHA1_RHO1_E1_INDEX)/qR(ALPHA1_RHO1_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e1R           = E1R;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        e1R -= 0.5*((qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))*
-                    (qR(ALPHA1_RHO1_U1_INDEX + d)/qR(ALPHA1_RHO1_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      }
-      const auto p1R = this->EOS_phase1.pres_value_Rhoe(rho1R, e1R);
-
-      /*--- Compute the relevant variables from left state for phase 2 ---*/
-      const auto alpha2L = 1.0 - alpha1L;
-      const auto rho2L   = qL(ALPHA2_RHO2_INDEX)/alpha2L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto vel2L_d = qL(ALPHA2_RHO2_U2_INDEX + curr_d)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto E2L     = qL(ALPHA2_RHO2_E2_INDEX)/qL(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e2L           = E2L;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        e2L -= 0.5*((qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))*
-                    (qL(ALPHA2_RHO2_U2_INDEX + d)/qL(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      }
-      const auto p2L = this->EOS_phase2.pres_value_Rhoe(rho2L, e2L);
-
-      /*--- Compute the relevant variables from right state for phase 2 ---*/
-      const auto alpha2R = 1.0 - alpha1R;
-      const auto rho2R   = qR(ALPHA2_RHO2_INDEX)/alpha2R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto vel2R_d = qR(ALPHA2_RHO2_U2_INDEX + curr_d)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto E2R     = qR(ALPHA2_RHO2_E2_INDEX)/qR(ALPHA2_RHO2_INDEX); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e2R           = E2R;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        e2R -= 0.5*((qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))*
-                    (qR(ALPHA2_RHO2_U2_INDEX + d)/qR(ALPHA2_RHO2_INDEX))); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      }
-      const auto p2R = this->EOS_phase2.pres_value_Rhoe(rho2R, e2R);
-
-      /*--- Compute first rhs of relaxation related parameters (Whitham's approach) ---*/
-      auto a1 = std::max(this->EOS_phase1.c_value_RhoP(rho1L, p1L)*rho1L,
-                         this->EOS_phase1.c_value_RhoP(rho1R, p1R)*rho1R);
-      auto a2 = std::max(this->EOS_phase2.c_value_RhoP(rho2L, p2L)*rho2L,
-                         this->EOS_phase2.c_value_RhoP(rho2R, p2R)*rho2R);
-
-      /*--- Compute the transport step solving a non-linear equation with the Newton method ---*/
-
-      // Compute "diesis" state (formulas (3.21) in Saleh ESAIM 2019, starting point for subsonic wave)
-      using field_type = decltype(a2);
-      field_type vel1_diesis, p1_diesis, tau1L_diesis = 0.0, tau1R_diesis = 0.0; /*--- NOTE: tau denotes the specific volume, i.e. the inverse of the density ---*/
-      field_type vel2_diesis, p2_diesis, tau2L_diesis = 0.0, tau2R_diesis = 0.0;
-
-      const double fact = 1.01; // Safety factor
-      // Loop to be sure that tau_diesis variables are positive (theorem 3.5, Coquel et al. JCP 2017)
-      unsigned int iter = 0;
-      while((tau1L_diesis <= 0.0 || tau1R_diesis <= 0.0) && iter < 1000) {
-        iter++;
-        a1 *= fact;
-        vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5*(p1R - p1L)/a1;
-        p1_diesis    = 0.5*(p1R + p1L) - 0.5*a1*(vel1R_d - vel1L_d);
-        tau1L_diesis = 1.0/rho1L + (vel1_diesis - vel1L_d)/a1;
-        tau1R_diesis = 1.0/rho1R - (vel1_diesis - vel1R_d)/a1;
-      }
-      if(iter == 1000) {
-        std::cerr << "Maximum iterations in Suliciu flux loop: positivity of tau1" << std::endl;
-        exit(1);
-      }
-      iter = 0;
-      while((tau2L_diesis <= 0.0 || tau2R_diesis <= 0.0) && iter < 1000) {
-        iter++;
-        a2 *= fact;
-        vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5*(p2R - p2L)/a2;
-        p2_diesis    = 0.5*(p2R + p2L) - 0.5*a2*(vel2R_d - vel2L_d);
-        tau2L_diesis = 1.0/rho2L + (vel2_diesis - vel2L_d)/a2;
-        tau2R_diesis = 1.0/rho2R - (vel2_diesis - vel2R_d)/a2;
-      }
-      if(iter == 1000) {
-        std::cerr << "Maximum iterations in Suliciu flux loop: positivity of tau2" << std::endl;
-        exit(1);
-      }
-      // Update of a1 and a2 so that a solution for u* surely exists
-      field_type rhs = 0.0, sup = 0.0, inf = 0.0;
-      const double mu = 0.02;
-      field_type cLmax, cRmin;
-      iter = 0;
-      while((rhs - inf <= mu*(sup - inf) || sup - rhs <= mu*(sup - inf)) && iter < 1000) {
-        iter++;
-        if(vel1_diesis - a1*tau1L_diesis > vel2_diesis - a2*tau2L_diesis &&
-           vel1_diesis + a1*tau1R_diesis < vel2_diesis + a2*tau2R_diesis) {
-          a1 *= fact;
-          vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5/a1*(p1R - p1L);
-          p1_diesis    = 0.5*(p1R + p1L) - 0.5*a1*(vel1R_d - vel1L_d);
-          tau1L_diesis = 1.0/rho1L + 1.0/a1*(vel1_diesis - vel1L_d);
-          tau1R_diesis = 1.0/rho1R - 1.0/a1*(vel1_diesis - vel1R_d);
+        if(vel2_diesis - a2*tau2L_diesis > vel1_diesis - a1*tau1L_diesis &&
+           vel2_diesis + a2*tau2R_diesis < vel1_diesis + a1*tau1R_diesis) {
+          a2 *= fact;
+          inv_a2       = static_cast<typename Field::value_type>(1.0)/a2;
+          vel2_diesis  = static_cast<typename Field::value_type>(0.5)*(vel2_L_d + vel2_R_d)
+                       - static_cast<typename Field::value_type>(0.5)*(p2_R - p2_L)*inv_a2;
+          p2_diesis    = static_cast<typename Field::value_type>(0.5)*(p2_R + p2_L)
+                       - static_cast<typename Field::value_type>(0.5)*a2*(vel2_R_d - vel2_L_d);
+          tau2L_diesis = inv_rho2_L + (vel2_diesis - vel2_L_d)*inv_a2;
+          tau2R_diesis = inv_rho2_R - (vel2_diesis - vel2_R_d)*inv_a2;
         }
         else {
-          if(vel2_diesis - a2*tau2L_diesis > vel1_diesis - a1*tau1L_diesis &&
-             vel2_diesis + a2*tau2R_diesis < vel1_diesis + a1*tau1R_diesis) {
-            a2 *= fact;
-            vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5/a2*(p2R - p2L);
-            p2_diesis    = 0.5*(p2R + p2L) - 0.5*a2*(vel2R_d - vel2L_d);
-            tau2L_diesis = 1.0/rho2L + 1.0/a2*(vel2_diesis - vel2L_d);
-            tau2R_diesis = 1.0/rho2R - 1.0/a2*(vel2_diesis - vel2R_d);
-          }
-          else {
-            a1 *= fact;
-            vel1_diesis  = 0.5*(vel1L_d + vel1R_d) - 0.5/a1*(p1R - p1L);
-            p1_diesis    = 0.5*(p1R + p1L) - 0.5*a1*(vel1R_d - vel1L_d);
-            tau1L_diesis = 1.0/rho1L + 1.0/a1*(vel1_diesis - vel1L_d);
-            tau1R_diesis = 1.0/rho1R - 1.0/a1*(vel1_diesis - vel1R_d);
+          a1 *= fact;
+          inv_a1       = static_cast<typename Field::value_type>(1.0)/a1;
+          vel1_diesis  = static_cast<typename Field::value_type>(0.5)*(vel1_L_d + vel1_R_d)
+                       - static_cast<typename Field::value_type>(0.5)*(p1_R - p1_L)*inv_a1;
+          p1_diesis    = static_cast<typename Field::value_type>(0.5)*(p1_R + p1_L)
+                       - static_cast<typename Field::value_type>(0.5)*a1*(vel1_R_d - vel1_L_d);
+          tau1L_diesis = inv_rho1_L + (vel1_diesis - vel1_L_d)*inv_a1;
+          tau1R_diesis = inv_rho1_R - (vel1_diesis - vel1_R_d)*inv_a1;
 
-            a2 *= fact;
-            vel2_diesis  = 0.5*(vel2L_d + vel2R_d) - 0.5/a2*(p2R - p2L);
-            p2_diesis    = 0.5*(p2R + p2L) - 0.5*a2*(vel2R_d - vel2L_d);
-            tau2L_diesis = 1.0/rho2L + 1.0/a2*(vel2_diesis - vel2L_d);
-            tau2R_diesis = 1.0/rho2R - 1.0/a2*(vel2_diesis - vel2R_d);
-          }
-        }
-
-        // Compute the rhs of the equation for u*
-        rhs = -p1_diesis*(alpha1R-alpha1L) -p2_diesis*(alpha2R-alpha2L);
-
-        // Limits on u* so that the relative Mach number is below one
-        cLmax = std::max(vel1_diesis - a1*tau1L_diesis, vel2_diesis - a2*tau2L_diesis);
-        cRmin = std::min(vel1_diesis + a1*tau1R_diesis, vel2_diesis + a2*tau2R_diesis);
-
-        // Bounds on the function Psi
-        inf = Psi(cLmax, a1, alpha1L, alpha1R, vel1_diesis,
-                         a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
-        sup = Psi(cRmin, a1, alpha1L, alpha1R, vel1_diesis,
-                         a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
-
-      }
-      if(iter == 1000) {
-        std::cerr << "Maximum iterations in Suliciu flux loop: failed to ensure u* exists" << std::endl;
-        exit(1);
-      }
-
-      // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
-      const auto uI_star = Newton(rhs, a1, alpha1L, alpha1R, vel1_diesis, tau1L_diesis, tau1R_diesis,
-                                       a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis,
-                                       cLmax, cRmin);
-
-      /*--- Compute the "fluxes" ---*/
-      field_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
-                 alpha1_p, tau1_p, u1_p, p1_p, E1_p,
-                 alpha2_m, tau2_m, u2_m, p2_m, E2_m, w2_m,
-                 alpha2_p, tau2_p, u2_p, p2_p, E2_p, w2_p,
-                 u2_star;
-      Riemann_solver_phase_pI(-uI_star,
-                              alpha2L, alpha2R, 1.0/rho2L, 1.0/rho2R, vel2L_d - uI_star, vel2R_d - uI_star,
-                              p2L, p2R, E2L - (vel2L_d - uI_star)*uI_star - 0.5*uI_star*uI_star, E2R - (vel2R_d - uI_star)*uI_star - 0.5*uI_star*uI_star,
-                              vel2_diesis - uI_star, tau2L_diesis, tau2R_diesis, a2,
-                              alpha2_m, tau2_m, w2_m, p2_m, E2_m,
-                              alpha2_p, tau2_p, w2_p, p2_p, E2_p,
-                              u2_star);
-      u2_m = w2_m + uI_star;
-      E2_m += (u2_m - uI_star)*uI_star + 0.5*uI_star*uI_star;
-      u2_p = w2_p + uI_star;
-      E2_p += (u2_p - uI_star)*uI_star + 0.5*uI_star*uI_star;
-      u2_star += uI_star;
-      Riemann_solver_phase_vI(0.0,
-                              alpha1L, alpha1R, 1.0/rho1L, 1.0/rho1R, vel1L_d, vel1R_d, p1L, p1R, E1L, E1R,
-                              a1, uI_star,
-                              alpha1_m, tau1_m, u1_m, p1_m, E1_m,
-                              alpha1_p, tau1_p, u1_p, p1_p, E1_p);
-
-      /*--- Build the "fluxes" ---*/
-      F_minus(ALPHA1_INDEX) = 0.0;
-
-      F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m/tau1_m*u1_m;
-      F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m/tau1_m*u1_m*u1_m + alpha1_m*p1_m;
-      const auto u1_star = uI_star;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        if(d != curr_d) {
-          F_minus(ALPHA1_RHO1_U1_INDEX + d) = 0.5*u1_star*(qL(ALPHA1_RHO1_INDEX) + qR(ALPHA1_RHO1_INDEX))
-                                            - 0.5*std::abs(u1_star)*(qR(ALPHA1_RHO1_INDEX) - qL(ALPHA1_RHO1_INDEX));
-          F_plus(ALPHA1_RHO1_U1_INDEX + d) = F_minus(ALPHA1_RHO1_U1_INDEX + d);
+          a2 *= fact;
+          inv_a2       = static_cast<typename Field::value_type>(1.0)/a2;
+          vel2_diesis  = static_cast<typename Field::value_type>(0.5)*(vel2_L_d + vel2_R_d)
+                       - static_cast<typename Field::value_type>(0.5)*(p2_R - p2_L)*inv_a2;
+          p2_diesis    = static_cast<typename Field::value_type>(0.5)*(p2_R + p2_L)
+                       - static_cast<typename Field::value_type>(0.5)*a2*(vel2_R_d - vel2_L_d);
+          tau2L_diesis = inv_rho2_L + (vel2_diesis - vel2_L_d)*inv_a2;
+          tau2R_diesis = inv_rho2_R - (vel2_diesis - vel2_R_d)*inv_a2;
         }
       }
-      F_minus(ALPHA1_RHO1_E1_INDEX)          = alpha1_m/tau1_m*E1_m*u1_m + alpha1_m*p1_m*u1_m;
 
-      F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m/tau2_m*u2_m;
-      F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m/tau2_m*u2_m*u2_m + alpha2_m*p2_m;
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        if(d != curr_d) {
-          F_minus(ALPHA2_RHO2_U2_INDEX + d) = 0.5*u2_star*(qL(ALPHA2_RHO2_INDEX) + qR(ALPHA1_RHO1_U1_INDEX))
-                                            - 0.5*std::abs(u2_star)*(qR(ALPHA2_RHO2_INDEX) - qL(ALPHA2_RHO2_INDEX));
-          F_plus(ALPHA2_RHO2_U2_INDEX + d) = F_minus(ALPHA2_RHO2_U2_INDEX + d);
-        }
-      }
-      F_minus(ALPHA2_RHO2_E2_INDEX) = alpha2_m/tau2_m*E2_m*u2_m + alpha2_m*p2_m*u2_m;
+      // Compute the rhs of the equation for u*
+      rhs = -p1_diesis*(alpha1_R - alpha1_L)
+            -p2_diesis*(alpha2_R - alpha2_L);
 
-      F_plus(ALPHA1_INDEX) = 0.0;
+      // Limits on u* so that the relative Mach number is below one
+      cLmax = std::max(vel1_diesis - a1*tau1L_diesis, vel2_diesis - a2*tau2L_diesis);
+      cRmin = std::min(vel1_diesis + a1*tau1R_diesis, vel2_diesis + a2*tau2R_diesis);
 
-      F_plus(ALPHA1_RHO1_INDEX)             = alpha1_p/tau1_p*u1_p;
-      F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_p/tau1_p*u1_p*u1_p + alpha1_p*p1_p;
-      F_plus(ALPHA1_RHO1_E1_INDEX)          = alpha1_p/tau1_p*E1_p*u1_p + alpha1_p*p1_p*u1_p;
-
-      F_plus(ALPHA2_RHO2_INDEX)             = alpha2_p/tau2_p*u2_p;
-      F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_p/tau2_p*u2_p*u2_p + alpha2_p*p2_p;
-      F_plus(ALPHA2_RHO2_E2_INDEX)          = alpha2_p/tau2_p*E2_p*u2_p + alpha2_p*p2_p*u2_p;
-
-      /*--- Focus on non-conservative term ---*/
-      const auto pidxalpha2 = p2_diesis*(alpha2R - alpha2L) + psi(uI_star, a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis);
-
-      if(uI_star < 0.0) {
-        F_minus(ALPHA1_INDEX) -= -uI_star*(alpha1R - alpha1L);
-
-        F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) -= -pidxalpha2;
-        F_minus(ALPHA1_RHO1_E1_INDEX) -= -uI_star*pidxalpha2;
-
-        F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) -= pidxalpha2;
-        F_minus(ALPHA2_RHO2_E2_INDEX) -= uI_star*pidxalpha2;
-      }
-      else {
-        F_plus(ALPHA1_INDEX) += -uI_star*(alpha1R - alpha1L);
-
-        F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) += -pidxalpha2;
-        F_plus(ALPHA1_RHO1_E1_INDEX) += -uI_star*pidxalpha2;
-
-        F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) += pidxalpha2;
-        F_plus(ALPHA2_RHO2_E2_INDEX) += uI_star*pidxalpha2;
-      }
-
-      c = std::max(c, std::max(std::max(std::abs(vel1L_d - a1/rho1L), std::abs(vel1R_d + a1/rho1R)),
-                               std::max(std::abs(vel2L_d - a2/rho2L), std::abs(vel2R_d + a2/rho2R))));
+      // Bounds on the function Psi
+      inf = Psi(cLmax, a1, alpha1_L, alpha1_R, vel1_diesis,
+                       a2, alpha2_L, alpha2_R, vel2_diesis, tau2L_diesis, tau2R_diesis);
+      sup = Psi(cRmin, a1, alpha1_L, alpha1_R, vel1_diesis,
+                       a2, alpha2_L, alpha2_R, vel2_diesis, tau2L_diesis, tau2R_diesis);
     }
-  #endif
+    if(iter == 1000) {
+      std::cerr << "Maximum iterations in Suliciu flux loop: failed to ensure u* exists" << std::endl;
+      exit(1);
+    }
+
+    // Look for u* in the interval [cLmax, cRmin] such that Psi(u*) = rhs
+    const auto uI_star = Newton(rhs, a1, alpha1_L, alpha1_R, vel1_diesis, tau1L_diesis, tau1R_diesis,
+                                     a2, alpha2_L, alpha2_R, vel2_diesis, tau2L_diesis, tau2R_diesis,
+                                     cLmax, cRmin);
+
+    /*--- Compute the "fluxes" ---*/
+    typename Field::value_type alpha1_m, tau1_m, u1_m, p1_m, E1_m,
+                               alpha1_p, tau1_p, u1_p, p1_p, E1_p,
+                               alpha2_m, tau2_m, u2_m, p2_m, E2_m, w2_m,
+                               alpha2_p, tau2_p, u2_p, p2_p, E2_p, w2_p,
+                               u2_star;
+    Riemann_solver_phase_pI(-uI_star,
+                            alpha2_L, alpha2_R, inv_rho2_L, inv_rho2_R, vel2_L_d - uI_star, vel2_R_d - uI_star,
+                            p2_L, p2_R,
+                            E2_L - (vel2_L_d - uI_star)*uI_star - static_cast<typename Field::value_type>(0.5)*uI_star*uI_star,
+                            E2_R - (vel2_R_d - uI_star)*uI_star - static_cast<typename Field::value_type>(0.5)*uI_star*uI_star,
+                            vel2_diesis - uI_star, tau2L_diesis, tau2R_diesis, a2,
+                            alpha2_m, tau2_m, w2_m, p2_m, E2_m,
+                            alpha2_p, tau2_p, w2_p, p2_p, E2_p,
+                            u2_star);
+    u2_m = w2_m + uI_star;
+    E2_m += (u2_m - uI_star)*uI_star + static_cast<typename Field::value_type>(0.5)*uI_star*uI_star;
+    u2_p = w2_p + uI_star;
+    E2_p += (u2_p - uI_star)*uI_star + static_cast<typename Field::value_type>(0.5)*uI_star*uI_star;
+    u2_star += uI_star;
+    Riemann_solver_phase_vI(static_cast<typename Field::value_type>(0.0),
+                            alpha1_L, alpha1_R, inv_rho1_L, inv_rho1_R, vel1_L_d, vel1_R_d, p1_L, p1_R, E1_L, E1_R,
+                            a1, uI_star,
+                            alpha1_m, tau1_m, u1_m, p1_m, E1_m,
+                            alpha1_p, tau1_p, u1_p, p1_p, E1_p);
+
+    /*--- Build the "fluxes" ---*/
+    F_minus(ALPHA1_INDEX) = static_cast<typename Field::value_type>(0.0);
+
+    const auto inv_tau1_m = static_cast<typename Field::value_type>(1.0)/tau1_m;
+    const auto inv_tau1_p = static_cast<typename Field::value_type>(1.0)/tau1_p;
+    const auto inv_tau2_m = static_cast<typename Field::value_type>(1.0)/tau2_m;
+    const auto inv_tau2_p = static_cast<typename Field::value_type>(1.0)/tau2_p;
+
+    F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m*inv_tau1_m*u1_m;
+    F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m*inv_tau1_m*u1_m*u1_m
+                                           + alpha1_m*p1_m;
+    const auto u1_star = uI_star;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      if(d != curr_d) {
+        F_minus(ALPHA1_RHO1_U1_INDEX + d) = static_cast<typename Field::value_type>(0.5)*u1_star*(m1_L + m1_R)
+                                          - static_cast<typename Field::value_type>(0.5)*std::abs(u1_star)*(m1_R - m1_L);
+        F_plus(ALPHA1_RHO1_U1_INDEX + d)  = F_minus(ALPHA1_RHO1_U1_INDEX + d);
+      }
+    }
+    F_minus(ALPHA1_RHO1_E1_INDEX) = alpha1_m*inv_tau1_m*E1_m*u1_m
+                                  + alpha1_m*p1_m*u1_m;
+
+    F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m*inv_tau2_m*u2_m;
+    F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m*inv_tau2_m*u2_m*u2_m
+                                           + alpha2_m*p2_m;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      if(d != curr_d) {
+        F_minus(ALPHA2_RHO2_U2_INDEX + d) = static_cast<typename Field::value_type>(0.5)*u2_star*(m2_L + m2_R)
+                                          - static_cast<typename Field::value_type>(0.5)*std::abs(u2_star)*(m2_R - m2_L);
+        F_plus(ALPHA2_RHO2_U2_INDEX + d)  = F_minus(ALPHA2_RHO2_U2_INDEX + d);
+      }
+    }
+    F_minus(ALPHA2_RHO2_E2_INDEX) = alpha2_m*inv_tau2_m*E2_m*u2_m
+                                  + alpha2_m*p2_m*u2_m;
+
+    F_plus(ALPHA1_INDEX) = static_cast<typename Field::value_type>(0.0);
+
+    F_plus(ALPHA1_RHO1_INDEX)             = alpha1_p*inv_tau1_p*u1_p;
+    F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_p*inv_tau1_p*u1_p*u1_p
+                                          + alpha1_p*p1_p;
+    F_plus(ALPHA1_RHO1_E1_INDEX)          = alpha1_p*inv_tau1_p*E1_p*u1_p
+                                          + alpha1_p*p1_p*u1_p;
+
+    F_plus(ALPHA2_RHO2_INDEX)             = alpha2_p*inv_tau2_p*u2_p;
+    F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_p*inv_tau2_p*u2_p*u2_p
+                                          + alpha2_p*p2_p;
+    F_plus(ALPHA2_RHO2_E2_INDEX)          = alpha2_p*inv_tau2_p*E2_p*u2_p
+                                          + alpha2_p*p2_p*u2_p;
+
+    /*--- Focus on non-conservative term ---*/
+    #ifdef ORDER_2
+      const auto alpha2_L_order1 = static_cast<typename Field::value_type>(1.0) - alpha1_L_order1;
+      const auto alpha2_R_order1 = static_cast<typename Field::value_type>(1.0) - alpha1_R_order1;
+      const auto pidxalpha2      = p2_diesis*(alpha2_R_order1 - alpha2_L_order1)
+                                 + psi(uI_star, a2, alpha2_L_order1, alpha2_R_order1, vel2_diesis, tau2L_diesis, tau2R_diesis);
+    #else
+      const auto pidxalpha2 = p2_diesis*(alpha2_R - alpha2_L)
+                            + psi(uI_star, a2, alpha2_L, alpha2_R, vel2_diesis, tau2L_diesis, tau2R_diesis);
+    #endif
+
+    if(uI_star < static_cast<typename Field::value_type>(0.0)) {
+      #ifdef ORDER_2
+        F_minus(ALPHA1_INDEX) -= -uI_star*(alpha1_R_order1 - alpha1_L_order1);
+      #else
+        F_minus(ALPHA1_INDEX) -= -uI_star*(alpha1_R - alpha1_L);
+      #endif
+
+      F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) -= -pidxalpha2;
+      F_minus(ALPHA1_RHO1_E1_INDEX) -= -uI_star*pidxalpha2;
+
+      F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) -= pidxalpha2;
+      F_minus(ALPHA2_RHO2_E2_INDEX) -= uI_star*pidxalpha2;
+    }
+    else {
+      #ifdef ORDER_2
+        F_plus(ALPHA1_INDEX) += -uI_star*(alpha1_R_order1 - alpha1_L_order1);
+      #else
+        F_plus(ALPHA1_INDEX) += -uI_star*(alpha1_R - alpha1_L);
+      #endif
+
+      F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) += -pidxalpha2;
+      F_plus(ALPHA1_RHO1_E1_INDEX) += -uI_star*pidxalpha2;
+
+      F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) += pidxalpha2;
+      F_plus(ALPHA2_RHO2_E2_INDEX) += uI_star*pidxalpha2;
+    }
+
+    c = std::max(c, std::max(std::max(std::abs(vel1_L_d - a1*inv_rho1_L), std::abs(vel1_R_d + a1*inv_rho1_R)),
+                             std::max(std::abs(vel2_L_d - a2*inv_rho2_L), std::abs(vel2_R_d + a2*inv_rho2_R))));
+  }
 
   // Implement the contribution of the discrete flux for all the directions.
   //
   template<class Field>
-  auto RelaxationFlux<Field>::make_flux(double& c) {
+  auto RelaxationFlux<Field>::make_flux(typename Field::value_type& c) {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
     // Perform the loop over each dimension to compute the flux contribution
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
-      {
-        static constexpr int d = decltype(integral_constant_d)::value;
+         {
+           static constexpr int d = decltype(integral_constant_d)::value;
 
-        // Compute now the "discrete" non-conservative flux function
-        discrete_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
-                                             const StencilData<typename Flux<Field>::cfg>& /*data*/,
-                                             const StencilValues<typename Flux<Field>::cfg> field)
-                                            {
-                                              FluxValue<typename Flux<Field>::cfg> F_minus,
-                                                                                   F_plus;
+           // Compute now the "discrete" non-conservative flux function
+           discrete_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
+                                                const StencilData<typename Flux<Field>::cfg>& /*data*/,
+                                                const StencilValues<typename Flux<Field>::cfg> field)
+                                                {
+                                                  FluxValue<typename Flux<Field>::cfg> F_minus,
+                                                                                       F_plus;
 
-                                              #ifdef ORDER_2
-                                                // MUSCL reconstruction
-                                                const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                                const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                                const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                                const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+                                                  #ifdef ORDER_2
+                                                    // MUSCL reconstruction
+                                                    const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
+                                                    const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
+                                                    const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
+                                                    const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
 
-                                                FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                     primR_recon;
-                                                this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                             primL_recon, primR_recon);
+                                                    FluxValue<typename Flux<Field>::cfg> primL_recon,
+                                                                                         primR_recon;
+                                                    this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                                 primL_recon, primR_recon);
 
-                                                FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                    FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
+                                                    FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
-                                                compute_discrete_flux(qL, qR,
-                                                                      field[1](ALPHA1_INDEX), field[2](ALPHA1_INDEX),
-                                                                      d, F_minus, F_plus, c);
-                                              #else
-                                                // Extract state
-                                                const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
-                                                const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
+                                                    compute_discrete_flux(qL, qR,
+                                                                          field[1](ALPHA1_INDEX), field[2](ALPHA1_INDEX),
+                                                                          d, F_minus, F_plus, c);
+                                                  #else
+                                                    // Extract state
+                                                    const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
+                                                    const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
 
-                                                compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
-                                              #endif
+                                                    compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
+                                                  #endif
 
-                                              flux[0] = F_minus;
-                                              flux[1] = -F_plus;
-                                            };
-      }
+                                                  flux[0] = F_minus;
+                                                  flux[1] = -F_plus;
+                                                };
+        }
     );
 
     auto scheme = make_flux_based_scheme(discrete_flux);
@@ -646,15 +508,24 @@ namespace samurai {
     return scheme;
   }
 
+  //////////////////////////////////////////////////////////////
+  /*---- FOCUS NOW ON THE AUXILIARY FUNCTIONS ---*/
+  /////////////////////////////////////////////////////////////
+
   // Implement M0 function (3.312 Saleh 2012, 3.30 Saleh ESAIM 2019)
   //
   template<class Field>
   template<typename T>
   inline T RelaxationFlux<Field>::M0(const T nu, const T Me) const {
-    return 4.0/(nu + 1.0)*
-           Me/((1.0 + Me*Me)*
-               (1.0 + std::sqrt(std::abs(1.0 - 4.0*nu/((nu + 1.0)*(nu + 1.0))*
-                                               4.0*Me*Me/((1.0 + Me*Me)*(1.0 + Me*Me))))));
+    return static_cast<T>(4.0)/(nu + static_cast<T>(1.0))*
+           Me/((static_cast<T>(1.0) + Me*Me)*
+               (static_cast<T>(1.0) +
+                std::sqrt(std::abs(static_cast<T>(1.0) -
+                                   static_cast<T>(4.0)*nu/
+                                   ((nu + static_cast<T>(1.0))*(nu + static_cast<T>(1.0)))*
+                                   static_cast<T>(4.0)*Me*Me/
+                                   ((static_cast<T>(1.0) + Me*Me)*
+                                    (static_cast<T>(1.0) + Me*Me))))));
   }
 
   // Implement psi function (Saleh 2012 ??)
@@ -666,7 +537,8 @@ namespace samurai {
                                       const T vel_diesis, const T tauL_diesis, const T tauR_diesis) const {
     if(u_star <= vel_diesis) {
       return a*(alphaL + alphaR)*(u_star - vel_diesis) +
-             2.0*a*a*alphaL*tauL_diesis*M0(alphaL/alphaR, (vel_diesis - u_star)/(a*tauL_diesis));
+             static_cast<T>(2.0)*a*a*alphaL*tauL_diesis*
+             M0(alphaL/alphaR, (vel_diesis - u_star)/(a*tauL_diesis));
     }
 
     return -psi(-u_star, a, alphaR, alphaL, -vel_diesis, tauR_diesis, tauL_diesis);
@@ -689,11 +561,20 @@ namespace samurai {
   template<class Field>
   template<typename T>
   inline T RelaxationFlux<Field>::dM0_dMe(const T nu, const T Me) const {
-    const T w = (1.0 - Me)/(1.0 + Me);
+    const T w = (static_cast<T>(1.0) - Me)/
+                (static_cast<T>(1.0) + Me);
 
-    return 4.0/(nu + 1.0)*w/((1.0 + w*w)*(1.0 + w*w))*(1.0 + w)*(1.0 + w)/
-           (1.0 - 4.0*nu/((nu + 1.0)*(nu + 1.0))*(1.0 - w*w)*(1.0 - w*w)/((1.0 + w*w)*(1.0 + w*w)) +
-            std::sqrt(std::abs(1.0 - 4.0*nu/((nu + 1.0)*(nu + 1.0))*(1.0 - w*w)*(1.0 - w*w)/((1.0 + w*w)*(1.0 + w*w)))));
+    return static_cast<T>(4.0)/(nu + static_cast<T>(1.0))*
+           w/((static_cast<T>(1.0) + w*w)*(static_cast<T>(1.0) + w*w))*
+           (static_cast<T>(1.0) + w)*(static_cast<T>(1.0) + w)/
+           (static_cast<T>(1.0) - static_cast<T>(4.0)*nu/((nu + static_cast<T>(1.0))*(nu + static_cast<T>(1.0)))*
+                                  (static_cast<T>(1.0) - w*w)*(static_cast<T>(1.0) - w*w)/
+                                  ((static_cast<T>(1.0) + w*w)*(static_cast<T>(1.0) + w*w)) +
+                                  std::sqrt(std::abs(static_cast<T>(1.0) -
+                                                     static_cast<T>(4.0)*nu/
+                                                     ((nu + static_cast<T>(1.0))*(nu + static_cast<T>(1.0)))*
+                                                     (static_cast<T>(1.0) - w*w)*(static_cast<T>(1.0) - w*w)/
+                                                     ((static_cast<T>(1.0) + w*w)*(static_cast<T>(1.0) + w*w)))));
   }
 
   // Implement the derivative of psi w.r.t. u* for the Newton method
@@ -705,11 +586,13 @@ namespace samurai {
                                               const T vel_diesis, const T tauL_diesis, const T tauR_diesis) const {
     if(u_star <= vel_diesis) {
       return a*(alphaL + alphaR) -
-             2.0*a*alphaL*dM0_dMe(alphaL/alphaR, (vel_diesis - u_star)/(a*tauL_diesis));
+             static_cast<T>(2.0)*a*alphaL*
+             dM0_dMe(alphaL/alphaR, (vel_diesis - u_star)/(a*tauL_diesis));
     }
 
     return a*(alphaL + alphaR) -
-           2.0*a*alphaR*dM0_dMe(alphaR/alphaL, (vel_diesis - u_star)/(a*tauR_diesis));
+           static_cast<T>(2.0)*a*alphaR*
+           dM0_dMe(alphaR/alphaL, (vel_diesis - u_star)/(a*tauR_diesis));
   }
 
   // Implement the derivative of Psi w.r.t. u* for the Newton method
@@ -739,13 +622,13 @@ namespace samurai {
       const T xl = std::max(vel1_diesis - a1*tau1L_diesis, vel2_diesis - a2*tau2L_diesis);
       const T xr = std::min(vel1_diesis + a1*tau1R_diesis, vel2_diesis + a2*tau2R_diesis);
 
-      T u_star = 0.5*(xl + xr);
+      T u_star = static_cast<T>(0.5)*(xl + xr);
 
       T du = -(Psi(u_star, a1, alpha1L, alpha1R, vel1_diesis,
                            a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs)/
               (dPsi_dustar(u_star, a1, alpha1L, alpha1R,
                                    a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis));
-      du = std::max(std::min(du, 0.9*(cRmin - u_star)), 0.9*(cLmax - u_star));
+      du = std::max(std::min(du, static_cast<T>(0.9)*(cRmin - u_star)), static_cast<T>(0.9)*(cLmax - u_star));
 
       while(iter < max_Newton_iters &&
             //std::abs(Psi(u_star, a1, alpha1L, alpha1R, vel1_diesis,
@@ -759,7 +642,7 @@ namespace samurai {
                            a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis) - rhs)/
               (dPsi_dustar(u_star, a1, alpha1L, alpha1R,
                                    a2, alpha2L, alpha2R, vel2_diesis, tau2L_diesis, tau2R_diesis));
-        du = std::max(std::min(du, 0.9*(cRmin - u_star)), 0.9*(cLmax - u_star));
+        du = std::max(std::min(du, static_cast<T>(0.9)*(cRmin - u_star)), static_cast<T>(0.9)*(cLmax - u_star));
       }
 
       // Safety check
@@ -782,7 +665,7 @@ namespace samurai {
                                                       const T a, const T u_star,
                                                       T& alpha_m, T& tau_m, T& w_m, T& pres_m, T& E_m,
                                                       T& alpha_p, T& tau_p, T& w_p, T& pres_p, T& E_p) {
-    if(xi < wL-a*tauL) {
+    if(xi < wL - a*tauL) {
       alpha_m = alphaL;
       tau_m   = tauL;
       w_m     = wL;
@@ -796,7 +679,7 @@ namespace samurai {
       E_p     = EL;
     }
     else {
-      if(xi == wL-a*tauL) {
+      if(xi == wL - a*tauL) {
         alpha_m = alphaL;
         tau_m   = tauL;
         w_m     = wL;
@@ -804,60 +687,60 @@ namespace samurai {
         E_m     = EL;
 
         alpha_p = alphaL;
-        tau_p   = tauL + 1./a*(u_star - wL);
+        tau_p   = tauL + static_cast<T>(1.0)/a*(u_star - wL);
         w_p     = u_star;
         pres_p  = pL + a*(wL - u_star);
-        E_p     = EL - 1.0/a*(pres_p*w_p - pL*wL);
+        E_p     = EL - static_cast<T>(1.0)/a*(pres_p*w_p - pL*wL);
       }
       else {
         if(xi > wL - a*tauL && xi < u_star) {
           alpha_m = alphaL;
-          tau_m   = tauL + 1.0/a*(u_star - wL);
+          tau_m   = tauL + static_cast<T>(1.0)/a*(u_star - wL);
           w_m     = u_star;
           pres_m  = pL + a*(wL - u_star);
-          E_m     = EL - 1.0/a*(pres_m*w_m - pL*wL);
+          E_m     = EL - static_cast<T>(1.0)/a*(pres_m*w_m - pL*wL);
 
           alpha_p = alphaL;
-          tau_p   = tauL + 1.0/a*(u_star - wL);
+          tau_p   = tauL + static_cast<T>(1.0)/a*(u_star - wL);
           w_p     = u_star;
           pres_p  = pL + a*(wL - u_star);
-          E_p     = EL - 1.0/a*(pres_p*w_p - pL*wL);
+          E_p     = EL - static_cast<T>(1.0)/a*(pres_p*w_p - pL*wL);
         }
         else {
           if(xi == u_star) {
             alpha_m = alphaL;
-            tau_m   = tauL + 1.0/a*(u_star - wL);
+            tau_m   = tauL + static_cast<T>(1.0)/a*(u_star - wL);
             w_m     = u_star;
             pres_m  = pL + a*(wL - u_star);
-            E_m     = EL - 1.0/a*(pres_m*w_m - pL*wL);
+            E_m     = EL - static_cast<T>(1.0)/a*(pres_m*w_m - pL*wL);
 
             alpha_p = alphaR;
-            tau_p   = tauR - 1.0/a*(u_star - wR);
+            tau_p   = tauR - static_cast<T>(1.0)/a*(u_star - wR);
             w_p     = u_star;
             pres_p  = pR - a*(wR - u_star);
-            E_p     = ER + 1.0/a*(pres_p*w_p - pR*wR);
+            E_p     = ER + static_cast<T>(1.0)/a*(pres_p*w_p - pR*wR);
           }
           else {
             if(xi > u_star && xi < wR + a*tauR)	{
               alpha_m = alphaR;
-              tau_m   = tauR - 1.0/a*(u_star - wR);
+              tau_m   = tauR - static_cast<T>(1.0)/a*(u_star - wR);
               w_m     = u_star;
               pres_m  = pR - a*(wR - u_star);
-              E_m     = ER + 1.0/a*(pres_m*w_m - pR*wR);
+              E_m     = ER + static_cast<T>(1.0)/a*(pres_m*w_m - pR*wR);
 
               alpha_p = alphaR;
-              tau_p   = tauR - 1.0/a*(u_star - wR);
+              tau_p   = tauR - static_cast<T>(1.0)/a*(u_star - wR);
               w_p     = u_star;
               pres_p  = pR - a*(wR - u_star);
-              E_p     = ER + 1.0/a*(pres_p*w_p - pR*wR);
+              E_p     = ER + static_cast<T>(1.0)/a*(pres_p*w_p - pR*wR);
             }
             else {
               if(xi == wR + a*tauR) {
                 alpha_m = alphaR;
-                tau_m   = tauR - 1.0/a*(u_star - wR);
+                tau_m   = tauR - static_cast<T>(1.0)/a*(u_star - wR);
                 w_m     = u_star;
                 pres_m  = pR - a*(wR - u_star);
-                E_m     = ER + 1.0/a*(pres_m*w_m - pR*wR);
+                E_m     = ER + static_cast<T>(1.0)/a*(pres_m*w_m - pR*wR);
 
                 alpha_p = alphaR;
                 tau_p   = tauR;
@@ -902,24 +785,27 @@ namespace samurai {
 
     T M;
     T Mzero;
-    const T mu = 0.9;
+    const T mu = static_cast<T>(0.9);
     const T t  = tauR_diesis/tauL_diesis;
 
-    if(w_diesis > 0.0) {
-      if(ML <  1.0) {
+    if(w_diesis > static_cast<T>(0.0)) {
+      if(ML < static_cast<T>(1.0)) {
          /*--- Configuration <1,2> subsonic.
-               Computation of M which parametrisez the whole solution ---*/
-        Mzero = 4.0/(nu + 1.0)*
-                MdL/((1.0 + MdL*MdL)*
-                     (1.0 + std::sqrt(std::abs(1.0 - 4.0*nu/((nu + 1.0)*(nu + 1.0))*
-                                                     4.0*MdL*MdL/((1.0 + MdL*MdL)*(1.0 + MdL*MdL))))));
+               Computation of M which parametrises the whole solution ---*/
+        Mzero = static_cast<T>(4.0)/(nu + static_cast<T>(1.0))*
+                MdL/((static_cast<T>(1.0) + MdL*MdL)*
+                     (static_cast<T>(1.0) +
+                      std::sqrt(std::abs(static_cast<T>(1.0) -
+                                         static_cast<T>(4.0)*nu/((nu + static_cast<T>(1.0))*(nu + static_cast<T>(1.0)))*
+                                         static_cast<T>(4.0)*MdL*MdL/((static_cast<T>(1.0) + MdL*MdL)*(static_cast<T>(1.0) + MdL*MdL))))));
 
         if(mu*tauR_diesis <= tauR_diesis + tauL_diesis*(MdL + nu*Mzero)/(1.+nu*Mzero)) {
           M = Mzero;
         }
         else {
           /*--- Add the required amount of energy dissipation ---*/
-          M = 1.0/nu*(MdL + t*(1.0 - mu))/(1.0 - t*(1.0 - mu));
+          M = static_cast<T>(1.0)/nu*(MdL + t*(static_cast<T>(1.0) - mu))/
+                                     (static_cast<T>(1.0) - t*(static_cast<T>(1.0) - mu));
         }
       }
 
@@ -945,115 +831,117 @@ namespace samurai {
           E_m     = EL;
 
           alpha_p = alphaL;
-          tau_p   = tauL_diesis*(1.0 - MdL)/(1.0 - M);
+          tau_p   = tauL_diesis*(static_cast<T>(1.0) - MdL)/(static_cast<T>(1.0) - M);
           w_p     = a*M*tau_p;
           pres_p  = pL + a*(wL - w_p);
-          E_p     = EL - 1.0/a*(pres_p*w_p - pL*wL);
+          E_p     = EL - static_cast<T>(1.0)/a*(pres_p*w_p - pL*wL);
         }
         else {
-          if(xi > wL - a*tauL && xi < 0.0) {
+          if(xi > wL - a*tauL && xi < static_cast<T>(0.0)) {
             alpha_m = alphaL;
-            tau_m   = tauL_diesis*(1.0 - MdL)/(1.0 - M);
+            tau_m   = tauL_diesis*(static_cast<T>(1.0) - MdL)/(static_cast<T>(1.0) - M);
             w_m     = a*M*tau_m;
             pres_m  = pL + a*(wL - w_m);
-            E_m     = EL - 1.0/a*(pres_m*w_m - pL*wL);
+            E_m     = EL - static_cast<T>(1.0)/a*(pres_m*w_m - pL*wL);
 
             alpha_p = alphaL;
-            tau_p   = tauL_diesis*(1.0 - MdL)/(1.0 - M);
+            tau_p   = tauL_diesis*(static_cast<T>(1.0) - MdL)/(static_cast<T>(1.0) - M);
             w_p     = a*M*tau_p;
             pres_p  = pL + a*(wL - w_p);
-            E_p     = EL - 1.0/a*(pres_p*w_p - pL*wL);
+            E_p     = EL - static_cast<T>(1.0)/a*(pres_p*w_p - pL*wL);
           }
           else {
-            if(xi == 0.0) {
+            if(xi == static_cast<T>(0.0)) {
               alpha_m = alphaL;
-              tau_m   = tauL_diesis*(1.0 - MdL)/(1.0 - M);
+              tau_m   = tauL_diesis*(static_cast<T>(1.0) - MdL)/(static_cast<T>(1.0) - M);
               w_m     = a*M*tau_m;
               pres_m  = pL + a*(wL - w_m);
-              E_m     = EL - 1.0/a*(pres_m*w_m - pL*wL);
+              E_m     = EL - static_cast<T>(1.0)/a*(pres_m*w_m - pL*wL);
 
               alpha_p = alphaR;
-              tau_p   = tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+              tau_p   = tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
               w_p     = nu*a*M*tau_p;
               pres_p  = pL + a*a*(tauL - tau_p);
               E_p     = E_m - (pres_p*tau_p - pres_m*tau_m);
             }
             else {
-              if(xi > 0.0 && xi < nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M)) {
+              if(xi > static_cast<T>(0.0) &&
+                 xi < nu*a*M*tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M)) {
                 /*--- Computations of E_m and E_p ---*/
                 alpha_m = alphaL;
-                tau_m   = tauL_diesis*(1.0 - MdL)/(1.0 - M);
+                tau_m   = tauL_diesis*(static_cast<T>(1.0) - MdL)/(static_cast<T>(1.0) - M);
                 w_m     = a*M*tau_m;
                 pres_m  = pL + a*(wL - w_m);
-                E_m     = EL - 1.0/a*(pres_m*w_m - pL*wL);
+                E_m     = EL - static_cast<T>(1.0)/a*(pres_m*w_m - pL*wL);
 
                 alpha_p = alphaR;
-                tau_p   = tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                tau_p   = tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                 w_p     = nu*a*M*tau_p;
                 pres_p  = pL + a*a*(tauL - tau_p);
                 E_p     = E_m - (pres_p*tau_p - pres_m*tau_m);
 
                 /*--- Compute the real states ---*/
                 alpha_m = alphaR;
-                tau_m   = tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                tau_m   = tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                 w_m     = nu*a*M*tau_m;
                 pres_m  = pL + a*a*(tauL - tau_m);
                 E_m     = E_p;
 
                 alpha_p = alphaR;
-                tau_p   = tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                tau_p   = tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                 w_p     = nu*a*M*tau_p;
                 pres_p  = pL + a*a*(tauL - tau_p);
               }
               else {
-                if(xi == nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M)) {
+                if(xi == nu*a*M*tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M)) {
                   /*--- Computations of E_m and E_p ---*/
                   alpha_m = alphaL;
-                  tau_m   = tauL_diesis*(1.0 - MdL)/(1.0 - M);
+                  tau_m   = tauL_diesis*(static_cast<T>(1.0) - MdL)/(static_cast<T>(1.0) - M);
                   w_m     = a*M*tau_m;
                   pres_m  = pL + a*(wL - w_m);
-                  E_m     = EL - 1.0/a*(pres_m*w_m - pL*wL);
+                  E_m     = EL - static_cast<T>(1.0)/a*(pres_m*w_m - pL*wL);
 
                   alpha_p = alphaR;
-                  tau_p   = tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                  tau_p   = tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                   w_p     = nu*a*M*tau_p;
                   pres_p  = pL + a*a*(tauL - tau_p);
                   E_p     = E_m - (pres_p*tau_p - pres_m*tau_m);
 
                   /*--- Compute the real states ---*/
                   alpha_m = alphaR;
-                  tau_m   = tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                  tau_m   = tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                   w_m     = nu*a*M*tau_m;
                   pres_m  = pL + a*a*(tauL - tau_m);
                   E_m     = E_p;
 
                   alpha_p = alphaR;
-                  tau_p   = tauR_diesis + tauL_diesis*(MdL - nu*M)/(1.0 + nu*M);
-                  w_p     = nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                  tau_p   = tauR_diesis + tauL_diesis*(MdL - nu*M)/(static_cast<T>(1.0) + nu*M);
+                  w_p     = nu*a*M*tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                   pres_p  = pR - a*(wR - w_p);
-                  E_p     = ER - 1.0/a*(pR*wR - pres_p*w_p);
+                  E_p     = ER - static_cast<T>(1.0)/a*(pR*wR - pres_p*w_p);
                 }
                 else {
-                  if(xi > nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M) && xi < wR + a*tauR) {
+                  if(xi > nu*a*M*tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M) &&
+                     xi < wR + a*tauR) {
                     alpha_m = alphaR;
-                    tau_m   = tauR_diesis + tauL_diesis*(MdL - nu*M)/(1.0 + nu*M);
-                    w_m     = nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                    tau_m   = tauR_diesis + tauL_diesis*(MdL - nu*M)/(static_cast<T>(1.0) + nu*M);
+                    w_m     = nu*a*M*tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                     pres_m  = pR - a*(wR - w_m);
-                    E_m     = ER - 1.0/a*(pR*wR - pres_m*w_m);
+                    E_m     = ER - static_cast<T>(1.0)/a*(pR*wR - pres_m*w_m);
 
                     alpha_p = alphaR;
-                    tau_p   = tauR_diesis + tauL_diesis*(MdL - nu*M)/(1.0 + nu*M);
-                    w_p     = nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                    tau_p   = tauR_diesis + tauL_diesis*(MdL - nu*M)/(static_cast<T>(1.0) + nu*M);
+                    w_p     = nu*a*M*tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                     pres_p  = pR - a*(wR - w_p);
-                    E_p     = ER + 1.0/a*(pres_p*w_p - pR*wR);
+                    E_p     = ER + static_cast<T>(1.0)/a*(pres_p*w_p - pR*wR);
                   }
                   else {
                     if(xi == wR + a*tauR) {
                       alpha_m = alphaR;
-                      tau_m   = tauR_diesis + tauL_diesis*(MdL - nu*M)/(1.0 + nu*M);
-                      w_m     = nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+                      tau_m   = tauR_diesis + tauL_diesis*(MdL - nu*M)/(static_cast<T>(1.0) + nu*M);
+                      w_m     = nu*a*M*tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
                       pres_m  = pR - a*(wR - w_m);
-                      E_m     = ER + 1.0/a*(pres_m*w_m - pR*wR);
+                      E_m     = ER + static_cast<T>(1.0)/a*(pres_m*w_m - pR*wR);
 
                       alpha_p = alphaR;
                       tau_p   = tauR;
@@ -1081,10 +969,10 @@ namespace samurai {
           }
         }
       }
-      w_star = nu*a*M*tauL_diesis*(1.0 + MdL)/(1.0 + nu*M);
+      w_star = nu*a*M*tauL_diesis*(static_cast<T>(1.0) + MdL)/(static_cast<T>(1.0) + nu*M);
     }
     else {
-      if(w_diesis < 0.0) {
+      if(w_diesis < static_cast<T>(0.0)) {
         Riemann_solver_phase_pI(-xi,
                                 alphaR, alphaL, tauR, tauL, -wR, -wL, pR, pL, ER, EL,
                                 -w_diesis, tauR_diesis, tauL_diesis, a,
@@ -1096,7 +984,7 @@ namespace samurai {
         w_star = -w_star;
       }
       else {
-        w_star = 0.0;
+        w_star = static_cast<T>(0.0);
         if(xi < wL - a*tauL) {
           alpha_m = alphaL;
           tau_m   = tauL;
@@ -1120,59 +1008,59 @@ namespace samurai {
 
             alpha_p = alphaL;
             tau_p   = tauL_diesis;
-            w_p     = 0.0;
+            w_p     = static_cast<T>(0.0);
             pres_p  = pL + a*(wL - w_p);
-            E_p     = EL - 1.0/a*(pres_p*w_p - pL*wL);
+            E_p     = EL - static_cast<T>(1.0)/a*(pres_p*w_p - pL*wL);
           }
           else {
-            if(xi > wL - a*tauL && xi < 0.0) {
+            if(xi > wL - a*tauL && xi < static_cast<T>(0.0)) {
               alpha_m = alphaL;
               tau_m   = tauL_diesis;
-              w_m     = 0.0;
+              w_m     = static_cast<T>(0.0);
               pres_m  = pL + a*(wL - w_m);
-              E_m     = EL - 1.0/a*(pres_m*w_m - pL*wL);
+              E_m     = EL - static_cast<T>(1.0)/a*(pres_m*w_m - pL*wL);
 
               alpha_p = alphaL;
               tau_p   = tauL_diesis;
-              w_p     = 0.0;
+              w_p     = static_cast<T>(0.0);
               pres_p  = pL + a*(wL - w_p);
-              E_p     = EL - 1.0/a*(pres_p*w_p - pL*wL);
+              E_p     = EL - static_cast<T>(1.0)/a*(pres_p*w_p - pL*wL);
             }
             else {
-              if(xi == 0.0) {
+              if(xi == static_cast<T>(0.0)) {
                 alpha_m = alphaL;
                 tau_m   = tauL_diesis;
-                w_m     = 0.0;
+                w_m     = static_cast<T>(0.0);
                 pres_m  = pL + a*(wL - w_m);
-                E_m     = EL - 1.0/a*(pres_m*w_m - pL*wL);
+                E_m     = EL - static_cast<T>(1.0)/a*(pres_m*w_m - pL*wL);
 
                 alpha_p = alphaR;
                 tau_p   = tauR_diesis;
-                w_p     = 0.0;
+                w_p     = static_cast<T>(0.0);
                 pres_p  = pR - a*(wR - w_p);
-                E_p     = ER + 1.0/a*(pres_p*w_p - pR*wR);
+                E_p     = ER + static_cast<T>(1.0)/a*(pres_p*w_p - pR*wR);
               }
               else {
-                if(xi > 0.0 && xi < wR + a*tauR) {
+                if(xi > static_cast<T>(0.0) && xi < wR + a*tauR) {
                   alpha_m = alphaR;
                   tau_m   = tauR_diesis;
-                  w_m     = 0.0;
+                  w_m     = static_cast<T>(0.0);
                   pres_m  = pR - a*(wR - w_m);
-                  E_m     = ER + 1.0/a*(pres_m*w_m - pR*wR);
+                  E_m     = ER + static_cast<T>(1.0)/a*(pres_m*w_m - pR*wR);
 
                   alpha_p = alphaR;
                   tau_p   = tauR_diesis;
-                  w_p     = 0.0;
+                  w_p     = static_cast<T>(0.0);
                   pres_p  = pR - a*(wR-w_p);
-                  E_p     = ER + 1.0/a*(pres_p*w_p - pR*wR);
+                  E_p     = ER + static_cast<T>(1.0)/a*(pres_p*w_p - pR*wR);
                 }
                 else {
                   if(xi == wR + a*tauR) {
                     alpha_m = alphaR;
                     tau_m   = tauR_diesis;
-                    w_m     = 0.0;
+                    w_m     = static_cast<T>(0.0);
                     pres_m  = pR - a*(wR - w_m);
-                    E_m     = ER + 1.0/a*(pres_m*w_m - pR*wR);
+                    E_m     = ER + static_cast<T>(1.0)/a*(pres_m*w_m - pR*wR);
 
                     alpha_p = alphaR;
                     tau_p   = tauR;

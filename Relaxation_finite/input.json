@@ -1,59 +1,49 @@
 {
  "xL": 0.0,
- "xR": 1.0,
+ "xR": 12.0,
 
- "min-level": 10,
- "max-level": 10,
- 
- "Tf": 0.007,
+ "Tf": 0.7,
+
+ "apply_relaxation": true,
+
+ "apply_finite_rate_relaxation": true,
+ "relax_instantaneous_velocity": false,
+ "relax_velocity": false,
+ "relax_pressure": false,
+ "relax_temperature": false,
+ "tau_u": 1e10,
+ "tau_p": 1e-3,
+ "tau_T": 1e10,
+
  "cfl": 0.4,
-
- "nfiles": 10,
 
  "atol_Newton_Suliciu": 1e-12,
  "rtol_Newton_Suliciu": 1e-10,
  "max_Newton_iters": 60,
 
- "apply_relaxation": true,
- 
- "apply_finite_rate_relaxation": false,
- "relax_instantaneous_velocity": false,
- "tau_u": 1e10,
- "tau_p": 1e-10,
- "tau_T": 1e10,
- 
- "relax_velocity": false,
- "relax_pressure": true,
- "relax_temperature": false,
-
  "atol_Newton_relaxation": 1e-12,
  "rtol_Newton_relaxation": 1e-10,
 
- "gamma_1": 3.0,
- "pi_infty_1": 1e2,
+ "min-level": 10,
+ "max-level": 10,
+
+ "nfiles": 20,
+
+ "gamma_1": 1.0005,
+ "pi_infty_1": 0.0,
  "q_infty_1": 0.0,
- "c_v_1": 1.040e3,
+ "c_v_1": 951.3636363636363636,
 
  "gamma_2": 1.4,
  "pi_infty_2": 0.0,
  "q_infty_2": 0.0,
- "c_v_2": 1.040e3,
-
- "xd": 0.8,
+ "c_v_2": 717.5,
 
  "alpha1L": 0.8,
- "rho1L": 1.0,
- "p1L": 1000.0,
- "u1L": -19.59716,
+ "rho1L": 1000.0,
+ "p1L": 1e5,
+ "u1L": 10.0,
  "rho2L": 1.0,
- "p2L": 1000.0,
- "u2L": -19.59741,
-
- "alpha1R": 0.3, 
- "rho1R": 1.0,
- "p1R": 0.1,  
- "u1R": -19.59741,
- "rho2R": 1.0, 
- "p2R": 0.1,
- "u2R": -19.59741
+ "p2L": 1e5,
+ "u2L": 0.0
 }

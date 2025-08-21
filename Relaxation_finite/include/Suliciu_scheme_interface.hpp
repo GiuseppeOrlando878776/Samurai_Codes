@@ -1,3 +1,9 @@
+// Copyright 2021 SAMURAI TEAM. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef Suliciu_scheme_interface_hpp
 #define Suliciu_scheme_interface_hpp
 
@@ -16,24 +22,26 @@ namespace samurai {
   template<class Field>
   class RelaxationFlux {
   public:
-    RelaxationFlux() = default; // Constructor which accepts in inputs the equations of state of the two phases
+    RelaxationFlux() = default; /*--- Default constructor ---*/
 
-    auto make_flux(double& c); // Compute the flux over all cells.
-                               // The input argument is employed to compute the Courant number
+    auto make_flux(double& c); /*--- Compute the flux over all faces and directions.
+                                     The input argument is employed to compute the Courant number ---*/
 
   private:
     template<class Other>
-    Other FluxValue_to_Other(const FluxValue<typename Flux<Field>::cfg>& q); // Conversion from Samurai to other ("analogous") data structure for the state
+    Other FluxValue_to_Other(const FluxValue<typename Flux<Field>::cfg>& q); /*--- Conversion from Samurai to other ("analogous")
+                                                                                   data structure for the state ---*/
 
     template<class Other>
-    FluxValue<typename Flux<Field>::cfg> Other_to_FluxValue(const Other& q); // Conversion from other ("analogous") data structure for the state to Samurai
+    FluxValue<typename Flux<Field>::cfg> Other_to_FluxValue(const Other& q); /*--- Conversion from other ("analogous")
+                                                                                   data structure for the state to Samurai ---*/
 
     void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                const FluxValue<typename Flux<Field>::cfg>& qR,
                                const std::size_t curr_d,
                                FluxValue<typename Flux<Field>::cfg>& F_minus,
                                FluxValue<typename Flux<Field>::cfg>& F_plus,
-                               double& c); // Compute discrete flux
+                               typename Field::value_type& c); /*--- Compute discrete flux ---*/
   };
 
   // Conversion from Samurai to other ("analogous") data structure for the state
@@ -72,8 +80,8 @@ namespace samurai {
                                                     [[maybe_unused]] std::size_t curr_d,
                                                     FluxValue<typename Flux<Field>::cfg>& F_minus,
                                                     FluxValue<typename Flux<Field>::cfg>& F_plus,
-                                                    double& c) {
-    // Employ "Saleh et al." functions to compute the Suliciu "flux"
+                                                    typename Field::value_type& c) {
+    /*--- Employ "Saleh et al." functions to compute the Suliciu "flux" ---*/
     int Newton_iter;
     int dissip;
     const double eps = 1e-7;
@@ -81,7 +89,7 @@ namespace samurai {
     auto fW_plus  = Etat();
     c = std::max(c, flux_relax(FluxValue_to_Other<Etat>(qL), FluxValue_to_Other<Etat>(qR), fW_minus, fW_plus, Newton_iter, dissip, eps));
 
-    // Conversion from Etat to FluxValue<typename Flux<Field>::cfg>
+    /*--- Conversion from Etat to FluxValue<typename Flux<Field>::cfg> ---*/
     F_minus = Other_to_FluxValue<Etat>(fW_minus);
     F_plus  = Other_to_FluxValue<Etat>(fW_plus);
   }
@@ -92,31 +100,31 @@ namespace samurai {
   auto RelaxationFlux<Field>::make_flux(double& c) {
     FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
 
-    // Perform the loop over each dimension to compute the flux contribution
+    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, EquationData::dim>::apply(
       [&](auto integral_constant_d)
-      {
-        static constexpr int d = decltype(integral_constant_d)::value;
+         {
+           static constexpr int d = decltype(integral_constant_d)::value;
 
-        // Compute now the "discrete" non-conservative flux function
-        discrete_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
-                                             const StencilData<typename Flux<Field>::cfg>& /*data*/,
-                                             const StencilValues<typename Flux<Field>::cfg> field)
-                                             {
-                                               const auto& qL = field[0];
-                                               const auto& qR = field[1];
+           // Compute now the "discrete" non-conservative flux function
+           discrete_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
+                                                const StencilData<typename Flux<Field>::cfg>& /*data*/,
+                                                const StencilValues<typename Flux<Field>::cfg> field)
+                                                {
+                                                  const auto& qL = field[0];
+                                                  const auto& qR = field[1];
 
-                                              FluxValue<typename Flux<Field>::cfg> F_minus,
-                                                                                   F_plus;
+                                                  FluxValue<typename Flux<Field>::cfg> F_minus,
+                                                                                       F_plus;
 
-                                              compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
+                                                  compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
 
-                                              flux[0] = F_minus;
-                                              flux[1] = -F_plus;
+                                                  flux[0] = F_minus;
+                                                  flux[1] = -F_plus;
 
-                                              return flux;
-                                            };
-      }
+                                                  return flux;
+                                                };
+        }
     );
 
     auto scheme = make_flux_based_scheme(discrete_flux);

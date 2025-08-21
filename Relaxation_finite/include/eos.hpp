@@ -1,8 +1,14 @@
+// Copyright 2021 SAMURAI TEAM. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+// Author: Giuseppe Orlando, 2025
+//
 #ifndef eos_hpp
 #define eos_hpp
 
 /**
-  * Implementation of a generic lcass to handle the EOS. It has several
+  * Implementation of a generic class to handle the EOS. It has several
     pure virtual functions to be implementede for the specific EOS
   */
 template<typename T = double>
@@ -14,7 +20,7 @@ public:
 
   EOS(const EOS&) = default; /*--- Default copy-constructor ---*/
 
-  virtual ~EOS() {} /*--- Virtual destructor (it can be useful since we work thourgh the base class) ---*/
+  virtual ~EOS() {} /*--- Virtual destructor (it can be useful since we work through the base class) ---*/
 
   virtual T pres_value_Rhoe(const T rho, const T e) const = 0; /*--- Function to compute the pressure from the density and the internal energy ---*/
 
@@ -34,19 +40,26 @@ public:
 
   virtual T s_value_Rhoe(const T rho, const T e) const = 0; /*--- Function to compute the specific entropy from density and internal energy ---*/
 
-  virtual T de_drho_T(const T rho, const T temp) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. density (fixed temperature) ---*/
+  virtual T de_drho_T(const T rho, const T temp) const = 0; /*--- Function to compute the derivative of the internal energy
+                                                                  w.r.t. density (fixed temperature) ---*/
 
-  virtual T de_dT_rho(const T temp, const T rho) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. temperature (fixed density) ---*/
+  virtual T de_dT_rho(const T temp, const T rho) const = 0; /*--- Function to compute the derivative of the internal energy
+                                                                  w.r.t. temperature (fixed density) ---*/
 
-  virtual T de_dT_P(const T temp, const T pres) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. temperature (fixed pressure) ---*/
+  virtual T de_dT_P(const T temp, const T pres) const = 0; /*--- Function to compute the derivative of the internal energy
+                                                                 w.r.t. temperature (fixed pressure) ---*/
 
-  virtual T de_dP_T(const T pres, const T temp) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. pressure (fixed temperature) ---*/
+  virtual T de_dP_T(const T pres, const T temp) const = 0; /*--- Function to compute the derivative of the internal energy
+                                                                 w.r.t. pressure (fixed temperature) ---*/
 
-  virtual T de_dP_rho(const T pres, const T rho) const = 0; /*--- Function to compute the derivative of the internal energy w.r.t. pressure (fixed density) ---*/
+  virtual T de_dP_rho(const T pres, const T rho) const = 0; /*--- Function to compute the derivative of the internal energy
+                                                                  w.r.t. pressure (fixed density) ---*/
 
-  virtual T drho_dP_T(const T pres, const T temp) const = 0; /*--- Function to compute the derivative of the density w.r.t. pressure (fixed temperature) ---*/
+  virtual T drho_dP_T(const T pres, const T temp) const = 0; /*--- Function to compute the derivative of the density
+                                                                   w.r.t. pressure (fixed temperature) ---*/
 
-  virtual T drho_dT_P(const T temp, const T pres) const = 0; /*--- Function to compute the derivative of the density w.r.t. temperature (fixed pressure) ---*/
+  virtual T drho_dT_P(const T temp, const T pres) const = 0; /*--- Function to compute the derivative of the density
+                                                                   w.r.t. temperature (fixed pressure) ---*/
 };
 
 
@@ -85,19 +98,26 @@ public:
 
   virtual T s_value_Rhoe(const T rho, const T e) const override; /*--- Function to compute the specific entropy from density and internal energy ---*/
 
-  virtual T de_drho_T(const T rho, const T temp) const override; /*--- Function to compute the derivative of the internal energy w.r.t. density (fixed temperature) ---*/
+  virtual T de_drho_T(const T rho, const T temp) const override; /*--- Function to compute the derivative of the internal energy
+                                                                       w.r.t. density (fixed temperature) ---*/
 
-  virtual T de_dT_rho(const T temp, const T rho) const override; /*--- Function to compute the derivative of the internal energy w.r.t. temperature (fixed density) ---*/
+  virtual T de_dT_rho(const T temp, const T rho) const override; /*--- Function to compute the derivative of the internal energy
+                                                                       w.r.t. temperature (fixed density) ---*/
 
-  virtual T de_dT_P(const T temp, const T pres) const override; /*--- Function to compute the derivative of the internal energy w.r.t. temperature (fixed pressure) ---*/
+  virtual T de_dT_P(const T temp, const T pres) const override; /*--- Function to compute the derivative of the internal energy
+                                                                      w.r.t. temperature (fixed pressure) ---*/
 
-  virtual T de_dP_T(const T pres, const T temp) const override; /*--- Function to compute the derivative of the internal energy w.r.t. pressure (fixed temperature) ---*/
+  virtual T de_dP_T(const T pres, const T temp) const override; /*--- Function to compute the derivative of the internal energy
+                                                                      w.r.t. pressure (fixed temperature) ---*/
 
-  virtual T de_dP_rho(const T pres, const T rho) const override; /*--- Function to compute the derivative of the internal energy w.r.t. pressure (fixed density) ---*/
+  virtual T de_dP_rho(const T pres, const T rho) const override; /*--- Function to compute the derivative of the internal energy
+                                                                       w.r.t. pressure (fixed density) ---*/
 
-  virtual T drho_dP_T(const T pres, const T temp) const override; /*--- Function to compute the derivative of the density w.r.t. pressure (fixed temperature) ---*/
+  virtual T drho_dP_T(const T pres, const T temp) const override; /*--- Function to compute the derivative of the density
+                                                                        w.r.t. pressure (fixed temperature) ---*/
 
-  virtual T drho_dT_P(const T temp, const T pres) const override; /*--- Function to compute the derivative of the density w.r.t. temperature (fixed pressure) ---*/
+  virtual T drho_dT_P(const T temp, const T pres) const override; /*--- Function to compute the derivative of the density
+                                                                        w.r.t. temperature (fixed pressure) ---*/
 
   inline T get_gamma() const; /*--- Return the isentropic exponent ---*/
 
@@ -124,21 +144,21 @@ SG_EOS<T>::SG_EOS(const T gamma_, const T pi_infty_, const T q_infty_, const T c
 //
 template<typename T>
 T SG_EOS<T>::pres_value_Rhoe(const T rho, const T e) const {
-  return (gamma - 1.0)*rho*(e - q_infty) - gamma*pi_infty;
+  return (gamma - static_cast<T>(1.0))*rho*(e - q_infty) - gamma*pi_infty;
 }
 
 // Compute the density from the pressure and the internal energy
 //
 template<typename T>
 T SG_EOS<T>::rho_value_Pe(const T pres, const T e) const {
-  return (pres + gamma*pi_infty)/((gamma - 1.0)*(e - q_infty));
+  return (pres + gamma*pi_infty)/((gamma - static_cast<T>(1.0))*(e - q_infty));
 }
 
 // Compute the internal energy from density and pressure
 //
 template<typename T>
 T SG_EOS<T>::e_value_RhoP(const T rho, const T pres) const {
-  return (pres + gamma*pi_infty)/((gamma - 1.0)*rho) + q_infty;
+  return (pres + gamma*pi_infty)/((gamma - static_cast<T>(1.0))*rho) + q_infty;
 }
 
 // Compute the temperature from density and internal energy
@@ -152,14 +172,14 @@ T SG_EOS<T>::T_value_Rhoe(const T rho, const T e) const {
 //
 template<typename T>
 T SG_EOS<T>::T_value_RhoP(const T rho, const T pres) const {
-  return (pres + pi_infty)/((gamma - 1.0)*rho*c_v);
+  return (pres + pi_infty)/((gamma - static_cast<T>(1.0))*rho*c_v);
 }
 
 // Compute the density from pressure and temeperature
 //
 template<typename T>
 T SG_EOS<T>::rho_value_PT(const T pres, const T temp) const {
-  return (pres + pi_infty)/((gamma - 1.0)*c_v*temp);
+  return (pres + pi_infty)/((gamma - static_cast<T>(1.0))*c_v*temp);
 }
 
 // Compute the internal energy from pressure and temeperature
@@ -182,7 +202,7 @@ template<typename T>
 T SG_EOS<T>::s_value_Rhoe(const T rho, const T e) const {
   const T v = 1.0/rho;
 
-  return c_v*std::log(std::pow(v,gamma - 1.0)*(e - q_infty - pi_infty*v));
+  return c_v*std::log(std::pow(v,gamma - static_cast<T>(1.0))*(e - q_infty - pi_infty*v));
 }
 
 // Compute the derivative of the internal energy w.r.t. density (fixed temperature)
@@ -217,7 +237,7 @@ T SG_EOS<T>::de_dT_P(const T temp, const T pres) const {
 //
 template<typename T>
 T SG_EOS<T>::de_dP_T(const T pres, const T temp) const {
-  return ((1.0 - gamma)*pi_infty)/((pres + pi_infty)*(pres + pi_infty))*c_v*temp;
+  return ((static_cast<T>(1.0) - gamma)*pi_infty)/((pres + pi_infty)*(pres + pi_infty))*c_v*temp;
 }
 
 // Compute the derivative of the internal energy w.r.t. pressure (fixed density)
@@ -226,7 +246,7 @@ template<typename T>
 T SG_EOS<T>::de_dP_rho(const T pres, const T rho) const {
   (void) pres;
 
-  return 1.0/((gamma - 1.0)*rho);
+  return static_cast<T>(1.0)/((gamma - static_cast<T>(1.0))*rho);
 }
 
 // Compute the derivative of the density w.r.t. pressure (fixed temperature)
@@ -235,14 +255,14 @@ template<typename T>
 T SG_EOS<T>::drho_dP_T(const T pres, const T temp) const {
   (void) pres;
 
-  return 1.0/((gamma - 1.0)*c_v*temp);
+  return static_cast<T>(1.0)/((gamma - static_cast<T>(1.0))*c_v*temp);
 }
 
 // Compute the derivative of the density w.r.t. temperature (fixed pressure)
 //
 template<typename T>
 T SG_EOS<T>::drho_dT_P(const T temp, const T pres) const {
-  return -(pres + pi_infty)/((gamma - 1.0)*c_v*temp*temp);
+  return -(pres + pi_infty)/((gamma - static_cast<T>(1.0))*c_v*temp*temp);
 }
 
 // Return the isentropic exponent
@@ -259,7 +279,7 @@ inline T SG_EOS<T>::get_pi_infty() const {
   return pi_infty;
 }
 
-// Return the internal energu at 'infinite'
+// Return the internal energy at 'infinite'
 //
 template<typename T>
 inline T SG_EOS<T>::get_q_infty() const {
