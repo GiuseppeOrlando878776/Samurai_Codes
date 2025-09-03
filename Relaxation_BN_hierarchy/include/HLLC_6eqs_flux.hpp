@@ -18,16 +18,18 @@ namespace samurai {
   template<class Field>
   class HLLCFlux: public Flux<Field> {
   public:
-    HLLCFlux(const EOS<typename Field::value_type>& EOS_phase1_,
-             const EOS<typename Field::value_type>& EOS_phase2_); /*--- Constructor which accepts in input
-                                                                        the equations of state of the two phases ---*/
+    using Number = typename Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
+    
+    HLLCFlux(const EOS<Number>& EOS_phase1_,
+             const EOS<Number>& EOS_phase2_); /*--- Constructor which accepts in input
+                                                    the equations of state of the two phases ---*/
 
     auto make_flux(); /*--- Compute the flux over all the faces and directions ---*/
 
   private:
     auto compute_middle_state(const FluxValue<typename Flux<Field>::cfg>& q,
-                              const typename Field::value_type S,
-                              const typename Field::value_type S_star,
+                              const Number S,
+                              const Number S_star,
                               const std::size_t curr_d) const; /*--- Compute the middle state ---*/
 
     void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
@@ -41,16 +43,16 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  HLLCFlux<Field>::HLLCFlux(const EOS<typename Field::value_type>& EOS_phase1_,
-                            const EOS<typename Field::value_type>& EOS_phase2_):
+  HLLCFlux<Field>::HLLCFlux(const EOS<Number>& EOS_phase1_,
+                            const EOS<Number>& EOS_phase2_):
     Flux<Field>(EOS_phase1_, EOS_phase2_) {}
 
   // Implement the auxliary routine that computes the middle state
   //
   template<class Field>
   auto HLLCFlux<Field>::compute_middle_state(const FluxValue<typename Flux<Field>::cfg>& q,
-                                             const typename Field::value_type S,
-                                             const typename Field::value_type S_star,
+                                             const Number S,
+                                             const Number S_star,
                                              const std::size_t curr_d) const {
     /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization
           (as well as enhance readability) ---*/
@@ -62,24 +64,24 @@ namespace samurai {
 
     /*--- Save mixture density and velocity current direction ---*/
     const auto rho     = m1 + m2;
-    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
     /*--- Phase 1 ---*/
     const auto rho1 = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto norm2_vel  = static_cast<typename Field::value_type>(0.0);
+    auto norm2_vel  = static_cast<Number>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       norm2_vel += (q(RHO_U_INDEX + d)*inv_rho)*
                    (q(RHO_U_INDEX + d)*inv_rho);
     }
     const auto e1 = m1E1/m1 /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                  - static_cast<typename Field::value_type>(0.5)*norm2_vel;
+                  - static_cast<Number>(0.5)*norm2_vel;
     const auto p1 = this->EOS_phase1.pres_value(rho1, e1);
 
     /*--- Phase 2 ---*/
-    const auto rho2 = m2/(static_cast<typename Field::value_type>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2 = m2/(static_cast<Number>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2   = m2E2/m2 /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                    - static_cast<typename Field::value_type>(0.5)*norm2_vel;
+                    - static_cast<Number>(0.5)*norm2_vel;
     const auto p2   = this->EOS_phase2.pres_value(rho2, e2);
 
     /*--- Compute middle state ---*/
@@ -124,34 +126,34 @@ namespace samurai {
 
     // Save mixture density and velocity current direction left state
     const auto rho_L     = m1_L + m2_L;
-    const auto inv_rho_L = static_cast<typename Field::value_type>(1.0)/rho_L;
+    const auto inv_rho_L = static_cast<Number>(1.0)/rho_L;
     const auto vel_L_d   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
     // Phase 1
     const auto rho1_L = m1_L/alpha1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto norm2_vel_L  = static_cast<typename Field::value_type>(0.0);
+    auto norm2_vel_L  = static_cast<Number>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       norm2_vel_L += (qL(RHO_U_INDEX + d)*inv_rho_L)*
                      (qL(RHO_U_INDEX + d)*inv_rho_L);
     }
     const auto e1_L = m1E1_L/m1_L /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                    - static_cast<typename Field::value_type>(0.5)*norm2_vel_L;
+                    - static_cast<Number>(0.5)*norm2_vel_L;
     const auto p1_L = this->EOS_phase1.pres_value(rho1_L, e1_L);
     const auto c1_L = this->EOS_phase1.c_value(rho1_L, p1_L);
 
     // Phase 2
-    const auto rho2_L = m2_L/(static_cast<typename Field::value_type>(1.0) - alpha1_L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2_L = m2_L/(static_cast<Number>(1.0) - alpha1_L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2_L   = m2E2_L/m2_L /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                      - static_cast<typename Field::value_type>(0.5)*norm2_vel_L;
+                      - static_cast<Number>(0.5)*norm2_vel_L;
     const auto p2_L   = this->EOS_phase2.pres_value(rho2_L, e2_L);
     const auto c2_L   = this->EOS_phase2.c_value(rho2_L, p2_L);
 
     // Compute frozen speed of sound and mixture pressure left state
     const auto Y1_L = m1_L*inv_rho_L;
     const auto c_L  = std::sqrt(Y1_L*c1_L*c1_L +
-                                (static_cast<typename Field::value_type>(1.0) - Y1_L)*c2_L*c2_L);
+                                (static_cast<Number>(1.0) - Y1_L)*c2_L*c2_L);
     const auto p_L  = alpha1_L*p1_L
-                    + (static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L;
+                    + (static_cast<Number>(1.0) - alpha1_L)*p2_L;
 
     /*--- Right state ---*/
     // Pre-fetch variables that will be used several times so as to exploit possible vectorization
@@ -164,34 +166,34 @@ namespace samurai {
 
     // Save mixture density and velocity current direction left state
     const auto rho_R     = m1_R + m2_R;
-    const auto inv_rho_R = static_cast<typename Field::value_type>(1.0)/rho_R;
+    const auto inv_rho_R = static_cast<Number>(1.0)/rho_R;
     const auto vel_R_d   = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
     // Phase 1
     const auto rho1_R = m1_R/alpha1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto norm2_vel_R  = static_cast<typename Field::value_type>(0.0);
+    auto norm2_vel_R  = static_cast<Number>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       norm2_vel_R += (qR(RHO_U_INDEX + d)*inv_rho_R)*
                      (qR(RHO_U_INDEX + d)*inv_rho_R);
     }
     const auto e1_R = m1E1_R/m1_R /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                    - static_cast<typename Field::value_type>(0.5)*norm2_vel_R;
+                    - static_cast<Number>(0.5)*norm2_vel_R;
     const auto p1_R = this->EOS_phase1.pres_value(rho1_R, e1_R);
     const auto c1_R = this->EOS_phase1.c_value(rho1_R, p1_R);
 
     // Phase 2
-    const auto rho2_R = m2_R/(static_cast<typename Field::value_type>(1.0) - alpha1_R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2_R = m2_R/(static_cast<Number>(1.0) - alpha1_R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2_R   = m2E2_R/m2_R /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                      - static_cast<typename Field::value_type>(0.5)*norm2_vel_R;
+                      - static_cast<Number>(0.5)*norm2_vel_R;
     const auto p2_R   = this->EOS_phase2.pres_value(rho2_R, e2_R);
     const auto c2_R   = this->EOS_phase2.c_value(rho2_R, p2_R);
 
     // Compute frozen speed of sound and mixture pressure right state
     const auto Y1_R = m1_R*inv_rho_R;
     const auto c_R  = std::sqrt(Y1_R*c1_R*c1_R +
-                                (static_cast<typename Field::value_type>(1.0) - Y1_R)*c2_R*c2_R);
+                                (static_cast<Number>(1.0) - Y1_R)*c2_R*c2_R);
     const auto p_R  = alpha1_R*p1_R
-                    + (static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R;
+                    + (static_cast<Number>(1.0) - alpha1_R)*p2_R;
 
     /*--- Compute speeds of wave propagation ---*/
     const auto s_L     = std::min(vel_L_d - c_L, vel_R_d - c_R);
@@ -204,23 +206,23 @@ namespace samurai {
     const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
 
     /*--- Compute the fluctuations (wave propagation formalism) ---*/
-    if(s_L >= static_cast<typename Field::value_type>(0.0)) {
-      H_minus.fill(static_cast<typename Field::value_type>(0.0));
+    if(s_L >= static_cast<Number>(0.0)) {
+      H_minus.fill(static_cast<Number>(0.0));
       H_plus = s_R*(q_star_R - qR) + s_star*(q_star_L - q_star_R) + s_L*(qL - q_star_L);
     }
-    else if(s_L < static_cast<typename Field::value_type>(0.0) &&
-            s_star >= static_cast<typename Field::value_type>(0.0)) {
+    else if(s_L < static_cast<Number>(0.0) &&
+            s_star >= static_cast<Number>(0.0)) {
       H_minus = s_L*(q_star_L - qL);
       H_plus  = s_R*(q_star_R - qR) + s_star*(q_star_L - q_star_R);
     }
-    else if(s_star < static_cast<typename Field::value_type>(0.0) &&
-            s_R >= static_cast<typename Field::value_type>(0.0)) {
+    else if(s_star < static_cast<Number>(0.0) &&
+            s_R >= static_cast<Number>(0.0)) {
       H_minus = s_L*(q_star_L - qL) + s_star*(q_star_R - q_star_L);
       H_plus  = s_R*(q_star_R - qR);
     }
-    else if(s_R < static_cast<typename Field::value_type>(0.0)) {
+    else if(s_R < static_cast<Number>(0.0)) {
       H_minus = s_L*(q_star_L - qL) + s_star*(q_star_R - q_star_L) + s_R*(qR - q_star_R);
-      H_plus.fill(static_cast<typename Field::value_type>(0.0));
+      H_plus.fill(static_cast<Number>(0.0));
     }
   }
 

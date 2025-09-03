@@ -58,22 +58,23 @@ private:
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
   using Field        = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::ScalarField<decltype(mesh), typename Field::value_type>;
-  using Field_Vect   = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
+  using Number       = typename Field::value_type; /*--- Define the shortcut for the arithmetic type ---*/
+  using Field_Scalar = samurai::ScalarField<decltype(mesh), Number>;
+  using Field_Vect   = samurai::VectorField<decltype(mesh), Number, dim, false>;
 
-  const typename Field::value_type t0; /*--- Initial time of the simulation ---*/
-  const typename Field::value_type Tf; /*--- Final time of the simulation ---*/
+  const Number t0; /*--- Initial time of the simulation ---*/
+  const Number Tf; /*--- Final time of the simulation ---*/
 
   bool apply_pressure_relax; /*--- Set whether to apply or not the pressure relaxation ---*/
 
-  typename Field::value_type cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
+  Number cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
 
-  bool                       apply_finite_rate_relax; /*--- Set whether to perform a finite rate relaxation or an infinite rate ---*/
-  typename Field::value_type tau_p;                   /*--- Finite rate parameter ---*/
-  typename Field::value_type dt;                      /*--- Time step (to be declared here because of finite rate) ---*/
+  bool   apply_finite_rate_relax; /*--- Set whether to perform a finite rate relaxation or an infinite rate ---*/
+  Number tau_p;                   /*--- Finite rate parameter ---*/
+  Number dt;                      /*--- Time step (to be declared here because of finite rate) ---*/
 
-  const SG_EOS<typename Field::value_type> EOS_phase1; /*--- Equation of state of phase 1 ---*/
-  const SG_EOS<typename Field::value_type> EOS_phase2; /*--- Equation of state of phase 2 ---*/
+  const SG_EOS<Number> EOS_phase1; /*--- Equation of state of phase 1 ---*/
+  const SG_EOS<Number> EOS_phase2; /*--- Equation of state of phase 2 ---*/
 
   samurai::HLLCFlux_Conservative<Field> numerical_flux_cons; /*--- variable to compute the numerical flux for the conservative part
                                                                    (this is necessary to call 'make_flux') ---*/
@@ -121,7 +122,7 @@ private:
 
   void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output and time step update ---*/
 
-  typename Field::value_type get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
+  Number get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
 
   void update_pressure_before_relaxation(); /*--- Update pressure fields before relaxation ---*/
 
@@ -178,35 +179,35 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
 template<std::size_t dim>
 void Relaxation<dim>::create_fields() {
   /*--- Create conserved and auxiliary fields ---*/
-  conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<Number, EquationData::NVARS>("conserved", mesh);
 
-  rho    = samurai::make_scalar_field<typename Field::value_type>("rho", mesh);
-  p      = samurai::make_scalar_field<typename Field::value_type>("p", mesh);
+  rho    = samurai::make_scalar_field<Number>("rho", mesh);
+  p      = samurai::make_scalar_field<Number>("p", mesh);
 
-  rho1   = samurai::make_scalar_field<typename Field::value_type>("rho1", mesh);
-  p1     = samurai::make_scalar_field<typename Field::value_type>("p1", mesh);
-  c1     = samurai::make_scalar_field<typename Field::value_type>("c1", mesh);
-  T1     = samurai::make_scalar_field<typename Field::value_type>("T1", mesh);
+  rho1   = samurai::make_scalar_field<Number>("rho1", mesh);
+  p1     = samurai::make_scalar_field<Number>("p1", mesh);
+  c1     = samurai::make_scalar_field<Number>("c1", mesh);
+  T1     = samurai::make_scalar_field<Number>("T1", mesh);
 
-  rho2   = samurai::make_scalar_field<typename Field::value_type>("rho2", mesh);
-  p2     = samurai::make_scalar_field<typename Field::value_type>("p2", mesh);
-  c2     = samurai::make_scalar_field<typename Field::value_type>("c2", mesh);
-  T2     = samurai::make_scalar_field<typename Field::value_type>("T2", mesh);
+  rho2   = samurai::make_scalar_field<Number>("rho2", mesh);
+  p2     = samurai::make_scalar_field<Number>("p2", mesh);
+  c2     = samurai::make_scalar_field<Number>("c2", mesh);
+  T2     = samurai::make_scalar_field<Number>("T2", mesh);
 
-  c      = samurai::make_scalar_field<typename Field::value_type>("c", mesh);
+  c      = samurai::make_scalar_field<Number>("c", mesh);
 
-  vel    = samurai::make_vector_field<typename Field::value_type, dim>("vel", mesh);
+  vel    = samurai::make_vector_field<Number, dim>("vel", mesh);
 
-  alpha2 = samurai::make_scalar_field<typename Field::value_type>("alpha2", mesh);
-  Y2     = samurai::make_scalar_field<typename Field::value_type>("Y2", mesh);
+  alpha2 = samurai::make_scalar_field<Number>("alpha2", mesh);
+  Y2     = samurai::make_scalar_field<Number>("Y2", mesh);
 
-  e1     = samurai::make_scalar_field<typename Field::value_type>("e1", mesh);
-  e1_0   = samurai::make_scalar_field<typename Field::value_type>("e1_0", mesh);
-  de1    = samurai::make_scalar_field<typename Field::value_type>("de1", mesh);
+  e1     = samurai::make_scalar_field<Number>("e1", mesh);
+  e1_0   = samurai::make_scalar_field<Number>("e1_0", mesh);
+  de1    = samurai::make_scalar_field<Number>("de1", mesh);
 
-  e2     = samurai::make_scalar_field<typename Field::value_type>("e2", mesh);
-  e2_0   = samurai::make_scalar_field<typename Field::value_type>("e2_0", mesh);
-  de2    = samurai::make_scalar_field<typename Field::value_type>("de2", mesh);
+  e2     = samurai::make_scalar_field<Number>("e2", mesh);
+  e2_0   = samurai::make_scalar_field<Number>("e2_0", mesh);
+  de2    = samurai::make_scalar_field<Number>("de2", mesh);
 }
 
 // Initialization of conserved and auxiliary variables
@@ -218,7 +219,7 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters<double>& Riemann_p
                          [&](const auto& cell)
                             {
                               const auto center = cell.center();
-                              const auto x      = static_cast<typename Field::value_type>(center[0]);
+                              const auto x      = static_cast<Number>(center[0]);
 
                               // Left state (primitive variables)
                               if(x <= Riemann_param.xd) {
@@ -248,7 +249,7 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters<double>& Riemann_p
                               // Complete the conserved variables (and some auxiliary fields for the sake of completeness)
                               conserved_variables[cell][ALPHA1_RHO1_INDEX] = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];
 
-                              conserved_variables[cell][ALPHA2_RHO2_INDEX] = (static_cast<typename Field::value_type>(1.0) -
+                              conserved_variables[cell][ALPHA2_RHO2_INDEX] = (static_cast<Number>(1.0) -
                                                                               conserved_variables[cell][ALPHA1_INDEX])*rho2[cell];
 
                               rho[cell] = conserved_variables[cell][ALPHA1_RHO1_INDEX]
@@ -271,13 +272,13 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters<double>& Riemann_p
 
                               T2[cell] = EOS_phase2.T_value(rho2[cell], p2[cell]);
 
-                              alpha2[cell] = static_cast<typename Field::value_type>(1.0) - conserved_variables[cell][ALPHA1_INDEX];
+                              alpha2[cell] = static_cast<Number>(1.0) - conserved_variables[cell][ALPHA1_INDEX];
                               Y2[cell]     = conserved_variables[cell][ALPHA2_RHO2_INDEX]/rho[cell];
 
                               p[cell] = conserved_variables[cell][ALPHA1_INDEX]*p1[cell]
                                       + alpha2[cell]*p2[cell];
 
-                              c[cell] = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y2[cell])*c1[cell]*c1[cell] +
+                              c[cell] = std::sqrt((static_cast<Number>(1.0) - Y2[cell])*c1[cell]*c1[cell] +
                                                   Y2[cell]*c2[cell]*c2[cell]);
                             }
                         );
@@ -292,22 +293,22 @@ void Relaxation<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param)
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.alpha1L,
                                           Riemann_param.alpha1L*Riemann_param.rho1L,
-                                          (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L,
+                                          (static_cast<Number>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L,
                                           (Riemann_param.alpha1L*Riemann_param.rho1L +
-                                           (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L)*Riemann_param.uL,
+                                           (static_cast<Number>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L)*Riemann_param.uL,
                                           Riemann_param.alpha1L*Riemann_param.rho1L*
                                           (EOS_phase1.e_value(Riemann_param.rho1L, Riemann_param.p1L)),
-                                          (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L*
+                                          (static_cast<Number>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L*
                                           (EOS_phase2.e_value(Riemann_param.rho2L, Riemann_param.p2L)))->on(left);
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.alpha1R,
                                           Riemann_param.alpha1R*Riemann_param.rho1R,
-                                          (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1R)*Riemann_param.rho2R,
+                                          (static_cast<Number>(1.0) - Riemann_param.alpha1R)*Riemann_param.rho2R,
                                           (Riemann_param.alpha1R*Riemann_param.rho1R +
-                                           (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1R)*Riemann_param.rho2R)*Riemann_param.uR,
+                                           (static_cast<Number>(1.0) - Riemann_param.alpha1R)*Riemann_param.rho2R)*Riemann_param.uR,
                                           Riemann_param.alpha1R*Riemann_param.rho1R*
                                           (EOS_phase1.e_value(Riemann_param.rho1R, Riemann_param.p1R)),
-                                          (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1R)*Riemann_param.rho2R*
+                                          (static_cast<Number>(1.0) - Riemann_param.alpha1R)*Riemann_param.rho2R*
                                           (EOS_phase2.e_value(Riemann_param.rho2R, Riemann_param.p2R)))->on(right);
 }
 
@@ -319,7 +320,7 @@ void Relaxation<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param)
 //
 template<std::size_t dim>
 typename Relaxation<dim>::Field::value_type Relaxation<dim>::get_max_lambda() const {
-  auto local_res = static_cast<typename Field::value_type>(0.0);
+  auto local_res = static_cast<Number>(0.0);
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -331,7 +332,7 @@ typename Relaxation<dim>::Field::value_type Relaxation<dim>::get_max_lambda() co
                             }
                         );
 
-  typename Field::value_type global_res;
+  Number global_res;
   MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
   return global_res;
@@ -353,7 +354,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
 
                               /*--- Compute mixture density and velocity ---*/
                               const auto rho_loc     = m1_loc + m2_loc;
-                              const auto inv_rho_loc = static_cast<typename Field::value_type>(1.0)/rho_loc;
+                              const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
                               rho[cell]              = rho_loc;
                               for(std::size_t d = 0; d < Field::dim; ++d) {
                                 vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]*inv_rho_loc;
@@ -371,7 +372,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
                               T1[cell]            = EOS_phase1.T_value(rho1_loc, p1_loc);
 
                               /*--- Phase 2 ---*/
-                              const auto rho2_loc = m2_loc/(static_cast<typename Field::value_type>(1.0) - alpha1_loc);
+                              const auto rho2_loc = m2_loc/(static_cast<Number>(1.0) - alpha1_loc);
                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               rho2[cell]          = rho2_loc;
                               const auto e2_loc   = m2e2_loc/m2_loc;
@@ -382,7 +383,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
                               c2[cell]            = EOS_phase2.c_value(rho2_loc, p2_loc);
                               T2[cell]            = EOS_phase2.T_value(rho2_loc, p2_loc);
 
-                              const auto alpha2_loc = static_cast<typename Field::value_type>(1.0) - alpha1_loc;
+                              const auto alpha2_loc = static_cast<Number>(1.0) - alpha1_loc;
                               alpha2[cell]          = alpha2_loc;
                               const auto Y2_loc     = m2_loc*inv_rho_loc;
                               Y2[cell]              = Y2_loc;
@@ -391,7 +392,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
                               p[cell] = alpha1_loc*p1_loc
                                       + alpha2_loc*p2_loc;
 
-                              c[cell] = std::sqrt((static_cast<typename Field::value_type>(1.0) - Y2_loc)*c1[cell]*c1[cell] +
+                              c[cell] = std::sqrt((static_cast<Number>(1.0) - Y2_loc)*c1[cell]*c1[cell] +
                                                    Y2_loc*c2[cell]*c2[cell]);
                          });
 }
@@ -451,7 +452,7 @@ void Relaxation<dim>::update_pressure_before_relaxation() {
                               p1[cell]            = p1_loc;
                               c1[cell]            = EOS_phase1.c_value(rho1_loc, p1_loc);
 
-                              const auto rho2_loc = m2_loc/(static_cast<typename Field::value_type>(1.0) - alpha1_loc);
+                              const auto rho2_loc = m2_loc/(static_cast<Number>(1.0) - alpha1_loc);
                               /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               rho2[cell]          = rho2_loc;
                               const auto p2_loc   = EOS_phase2.pres_value(rho2_loc, e2_loc);
@@ -471,7 +472,7 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation_linearization() {
                            /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization
                                  (as well as to enhance readability) ---*/
                            auto alpha1_loc   = conserved_variables[cell][ALPHA1_INDEX];
-                           auto alpha2_loc   = static_cast<typename Field::value_type>(1.0) - alpha1_loc;
+                           auto alpha2_loc   = static_cast<Number>(1.0) - alpha1_loc;
                            const auto m1_loc = conserved_variables[cell][ALPHA1_RHO1_INDEX];
                            const auto m2_loc = conserved_variables[cell][ALPHA2_RHO2_INDEX];
 
@@ -484,36 +485,36 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation_linearization() {
                            auto c2_loc       = c2[cell];
 
                            /*--- Compute the pressure equilibrium with the linearization method (Pelanti) ---*/
-                           const auto a    = static_cast<typename Field::value_type>(1.0)
+                           const auto a    = static_cast<Number>(1.0)
                                            + EOS_phase2.get_gamma()*alpha1_loc
                                            + EOS_phase1.get_gamma()*alpha2_loc;
                            const auto Z1   = rho1_loc*c1_loc;
                            const auto Z2   = rho2_loc*c2_loc;
                            const auto pI_0 = (Z2*p1_loc + Z1*p2_loc)/(Z1 + Z2);
-                           const auto C1   = static_cast<typename Field::value_type>(2.0)*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
-                                           + (EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*pI_0;
-                           const auto C2   = static_cast<typename Field::value_type>(2.0)*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
-                                           + (EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*pI_0;
+                           const auto C1   = static_cast<Number>(2.0)*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
+                                           + (EOS_phase1.get_gamma() - static_cast<Number>(1.0))*pI_0;
+                           const auto C2   = static_cast<Number>(2.0)*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
+                                           + (EOS_phase2.get_gamma() - static_cast<Number>(1.0))*pI_0;
                            const auto b    = C1*alpha2_loc + C2*alpha1_loc
-                                           - (static_cast<typename Field::value_type>(1.0) + EOS_phase2.get_gamma())*
+                                           - (static_cast<Number>(1.0) + EOS_phase2.get_gamma())*
                                              alpha1_loc*p1_loc
-                                           - (static_cast<typename Field::value_type>(1.0) + EOS_phase1.get_gamma())*
+                                           - (static_cast<Number>(1.0) + EOS_phase1.get_gamma())*
                                              alpha2_loc*p2_loc;
                            const auto d    = -(C2*alpha1_loc*p1_loc + C1*alpha2_loc*p2_loc);
 
-                           const auto p_star = (-b + std::sqrt(b*b - static_cast<typename Field::value_type>(4.0)*a*d))/
-                                               (static_cast<typename Field::value_type>(2.0)*a);
+                           const auto p_star = (-b + std::sqrt(b*b - static_cast<Number>(4.0)*a*d))/
+                                               (static_cast<Number>(2.0)*a);
 
                            /*--- Update the volume fraction using the computed pressure ---*/
-                           alpha1_loc *= ((EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*p_star +
-                                          static_cast<typename Field::value_type>(2.0)*p1_loc + C1)/
-                                         ((EOS_phase1.get_gamma() + static_cast<typename Field::value_type>(1.0))*p_star + C1);
+                           alpha1_loc *= ((EOS_phase1.get_gamma() - static_cast<Number>(1.0))*p_star +
+                                          static_cast<Number>(2.0)*p1_loc + C1)/
+                                         ((EOS_phase1.get_gamma() + static_cast<Number>(1.0))*p_star + C1);
                            conserved_variables[cell][ALPHA1_INDEX] = alpha1_loc;
 
                            /*--- Update the internal energy of both phases ---*/
                            const auto e1_np1 = EOS_phase1.e_value(m1_loc/alpha1_loc, p_star);
                            /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                           const auto e2_np1 = EOS_phase2.e_value(m2_loc/(static_cast<typename Field::value_type>(1.0) - alpha1_loc), p_star);
+                           const auto e2_np1 = EOS_phase2.e_value(m2_loc/(static_cast<Number>(1.0) - alpha1_loc), p_star);
                            /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            #ifdef NDEBUG
@@ -523,7 +524,7 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation_linearization() {
                              conserved_variables[cell][ALPHA2_RHO2_e2_INDEX] = m2_loc*e2_np1;
                              assertm(std::abs((conserved_variables[cell][ALPHA1_RHO1_e1_INDEX] +
                                                conserved_variables[cell][ALPHA2_RHO2_e2_INDEX]) -
-                                              rhoe_0)/rhoe_0 < static_cast<typename Field::value_type>(1e-12),
+                                              rhoe_0)/rhoe_0 < static_cast<Number>(1e-12),
                                      "No conservation of total energy in the relexation");
                            #else
                              conserved_variables[cell][ALPHA1_RHO1_e1_INDEX] = m1_loc*e1_np1;
@@ -542,7 +543,7 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
                               /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization
                                    (as well as to enhance readability) ---*/
                               auto alpha1_loc   = conserved_variables[cell][ALPHA1_INDEX];
-                              auto alpha2_loc   = static_cast<typename Field::value_type>(1.0) - alpha1_loc;
+                              auto alpha2_loc   = static_cast<Number>(1.0) - alpha1_loc;
                               const auto m1_loc = conserved_variables[cell][ALPHA1_RHO1_INDEX];
                               const auto m2_loc = conserved_variables[cell][ALPHA2_RHO2_INDEX];
 
@@ -559,12 +560,12 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
                               const auto Z2   = rho2_loc*c2_loc;
                               const auto pI_0 = (Z2*p1_loc + Z1*p2_loc)/(Z1 + Z2);
 
-                              const auto xi1_m1_0 = static_cast<typename Field::value_type>(1.0)/alpha1_loc*
-                                                    ((EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*pI_0 +
+                              const auto xi1_m1_0 = static_cast<Number>(1.0)/alpha1_loc*
+                                                    ((EOS_phase1.get_gamma() - static_cast<Number>(1.0))*pI_0 +
                                                      p1_loc + EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty());
                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto xi2_m1_0 = static_cast<typename Field::value_type>(1.0)/alpha2_loc*
-                                                    ((EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*pI_0 +
+                              const auto xi2_m1_0 = static_cast<Number>(1.0)/alpha2_loc*
+                                                    ((EOS_phase2.get_gamma() - static_cast<Number>(1.0))*pI_0 +
                                                      p2_loc + EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty());
                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
@@ -573,26 +574,26 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
 
                               /*--- Update the volume fraction ---*/
                               alpha1_loc += (p1_loc - p2_loc)/(xi1_m1_0 + xi2_m1_0)*
-                                            (static_cast<typename Field::value_type>(1.0) - std::exp(-dt/tau_p));
+                                            (static_cast<Number>(1.0) - std::exp(-dt/tau_p));
                               conserved_variables[cell][ALPHA1_INDEX] = alpha1_loc;
 
                               /*--- Compute the pressure difference after relaxation ---*/
                               const auto Delta_p_star = (p1_loc - p2_loc)*std::exp(-dt/tau_p);
 
                               /*--- Compute phase 2 pressure after relaxation ---*/
-                              alpha2_loc = static_cast<typename Field::value_type>(1.0) - alpha1_loc;
+                              alpha2_loc = static_cast<Number>(1.0) - alpha1_loc;
                               const auto p2_star = (rhoe_0 -
                                                     alpha1_loc*
-                                                    (Delta_p_star/(EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0)) +
+                                                    (Delta_p_star/(EOS_phase1.get_gamma() - static_cast<Number>(1.0)) +
                                                      EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()/
-                                                     (EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0)) +
+                                                     (EOS_phase1.get_gamma() - static_cast<Number>(1.0)) +
                                                      EOS_phase1.get_q_infty()*m1_loc/alpha1_loc) -
                                                     alpha2_loc*
                                                     (EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()/
-                                                     (EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0)) +
+                                                     (EOS_phase2.get_gamma() - static_cast<Number>(1.0)) +
                                                      EOS_phase2.get_q_infty()*m2_loc/alpha2_loc))/
-                                                   (alpha1_loc/(EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0)) +
-                                                    alpha2_loc/(EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0)));
+                                                   (alpha1_loc/(EOS_phase1.get_gamma() - static_cast<Number>(1.0)) +
+                                                    alpha2_loc/(EOS_phase2.get_gamma() - static_cast<Number>(1.0)));
                                                    /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                            /*--- Update the internal energy of both phases ---*/
@@ -621,14 +622,14 @@ void Relaxation<dim>::run() {
     filename = filename + "_order1";
   #endif
 
-  const auto dt_save = Tf/static_cast<typename Field::value_type>(nfiles);
+  const auto dt_save = Tf/static_cast<Number>(nfiles);
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_np1", mesh);
 
   /*--- Create the flux variables ---*/
   auto HLLC_Conservative_flux = numerical_flux_cons.make_flux();
@@ -642,7 +643,7 @@ void Relaxation<dim>::run() {
                           p2, c2, T2, alpha2, Y2, e2);
 
   /*--- Save mesh size ---*/
-  const auto dx   = static_cast<typename Field::value_type>(mesh.cell_length(mesh.max_level()));
+  const auto dx   = static_cast<Number>(mesh.cell_length(mesh.max_level()));
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
   const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
   unsigned int n_elements;
@@ -657,7 +658,7 @@ void Relaxation<dim>::run() {
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
-  auto t            = static_cast<typename Field::value_type>(t0);
+  auto t            = static_cast<Number>(t0);
   dt                = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
     t += dt;
@@ -699,7 +700,7 @@ void Relaxation<dim>::run() {
       // Apply the numerical scheme
       samurai::update_ghost_mr(conserved_variables);
       conserved_variables_tmp = conserved_variables - dt*Cons_Flux - dt*NonCons_Flux;
-      conserved_variables_np1 = static_cast<typename Field::value_type>(0.5)*
+      conserved_variables_np1 = static_cast<Number>(0.5)*
                                 (conserved_variables_tmp + conserved_variables_old);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
 
@@ -720,7 +721,7 @@ void Relaxation<dim>::run() {
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
     // Save the results
-    if(t >= static_cast<typename Field::value_type>(nsave + 1)*dt_save || t == Tf) {
+    if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, suffix, conserved_variables,
                          rho, p, vel, c,

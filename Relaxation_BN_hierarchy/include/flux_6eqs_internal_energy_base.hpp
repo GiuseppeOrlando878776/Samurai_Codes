@@ -58,13 +58,15 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
 
-    Flux(const SG_EOS<typename Field::value_type>& EOS_phase1_,
-         const SG_EOS<typename Field::value_type>& EOS_phase2_); /*--- Constructor which accepts in input
-                                                                       the equations of state of the two phases ---*/
+    using Number = typename Field::value_type; /*--- Define the shortcut for the arithmetic type ---*/
+
+    Flux(const SG_EOS<Number>& EOS_phase1_,
+         const SG_EOS<Number>& EOS_phase2_); /*--- Constructor which accepts in input
+                                                   the equations of state of the two phases ---*/
 
   protected:
-    const SG_EOS<typename Field::value_type>& EOS_phase1; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
-    const SG_EOS<typename Field::value_type>& EOS_phase2; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
+    const SG_EOS<Number>& EOS_phase1; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
+    const SG_EOS<Number>& EOS_phase2; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
 
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q
                                                                                                       along direction curr_d ---*/
@@ -86,8 +88,8 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const SG_EOS<typename Field::value_type>& EOS_phase1_,
-                    const SG_EOS<typename Field::value_type>& EOS_phase2_):
+  Flux<Field>::Flux(const SG_EOS<Number>& EOS_phase1_,
+                    const SG_EOS<Number>& EOS_phase2_):
     EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_) {}
 
   // Evaluate the 'continuous flux' along direction 'curr_d'
@@ -106,7 +108,7 @@ namespace samurai {
 
     /*--- Save the mixture density and the velocity along the direction of interest ---*/
     const auto rho     = m1 + m2;
-    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       res(RHO_U_INDEX + d) *= vel_d;
@@ -125,7 +127,7 @@ namespace samurai {
     res(ALPHA1_RHO1_e1_INDEX) *= vel_d;
 
     /*--- Compute density and pressure of phase 2 ---*/
-    const auto rho2 = m2/(static_cast<typename Field::value_type>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2 = m2/(static_cast<Number>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto m2e2 = q(ALPHA2_RHO2_e2_INDEX);
     const auto e2   = m2e2/m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto p2   = EOS_phase2.pres_value(rho2, e2);
@@ -136,7 +138,7 @@ namespace samurai {
 
     /*--- Add the mixture pressure contribution to the momentum equation ---*/
     res(RHO_U_INDEX + curr_d) += (alpha1*p1 +
-                                  (static_cast<typename Field::value_type>(1.0) - alpha1)*p2);
+                                  (static_cast<Number>(1.0) - alpha1)*p2);
 
     return res;
   }
@@ -163,12 +165,12 @@ namespace samurai {
       const auto rho1    = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
       prim(RHO1_INDEX)   = rho1;
       const auto rho     = m1 + m2;
-      const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+      const auto inv_rho = static_cast<Number>(1.0)/rho;
       const auto e1      = m1E1/m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
       prim(P1_INDEX)     = EOS_phase1.pres_value(rho1, e1);
 
       /*--- Proceed with phase 2 ---*/
-      const auto rho2  = m2/(static_cast<typename Field::value_type>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      const auto rho2  = m2/(static_cast<Number>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       prim(RHO2_INDEX) = rho2;
       const auto e2    = m2E2/m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
       prim(P2_INDEX)   = EOS_phase2.pres_value(rho2, e2);
@@ -199,7 +201,7 @@ namespace samurai {
       cons(ALPHA1_RHO1_e1_INDEX) = m1*e1;
 
       /*--- Proceed with phase 2 ---*/
-      const auto m2              = (static_cast<typename Field::value_type>(1.0) - alpha1)*rho2;
+      const auto m2              = (static_cast<Number>(1.0) - alpha1)*rho2;
       cons(ALPHA2_RHO2_INDEX)    = m2;
       const auto e2              = EOS_phase2.e_value(rho2, p2);
       cons(ALPHA2_RHO2_e2_INDEX) = m2*e2;
@@ -228,36 +230,36 @@ namespace samurai {
       primR_recon = primR;
 
       /*--- Perform the reconstruction ---*/
-      const auto beta = static_cast<typename Field::value_type>(1.0); // MINMOD limiter
+      const auto beta = static_cast<Number>(1.0); // MINMOD limiter
       for(std::size_t comp = 0; comp < Field::n_comp; ++comp) {
-        if(primR(comp) - primL(comp) > static_cast<typename Field::value_type>(0.0)) {
-          primL_recon(comp) += static_cast<typename Field::value_type>(0.5)*
-                               std::max(static_cast<typename Field::value_type>(0.0),
+        if(primR(comp) - primL(comp) > static_cast<Number>(0.0)) {
+          primL_recon(comp) += static_cast<Number>(0.5)*
+                               std::max(static_cast<Number>(0.0),
                                         std::max(std::min(beta*(primL(comp) - primLL(comp)),
                                                           primR(comp) - primL(comp)),
                                                  std::min(primL(comp) - primLL(comp),
                                                           beta*(primR(comp) - primL(comp)))));
         }
-        else if(primR(comp) - primL(comp) < static_cast<typename Field::value_type>(0.0)) {
-          primL_recon(comp) += static_cast<typename Field::value_type>(0.5)*
-                               std::min(static_cast<typename Field::value_type>(0.0),
+        else if(primR(comp) - primL(comp) < static_cast<Number>(0.0)) {
+          primL_recon(comp) += static_cast<Number>(0.5)*
+                               std::min(static_cast<Number>(0.0),
                                         std::min(std::max(beta*(primL(comp) - primLL(comp)),
                                                           primR(comp) - primL(comp)),
                                                  std::max(primL(comp) - primLL(comp),
                                                           beta*(primR(comp) - primL(comp)))));
         }
 
-        if(primRR(comp) - primR(comp) > static_cast<typename Field::value_type>(0.0)) {
-          primR_recon(comp) -= static_cast<typename Field::value_type>(0.5)*
-                               std::max(static_cast<typename Field::value_type>(0.0),
+        if(primRR(comp) - primR(comp) > static_cast<Number>(0.0)) {
+          primR_recon(comp) -= static_cast<Number>(0.5)*
+                               std::max(static_cast<Number>(0.0),
                                         std::max(std::min(beta*(primR(comp) - primL(comp)),
                                                           primRR(comp) - primR(comp)),
                                                  std::min(primR(comp) - primL(comp),
                                                           beta*(primRR(comp) - primR(comp)))));
         }
-        else if(primRR(comp) - primR(comp) < static_cast<typename Field::value_type>(0.0)) {
-          primR_recon(comp) -= static_cast<typename Field::value_type>(0.5)*
-                               std::min(static_cast<typename Field::value_type>(0.0),
+        else if(primRR(comp) - primR(comp) < static_cast<Number>(0.0)) {
+          primR_recon(comp) -= static_cast<Number>(0.5)*
+                               std::min(static_cast<Number>(0.0),
                                         std::min(std::max(beta*(primR(comp) - primL(comp)),
                                                           primRR(comp) - primR(comp)),
                                                  std::max(primR(comp) - primL(comp),

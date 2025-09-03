@@ -22,9 +22,11 @@ namespace samurai {
   template<class Field>
   class NonConservativeFlux: public Flux<Field> {
   public:
-    NonConservativeFlux(const EOS<typename Field::value_type>& EOS_phase1,
-                        const EOS<typename Field::value_type>& EOS_phase2); /*--- Constructor which accepts in input
-                                                                                  the equations of state of the two phases ---*/
+    using Number = typename Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
+    
+    NonConservativeFlux(const EOS<Number>& EOS_phase1,
+                        const EOS<Number>& EOS_phase2); /*--- Constructor which accepts in input
+                                                              the equations of state of the two phases ---*/
 
     auto make_flux(); /*--- Compute the flux over all the faces and directions ---*/
 
@@ -39,8 +41,8 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  NonConservativeFlux<Field>::NonConservativeFlux(const EOS<typename Field::value_type>& EOS_phase1_,
-                                                  const EOS<typename Field::value_type>& EOS_phase2_):
+  NonConservativeFlux<Field>::NonConservativeFlux(const EOS<Number>& EOS_phase1_,
+                                                  const EOS<Number>& EOS_phase2_):
     Flux<Field>(EOS_phase1_, EOS_phase2_) {}
 
   // Implementation of a non-conservative flux
@@ -52,15 +54,15 @@ namespace samurai {
                                                          FluxValue<typename Flux<Field>::cfg>& F_minus,
                                                          FluxValue<typename Flux<Field>::cfg>& F_plus) {
     /*--- Zero contribution from volume fraction, continuity, and momentum equations ---*/
-    F_minus(ALPHA1_INDEX)      = static_cast<typename Field::value_type>(0.0);
-    F_plus(ALPHA1_INDEX)       = static_cast<typename Field::value_type>(0.0);
-    F_minus(ALPHA1_RHO1_INDEX) = static_cast<typename Field::value_type>(0.0);
-    F_plus(ALPHA1_RHO1_INDEX)  = static_cast<typename Field::value_type>(0.0);
-    F_minus(ALPHA2_RHO2_INDEX) = static_cast<typename Field::value_type>(0.0);
-    F_plus(ALPHA2_RHO2_INDEX)  = static_cast<typename Field::value_type>(0.0);
+    F_minus(ALPHA1_INDEX)      = static_cast<Number>(0.0);
+    F_plus(ALPHA1_INDEX)       = static_cast<Number>(0.0);
+    F_minus(ALPHA1_RHO1_INDEX) = static_cast<Number>(0.0);
+    F_plus(ALPHA1_RHO1_INDEX)  = static_cast<Number>(0.0);
+    F_minus(ALPHA2_RHO2_INDEX) = static_cast<Number>(0.0);
+    F_plus(ALPHA2_RHO2_INDEX)  = static_cast<Number>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      F_minus(RHO_U_INDEX + d) = static_cast<typename Field::value_type>(0.0);
-      F_plus(RHO_U_INDEX + d)  = static_cast<typename Field::value_type>(0.0);
+      F_minus(RHO_U_INDEX + d) = static_cast<Number>(0.0);
+      F_plus(RHO_U_INDEX + d)  = static_cast<Number>(0.0);
     }
 
     /*--- Left state ---*/
@@ -73,27 +75,27 @@ namespace samurai {
 
     // Compute velocity and mass fractions
     const auto rho_L     = m1_L + m2_L;
-    const auto inv_rho_L = static_cast<typename Field::value_type>(1.0)/rho_L;
+    const auto inv_rho_L = static_cast<Number>(1.0)/rho_L;
     const auto Y1_L      = m1_L*inv_rho_L;
-    const auto Y2_L      = static_cast<typename Field::value_type>(1.0) - Y1_L;
+    const auto Y2_L      = static_cast<Number>(1.0) - Y1_L;
     const auto vel_d_L   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
     // Pressure phase 1
     const auto alpha1_L = qL(RHO_ALPHA1_INDEX)*inv_rho_L;
     const auto rho1_L   = m1_L/alpha1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto norm2_vel_L    = static_cast<typename Field::value_type>(0.0);
+    auto norm2_vel_L    = static_cast<Number>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       norm2_vel_L += (qL(RHO_U_INDEX + d)*inv_rho_L)*
                      (qL(RHO_U_INDEX + d)*inv_rho_L);
     }
     const auto e1_L = m1E1_L/m1_L /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                    - static_cast<typename Field::value_type>(0.5)*norm2_vel_L;
+                    - static_cast<Number>(0.5)*norm2_vel_L;
     const auto p1_L = this->EOS_phase1.pres_value(rho1_L, e1_L);
 
     // Pressure phase 2
-    const auto rho2_L = m2_L/(static_cast<typename Field::value_type>(1.0) - alpha1_L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2_L = m2_L/(static_cast<Number>(1.0) - alpha1_L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2_L   = m2E2_L/m2_L /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                      - static_cast<typename Field::value_type>(0.5)*norm2_vel_L;
+                      - static_cast<Number>(0.5)*norm2_vel_L;
     const auto p2_L   = this->EOS_phase2.pres_value(rho2_L, e2_L);
 
     /*--- Right state ---*/
@@ -106,86 +108,86 @@ namespace samurai {
 
     // Compute velocity and mass fractions
     const auto rho_R     = m1_R + m2_R;
-    const auto inv_rho_R = static_cast<typename Field::value_type>(1.0)/rho_R;
+    const auto inv_rho_R = static_cast<Number>(1.0)/rho_R;
     const auto Y1_R      = m1_R*inv_rho_R;
-    const auto Y2_R      = static_cast<typename Field::value_type>(1.0) - Y1_R;
+    const auto Y2_R      = static_cast<Number>(1.0) - Y1_R;
     const auto vel_d_R   = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
     // Pressure phase 1
     const auto alpha1_R = qR(RHO_ALPHA1_INDEX)*inv_rho_R;
     const auto rho1_R   = m1_R/alpha1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    auto norm2_vel_R    = static_cast<typename Field::value_type>(0.0);
+    auto norm2_vel_R    = static_cast<Number>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       norm2_vel_R += (qR(RHO_U_INDEX + d)*inv_rho_R)*
                      (qR(RHO_U_INDEX + d)*inv_rho_R);
     }
     const auto e1_R = m1E1_R/m1_R /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                    - static_cast<typename Field::value_type>(0.5)*norm2_vel_R;
+                    - static_cast<Number>(0.5)*norm2_vel_R;
     const auto p1_R = this->EOS_phase1.pres_value(rho1_R, e1_R);
 
     /*--- Pressure phase 2 right state ---*/
-    const auto rho2_R = m2_R/(static_cast<typename Field::value_type>(1.0) - alpha1_R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto rho2_R = m2_R/(static_cast<Number>(1.0) - alpha1_R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto e2_R   = m2E2_R/m2_R /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                      - static_cast<typename Field::value_type>(0.5)*norm2_vel_R;
+                      - static_cast<Number>(0.5)*norm2_vel_R;
     const auto p2_R   = this->EOS_phase2.pres_value(rho2_R, e2_R);
 
     /*--- Build the non conservative flux (a lot of approximations to be checked here) ---*/
     #ifdef BR_ORLANDO
-      F_minus(ALPHA1_RHO1_E1_INDEX) = -(static_cast<typename Field::value_type>(0.5)*
+      F_minus(ALPHA1_RHO1_E1_INDEX) = -(static_cast<Number>(0.5)*
                                         (vel_d_L*Y2_L*alpha1_L*p1_L + vel_d_R*Y2_R*alpha1_R*p1_R) -
-                                        static_cast<typename Field::value_type>(0.5)*
+                                        static_cast<Number>(0.5)*
                                         (vel_d_L*Y2_L + vel_d_R*Y2_R)*alpha1_L*p1_L)
-                                      +(static_cast<typename Field::value_type>(0.5)*
-                                        (vel_d_L*Y1_L*(static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L +
-                                         vel_d_R*Y1_R*(static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R) -
-                                        static_cast<typename Field::value_type>(0.5)*
-                                        (vel_d_L*Y1_L + vel_d_R*Y1_R)*(static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L);
-      F_plus(ALPHA1_RHO1_E1_INDEX)  = -(static_cast<typename Field::value_type>(0.5)*
+                                      +(static_cast<Number>(0.5)*
+                                        (vel_d_L*Y1_L*(static_cast<Number>(1.0) - alpha1_L)*p2_L +
+                                         vel_d_R*Y1_R*(static_cast<Number>(1.0) - alpha1_R)*p2_R) -
+                                        static_cast<Number>(0.5)*
+                                        (vel_d_L*Y1_L + vel_d_R*Y1_R)*(static_cast<Number>(1.0) - alpha1_L)*p2_L);
+      F_plus(ALPHA1_RHO1_E1_INDEX)  = -(static_cast<Number>(0.5)*
                                         (vel_d_L*Y2_L*alpha1_L*p1_L + vel_d_R*Y2_R*alpha1_R*p1_R) -
-                                        static_cast<typename Field::value_type>(0.5)*
+                                        static_cast<Number>(0.5)*
                                         (vel_d_L*Y2_L + vel_d_R*Y2_R)*alpha1_R*p1_R)
-                                      +(static_cast<typename Field::value_type>(0.5)*
-                                        (vel_d_L*Y1_L*(static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L +
-                                         vel_d_R*Y1_R*(static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R) -
-                                        static_cast<typename Field::value_type>(0.5)*
-                                        (vel_d_L*Y1_L + vel_d_R*Y1_R)*(static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R);
+                                      +(static_cast<Number>(0.5)*
+                                        (vel_d_L*Y1_L*(static_cast<Number>(1.0) - alpha1_L)*p2_L +
+                                         vel_d_R*Y1_R*(static_cast<Number>(1.0) - alpha1_R)*p2_R) -
+                                        static_cast<Number>(0.5)*
+                                        (vel_d_L*Y1_L + vel_d_R*Y1_R)*(static_cast<Number>(1.0) - alpha1_R)*p2_R);
     #elifdef BR_TUMOLO
-      F_minus(ALPHA1_RHO1_E1_INDEX) = -(static_cast<typename Field::value_type>(0.25)*
+      F_minus(ALPHA1_RHO1_E1_INDEX) = -(static_cast<Number>(0.25)*
                                         (vel_d_L*Y2_L + vel_d_R*Y2_R)*(alpha1_L*p1_L + alpha1_R*p1_R) -
-                                        static_cast<typename Field::value_type>(0.5)*
+                                        static_cast<Number>(0.5)*
                                         (vel_d_L*Y2_L + vel_d_R*Y2_R)*alpha1_L*p1_L)
-                                      +(static_cast<typename Field::value_type>(0.25)*
+                                      +(static_cast<Number>(0.25)*
                                         (vel_d_L*Y1_L + vel_d_R*Y1_R)*
-                                        ((static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L +
-                                         (static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R) -
-                                        static_cast<typename Field::value_type>(0.5)*
-                                        (vel_d_L*Y1_L + vel_d_R*Y1_R)*(static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L);
-      F_plus(ALPHA1_RHO1_E1_INDEX)  = -(static_cast<typename Field::value_type>(0.25)*
+                                        ((static_cast<Number>(1.0) - alpha1_L)*p2_L +
+                                         (static_cast<Number>(1.0) - alpha1_R)*p2_R) -
+                                        static_cast<Number>(0.5)*
+                                        (vel_d_L*Y1_L + vel_d_R*Y1_R)*(static_cast<Number>(1.0) - alpha1_L)*p2_L);
+      F_plus(ALPHA1_RHO1_E1_INDEX)  = -(static_cast<Number>(0.25)*
                                         (vel_d_L*Y2_L + vel_d_R*Y2_R)*(alpha1_L*p1_L + alpha1_R*p1_R) -
-                                        static_cast<typename Field::value_type>(0.5)*
+                                        static_cast<Number>(0.5)*
                                         (vel_d_L*Y2_L + vel_d_R*Y2_R)*alpha1_R*p1_R)
-                                      +(static_cast<typename Field::value_type>(0.25)*
+                                      +(static_cast<Number>(0.25)*
                                         (vel_d_L*Y1_L + vel_d_R*Y1_R)*
-                                        ((static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L +
-                                         (static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R) -
-                                        static_cast<typename Field::value_type>(0.5)*
-                                        (vel_d_L*Y1_L + vel_d_R*Y1_R)*(static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R);
+                                        ((static_cast<Number>(1.0) - alpha1_L)*p2_L +
+                                         (static_cast<Number>(1.0) - alpha1_R)*p2_R) -
+                                        static_cast<Number>(0.5)*
+                                        (vel_d_L*Y1_L + vel_d_R*Y1_R)*(static_cast<Number>(1.0) - alpha1_R)*p2_R);
     #elifdef CENTERED
-      F_minus(ALPHA1_RHO1_E1_INDEX) = -vel_d_L*(Y2_L*(static_cast<typename Field::value_type>(0.5)*
+      F_minus(ALPHA1_RHO1_E1_INDEX) = -vel_d_L*(Y2_L*(static_cast<Number>(0.5)*
                                                       (alpha1_L*p1_L + alpha1_R*p1_R)) -
-                                                Y1_L*(static_cast<typename Field::value_type>(0.5)*
-                                                      ((static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L +
-                                                       (static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R)));
-      F_plus(ALPHA1_RHO1_E1_INDEX) = -vel_d_R*(Y2_R*(static_cast<typename Field::value_type>(0.5)*
+                                                Y1_L*(static_cast<Number>(0.5)*
+                                                      ((static_cast<Number>(1.0) - alpha1_L)*p2_L +
+                                                       (static_cast<Number>(1.0) - alpha1_R)*p2_R)));
+      F_plus(ALPHA1_RHO1_E1_INDEX) = -vel_d_R*(Y2_R*(static_cast<Number>(0.5)*
                                                      (alpha1_L*p1_L + alpha1_R*p1_R)) -
-                                               Y1_R*(static_cast<typename Field::value_type>(0.5)*
-                                                     ((static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L +
-                                                      (static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R)));
+                                               Y1_R*(static_cast<Number>(0.5)*
+                                                     ((static_cast<Number>(1.0) - alpha1_L)*p2_L +
+                                                      (static_cast<Number>(1.0) - alpha1_R)*p2_R)));
     #else
       F_minus(ALPHA1_RHO1_E1_INDEX) = -vel_d_L*(Y2_L*(alpha1_R*p1_R - alpha1_L*p1_L) -
-                                                Y1_L*((static_cast<typename Field::value_type>(1.0) - alpha1_R)*p2_R -
-                                                      (static_cast<typename Field::value_type>(1.0) - alpha1_L)*p2_L));
-      F_plus(ALPHA1_RHO1_E1_INDEX)  = static_cast<typename Field::value_type>(0.0);
+                                                Y1_L*((static_cast<Number>(1.0) - alpha1_R)*p2_R -
+                                                      (static_cast<Number>(1.0) - alpha1_L)*p2_L));
+      F_plus(ALPHA1_RHO1_E1_INDEX)  = static_cast<Number>(0.0);
     #endif
     F_minus(ALPHA2_RHO2_E2_INDEX) = -F_minus(ALPHA1_RHO1_E1_INDEX);
     F_plus(ALPHA2_RHO2_E2_INDEX)  = -F_plus(ALPHA1_RHO1_E1_INDEX);

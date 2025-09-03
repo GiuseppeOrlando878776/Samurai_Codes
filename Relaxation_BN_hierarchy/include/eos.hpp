@@ -87,21 +87,21 @@ SG_EOS<T>::SG_EOS(const T gamma_, const T pi_infty_,
 //
 template<typename T>
 inline T SG_EOS<T>::pres_value(const T rho, const T e) const {
-  return (gamma - 1.0)*rho*(e - q_infty) - gamma*pi_infty;
+  return (gamma - static_cast<T>(1.0))*rho*(e - q_infty) - gamma*pi_infty;
 }
 
 // Compute the density from the pressure and the internal energy
 //
 template<typename T>
 inline T SG_EOS<T>::rho_value(const T pres, const T e) const {
-  return (pres + gamma*pi_infty)/((gamma - 1.0)*(e - q_infty));
+  return (pres + gamma*pi_infty)/((gamma - static_cast<T>(1.0))*(e - q_infty));
 }
 
 // Compute the internal energy from density and pressure
 //
 template<typename T>
 inline T SG_EOS<T>::e_value(const T rho, const T pres) const {
-  return (pres + gamma*pi_infty)/((gamma - 1.0)*rho) + q_infty;
+  return (pres + gamma*pi_infty)/((gamma - static_cast<T>(1.0))*rho) + q_infty;
 }
 
 // Compute the speed of sound from density and pressure
@@ -115,7 +115,7 @@ inline T SG_EOS<T>::c_value(const T rho, const T pres) const {
 //
 template<typename T>
 inline T SG_EOS<T>::T_value(const T rho, const T pres) const {
-  return (pres + pi_infty)/((gamma - 1.0)*rho*c_v);
+  return (pres + pi_infty)/((gamma - static_cast<T>(1.0))*rho*c_v);
 }
 
 // Auxiliary function to retrive gamma of SG-EOS
