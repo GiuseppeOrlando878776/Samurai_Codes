@@ -74,37 +74,37 @@ private:
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
   using Field        = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::ScalarField<decltype(mesh), typename Field::value_type>;
-  using Field_Vect   = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
+  using Number       = typename Field::value_type;
+  using Field_Scalar = samurai::ScalarField<decltype(mesh), Number>;
+  using Field_Vect   = samurai::VectorField<decltype(mesh), Number, dim, false>;
 
-  const typename Field::value_type t0; /*--- Initial time of the simulation ---*/
-  const typename Field::value_type Tf; /*--- Final time of the simulation ---*/
+  const Number t0; /*--- Initial time of the simulation ---*/
+  const Number Tf; /*--- Final time of the simulation ---*/
 
   bool apply_relaxation; /*--- Set whether to apply or not the relaxation ---*/
 
-  typename Field::value_type cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
-  typename Field::value_type dt;  /*--- Time-step (in general modified according to CFL) ---*/
+  Number cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
+  Number dt;  /*--- Time-step (in general modified according to CFL) ---*/
 
-  bool                       apply_finite_rate_relaxation; /*--- Set if finite rate relaxation is desired ---*/
-  bool                       relax_instantaneous_velocity; /*--- Set if instantaneous velocity relaxation is desired in the case of finite rate ---*/
-  bool                       relax_velocity;               /*--- If instantaneous relaxation, choose whether to relax the velocity ---*/
-  bool                       relax_pressure;               /*--- If instantaneous relaxation, choose whether to relax the pressure ---*/
-  bool                       relax_temperature;            /*--- If instantaneous relaxation, choose whether to relax the temperature
-                                                                 (only possible with pressure) ---*/
-  typename Field::value_type tau_u;                        /*--- Relaxation parameter for the velocity ---*/
-  typename Field::value_type tau_p;                        /*--- Relaxation parameter for the pressure ---*/
-  typename Field::value_type tau_T;                        /*--- Relaxation parameter for the temperature ---*/
+  bool   apply_finite_rate_relaxation; /*--- Set if finite rate relaxation is desired ---*/
+  bool   relax_instantaneous_velocity; /*--- Set if instantaneous velocity relaxation is desired in the case of finite rate ---*/
+  bool   relax_velocity;               /*--- If instantaneous relaxation, choose whether to relax the velocity ---*/
+  bool   relax_pressure;               /*--- If instantaneous relaxation, choose whether to relax the pressure ---*/
+  bool   relax_temperature;            /*--- If instantaneous relaxation, choose whether to relax the temperature
+                                             (only possible with pressure) ---*/
+  Number tau_u;                        /*--- Relaxation parameter for the velocity ---*/
+  Number tau_p;                        /*--- Relaxation parameter for the pressure ---*/
+  Number tau_T;                        /*--- Relaxation parameter for the temperature ---*/
 
-  const typename Field::value_type atol_Newton_relaxation; /*--- Absolute tolerance Newton method to recompute conserved variables form deltas ---*/
-  const typename Field::value_type rtol_Newton_relaxation; /*--- Relative tolerance Newton method to recompute conserved variables form deltas ---*/
-  const std::size_t                max_Newton_iters;       /*--- Maximum number of Newton iterations ---*/
+  const Number      atol_Newton_relaxation; /*--- Absolute tolerance Newton method to recompute conserved variables form deltas ---*/
+  const Number      rtol_Newton_relaxation; /*--- Relative tolerance Newton method to recompute conserved variables form deltas ---*/
+  const std::size_t max_Newton_iters;       /*--- Maximum number of Newton iterations ---*/
 
+  Number MR_param;      /*--- Multiresolution parameter ---*/
+  Number MR_regularity; /*--- Multiresolution regularity ---*/
 
-  typename Field::value_type MR_param;      /*--- Multiresolution parameter ---*/
-  typename Field::value_type MR_regularity; /*--- Multiresolution regularity ---*/
-
-  const SG_EOS<typename Field::value_type> EOS_phase1; /*--- Equation of state of phase 1 ---*/
-  const SG_EOS<typename Field::value_type> EOS_phase2; /*--- Equation of state of phase 2 ---*/
+  const SG_EOS<Number> EOS_phase1; /*--- Equation of state of phase 1 ---*/
+  const SG_EOS<Number> EOS_phase2; /*--- Equation of state of phase 2 ---*/
 
   #ifdef SULICIU_RELAXATION
     samurai::RelaxationFlux<Field> numerical_flux; /*--- function to compute the numerical flux
@@ -166,13 +166,13 @@ private:
   void apply_bcs(const Riemann_Parameters<double>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
 
   #ifdef RUSANOV_FLUX
-    typename Field::value_type get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
+    Number get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
   #endif
 
   void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output and time step update ---*/
 
-  using Matrix_Relaxation = std::array<std::array<typename Field::value_type, 2>, 2>;
-  using Vector_Relaxation = std::array<typename Field::value_type, 2>;
+  using Matrix_Relaxation = std::array<std::array<Number, 2>, 2>;
+  using Vector_Relaxation = std::array<Number, 2>;
   Matrix_Relaxation A_relax; /*--- Matrix associated to the relaxation ---*/
   Vector_Relaxation S_relax; /*--- Vector associated to the source term ---*/
 
@@ -193,7 +193,7 @@ private:
 
   template<typename State>
   void compute_coefficients_source_relaxation(const State& q,
-                                              const std::array<typename Field::value_type, dim>& delta_u_loc,
+                                              const std::array<Number, dim>& delta_u_loc,
                                               Matrix_Relaxation& A, Vector_Relaxation& S); /*--- Compute the coefficients
                                                                                                  and the source term for the relaxation ---*/
 
@@ -280,44 +280,44 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
 template<std::size_t dim>
 void BN_Solver<dim>::create_fields() {
   /*--- Create conserved and auxiliary fields ---*/
-  conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<Number, EquationData::NVARS>("conserved", mesh);
 
-  rho  = samurai::make_scalar_field<typename Field::value_type>("rho", mesh);
-  p    = samurai::make_scalar_field<typename Field::value_type>("p", mesh);
+  rho  = samurai::make_scalar_field<Number>("rho", mesh);
+  p    = samurai::make_scalar_field<Number>("p", mesh);
 
-  rho1 = samurai::make_scalar_field<typename Field::value_type>("rho1", mesh);
-  p1   = samurai::make_scalar_field<typename Field::value_type>("p1", mesh);
-  c1   = samurai::make_scalar_field<typename Field::value_type>("c1", mesh);
+  rho1 = samurai::make_scalar_field<Number>("rho1", mesh);
+  p1   = samurai::make_scalar_field<Number>("p1", mesh);
+  c1   = samurai::make_scalar_field<Number>("c1", mesh);
 
-  rho2 = samurai::make_scalar_field<typename Field::value_type>("rho2", mesh);
-  p2   = samurai::make_scalar_field<typename Field::value_type>("p2", mesh);
-  c2   = samurai::make_scalar_field<typename Field::value_type>("c2", mesh);
+  rho2 = samurai::make_scalar_field<Number>("rho2", mesh);
+  p2   = samurai::make_scalar_field<Number>("p2", mesh);
+  c2   = samurai::make_scalar_field<Number>("c2", mesh);
 
-  vel1 = samurai::make_vector_field<typename Field::value_type, dim>("vel1", mesh);
-  vel2 = samurai::make_vector_field<typename Field::value_type, dim>("vel2", mesh);
-  vel  = samurai::make_vector_field<typename Field::value_type, dim>("vel", mesh);
+  vel1 = samurai::make_vector_field<Number, dim>("vel1", mesh);
+  vel2 = samurai::make_vector_field<Number, dim>("vel2", mesh);
+  vel  = samurai::make_vector_field<Number, dim>("vel", mesh);
 
-  alpha2 = samurai::make_scalar_field<typename Field::value_type>("alpha2", mesh);
-  Y1     = samurai::make_scalar_field<typename Field::value_type>("Y1", mesh);
-  Y2     = samurai::make_scalar_field<typename Field::value_type>("Y2", mesh);
+  alpha2 = samurai::make_scalar_field<Number>("alpha2", mesh);
+  Y1     = samurai::make_scalar_field<Number>("Y1", mesh);
+  Y2     = samurai::make_scalar_field<Number>("Y2", mesh);
 
-  T1 = samurai::make_scalar_field<typename Field::value_type>("T1", mesh);
-  T2 = samurai::make_scalar_field<typename Field::value_type>("T2", mesh);
+  T1 = samurai::make_scalar_field<Number>("T1", mesh);
+  T2 = samurai::make_scalar_field<Number>("T2", mesh);
 
-  delta_pres = samurai::make_scalar_field<typename Field::value_type>("delta_pres", mesh);
-  delta_temp = samurai::make_scalar_field<typename Field::value_type>("delta_temp", mesh);
-  delta_vel  = samurai::make_vector_field<typename Field::value_type, dim>("delta_vel", mesh);
+  delta_pres = samurai::make_scalar_field<Number>("delta_pres", mesh);
+  delta_temp = samurai::make_scalar_field<Number>("delta_temp", mesh);
+  delta_vel  = samurai::make_vector_field<Number, dim>("delta_vel", mesh);
 
   /*--- Create auxiliary fields to keep track of the entropy ---*/
-  entropy_after_flux_phase1            = samurai::make_scalar_field<typename Field::value_type>("entropy_after_flux_phase1", mesh);
-  entropy_production_flux_phase1       = samurai::make_scalar_field<typename Field::value_type>("entropy_production_flux_phase1", mesh);
-  entropy_after_relaxation_phase1      = samurai::make_scalar_field<typename Field::value_type>("entropy_after_relaxation_phase1", mesh);
-  entropy_production_relaxation_phase1 = samurai::make_scalar_field<typename Field::value_type>("entropy_production_relaxation_phase1", mesh);
+  entropy_after_flux_phase1            = samurai::make_scalar_field<Number>("entropy_after_flux_phase1", mesh);
+  entropy_production_flux_phase1       = samurai::make_scalar_field<Number>("entropy_production_flux_phase1", mesh);
+  entropy_after_relaxation_phase1      = samurai::make_scalar_field<Number>("entropy_after_relaxation_phase1", mesh);
+  entropy_production_relaxation_phase1 = samurai::make_scalar_field<Number>("entropy_production_relaxation_phase1", mesh);
 
-  entropy_after_flux_phase2            = samurai::make_scalar_field<typename Field::value_type>("entropy_after_flux_phase2", mesh);
-  entropy_production_flux_phase2       = samurai::make_scalar_field<typename Field::value_type>("entropy_production_flux_phase2", mesh);
-  entropy_after_relaxation_phase2      = samurai::make_scalar_field<typename Field::value_type>("entropy_after_relaxation_phase2", mesh);
-  entropy_production_relaxation_phase2 = samurai::make_scalar_field<typename Field::value_type>("entropy_production_relaxation_phase2", mesh);
+  entropy_after_flux_phase2            = samurai::make_scalar_field<Number>("entropy_after_flux_phase2", mesh);
+  entropy_production_flux_phase2       = samurai::make_scalar_field<Number>("entropy_production_flux_phase2", mesh);
+  entropy_after_relaxation_phase2      = samurai::make_scalar_field<Number>("entropy_after_relaxation_phase2", mesh);
+  entropy_production_relaxation_phase2 = samurai::make_scalar_field<Number>("entropy_production_relaxation_phase2", mesh);
 }
 
 // Initialization of conserved and auxiliary variables
@@ -373,29 +373,29 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters<double>& Riemann_pa
                               conserved_variables[cell][ALPHA1_RHO1_INDEX] = conserved_variables[cell][ALPHA1_INDEX]*rho1[cell];
 
                               const auto e1   = EOS_phase1.e_value_RhoP(rho1[cell], p1[cell]);
-                              auto norm2_vel1 = static_cast<typename Field::value_type>(0.0);
+                              auto norm2_vel1 = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*vel1[cell][d];
                                 norm2_vel1 += vel1[cell][d]*vel1[cell][d];
                               }
 
                               conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = conserved_variables[cell][ALPHA1_RHO1_INDEX]*
-                                                                                (e1 + static_cast<typename Field::value_type>(0.5)*norm2_vel1);
+                                                                                (e1 + static_cast<Number>(0.5)*norm2_vel1);
 
                               T2[cell] = EOS_phase2.T_value_RhoP(rho2[cell], p2[cell]);
 
-                              alpha2[cell] = static_cast<typename Field::value_type>(1.0)
+                              alpha2[cell] = static_cast<Number>(1.0)
                                            - conserved_variables[cell][ALPHA1_INDEX];
                               conserved_variables[cell][ALPHA2_RHO2_INDEX] = alpha2[cell]*rho2[cell];
 
                               const auto e2   = EOS_phase2.e_value_RhoP(rho2[cell], p2[cell]);
-                              auto norm2_vel2 = static_cast<typename Field::value_type>(0.0);
+                              auto norm2_vel2 = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*vel2[cell][d];
                                 norm2_vel2 += vel2[cell][d]*vel2[cell][d];
                               }
                               conserved_variables[cell][ALPHA2_RHO2_E2_INDEX] = conserved_variables[cell][ALPHA2_RHO2_INDEX]*
-                                                                                (e2 + static_cast<typename Field::value_type>(0.5)*norm2_vel2);
+                                                                                (e2 + static_cast<Number>(0.5)*norm2_vel2);
 
                               c1[cell] = EOS_phase1.c_value_RhoP(rho1[cell], p1[cell]);
 
@@ -425,13 +425,13 @@ void BN_Solver<dim>::init_variables(const Riemann_Parameters<double>& Riemann_pa
                               // Compute entropies
                               entropy_after_flux_phase1[cell]            = EOS_phase1.s_value_Rhoe(rho1[cell], e1);
                               entropy_after_relaxation_phase1[cell]      = EOS_phase1.s_value_Rhoe(rho1[cell], e1);
-                              entropy_production_flux_phase1[cell]       = static_cast<typename Field::value_type>(0.0);
-                              entropy_production_relaxation_phase1[cell] = static_cast<typename Field::value_type>(0.0);
+                              entropy_production_flux_phase1[cell]       = static_cast<Number>(0.0);
+                              entropy_production_relaxation_phase1[cell] = static_cast<Number>(0.0);
 
                               entropy_after_flux_phase2[cell]            = EOS_phase2.s_value_Rhoe(rho2[cell], e2);
                               entropy_after_relaxation_phase2[cell]      = EOS_phase2.s_value_Rhoe(rho2[cell], e2);
-                              entropy_production_flux_phase2[cell]       = static_cast<typename Field::value_type>(0.0);
-                              entropy_production_relaxation_phase2[cell] = static_cast<typename Field::value_type>(0.0);
+                              entropy_production_flux_phase2[cell]       = static_cast<Number>(0.0);
+                              entropy_production_relaxation_phase2[cell] = static_cast<Number>(0.0);
                             }
                         );
 }
@@ -449,12 +449,12 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param) 
                                           Riemann_param.alpha1L*Riemann_param.rho1L*Riemann_param.u1L,
                                           Riemann_param.alpha1L*Riemann_param.rho1L*
                                           (EOS_phase1.e_value_RhoP(Riemann_param.rho1L, Riemann_param.p1L) +
-                                           static_cast<typename Field::value_type>(0.5)*Riemann_param.u1L*Riemann_param.u1L),
-                                          (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L,
-                                          (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L*Riemann_param.u2L,
-                                          (static_cast<typename Field::value_type>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L*
+                                           static_cast<Number>(0.5)*Riemann_param.u1L*Riemann_param.u1L),
+                                          (static_cast<Number>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L,
+                                          (static_cast<Number>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L*Riemann_param.u2L,
+                                          (static_cast<Number>(1.0) - Riemann_param.alpha1L)*Riemann_param.rho2L*
                                           (EOS_phase2.e_value_RhoP(Riemann_param.rho2L, Riemann_param.p2L) +
-                                           static_cast<typename Field::value_type>(0.5)*Riemann_param.u2L*Riemann_param.u2L))->on(left);
+                                           static_cast<Number>(0.5)*Riemann_param.u2L*Riemann_param.u2L))->on(left);
   samurai::make_bc<Default>(conserved_variables,
                             Outflow(conserved_variables,
                                     Riemann_param.p1L, EOS_phase1,
@@ -470,7 +470,7 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param) 
 #ifdef RUSANOV_FLUX
   template<std::size_t dim>
   typename BN_Solver<dim>::Field::value_type BN_Solver<dim>::get_max_lambda() const {
-    auto local_res = static_cast<typename Field::value_type>(0.0);
+    auto local_res = static_cast<Number>(0.0);
 
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
@@ -533,18 +533,18 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                               // Compute the fields
                               const auto rho_loc     = m1_loc + m2_loc;
-                              const auto inv_rho_loc = static_cast<typename Field::value_type>(1.0)/rho_loc;
+                              const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
                               rho[cell]              = rho_loc;
 
                               const auto rho1_loc   = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               rho1[cell]            = rho1_loc;
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_loc           = m1E1_loc*inv_m1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel1[cell][d] = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                e1_loc -= static_cast<typename Field::value_type>(0.5)*(vel1[cell][d]*vel1[cell][d]);
+                                e1_loc -= static_cast<Number>(0.5)*(vel1[cell][d]*vel1[cell][d]);
                               }
                               const auto p1_loc = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_loc);
                               p1[cell]          = p1_loc;
@@ -552,16 +552,16 @@ void BN_Solver<dim>::update_auxiliary_fields() {
                               const auto T1_loc = EOS_phase1.T_value_RhoP(rho1_loc, p1_loc);
                               T1[cell]          = T1_loc;
 
-                              const auto alpha2_loc = static_cast<typename Field::value_type>(1.0) - alpha1_loc;
+                              const auto alpha2_loc = static_cast<Number>(1.0) - alpha1_loc;
                               const auto rho2_loc   = m2_loc/alpha2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               rho2[cell]            = rho2_loc;
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e2_loc           = m2E2_loc*inv_m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel2[cell][d] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                e2_loc -= static_cast<typename Field::value_type>(0.5)*(vel2[cell][d]*vel2[cell][d]);
+                                e2_loc -= static_cast<Number>(0.5)*(vel2[cell][d]*vel2[cell][d]);
                               }
                               const auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_loc);
                               p2[cell]          = p2_loc;
@@ -574,7 +574,7 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 
                               const auto Y1_loc = m1_loc*inv_rho_loc;
                               Y1[cell]          = Y1_loc;
-                              const auto Y2_loc = static_cast<typename Field::value_type>(1.0) - Y1_loc;
+                              const auto Y2_loc = static_cast<Number>(1.0) - Y1_loc;
                               Y2[cell]          = Y2_loc;
 
                               for(std::size_t d = 0; d < dim; ++d) {
@@ -623,12 +623,12 @@ void BN_Solver<dim>::save(const fs::path& path,
 /*---- FOCUS NOW ON THE RELAXATION FUNCTIONS ---*/
 /////////////////////////////////////////////////////////////
 
-// Routine to compute the source terms associated to the finte-rate relaxation
+// Routine to compute the source terms associated to the finite-rate relaxation
 //
 template<std::size_t dim>
 template<typename State>
 void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
-                                                            const std::array<typename Field::value_type, dim>& delta_u_loc,
+                                                            const std::array<Number, dim>& delta_u_loc,
                                                             Matrix_Relaxation& A, Vector_Relaxation& S) {
   /*--- Pre-fetch variables that will be used several times so as to exploit (possible) vectorization
         as well as to enhance readability ---*/
@@ -639,14 +639,14 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
   const auto m2E2_loc   = q[ALPHA2_RHO2_E2_INDEX];
 
   /*--- Compute auxiliary variables for phase 1 ---*/
-  const auto inv_alpha1_loc = static_cast<typename Field::value_type>(1.0)/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+  const auto inv_alpha1_loc = static_cast<Number>(1.0)/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
   const auto rho1_loc       = m1_loc*inv_alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-  std::array<typename Field::value_type, dim> vel1_loc;
-  const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+  std::array<Number, dim> vel1_loc;
+  const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
   auto e1_loc           = m1E1_loc*inv_m1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
   for(std::size_t d = 0; d < dim; ++d) {
     vel1_loc[d] = q[ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    e1_loc -= static_cast<typename Field::value_type>(0.5)*vel1_loc[d]*vel1_loc[d];
+    e1_loc -= static_cast<Number>(0.5)*vel1_loc[d]*vel1_loc[d];
   }
   const auto p1_loc = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_loc);
   const auto c1_loc = EOS_phase1.c_value_RhoP(rho1_loc, p1_loc);
@@ -656,15 +656,15 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
   const auto Gamma1 = EOS_phase1.de_drho_T(rho1_loc, T1_loc);
 
   /*--- Compute auxiliary variables for phase 2 ---*/
-  const auto alpha2_loc     = static_cast<typename Field::value_type>(1.0) - alpha1_loc;
-  const auto inv_alpha2_loc = static_cast<typename Field::value_type>(1.0)/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+  const auto alpha2_loc     = static_cast<Number>(1.0) - alpha1_loc;
+  const auto inv_alpha2_loc = static_cast<Number>(1.0)/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
   const auto rho2_loc       = m2_loc*inv_alpha2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-  std::array<typename Field::value_type, dim> vel2_loc;
-  const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+  std::array<Number, dim> vel2_loc;
+  const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
   auto e2_loc           = m2E2_loc*inv_m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
   for(std::size_t d = 0; d < dim; ++d) {
     vel2_loc[d] = q[ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    e2_loc -= static_cast<typename Field::value_type>(0.5)*vel2_loc[d]*vel2_loc[d];
+    e2_loc -= static_cast<Number>(0.5)*vel2_loc[d]*vel2_loc[d];
   }
   const auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_loc);
   const auto c2_loc = EOS_phase2.c_value_RhoP(rho2_loc, p2_loc);
@@ -675,11 +675,11 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
 
   /*--- uI = beta*u1 + (1 - beta)*u2
         pI = chi*p1 + (1 - chi)*p2 ---*/
-  auto beta = static_cast<typename Field::value_type>(1.0);
-  auto chi  = (static_cast<typename Field::value_type>(1.0) - beta)*T2_loc/
-              ((static_cast<typename Field::value_type>(1.0) - beta)*T2_loc + beta*T1_loc);
+  auto beta = static_cast<Number>(1.0);
+  auto chi  = (static_cast<Number>(1.0) - beta)*T2_loc/
+              ((static_cast<Number>(1.0) - beta)*T2_loc + beta*T1_loc);
   auto pI_relax = chi*p1_loc
-                + (static_cast<typename Field::value_type>(1.0) - chi)*p2_loc;
+                + (static_cast<Number>(1.0) - chi)*p2_loc;
   /*--- TODO: Possibly change, a priori this is not necessarily the same of the convective operator, even though
               substituting uI \cdot grad\alpha we get d\alpha/dt... ---*/
 
@@ -691,7 +691,7 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
                              (tau_T*(m1_loc*cv1 + m2_loc*cv2));
   const auto a_pp = -p_relax_coeff*(rho1_loc*c1_loc*c1_loc*inv_alpha1_loc +
                                     rho2_loc*c2_loc*c2_loc*inv_alpha2_loc +
-                                    ((chi - static_cast<typename Field::value_type>(1.0))*inv_m1_loc/kappa1 +
+                                    ((chi - static_cast<Number>(1.0))*inv_m1_loc/kappa1 +
                                      chi*inv_m2_loc/kappa2)*
                                     (p1_loc - p2_loc)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
   const auto a_pT = -T_relax_coeff*(inv_m1_loc/kappa1 + inv_m2_loc/kappa2); /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -699,21 +699,21 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
                                     (pI_relax - rho2_loc*rho2_loc*Gamma2)*inv_m2_loc/cv2);
   const auto a_TT = -T_relax_coeff*(inv_m1_loc*cv1 + inv_m2_loc*cv2); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-  A[0][0] = static_cast<typename Field::value_type>(1.0) - dt*a_pp;
+  A[0][0] = static_cast<Number>(1.0) - dt*a_pp;
   A[0][1] = -dt*a_pT;
   A[1][0] = -dt*a_Tp;
-  A[1][1] = static_cast<typename Field::value_type>(1.0) - dt*a_TT;
+  A[1][1] = static_cast<Number>(1.0) - dt*a_TT;
 
   /*--- Set source term ---*/
   const auto rho_0      = m1_loc + m2_loc;
   const auto Y1_0       = m1_loc/rho_0;
-  const auto Y2_0       = static_cast<typename Field::value_type>(1.0) - Y1_0;
-  const auto a_tilde_pu = -static_cast<typename Field::value_type>(1.0)/tau_u*
-                          ((Y2_0*(beta - static_cast<typename Field::value_type>(1.0)))/kappa1 + (Y1_0*beta)/kappa2);
-  const auto a_tilde_Tu = -static_cast<typename Field::value_type>(1.0)/tau_u*
-                          ((Y2_0*(beta - static_cast<typename Field::value_type>(1.0)))/cv1 + (Y1_0*beta)/cv2);
-  S[0] = static_cast<typename Field::value_type>(0.0);
-  S[1] = static_cast<typename Field::value_type>(0.0);
+  const auto Y2_0       = static_cast<Number>(1.0) - Y1_0;
+  const auto a_tilde_pu = -static_cast<Number>(1.0)/tau_u*
+                          ((Y2_0*(beta - static_cast<Number>(1.0)))/kappa1 + (Y1_0*beta)/kappa2);
+  const auto a_tilde_Tu = -static_cast<Number>(1.0)/tau_u*
+                          ((Y2_0*(beta - static_cast<Number>(1.0)))/cv1 + (Y1_0*beta)/cv2);
+  S[0] = static_cast<Number>(0.0);
+  S[1] = static_cast<Number>(0.0);
   for(std::size_t d = 0; d < dim; ++d) {
     S[0] += (a_tilde_pu*(vel1_loc[d] - vel2_loc[d]))*delta_u_loc[d];
     S[1] += (a_tilde_Tu*(vel1_loc[d] - vel2_loc[d]))*delta_u_loc[d];
@@ -741,10 +741,10 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                               auto m2E2_loc     = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
 
                               // Compute updated delta_u (we have analytical formula)
-                              std::array<typename Field::value_type, dim> delta_u;
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              std::array<Number, dim> delta_u;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel1[cell][d] = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
@@ -759,14 +759,14 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                               auto rho1_loc = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_loc   = m1E1_loc*inv_m1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e1_loc -= static_cast<typename Field::value_type>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_loc -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
                               }
                               auto p1_loc = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_loc);
 
-                              auto rho2_loc = m2_loc/(static_cast<typename Field::value_type>(1.0) - alpha1_loc);
+                              auto rho2_loc = m2_loc/(static_cast<Number>(1.0) - alpha1_loc);
                               auto e2_loc   = m2E2_loc*inv_m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e2_loc -= static_cast<typename Field::value_type>(0.5)*vel2[cell][d]*vel2[cell][d];
+                                e2_loc -= static_cast<Number>(0.5)*vel2[cell][d]*vel2[cell][d];
                                 // Recall that vel1 and vel2 are the initial values!!!!
                               }
                               auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_loc);
@@ -776,19 +776,19 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                                                      delta_u, A_relax, S_relax);
 
                               /*--- Solve the linear system ---*/
-                              typename Field::value_type delta_p,
-                                                         delta_T;
+                              Number delta_p,
+                                     delta_T;
                               const auto delta_p0 = p1_loc - p2_loc;
                               auto T1_loc         = EOS_phase1.T_value_RhoP(rho1_loc, p1_loc);
                               auto T2_loc         = EOS_phase2.T_value_RhoP(rho2_loc, p2_loc);
                               const auto delta_T0 = T1_loc - T2_loc;
                               const auto det_A_pT = A_relax[0][0]*A_relax[1][1]
                                                   - A_relax[0][1]*A_relax[1][0];
-                              if(std::abs(det_A_pT) > static_cast<typename Field::value_type>(1e-10)) {
-                                delta_p = (static_cast<typename Field::value_type>(1.0)/det_A_pT)*
+                              if(std::abs(det_A_pT) > static_cast<Number>(1e-10)) {
+                                delta_p = (static_cast<Number>(1.0)/det_A_pT)*
                                           (A_relax[1][1]*(delta_p0 + dt*S_relax[0]) -
                                            A_relax[0][1]*(delta_T0 + dt*S_relax[1]));
-                                delta_T = (static_cast<typename Field::value_type>(1.0)/det_A_pT)*
+                                delta_T = (static_cast<Number>(1.0)/det_A_pT)*
                                           (-A_relax[1][0]*(delta_p0 + dt*S_relax[0]) +
                                             A_relax[0][0]*(delta_T0 + dt*S_relax[1]));
                               }
@@ -805,10 +805,10 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                               /*--- Start from phasic momentum (compute also useful norms) ---*/
                               const auto rho_0  = m1_loc + m2_loc;
                               const auto Y1_0   = m1_loc/rho_0;
-                              const auto Y2_0   = static_cast<typename Field::value_type>(1.0) - Y1_0;
-                              auto norm2_um     = static_cast<typename Field::value_type>(0.0);
-                              auto norm2_deltau = static_cast<typename Field::value_type>(0.0);
-                              auto norm2_vel1   = static_cast<typename Field::value_type>(0.0);
+                              const auto Y2_0   = static_cast<Number>(1.0) - Y1_0;
+                              auto norm2_um     = static_cast<Number>(0.0);
+                              auto norm2_deltau = static_cast<Number>(0.0);
+                              auto norm2_vel1   = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto um_d = Y1_0*vel1[cell][d]
                                                 + Y2_0*vel2[cell][d];
@@ -833,13 +833,13 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                     because we are miming an instantaneous relaxation, then p2 is set initially to around -10^3 which is not admissible!!! ---*/
                               const auto rhoE_0 = m1E1_loc + m2E2_loc;
                               const auto rhoe_0 = rhoE_0
-                                                - static_cast<typename Field::value_type>(0.5)*rho_0*(norm2_um + Y1_0*Y2_0*norm2_deltau);
-                              auto dp2 = std::numeric_limits<typename Field::value_type>::max();
-                              auto dT2 = std::numeric_limits<typename Field::value_type>::max();
+                                                - static_cast<Number>(0.5)*rho_0*(norm2_um + Y1_0*Y2_0*norm2_deltau);
+                              auto dp2 = std::numeric_limits<Number>::max();
+                              auto dT2 = std::numeric_limits<Number>::max();
                               unsigned int iter;
                               auto f1 = m1_loc/EOS_phase1.rho_value_PT(p2_loc + delta_p, T2_loc + delta_T)
                                       + m2_loc/EOS_phase2.rho_value_PT(p2_loc, T2_loc)
-                                      - static_cast<typename Field::value_type>(1.0);
+                                      - static_cast<Number>(1.0);
                               auto f2 = m1_loc*EOS_phase1.e_value_PT(p2_loc + delta_p, T2_loc + delta_T)
                                       + m2_loc*EOS_phase2.e_value_PT(p2_loc, T2_loc)
                                       - rhoe_0;
@@ -877,15 +877,15 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                   // Apply the Newton method
                                   const auto det_Jac = Jac_update[0][0]*Jac_update[1][1]
                                                      - Jac_update[0][1]*Jac_update[1][0];
-                                  if(std::abs(det_Jac) > static_cast<typename Field::value_type>(1e-10)) {
-                                    dp2 = (static_cast<typename Field::value_type>(1.0)/det_Jac)*
+                                  if(std::abs(det_Jac) > static_cast<Number>(1e-10)) {
+                                    dp2 = (static_cast<Number>(1.0)/det_Jac)*
                                           (Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
-                                    dp2 = std::min(dp2, static_cast<typename Field::value_type>(0.9)*(p2_loc + EOS_phase2.get_pi_infty()));
-                                    dp2 = std::min(dp2, static_cast<typename Field::value_type>(0.9)*(p2_loc + delta_p + EOS_phase1.get_pi_infty()));
-                                    dT2 = (static_cast<typename Field::value_type>(1.0)/det_Jac)*
+                                    dp2 = std::min(dp2, static_cast<Number>(0.9)*(p2_loc + EOS_phase2.get_pi_infty()));
+                                    dp2 = std::min(dp2, static_cast<Number>(0.9)*(p2_loc + delta_p + EOS_phase1.get_pi_infty()));
+                                    dT2 = (static_cast<Number>(1.0)/det_Jac)*
                                           (-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
-                                    dT2 = std::min(dT2, static_cast<typename Field::value_type>(0.9)*T2_loc);
-                                    dT2 = std::min(dT2, static_cast<typename Field::value_type>(0.9)*(T2_loc + delta_T));
+                                    dT2 = std::min(dT2, static_cast<Number>(0.9)*T2_loc);
+                                    dT2 = std::min(dT2, static_cast<Number>(0.9)*(T2_loc + delta_T));
                                     p2_loc -= dp2;
                                     T2_loc -= dT2;
                                   }
@@ -903,7 +903,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                                   // Recompute functions for which we look for zero for next iteration
                                   f1 = m1_loc/EOS_phase1.rho_value_PT(p2_loc + delta_p, T2_loc + delta_T)
                                      + m2_loc/EOS_phase2.rho_value_PT(p2_loc, T2_loc)
-                                     - static_cast<typename Field::value_type>(1.0);
+                                     - static_cast<Number>(1.0);
                                   f2 = m1_loc*EOS_phase1.e_value_PT(p2_loc + delta_p, T2_loc + delta_T)
                                      + m2_loc*EOS_phase2.e_value_PT(p2_loc, T2_loc)
                                      - rhoe_0;
@@ -932,7 +932,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                               T1_loc = T2_loc + delta_T;
 
                               e1_loc = EOS_phase1.e_value_PT(p1_loc, T1_loc);
-                              conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc + static_cast<typename Field::value_type>(0.5)*norm2_vel1);
+                              conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc + static_cast<Number>(0.5)*norm2_vel1);
 
                               rho1_loc = EOS_phase1.rho_value_PT(p1_loc, T1_loc);
                               conserved_variables[cell][ALPHA1_INDEX] = m1_loc/rho1_loc;
@@ -965,9 +965,9 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
 
                               // Instantaneous velocity update
                               /*--- Save phasic velocities and initial specific internal energy of phase 1 for the total energy update ---*/
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
@@ -976,25 +976,25 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                 vel2[cell][d] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<typename Field::value_type>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_0 -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
                               }
 
                               /*--- Compute constant quantities
                                     (mixture density, (specific) total energy, mass fraction, 'mixture' velocity) for the updates ---*/
                               const auto rho_0     = m1_loc + m2_loc;
-                              const auto inv_rho_0 = static_cast<typename Field::value_type>(1.0)/rho_0;
+                              const auto inv_rho_0 = static_cast<Number>(1.0)/rho_0;
                               const auto Y1_0      = m1_loc*inv_rho_0;
-                              const auto Y2_0      = static_cast<typename Field::value_type>(1.0) - Y1_0;
+                              const auto Y2_0      = static_cast<Number>(1.0) - Y1_0;
                               const auto rhoE_0    = m1E1_loc + m2E2_loc;
-                              auto norm2_vel       = static_cast<typename Field::value_type>(0.0);
+                              auto norm2_vel       = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 norm2_vel += (Y1_0*vel1[cell][d] + Y2_0*vel2[cell][d])*
                                              (Y1_0*vel1[cell][d] + Y2_0*vel2[cell][d]);
                               }
 
                               /*--- Update the momentum (and the kinetic energy of phase 1) ---*/
-                              std::array<typename Field::value_type, dim> vel_star;
-                              m1E1_loc = static_cast<typename Field::value_type>(0.0);
+                              std::array<Number, dim> vel_star;
+                              m1E1_loc = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel_star[d] = (conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d] +
                                                conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d])*inv_rho_0;
@@ -1003,15 +1003,15 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
 
                                 conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = m2_loc*vel_star[d];
 
-                                m1E1_loc += static_cast<typename Field::value_type>(0.5)*
+                                m1E1_loc += static_cast<Number>(0.5)*
                                             m1_loc*vel_star[d]*vel_star[d];
                               }
 
                               /*--- Update total energy of the two phases ---*/
-                              const auto chi1 = static_cast<typename Field::value_type>(0.0); // uI = (1 - chi1)*u1 + chi1*u2;
+                              const auto chi1 = static_cast<Number>(0.0); // uI = (1 - chi1)*u1 + chi1*u2;
                               auto e1_star    = e1_0;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e1_star += static_cast<typename Field::value_type>(0.5)*chi1*
+                                e1_star += static_cast<Number>(0.5)*chi1*
                                            (vel1[cell][d] - vel2[cell][d])*(vel1[cell][d] - vel2[cell][d])*Y2_0;
                                            // Recall that vel1 and vel2 are the initial values!!!!
                               }
@@ -1020,9 +1020,9 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                               m2E2_loc = rhoE_0 - m1E1_loc;
 
                               /*--- Update the velocity of the two phases ---*/
-                              std::array<typename Field::value_type, dim> delta_u;
+                              std::array<Number, dim> delta_u;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                delta_u[0]    = static_cast<typename Field::value_type>(0.0);
+                                delta_u[0]    = static_cast<Number>(0.0);
                                 vel1[cell][d] = vel_star[d];
                                 vel2[cell][d] = vel_star[d];
                               }
@@ -1033,11 +1033,11 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                               e1_0          = e1_star; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto p1_loc   = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_0);
 
-                              auto rho2_loc = m2_loc/(static_cast<typename Field::value_type>(1.0) - alpha1_loc);
+                              auto rho2_loc = m2_loc/(static_cast<Number>(1.0) - alpha1_loc);
                                               /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e2_0     = m2E2_loc/m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e2_0 -= static_cast<typename Field::value_type>(0.5)*vel2[cell][d]*vel2[cell][d];
+                                e2_0 -= static_cast<Number>(0.5)*vel2[cell][d]*vel2[cell][d];
                               }
                               auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_0);
 
@@ -1046,19 +1046,19 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                                                      delta_u, A_relax, S_relax);
 
                               /*--- Solve the linear system ---*/
-                              typename Field::value_type delta_p,
-                                                         delta_T;
+                              Number delta_p,
+                                     delta_T;
                               const auto delta_p0 = p1_loc - p2_loc;
                               auto T1_loc         = EOS_phase1.T_value_RhoP(rho1_loc, p1_loc);
                               auto T2_loc         = EOS_phase2.T_value_RhoP(rho2_loc, p2_loc);
                               const auto delta_T0 = T1_loc - T2_loc;
                               const auto det_A_pT = A_relax[0][0]*A_relax[1][1]
                                                   - A_relax[0][1]*A_relax[1][0];
-                              if(std::abs(det_A_pT) > static_cast<typename Field::value_type>(1e-10)) {
-                                delta_p = (static_cast<typename Field::value_type>(1.0)/det_A_pT)*
+                              if(std::abs(det_A_pT) > static_cast<Number>(1e-10)) {
+                                delta_p = (static_cast<Number>(1.0)/det_A_pT)*
                                           (A_relax[1][1]*(delta_p0 + dt*S_relax[0]) -
                                            A_relax[0][1]*(delta_T0 + dt*S_relax[1]));
-                                delta_T = (static_cast<typename Field::value_type>(1.0)/det_A_pT)*
+                                delta_T = (static_cast<Number>(1.0)/det_A_pT)*
                                           (-A_relax[1][0]*(delta_p0 + dt*S_relax[0]) +
                                             A_relax[0][0]*(delta_T0 + dt*S_relax[1]));
                               }
@@ -1073,13 +1073,13 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
 
                               // Re-update conserved variables. Newton method loop
                               const auto rhoe_0 = rhoE_0
-                                                - static_cast<typename Field::value_type>(0.5)*rho_0*norm2_vel;
-                              auto dp2 = std::numeric_limits<typename Field::value_type>::max();
-                              auto dT2 = std::numeric_limits<typename Field::value_type>::max();
+                                                - static_cast<Number>(0.5)*rho_0*norm2_vel;
+                              auto dp2 = std::numeric_limits<Number>::max();
+                              auto dT2 = std::numeric_limits<Number>::max();
                               unsigned int iter;
                               auto f1 = m1_loc/EOS_phase1.rho_value_PT(p2_loc + delta_p, T2_loc + delta_T)
                                       + m2_loc/EOS_phase2.rho_value_PT(p2_loc, T2_loc)
-                                      - static_cast<typename Field::value_type>(1.0);
+                                      - static_cast<Number>(1.0);
                               auto f2 = m1_loc*EOS_phase1.e_value_PT(p2_loc + delta_p, T2_loc + delta_T)
                                       + m2_loc*EOS_phase2.e_value_PT(p2_loc, T2_loc)
                                       - rhoe_0;
@@ -1117,15 +1117,15 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                   // Apply the Newton method
                                   const auto det_Jac = Jac_update[0][0]*Jac_update[1][1]
                                                      - Jac_update[0][1]*Jac_update[1][0];
-                                  if(std::abs(det_Jac) > static_cast<typename Field::value_type>(1e-10)) {
-                                    dp2 = (static_cast<typename Field::value_type>(1.0)/det_Jac)*
+                                  if(std::abs(det_Jac) > static_cast<Number>(1e-10)) {
+                                    dp2 = (static_cast<Number>(1.0)/det_Jac)*
                                           (Jac_update[1][1]*f1 - Jac_update[0][1]*f2);
-                                    dp2 = std::min(dp2, static_cast<typename Field::value_type>(0.9)*(p2_loc + EOS_phase2.get_pi_infty()));
-                                    dp2 = std::min(dp2, static_cast<typename Field::value_type>(0.9)*(p2_loc + delta_p + EOS_phase1.get_pi_infty()));
-                                    dT2 = (static_cast<typename Field::value_type>(1.0)/det_Jac)*
+                                    dp2 = std::min(dp2, static_cast<Number>(0.9)*(p2_loc + EOS_phase2.get_pi_infty()));
+                                    dp2 = std::min(dp2, static_cast<Number>(0.9)*(p2_loc + delta_p + EOS_phase1.get_pi_infty()));
+                                    dT2 = (static_cast<Number>(1.0)/det_Jac)*
                                           (-Jac_update[1][0]*f1 + Jac_update[0][0]*f2);
-                                    dT2 = std::min(dT2, static_cast<typename Field::value_type>(0.9)*T2_loc);
-                                    dT2 = std::min(dT2, static_cast<typename Field::value_type>(0.9)*(T2_loc + delta_T));
+                                    dT2 = std::min(dT2, static_cast<Number>(0.9)*T2_loc);
+                                    dT2 = std::min(dT2, static_cast<Number>(0.9)*(T2_loc + delta_T));
                                     p2_loc -= dp2;
                                     T2_loc -= dT2;
                                   }
@@ -1143,7 +1143,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                   // Recompute functions for which we look for zero for next iteration
                                   f1 = m1_loc/EOS_phase1.rho_value_PT(p2_loc + delta_p, T2_loc + delta_T)
                                      + m2_loc/EOS_phase2.rho_value_PT(p2_loc, T2_loc)
-                                     - static_cast<typename Field::value_type>(1.0);
+                                     - static_cast<Number>(1.0);
                                   f2 = m1_loc*EOS_phase1.e_value_PT(p2_loc + delta_p, T2_loc + delta_T)
                                      + m2_loc*EOS_phase2.e_value_PT(p2_loc, T2_loc)
                                      - rhoe_0;
@@ -1172,7 +1172,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                               T1_loc = T2_loc + delta_T;
 
                               const auto e1_loc = EOS_phase1.e_value_PT(p1_loc, T1_loc);
-                              conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc + static_cast<typename Field::value_type>(0.5)*norm2_vel);
+                              conserved_variables[cell][ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc + static_cast<Number>(0.5)*norm2_vel);
 
                               rho1_loc = EOS_phase1.rho_value_PT(p1_loc, T1_loc);
                               conserved_variables[cell][ALPHA1_INDEX] = m1_loc/rho1_loc;
@@ -1203,9 +1203,9 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
                               auto m2E2_loc     = conserved_variables[cell][ALPHA2_RHO2_E2_INDEX];
 
                               // Save phasic velocities and initial specific internal energy of phase 1 for the total energy update ---*/
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
@@ -1214,16 +1214,16 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
                                 vel2[cell][d] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<typename Field::value_type>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_0 -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
                               }
 
                               // Compute mixture density and (specific) total energy for the updates
                               const auto rho_0     = m1_loc + m2_loc;
-                              const auto inv_rho_0 = static_cast<typename Field::value_type>(1.0)/rho_0;
+                              const auto inv_rho_0 = static_cast<Number>(1.0)/rho_0;
                               const auto rhoE_0    = m1E1_loc + m2E2_loc;
 
                               // Update the momentum (and the kinetic energy of phase 1)
-                              m1E1_loc = static_cast<typename Field::value_type>(0.0);
+                              m1E1_loc = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel_star_d = (conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d] +
                                                          conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d])*inv_rho_0;
@@ -1232,16 +1232,16 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
 
                                 conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = m2_loc*vel_star_d;
 
-                                m1E1_loc += static_cast<typename Field::value_type>(0.5)*
+                                m1E1_loc += static_cast<Number>(0.5)*
                                             m1_loc*vel_star_d*vel_star_d;
                               }
 
                               // Update total energy of the two phases
                               const auto Y2_0 = m2_loc*inv_rho_0;
-                              const auto chi1 = static_cast<typename Field::value_type>(0.0); // uI = (1 - chi1)*u1 + chi1*u2;
+                              const auto chi1 = static_cast<Number>(0.0); // uI = (1 - chi1)*u1 + chi1*u2;
                               auto e1_star    = e1_0;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e1_star += static_cast<typename Field::value_type>(0.5)*chi1*
+                                e1_star += static_cast<Number>(0.5)*chi1*
                                            (vel1[cell][d] - vel2[cell][d])*(vel1[cell][d] - vel2[cell][d])*Y2_0;
                                            // Recall that vel1 and vel2 are the initial values!!!!
                               }
@@ -1275,9 +1275,9 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
 
                               // First focus on the velocity relaxation
                               /*--- Save phasic velocities and initial specific internal energy of phase 1 for the total energy update ---*/
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
@@ -1286,17 +1286,17 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
                                 vel2[cell][d] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<typename Field::value_type>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_0 -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
                               }
 
                               /*--- Compute mixture density and (specific) total energy for the updates ---*/
                               const auto rho_0     = m1_loc + m2_loc;
-                              const auto inv_rho_0 = static_cast<typename Field::value_type>(1.0)/rho_0;
+                              const auto inv_rho_0 = static_cast<Number>(1.0)/rho_0;
                               const auto rhoE_0    = m1E1_loc + m2E2_loc;
 
                               /*--- Update the momentum (and the kinetic energy of phase 1) ---*/
-                              m1E1_loc            = static_cast<typename Field::value_type>(0.0);
-                              auto norm2_vel_star = static_cast<typename Field::value_type>(0.0);
+                              m1E1_loc            = static_cast<Number>(0.0);
+                              auto norm2_vel_star = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel_star_d = (conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d] +
                                                          conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d])*inv_rho_0;
@@ -1306,16 +1306,16 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
 
                                 conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = m2_loc*vel_star_d;
 
-                                m1E1_loc += static_cast<typename Field::value_type>(0.5)*
+                                m1E1_loc += static_cast<Number>(0.5)*
                                             m1_loc*vel_star_d*vel_star_d;
                               }
 
                               /*--- Update total energy of the two phases ---*/
                               const auto Y2_0 = m2_loc*inv_rho_0;
-                              const auto chi1 = static_cast<typename Field::value_type>(0.0); // uI = (1 - chi1)*u1 + chi1*u2;
+                              const auto chi1 = static_cast<Number>(0.0); // uI = (1 - chi1)*u1 + chi1*u2;
                               auto e1_star    = e1_0;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e1_star += static_cast<typename Field::value_type>(0.5)*chi1*
+                                e1_star += static_cast<Number>(0.5)*chi1*
                                            (vel1[cell][d] - vel2[cell][d])*(vel1[cell][d] - vel2[cell][d])*Y2_0;
                                            // Recall that vel1 and vel2 are the initial values!!!!
                               }
@@ -1327,41 +1327,41 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
                               /*--- Compute the initial fields for the pressure relaxation ---*/
                               e1_0            = e1_star;
                               const auto e2_0 = m2E2_loc*inv_m2_loc /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                              - static_cast<typename Field::value_type>(0.5)*norm2_vel_star;
+                                              - static_cast<Number>(0.5)*norm2_vel_star;
 
                               auto rho1_loc   = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto p1_loc     = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_0);
 
-                              auto alpha2_loc = static_cast<typename Field::value_type>(1.0) - alpha1_loc;
+                              auto alpha2_loc = static_cast<Number>(1.0) - alpha1_loc;
                               auto rho2_loc   = m2_loc/alpha2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto p2_loc     = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_0);
 
                               /*--- Compute the pressure equilibrium with the linearization method (Pelanti) ---*/
-                              const auto a    = static_cast<typename Field::value_type>(1.0)
+                              const auto a    = static_cast<Number>(1.0)
                                               + EOS_phase2.get_gamma()*alpha1_loc
                                               + EOS_phase1.get_gamma()*alpha2_loc;
                               const auto pI_0 = p2_loc;
-                              const auto C1   = static_cast<typename Field::value_type>(2.0)*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
-                                              + (EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*pI_0;
-                              const auto C2   = static_cast<typename Field::value_type>(2.0)*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
-                                              + (EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*pI_0;
+                              const auto C1   = static_cast<Number>(2.0)*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
+                                              + (EOS_phase1.get_gamma() - static_cast<Number>(1.0))*pI_0;
+                              const auto C2   = static_cast<Number>(2.0)*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
+                                              + (EOS_phase2.get_gamma() - static_cast<Number>(1.0))*pI_0;
                               const auto b    = C1*alpha2_loc + C2*alpha1_loc
-                                              - (static_cast<typename Field::value_type>(1.0) + EOS_phase2.get_gamma())*alpha1_loc*p1_loc
-                                              - (static_cast<typename Field::value_type>(1.0) + EOS_phase1.get_gamma())*alpha2_loc*p2_loc;
+                                              - (static_cast<Number>(1.0) + EOS_phase2.get_gamma())*alpha1_loc*p1_loc
+                                              - (static_cast<Number>(1.0) + EOS_phase1.get_gamma())*alpha2_loc*p2_loc;
                               const auto d    = -(C2*alpha1_loc*p1_loc + C1*alpha2_loc*p2_loc);
 
-                              const auto p_star = (-b + std::sqrt(b*b - static_cast<typename Field::value_type>(4.0)*a*d))/
-                                                  (static_cast<typename Field::value_type>(2.0)*a);
+                              const auto p_star = (-b + std::sqrt(b*b - static_cast<Number>(4.0)*a*d))/
+                                                  (static_cast<Number>(2.0)*a);
 
                               /*--- Update the volume fraction using the computed pressure ---*/
-                              alpha1_loc *= ((EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*p_star +
-                                             static_cast<typename Field::value_type>(2.0)*p1_loc + C1)/
-                                            ((EOS_phase1.get_gamma() + static_cast<typename Field::value_type>(1.0))*p_star + C1);
+                              alpha1_loc *= ((EOS_phase1.get_gamma() - static_cast<Number>(1.0))*p_star +
+                                             static_cast<Number>(2.0)*p1_loc + C1)/
+                                            ((EOS_phase1.get_gamma() + static_cast<Number>(1.0))*p_star + C1);
                               conserved_variables[cell][ALPHA1_INDEX] = alpha1_loc;
 
                               /*--- Update the total energy of both phases ---*/
                               const auto E1_loc = EOS_phase1.e_value_RhoP(m1_loc/alpha1_loc, p_star)
-                                                + static_cast<typename Field::value_type>(0.5)*norm2_vel_star;
+                                                + static_cast<Number>(0.5)*norm2_vel_star;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                               m1E1_loc = m1_loc*E1_loc;
@@ -1390,21 +1390,21 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
 
                               // Focus on the pressure relaxation
                               /*--- Compute the initial fields for the pressure relaxation ---*/
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               auto e2_0             = m2E2_loc*inv_m2_loc;
-                              auto norm2_vel1       = static_cast<typename Field::value_type>(0.0);
+                              auto norm2_vel1       = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel1_d = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
                                 const auto vel2_d = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<typename Field::value_type>(0.5)*vel1_d*vel1_d;
-                                e2_0 -= static_cast<typename Field::value_type>(0.5)*vel2_d*vel2_d;
+                                e1_0 -= static_cast<Number>(0.5)*vel1_d*vel1_d;
+                                e2_0 -= static_cast<Number>(0.5)*vel2_d*vel2_d;
 
                                 norm2_vel1 += vel1_d*vel1_d;
                               }
@@ -1414,36 +1414,36 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
                               auto rho1_loc   = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto p1_loc     = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_0);
 
-                              auto alpha2_loc = static_cast<typename Field::value_type>(1.0) - alpha1_loc;
+                              auto alpha2_loc = static_cast<Number>(1.0) - alpha1_loc;
                               auto rho2_loc   = m2_loc/alpha2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto p2_loc     = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_0);
 
                               /*--- Compute the pressure equilibrium with the linearization method (Pelanti) ---*/
-                              const auto a    = static_cast<typename Field::value_type>(1.0)
+                              const auto a    = static_cast<Number>(1.0)
                                               + EOS_phase2.get_gamma()*alpha1_loc
                                               + EOS_phase1.get_gamma()*alpha2_loc;
                               const auto pI_0 = p2_loc;
-                              const auto C1   = static_cast<typename Field::value_type>(2.0)*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
-                                              + (EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*pI_0;
-                              const auto C2   = static_cast<typename Field::value_type>(2.0)*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
-                                              + (EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*pI_0;
+                              const auto C1   = static_cast<Number>(2.0)*EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty()
+                                              + (EOS_phase1.get_gamma() - static_cast<Number>(1.0))*pI_0;
+                              const auto C2   = static_cast<Number>(2.0)*EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty()
+                                              + (EOS_phase2.get_gamma() - static_cast<Number>(1.0))*pI_0;
                               const auto b    = C1*alpha2_loc + C2*alpha1_loc
-                                              - (static_cast<typename Field::value_type>(1.0) + EOS_phase2.get_gamma())*alpha1_loc*p1_loc
-                                              - (static_cast<typename Field::value_type>(1.0) + EOS_phase1.get_gamma())*alpha2_loc*p2_loc;
+                                              - (static_cast<Number>(1.0) + EOS_phase2.get_gamma())*alpha1_loc*p1_loc
+                                              - (static_cast<Number>(1.0) + EOS_phase1.get_gamma())*alpha2_loc*p2_loc;
                               const auto d    = -(C2*alpha1_loc*p1_loc + C1*alpha2_loc*p2_loc);
 
-                              const auto p_star = (-b + std::sqrt(b*b - static_cast<typename Field::value_type>(4.0)*a*d))/
-                                                  (static_cast<typename Field::value_type>(2.0)*a);
+                              const auto p_star = (-b + std::sqrt(b*b - static_cast<Number>(4.0)*a*d))/
+                                                  (static_cast<Number>(2.0)*a);
 
                               /*--- Update the volume fraction using the computed pressure ---*/
-                              alpha1_loc *= ((EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*p_star +
-                                             static_cast<typename Field::value_type>(2.0)*p1_loc + C1)/
-                                            ((EOS_phase1.get_gamma() + static_cast<typename Field::value_type>(1.0))*p_star + C1);
+                              alpha1_loc *= ((EOS_phase1.get_gamma() - static_cast<Number>(1.0))*p_star +
+                                             static_cast<Number>(2.0)*p1_loc + C1)/
+                                            ((EOS_phase1.get_gamma() + static_cast<Number>(1.0))*p_star + C1);
                               conserved_variables[cell][ALPHA1_INDEX] = alpha1_loc;
 
                               /*--- Update the total energy of both phases ---*/
                               const auto E1_loc = EOS_phase1.e_value_RhoP(m1_loc/alpha1_loc, p_star)
-                                                + static_cast<typename Field::value_type>(0.5)*norm2_vel1;
+                                                + static_cast<Number>(0.5)*norm2_vel1;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                               m1E1_loc = m1_loc*E1_loc;
@@ -1476,9 +1476,9 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
 
                               // First focus on the velocity relaxation
                               /*--- Save phasic velocities and initial specific internal energy of phase 1 for the total energy update ---*/
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
@@ -1487,17 +1487,17 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
                                 vel2[cell][d] = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<typename Field::value_type>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_0 -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
                               }
 
                               /*--- Compute mixture density and (specific) total energy for the updates ---*/
                               const auto rho_0     = m1_loc + m2_loc;
-                              const auto inv_rho_0 = static_cast<typename Field::value_type>(1.0)/rho_0;
+                              const auto inv_rho_0 = static_cast<Number>(1.0)/rho_0;
                               const auto rhoE_0    = m1E1_loc + m2E2_loc;
 
                               /*--- Update the momentum (and the kinetic energy of phase 1) ---*/
-                              m1E1_loc            = static_cast<typename Field::value_type>(0.0);
-                              auto norm2_vel_star = static_cast<typename Field::value_type>(0.0);
+                              m1E1_loc            = static_cast<Number>(0.0);
+                              auto norm2_vel_star = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel_star_d = (conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d] +
                                                          conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d])*inv_rho_0;
@@ -1507,16 +1507,16 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
 
                                 conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d] = m2_loc*vel_star_d;
 
-                                m1E1_loc += static_cast<typename Field::value_type>(0.5)*
+                                m1E1_loc += static_cast<Number>(0.5)*
                                             m1_loc*vel_star_d*vel_star_d;
                               }
 
                               /*--- Update total energy of the two phases ---*/
                               const auto Y2_0 = m2_loc*inv_rho_0;
-                              const auto chi1 = static_cast<typename Field::value_type>(0.0); // uI = (1 - chi1)*u1 + chi1*u2;
+                              const auto chi1 = static_cast<Number>(0.0); // uI = (1 - chi1)*u1 + chi1*u2;
                               auto e1_star    = e1_0;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e1_star += static_cast<typename Field::value_type>(0.5)*chi1*
+                                e1_star += static_cast<Number>(0.5)*chi1*
                                            (vel1[cell][d] - vel2[cell][d])*(vel1[cell][d] - vel2[cell][d])*Y2_0;
                                            // Recall that vel1 and vel2 are the initial values!!!!
                               }
@@ -1526,15 +1526,15 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
 
                               // Focus now on the pressure/temperature relaxation
                               const auto rhoe_0 = rhoE_0
-                                                - static_cast<typename Field::value_type>(0.5)*rho_0*norm2_vel_star;
+                                                - static_cast<Number>(0.5)*rho_0*norm2_vel_star;
 
                               const auto a = EOS_phase1.get_cv()*m1_loc
                                            + EOS_phase2.get_cv()*m2_loc;
                               const auto b = EOS_phase1.get_q_infty()*EOS_phase1.get_cv()*
-                                             (EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*
+                                             (EOS_phase1.get_gamma() - static_cast<Number>(1.0))*
                                              m1_loc*m1_loc
                                            + EOS_phase2.get_q_infty()*EOS_phase2.get_cv()*
-                                             (EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*
+                                             (EOS_phase2.get_gamma() - static_cast<Number>(1.0))*
                                              m2_loc*m2_loc
                                            + m1_loc*
                                              EOS_phase1.get_cv()*(EOS_phase1.get_gamma()*EOS_phase1.get_pi_infty() + EOS_phase2.get_pi_infty())
@@ -1542,47 +1542,47 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
                                              EOS_phase2.get_cv()*(EOS_phase2.get_gamma()*EOS_phase2.get_pi_infty() + EOS_phase1.get_pi_infty())
                                            + m1_loc*m2_loc*
                                              (EOS_phase1.get_q_infty()*EOS_phase2.get_cv()*
-                                              (EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0)) +
+                                              (EOS_phase2.get_gamma() - static_cast<Number>(1.0)) +
                                               EOS_phase2.get_q_infty()*EOS_phase1.get_cv()*
-                                              (EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0)))
+                                              (EOS_phase1.get_gamma() - static_cast<Number>(1.0)))
                                            - rhoe_0*
-                                             (EOS_phase1.get_cv()*(EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*m1_loc +
-                                              EOS_phase2.get_cv()*(EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*m2_loc);
+                                             (EOS_phase1.get_cv()*(EOS_phase1.get_gamma() - static_cast<Number>(1.0))*m1_loc +
+                                              EOS_phase2.get_cv()*(EOS_phase2.get_gamma() - static_cast<Number>(1.0))*m2_loc);
                               const auto d = EOS_phase1.get_q_infty()*EOS_phase1.get_cv()*
-                                             (EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*EOS_phase2.get_pi_infty()*
+                                             (EOS_phase1.get_gamma() - static_cast<Number>(1.0))*EOS_phase2.get_pi_infty()*
                                              m1_loc*m1_loc
                                            + EOS_phase2.get_q_infty()*EOS_phase2.get_cv()*
-                                             (EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*EOS_phase1.get_pi_infty()*
+                                             (EOS_phase2.get_gamma() - static_cast<Number>(1.0))*EOS_phase1.get_pi_infty()*
                                              m2_loc*m2_loc
                                            + (m1_loc*EOS_phase1.get_cv()*EOS_phase1.get_gamma() +
                                               m2_loc*EOS_phase2.get_cv()*EOS_phase2.get_gamma())*
                                              EOS_phase1.get_pi_infty()*EOS_phase2.get_pi_infty()
                                            + m1_loc*m2_loc*
                                              (EOS_phase1.get_q_infty()*EOS_phase2.get_cv()*
-                                              (EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*EOS_phase1.get_pi_infty() +
+                                              (EOS_phase2.get_gamma() - static_cast<Number>(1.0))*EOS_phase1.get_pi_infty() +
                                               EOS_phase2.get_q_infty()*EOS_phase1.get_cv()*
-                                              (EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*EOS_phase2.get_pi_infty())
+                                              (EOS_phase1.get_gamma() - static_cast<Number>(1.0))*EOS_phase2.get_pi_infty())
                                            - rhoe_0*
-                                             (EOS_phase1.get_cv()*(EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*
+                                             (EOS_phase1.get_cv()*(EOS_phase1.get_gamma() - static_cast<Number>(1.0))*
                                               m1_loc*EOS_phase2.get_pi_infty() +
-                                              EOS_phase2.get_cv()*(EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*
+                                              EOS_phase2.get_cv()*(EOS_phase2.get_gamma() - static_cast<Number>(1.0))*
                                               m2_loc*EOS_phase1.get_pi_infty());
 
-                              const auto p_star = (-b + std::sqrt(b*b - static_cast<typename Field::value_type>(4.0)*a*d))/
-                                                  (static_cast<typename Field::value_type>(2.0)*a);
+                              const auto p_star = (-b + std::sqrt(b*b - static_cast<Number>(4.0)*a*d))/
+                                                  (static_cast<Number>(2.0)*a);
 
                               /*--- Update the volume fraction using the computed pressure ---*/
-                              alpha1_loc = (EOS_phase1.get_cv()*(EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*
+                              alpha1_loc = (EOS_phase1.get_cv()*(EOS_phase1.get_gamma() - static_cast<Number>(1.0))*
                                             (p_star + EOS_phase2.get_pi_infty())*m1_loc)/
-                                           (EOS_phase1.get_cv()*(EOS_phase1.get_gamma() - static_cast<typename Field::value_type>(1.0))*
+                                           (EOS_phase1.get_cv()*(EOS_phase1.get_gamma() - static_cast<Number>(1.0))*
                                             (p_star + EOS_phase2.get_pi_infty())*m1_loc +
-                                            EOS_phase2.get_cv()*(EOS_phase2.get_gamma() - static_cast<typename Field::value_type>(1.0))*
+                                            EOS_phase2.get_cv()*(EOS_phase2.get_gamma() - static_cast<Number>(1.0))*
                                             (p_star + EOS_phase1.get_pi_infty())*m2_loc);
                               conserved_variables[cell][ALPHA1_INDEX] = alpha1_loc;
 
                               /*--- Update the total energy of both phases ---*/
                               const auto E1_loc = EOS_phase1.e_value_RhoP(m1_loc/alpha1_loc, p_star)
-                                                + static_cast<typename Field::value_type>(0.5)*norm2_vel_star;
+                                                + static_cast<Number>(0.5)*norm2_vel_star;
                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                               m1E1_loc = m1_loc*E1_loc;
@@ -1618,27 +1618,27 @@ void BN_Solver<dim>::compute_entropy_after_flux() {
 
                               // Compute entropies
                               const auto rho1_loc   = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_loc           = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel1_d = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                e1_loc -= static_cast<typename Field::value_type>(0.5)*vel1_d*vel1_d;
+                                e1_loc -= static_cast<Number>(0.5)*vel1_d*vel1_d;
                               }
                               entropy_after_flux_phase1[cell]      = EOS_phase1.s_value_Rhoe(rho1_loc, e1_loc);
                               entropy_production_flux_phase1[cell] = entropy_after_flux_phase1[cell] - entropy_after_relaxation_phase1[cell];
                               /*--- TODO: To be corrected taking into account entropy flux ---*/
 
-                              const auto rho2_loc   = m2_loc/(static_cast<typename Field::value_type>(1.0) - alpha1_loc);
+                              const auto rho2_loc   = m2_loc/(static_cast<Number>(1.0) - alpha1_loc);
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e2_loc           = m2E2_loc*inv_m2_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel2_d = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                e2_loc -= static_cast<typename Field::value_type>(0.5)*vel2_d*vel2_d;
+                                e2_loc -= static_cast<Number>(0.5)*vel2_d*vel2_d;
                               }
                               entropy_after_flux_phase2[cell]      = EOS_phase2.s_value_Rhoe(rho2_loc, e2_loc);
                               entropy_production_flux_phase2[cell] = entropy_after_flux_phase2[cell] - entropy_after_relaxation_phase2[cell];
@@ -1681,26 +1681,26 @@ void BN_Solver<dim>::compute_entropy_after_relaxation() {
 
                               // Compute entropies
                               const auto rho1_loc   = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m1_loc = static_cast<typename Field::value_type>(1.0)/m1_loc;
+                              const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_loc           = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel1_d = conserved_variables[cell][ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                e1_loc -= static_cast<typename Field::value_type>(0.5)*vel1_d*vel1_d;
+                                e1_loc -= static_cast<Number>(0.5)*vel1_d*vel1_d;
                               }
                               entropy_after_relaxation_phase1[cell]      = EOS_phase1.s_value_Rhoe(rho1_loc, e1_loc);
                               entropy_production_relaxation_phase1[cell] = entropy_after_relaxation_phase1[cell] - entropy_after_flux_phase1[cell];
 
-                              const auto rho2_loc   = m2_loc/(static_cast<typename Field::value_type>(1.0) - alpha1_loc);
+                              const auto rho2_loc   = m2_loc/(static_cast<Number>(1.0) - alpha1_loc);
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                              const auto inv_m2_loc = static_cast<typename Field::value_type>(1.0)/m2_loc;
+                              const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e2_loc           = m2E2_loc*inv_m2_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel2_d = conserved_variables[cell][ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                e2_loc -= static_cast<typename Field::value_type>(0.5)*vel2_d*vel2_d;
+                                e2_loc -= static_cast<Number>(0.5)*vel2_d*vel2_d;
                               }
                               entropy_after_relaxation_phase2[cell]      = EOS_phase2.s_value_Rhoe(rho2_loc, e2_loc);
                               entropy_production_relaxation_phase2[cell] = entropy_after_relaxation_phase2[cell] - entropy_after_flux_phase2[cell];
@@ -1745,18 +1745,18 @@ void BN_Solver<dim>::run() {
     filename = filename + "_order1";
   #endif
 
-  const auto dt_save = Tf/static_cast<typename Field::value_type>(nfiles);
+  const auto dt_save = Tf/static_cast<Number>(nfiles);
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_vector_field<double, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_vector_field<double, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_vector_field<double, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_np1", mesh);
 
   /*--- Create the flux variables ---*/
   #ifdef SULICIU_RELAXATION
-    auto c = static_cast<typename Field::value_type>(0.0);
+    auto c = static_cast<Number>(0.0);
     auto Suliciu_flux = numerical_flux.make_flux(c);
   #elifdef RUSANOV_FLUX
     auto Rusanov_flux         = numerical_flux_cons.make_flux();
@@ -1768,7 +1768,7 @@ void BN_Solver<dim>::run() {
                                              Field::n_comp,
                                              decltype(conserved_variables)>;
   auto gravity = samurai::make_cell_based_scheme<cfg>();
-  gravity.coefficients_func() = [](typename Field::value_type)
+  gravity.coefficients_func() = [](Number)
                                   {
                                     samurai::StencilCoeffs<cfg> coeffs;
 
@@ -1793,7 +1793,7 @@ void BN_Solver<dim>::run() {
                           entropy_after_relaxation_phase2, entropy_production_relaxation_phase2);
 
   /*--- Set mesh size ---*/
-  const double dx = mesh.cell_length(mesh.max_level());
+  const auto dx = static_cast<Number>(mesh.cell_length(mesh.max_level()));
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
@@ -1808,7 +1808,7 @@ void BN_Solver<dim>::run() {
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
-  double t          = 0.0;
+  auto t            = static_cast<Number>(t0);
   while(t != Tf) {
     // Apply mesh adaptation
     auto MRadaptation = samurai::make_MRAdapt(conserved_variables);
@@ -1937,14 +1937,14 @@ void BN_Solver<dim>::run() {
 
       // Complete the evaluation
       conserved_variables_np1.resize();
-      conserved_variables_np1 = static_cast<typename Field::value_type>(0.5)*
+      conserved_variables_np1 = static_cast<Number>(0.5)*
                                 (conserved_variables_tmp + conserved_variables_old);
       std::swap(conserved_variables.array(), conserved_variables_np1.array());
     #endif
 
     // Save the results
     update_auxiliary_fields();
-    if(t >= static_cast<double>(nsave + 1)*dt_save || t == Tf) {
+    if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, suffix, conserved_variables,
                          rho, p, vel,

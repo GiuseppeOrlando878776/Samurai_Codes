@@ -22,9 +22,11 @@ namespace samurai {
   template<class Field>
   class RelaxationFlux {
   public:
+    using Number = typename Field::value_type; /*--- Shortcut for the arithmetic type ---*/
+
     RelaxationFlux() = default; /*--- Default constructor ---*/
 
-    auto make_flux(typename Field::value_type& c); /*--- Compute the flux over all faces and directions.
+    auto make_flux(Number& c); /*--- Compute the flux over all faces and directions.
                                                          The input argument is employed to compute the Courant number ---*/
 
   private:
@@ -41,7 +43,7 @@ namespace samurai {
                                const std::size_t curr_d,
                                FluxValue<typename Flux<Field>::cfg>& F_minus,
                                FluxValue<typename Flux<Field>::cfg>& F_plus,
-                               typename Field::value_type& c); /*--- Compute discrete flux ---*/
+                               Number& c); /*--- Compute discrete flux ---*/
   };
 
   // Conversion from Samurai to other ("analogous") data structure for the state
@@ -82,7 +84,7 @@ namespace samurai {
                                                     std::size_t curr_d,
                                                     FluxValue<typename Flux<Field>::cfg>& F_minus,
                                                     FluxValue<typename Flux<Field>::cfg>& F_plus,
-                                                    typename Field::value_type& c) {
+                                                    Number& c) {
     /*--- Employ "Saleh et al." functions to compute the Suliciu "flux" ---*/
     int Newton_iter;
     int dissip;
