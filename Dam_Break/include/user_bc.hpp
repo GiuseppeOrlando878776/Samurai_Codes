@@ -6,9 +6,6 @@
 //
 #pragma once
 
-#ifndef user_bc_hpp
-#define user_bc_hpp
-
 #include <samurai/bc.hpp>
 
 #include "flux_base.hpp"
@@ -54,17 +51,16 @@ auto NonReflecting(const Field& Q) {
     Q_ghost[M2_INDEX]         = Q[cell_in](M2_INDEX);
     Q_ghost[RHO_ALPHA1_INDEX] = Q[cell_in](RHO_ALPHA1_INDEX);
 
-    typename Field::value_type rhou_dot_n = 0.0;
+    auto rhou_dot_n = static_cast<typename Field::value_type>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
       rhou_dot_n += Q[cell_in](RHO_U_INDEX + d)*normal[d];
     }
 
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      Q_ghost[RHO_U_INDEX + d] = Q[cell_in](RHO_U_INDEX + d) - 2.0*rhou_dot_n*normal[d];
+      Q_ghost[RHO_U_INDEX + d] = Q[cell_in](RHO_U_INDEX + d)
+                               - static_cast<typename Field::value_type>(2.0)*rhou_dot_n*normal[d];
     }
 
     return Q_ghost;
   };
 }
-
-#endif

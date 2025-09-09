@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef Rusanov_flux_hpp
-#define Rusanov_flux_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
@@ -20,11 +19,13 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
-                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                const typename Field::value_type lambda_,
-                const typename Field::value_type atol_Newton_,
-                const typename Field::value_type rtol_Newton_,
+    using Number = Flux<Field>::Number;
+
+    RusanovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
+                const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+                const Number lambda_,
+                const Number atol_Newton_,
+                const Number rtol_Newton_,
                 const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     auto make_flux(); /*--- Compute the flux over all the directions ---*/
@@ -38,11 +39,11 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
-                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                                  const typename Field::value_type lambda_,
-                                  const typename Field::value_type atol_Newton_,
-                                  const typename Field::value_type rtol_Newton_,
+  RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
+                                  const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+                                  const Number lambda_,
+                                  const Number atol_Newton_,
+                                  const Number rtol_Newton_,
                                   const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1_, EOS_phase2_,
                 lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
@@ -64,56 +65,56 @@ namespace samurai {
 
     /*--- Verify if left and right state are coherent ---*/
     #ifdef VERBOSE_FLUX
-      if(m1_L < static_cast<typename Field::value_type>(0.0)) {
+      if(m1_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
       }
-      if(m2_L < static_cast<typename Field::value_type>(0.0)) {
+      if(m2_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(m2_L)));
       }
-      if(rho_alpha1_L < static_cast<typename Field::value_type>(0.0)) {
+      if(rho_alpha1_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(rho_alpha1_L)));
       }
 
-      if(m1_R < static_cast<typename Field::value_type>(0.0)) {
+      if(m1_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 1 right state: " + std::to_string(m1_R)));
       }
-      if(m2_R < static_cast<typename Field::value_type>(0.0)) {
+      if(m2_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(m2_R)));
       }
-      if(rho_alpha1_R < static_cast<typename Field::value_type>(0.0)) {
+      if(rho_alpha1_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction phase 1 right state: " + std::to_string(rho_alpha1_R)));
       }
     #endif
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
     const auto rho_L     = m1_L + m2_L;
-    const auto inv_rho_L = static_cast<typename Field::value_type>(1.0)/rho_L;
+    const auto inv_rho_L = static_cast<Number>(1.0)/rho_L;
     const auto vel_d_L   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
     const auto alpha1_L  = rho_alpha1_L*inv_rho_L;
     const auto rho1_L    = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_L    = m2_L/(static_cast<typename Field::value_type>(1.0) - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L    = m2_L/(static_cast<Number>(1.0) - alpha1_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto Y1_L      = m1_L*inv_rho_L;
     const auto c_L       = std::sqrt(Y1_L*
                                      this->EOS_phase1.c_value(rho1_L)*
                                      this->EOS_phase1.c_value(rho1_L) +
-                                     (static_cast<typename Field::value_type>(1.0) - Y1_L)*
+                                     (static_cast<Number>(1.0) - Y1_L)*
                                      this->EOS_phase2.c_value(rho2_L)*
                                      this->EOS_phase2.c_value(rho2_L));
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
     const auto rho_R     = m1_R + m2_R;
-    const auto inv_rho_R = static_cast<typename Field::value_type>(1.0)/rho_R;
+    const auto inv_rho_R = static_cast<Number>(1.0)/rho_R;
     const auto vel_d_R   = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
     const auto alpha1_R  = rho_alpha1_R*inv_rho_R;
     const auto rho1_R    = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_R    = m2_R/(static_cast<typename Field::value_type>(1.0) - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R    = m2_R/(static_cast<Number>(1.0) - alpha1_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto Y1_R      = m1_R*inv_rho_R;
     const auto c_R       = std::sqrt(Y1_R*
                                      this->EOS_phase1.c_value(rho1_R)*
                                      this->EOS_phase1.c_value(rho1_R) +
-                                     (static_cast<typename Field::value_type>(1.0) - Y1_R)*
+                                     (static_cast<Number>(1.0) - Y1_R)*
                                      this->EOS_phase2.c_value(rho2_R)*
                                      this->EOS_phase2.c_value(rho2_R));
 
@@ -121,10 +122,10 @@ namespace samurai {
     const auto lambda = std::max(std::abs(vel_d_L) + c_L,
                                  std::abs(vel_d_R) + c_R);
 
-    return static_cast<typename Field::value_type>(0.5)*
+    return static_cast<Number>(0.5)*
            (this->evaluate_continuous_flux(qL, curr_d) +
             this->evaluate_continuous_flux(qR, curr_d)) - // centered contribution
-           static_cast<typename Field::value_type>(0.5)*lambda*(qR - qL); // upwinding contribution
+           static_cast<Number>(0.5)*lambda*(qR - qL); // upwinding contribution
   }
 
   // Implement the contribution of the discrete flux for all the directions.
@@ -181,5 +182,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

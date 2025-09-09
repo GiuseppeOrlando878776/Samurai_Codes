@@ -4,16 +4,13 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef flux_base_hpp
-#define flux_base_hpp
-
 #pragma once
 #include <samurai/schemes/fv.hpp>
 
 #include "barotropic_eos.hpp"
 
 /*--- Preprocessor to define whether order 2 is desired ---*/
-//#define ORDER_2
+#define ORDER_2
 
 /*--- Preprocessor to define whether relaxation is desired after reconstruction for order 2 ---*/
 #ifdef ORDER_2
@@ -63,23 +60,24 @@ namespace samurai {
       static constexpr std::size_t stencil_size = 2;
     #endif
 
-    using cfg = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
+    using cfg    = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
+    using Number = typename Field::value_type; /*--- Define the shortcut for the arithmetic type ---*/
 
-    Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
-         const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-         const typename Field::value_type lambda_ = static_cast<typename Field::value_type>(0.9),
-         const typename Field::value_type atol_Newton_ = static_cast<typename Field::value_type>(1e-14),
-         const typename Field::value_type rtol_Newton_ = static_cast<typename Field::value_type>(1e-12),
+    Flux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
+         const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+         const Number lambda_ = static_cast<Number>(0.9),
+         const Number atol_Newton_ = static_cast<Number>(1e-14),
+         const Number rtol_Newton_ = static_cast<Number>(1e-12),
          const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
   protected:
-    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1;
-    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2;
+    const LinearizedBarotropicEOS<Number>& EOS_phase1;
+    const LinearizedBarotropicEOS<Number>& EOS_phase2;
 
-    const typename Field::value_type lambda;           /*--- Parameter for bound preserving strategy ---*/
-    const typename Field::value_type atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
-    const typename Field::value_type rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
-    const std::size_t                max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
+    const Number      lambda;           /*--- Parameter for bound preserving strategy ---*/
+    const Number      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
+    const Number      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
+    const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
                                             const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q
@@ -100,8 +98,8 @@ namespace samurai {
       #ifdef RELAX_RECONSTRUCTION
         template<typename State>
         void perform_Newton_step_relaxation(State conserved_variables,
-                                            typename Field::value_type& dalpha1,
-                                            typename Field::value_type& alpha1,
+                                            Number& dalpha1,
+                                            Number& alpha1,
                                             bool& relaxation_applied); /*--- Perform a Newton step relaxation for a state vector
                                                                              (it is not a real space dependent procedure,
                                                                               but I would need to be able to do it inside the flux location
@@ -115,11 +113,11 @@ namespace samurai {
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
-  Flux<Field>::Flux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
-                    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                    const typename Field::value_type lambda_,
-                    const typename Field::value_type atol_Newton_,
-                    const typename Field::value_type rtol_Newton_,
+  Flux<Field>::Flux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
+                    const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+                    const Number lambda_,
+                    const Number atol_Newton_,
+                    const Number rtol_Newton_,
                     const std::size_t max_Newton_iters_):
     EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_),
     lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
@@ -142,7 +140,7 @@ namespace samurai {
 
     /*--- Compute the current density and velocity ---*/
     const auto rho     = m1 + m2;
-    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
     /*--- Multiply the state by the velocity along the direction of interest ---*/
@@ -158,11 +156,11 @@ namespace samurai {
     const auto rho1   = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1     = EOS_phase1.pres_value(rho1);
 
-    const auto p2     = EOS_phase2.pres_value(m2/(static_cast<typename Field::value_type>(1.0) - alpha1));
+    const auto p2     = EOS_phase2.pres_value(m2/(static_cast<Number>(1.0) - alpha1));
                         /*--- TODO: Add a check in case of zero volume fraction ---*/
 
     const auto p      = alpha1*p1
-                      + (static_cast<typename Field::value_type>(1.0) - alpha1)*p2;
+                      + (static_cast<Number>(1.0) - alpha1)*p2;
 
     res(RHO_U_INDEX + curr_d) += p;
 
@@ -181,7 +179,7 @@ namespace samurai {
 
     /*--- Compute primitive variables ---*/
     const auto rho     = m1 + m2;
-    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto alpha1  = cons(RHO_ALPHA1_INDEX)*inv_rho;
     prim(ALPHA1_INDEX) = alpha1;
 
@@ -191,7 +189,7 @@ namespace samurai {
 
     const auto rho1 = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(P1_INDEX)  = EOS_phase1.pres_value(rho1);
-    const auto rho2 = m2/(static_cast<typename Field::value_type>(1.0) - alpha1);
+    const auto rho2 = m2/(static_cast<Number>(1.0) - alpha1);
                       /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(P2_INDEX)  = EOS_phase2.pres_value(rho2);
 
@@ -213,7 +211,7 @@ namespace samurai {
     cons(M1_INDEX)  = m1;
 
     const auto rho2 = EOS_phase2.rho_value(prim(P2_INDEX));
-    const auto m2   = (static_cast<typename Field::value_type>(1.0) - alpha1)*rho2;
+    const auto m2   = (static_cast<Number>(1.0) - alpha1)*rho2;
     cons(M2_INDEX)  = m2;
 
     const auto rho         = m1 + m2;
@@ -240,36 +238,36 @@ namespace samurai {
       primR_recon = primR;
 
       /*--- Perform the reconstruction ---*/
-      const auto beta = static_cast<typename Field::value_type>(1.0); // MINMOD limiter
+      const auto beta = static_cast<Number>(1.0); // MINMOD limiter
       for(std::size_t comp = 0; comp < Field::n_comp; ++comp) {
-        if(primR(comp) - primL(comp) > static_cast<typename Field::value_type>(0.0)) {
-          primL_recon(comp) += static_cast<typename Field::value_type>(0.5)*
-                               std::max(static_cast<typename Field::value_type>(0.0),
+        if(primR(comp) - primL(comp) > static_cast<Number>(0.0)) {
+          primL_recon(comp) += static_cast<Number>(0.5)*
+                               std::max(static_cast<Number>(0.0),
                                         std::max(std::min(beta*(primL(comp) - primLL(comp)),
                                                           primR(comp) - primL(comp)),
                                                  std::min(primL(comp) - primLL(comp),
                                                           beta*(primR(comp) - primL(comp)))));
         }
-        else if(primR(comp) - primL(comp) < static_cast<typename Field::value_type>(0.0)) {
-          primL_recon(comp) += static_cast<typename Field::value_type>(0.5)*
-                               std::min(static_cast<typename Field::value_type>(0.0),
+        else if(primR(comp) - primL(comp) < static_cast<Number>(0.0)) {
+          primL_recon(comp) += static_cast<Number>(0.5)*
+                               std::min(static_cast<Number>(0.0),
                                         std::min(std::max(beta*(primL(comp) - primLL(comp)),
                                                           primR(comp) - primL(comp)),
                                                  std::max(primL(comp) - primLL(comp),
                                                           beta*(primR(comp) - primL(comp)))));
         }
 
-        if(primRR(comp) - primR(comp) > static_cast<typename Field::value_type>(0.0)) {
-          primR_recon(comp) -= static_cast<typename Field::value_type>(0.5)*
-                               std::max(static_cast<typename Field::value_type>(0.0),
+        if(primRR(comp) - primR(comp) > static_cast<Number>(0.0)) {
+          primR_recon(comp) -= static_cast<Number>(0.5)*
+                               std::max(static_cast<Number>(0.0),
                                         std::max(std::min(beta*(primR(comp) - primL(comp)),
                                                           primRR(comp) - primR(comp)),
                                                  std::min(primR(comp) - primL(comp),
                                                           beta*(primRR(comp) - primR(comp)))));
         }
-        else if(primRR(comp) - primR(comp) < static_cast<typename Field::value_type>(0.0)) {
-          primR_recon(comp) -= static_cast<typename Field::value_type>(0.5)*
-                               std::min(static_cast<typename Field::value_type>(0.0),
+        else if(primRR(comp) - primR(comp) < static_cast<Number>(0.0)) {
+          primR_recon(comp) -= static_cast<Number>(0.5)*
+                               std::min(static_cast<Number>(0.0),
                                         std::min(std::max(beta*(primR(comp) - primL(comp)),
                                                           primRR(comp) - primR(comp)),
                                                  std::max(primR(comp) - primL(comp),
@@ -288,8 +286,8 @@ namespace samurai {
       template<class Field>
       template<typename State>
       void Flux<Field>::perform_Newton_step_relaxation(State conserved_variables,
-                                                       typename Field::value_type& dalpha1,
-                                                       typename Field::value_type& alpha1,
+                                                       Number& dalpha1,
+                                                       Number& alpha1,
                                                        bool& relaxation_applied) {
         /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
         const auto m1 = conserved_variables(M1_INDEX);
@@ -299,7 +297,7 @@ namespace samurai {
         const auto rho1 = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
         const auto p1   = EOS_phase1.pres_value(rho1);
 
-        const auto rho2 = m2/(static_cast<typename Field::value_type>(1.0) - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
+        const auto rho2 = m2/(static_cast<Number>(1.0) - alpha1); /*--- TODO: Add a check in case of zero volume fraction ---*/
         const auto p2   = EOS_phase2.pres_value(rho2);
 
         /*--- Compute the nonlinear function for which we seek the zero (basically the pressure equilibrium) ---*/
@@ -313,28 +311,28 @@ namespace samurai {
           /*--- Compute the derivative w.r.t volume fraction recalling that for a barotropic EOS dp/drho = c^2 ---*/
           const auto dF_dalpha1 = -m1/(alpha1*alpha1)*
                                   EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
-                                  -m2/((static_cast<typename Field::value_type>(1.0) - alpha1)*
-                                       (static_cast<typename Field::value_type>(1.0) - alpha1))*
+                                  -m2/((static_cast<Number>(1.0) - alpha1)*
+                                       (static_cast<Number>(1.0) - alpha1))*
                                   EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
 
           /*--- Compute the volume fraction update with a bound-preserving strategy ---*/
           dalpha1 = -F/dF_dalpha1;
-          if(dalpha1 > static_cast<typename Field::value_type>(0.0)) {
+          if(dalpha1 > static_cast<Number>(0.0)) {
             dalpha1 = std::min(dalpha1,
-                               lambda*(static_cast<typename Field::value_type>(1.0) - alpha1));
+                               lambda*(static_cast<Number>(1.0) - alpha1));
           }
-          else if(dalpha1 < static_cast<typename Field::value_type>(0.0)) {
+          else if(dalpha1 < static_cast<Number>(0.0)) {
             dalpha1 = std::max(dalpha1, -lambda*alpha1);
           }
 
-          if(alpha1 + dalpha1 < static_cast<typename Field::value_type>(0.0) ||
-             alpha1 + dalpha1 > static_cast<typename Field::value_type>(1.0)) {
-            // We should never arrive here thakns to the bound-preserving strategy. Added only for the sake fo safety
-            throw std::runtime_error("Bounds exceeding value for the volume fraction inside Newton step");
-          }
-          else {
-            alpha1 += dalpha1;
-          }
+          #ifdef VERBOSE
+            if(alpha1 + dalpha1 < static_cast<Number>(0.0) ||
+               alpha1 + dalpha1 > static_cast<Number>(1.0)) {
+              // We should never arrive here thanks to the bound-preserving strategy. Added only for the sake of safety
+              throw std::runtime_error("Bounds exceeding value for the volume fraction inside Newton step");
+            }
+          #endif
+          alpha1 += dalpha1;
         }
 
         /*--- Update the vector of conserved variables ---*/
@@ -349,8 +347,8 @@ namespace samurai {
         std::size_t Newton_iter = 0;
         bool relaxation_applied = true;
 
-        typename Field::value_type dalpha1 = std::numeric_limits<typename Field::value_type>::infinity();
-        typename Field::value_type alpha1  = q(RHO_ALPHA1_INDEX)/(q(M1_INDEX) + q(M2_INDEX));
+        auto dalpha1 = std::numeric_limits<Number>::infinity();
+        auto alpha1  = q(RHO_ALPHA1_INDEX)/(q(M1_INDEX) + q(M2_INDEX));
 
         /*--- Apply Newton method ---*/
         while(relaxation_applied == true) {
@@ -360,7 +358,7 @@ namespace samurai {
           this->perform_Newton_step_relaxation(q, dalpha1, alpha1, relaxation_applied);
 
           // Newton cycle diverged
-          if(Newton_iter > 60 && relaxation_applied == true) {
+          if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
             std::cout << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
             exit(1);
           }
@@ -370,5 +368,3 @@ namespace samurai {
   #endif
 
 } // end namespace samurai
-
-#endif

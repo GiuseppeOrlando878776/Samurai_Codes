@@ -14,7 +14,7 @@
  "H0": 0.8,
  "W0": 0.4,
 
- "cfl": 0.2,
+ "cfl": 0.3,
 
  "lambda": 0.9,
  "atol_Newton": 1e-14,
@@ -22,7 +22,7 @@
  "max_Newton_iters": 60,
 
  "min-level": 4,
- "max-level": 4,
+ "max-level": 6,
  "MR_param": 1e-2,
  "MR_regularity": 0,
 
