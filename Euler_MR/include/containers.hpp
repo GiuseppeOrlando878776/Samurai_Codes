@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef containers_hpp
-#define containers_hpp
+#pragma once
 
 // Declare a struct with the simulation parameters
 // (domain, levels, final time, and Courant number)
@@ -62,5 +61,3 @@ struct Riemann_Parameters {
   T uR;
   T vR;
 };
-
-#endif

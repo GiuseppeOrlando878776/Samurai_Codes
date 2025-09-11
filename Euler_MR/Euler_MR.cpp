@@ -21,7 +21,8 @@ int main(int argc, char* argv[]) {
   json input = json::parse(ifs);
 
   /*--- Set and declare some simulation parameters ---*/
-  Simulation_Paramaters<double> sim_param;
+  using Number = Euler_MR<EquationData::dim>::Number;
+  Simulation_Paramaters<Number> sim_param;
 
   // Physical parameters
   sim_param.xL = input.value("xL", 0.0);
@@ -69,7 +70,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--restart_file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
 
   /*--- Set and declare simulation parameters related to EOS ---*/
-  EOS_Parameters<double> eos_param;
+  EOS_Parameters<Number> eos_param;
 
   eos_param.gamma    = input.value("gamma", 1.4);
   eos_param.pi_infty = input.value("pi_infty", 0.0);
@@ -81,7 +82,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--q_infty", eos_param.q_infty, "q_infty")->capture_default_str()->group("EOS parameters");
 
   /*--- Set and declare simulation parameters related to initial condition ---*/
-  Riemann_Parameters<double> Riemann_param;
+  Riemann_Parameters<Number> Riemann_param;
 
   Riemann_param.xd   = input.value("xd", 0.5);
 
@@ -110,7 +111,7 @@ int main(int argc, char* argv[]) {
                                sim_param, eos_param,
                                Riemann_param);
 
-  Euler_MR_sim.run();
+  Euler_MR_sim.run(sim_param.nfiles);
 
   samurai::finalize();
 

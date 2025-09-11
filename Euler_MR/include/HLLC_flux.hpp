@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef HLLC_flux_hpp
-#define HLLC_flux_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
@@ -20,14 +19,16 @@ namespace samurai {
   template<class Field>
   class HLLCFlux: public Flux<Field> {
   public:
-    HLLCFlux(const EOS<typename Field::value_type>& EOS_); /*--- Constructor which accepts in input the equation of state ---*/
+    using Number = Flux<Field>::Number;
+
+    HLLCFlux(const EOS<Number>& EOS_); /*--- Constructor which accepts in input the equation of state ---*/
 
     auto make_flux(); /*--- Compute the flux over all the faces and directions ---*/
 
   private:
     auto compute_middle_state(const FluxValue<typename Flux<Field>::cfg>& q,
-                              const typename Field::value_type S,
-                              const typename Field::value_type S_star,
+                              const Number S,
+                              const Number S_star,
                               const std::size_t curr_d) const; /*--- Compute the middle state ---*/
 
     FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
@@ -38,24 +39,24 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  HLLCFlux<Field>::HLLCFlux(const EOS<typename Field::value_type>& EOS_):
+  HLLCFlux<Field>::HLLCFlux(const EOS<Number>& EOS_):
     Flux<Field>(EOS_) {}
 
   // Implement the auxiliary routine that computes the middle state
   //
   template<class Field>
   auto HLLCFlux<Field>::compute_middle_state(const FluxValue<typename Flux<Field>::cfg>& q,
-                                             const typename Field::value_type S,
-                                             const typename Field::value_type S_star,
+                                             const Number S,
+                                             const Number S_star,
                                              const std::size_t curr_d) const {
     /*--- Pre-fetch the density that will be used several times ---*/
     const auto rho     = q(RHO_INDEX);
-    const auto inv_rho = static_cast<typename Field::value_type>(1.0)/rho;
+    const auto inv_rho = static_cast<Number>(1.0)/rho;
 
     /*--- Compute the pressure ---*/
     auto e = q(RHOE_INDEX)*inv_rho;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      e -= static_cast<typename Field::value_type>(0.5)*
+      e -= static_cast<Number>(0.5)*
            (q(RHOU_INDEX + d)*inv_rho)*(q(RHOU_INDEX + d)*inv_rho);
     }
     const auto p = this->Euler_EOS.pres_value(rho, e);
@@ -88,23 +89,23 @@ namespace samurai {
     /*--- Left state ---*/
     // Pre-fetch density that will used several times
     const auto rhoL     = qL(RHO_INDEX);
-    const auto inv_rhoL = static_cast<typename Field::value_type>(1.0)/rhoL;
+    const auto inv_rhoL = static_cast<Number>(1.0)/rhoL;
 
     // Compute auxiliary primitive variables
     const auto velL_d = qL(RHOU_INDEX + curr_d)*inv_rhoL;
     auto eL = qL(RHOE_INDEX)*inv_rhoL;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      eL -= static_cast<typename Field::value_type>(0.5)*
+      eL -= static_cast<Number>(0.5)*
             (qL(RHOU_INDEX + d)*inv_rhoL)*(qL(RHOU_INDEX + d)*inv_rhoL);
     }
     const auto pL = this->Euler_EOS.pres_value(rhoL, eL);
     const auto cL = this->Euler_EOS.c_value(rhoL, pL);
 
     #ifdef VERBOSE_FLUX
-      if(rhoL < static_cast<typename Field::value_type>(0.0)) {
+      if(rhoL < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative density left state: " + std::to_string(rhoL)));
       }
-      if(pL < static_cast<typename Field::value_type>(0.0)) {
+      if(pL < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative pressure left state: " + std::to_string(pL)));
       }
     #endif
@@ -112,22 +113,22 @@ namespace samurai {
     /*--- Right state ---*/
     // Pre-fetch density that will used several times
     const auto rhoR     = qR(RHO_INDEX);
-    const auto inv_rhoR = static_cast<typename Field::value_type>(1.0)/rhoR;
+    const auto inv_rhoR = static_cast<Number>(1.0)/rhoR;
 
     const auto velR_d = qR(RHOU_INDEX + curr_d)*inv_rhoR;
     auto eR = qR(RHOE_INDEX)*inv_rhoR;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      eR -= static_cast<typename Field::value_type>(0.5)*
+      eR -= static_cast<Number>(0.5)*
             (qR(RHOU_INDEX + d)*inv_rhoR)*(qR(RHOU_INDEX + d)*inv_rhoR);
     }
     const auto pR = this->Euler_EOS.pres_value(rhoR, eR);
     const auto cR = this->Euler_EOS.c_value(rhoR, pR);
 
     #ifdef VERBOSE_FLUX
-      if(rhoR < static_cast<typename Field::value_type>(0.0)) {
+      if(rhoR < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative density right state: " + std::to_string(rhoR)));
       }
-      if(pR < static_cast<typename Field::value_type>(0.0)) {
+      if(pR < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative pressure right state: " + std::to_string(pR)));
       }
     #endif
@@ -143,18 +144,18 @@ namespace samurai {
     auto q_star_R = compute_middle_state(qR, sR, s_star, curr_d);
 
     /*--- Compute the flux ---*/
-    if(sL >= static_cast<typename Field::value_type>(0.0)) {
+    if(sL >= static_cast<Number>(0.0)) {
       return this->evaluate_continuous_flux(qL, curr_d);
     }
-    else if(sL < static_cast<typename Field::value_type>(0.0) &&
-            s_star >= static_cast<typename Field::value_type>(0.0)) {
+    else if(sL < static_cast<Number>(0.0) &&
+            s_star >= static_cast<Number>(0.0)) {
       return this->evaluate_continuous_flux(qL, curr_d) + sL*(q_star_L - qL);
     }
-    else if(s_star < static_cast<typename Field::value_type>(0.0) &&
-            sR >= static_cast<typename Field::value_type>(0.0)) {
+    else if(s_star < static_cast<Number>(0.0) &&
+            sR >= static_cast<Number>(0.0)) {
       return this->evaluate_continuous_flux(qR, curr_d) + sR*(q_star_R - qR);
     }
-    else if(sR < static_cast<typename Field::value_type>(0.0)) {
+    else if(sR < static_cast<Number>(0.0)) {
       return this->evaluate_continuous_flux(qR, curr_d);
     }
   }

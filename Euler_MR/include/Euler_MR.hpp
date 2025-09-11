@@ -15,12 +15,15 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
-/*--- Add header file for the multiresolution ---*/
+/*--- Add header files for the multiresolution ---*/
 #include <samurai/mr/adapt.hpp>
 #include "prediction.hpp"
 
 /*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
+
+/*--- Define preprocessor to check whether to control data or not ---*/
+#define VERBOSE
 
 /*--- Include the headers with the numerical fluxes ---*/
 #define HLL_FLUX
@@ -36,11 +39,7 @@ namespace fs = std::filesystem;
 #endif
 
 // Specify the use of this namespace where we just store the indices
-// and some parameters related to the equations of state
 using namespace EquationData;
-
-/*--- Define preprocessor to check whether to control data or not ---*/
-#define VERBOSE
 
 #define assertm(exp, msg) assert(((void)msg, exp))
 
@@ -50,18 +49,20 @@ template<std::size_t dim>
 class Euler_MR {
 public:
   using Config = samurai::MRConfig<dim, 2, 2, 1>;
+  using Field  = samurai::VectorField<samurai::MRMesh<Config>, double, EquationData::NVARS, false>;
+  using Number = typename Field::value_type;
 
   Euler_MR() = default; /*--- Default constructor. This will do nothing
                               and basically will never be used ---*/
 
   Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
            const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-           const Simulation_Paramaters<double>& sim_param,
-           const EOS_Parameters<double>& eos_param,
-           const Riemann_Parameters<double>& Riemann_param); /*--- Class constrcutor with the arguments related
+           const Simulation_Paramaters<Number>& sim_param,
+           const EOS_Parameters<Number>& eos_param,
+           const Riemann_Parameters<Number>& Riemann_param); /*--- Class constrcutor with the arguments related
                                                                    to the grid and to the physics ---*/
 
-  void run(); /*--- Function which actually executes the temporal loop ---*/
+  void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const fs::path& path,
@@ -74,19 +75,18 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field        = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
-  using Field_Scalar = samurai::ScalarField<decltype(mesh), typename Field::value_type>;
-  using Field_Vect   = samurai::VectorField<decltype(mesh), typename Field::value_type, dim, false>;
+  using Field_Scalar = samurai::ScalarField<decltype(mesh), Number>;
+  using Field_Vect   = samurai::VectorField<decltype(mesh), Number, dim, false>;
 
-  const typename Field::value_type t0; /*--- Initial time of the simulation ---*/
-  const typename Field::value_type Tf; /*--- Final time of the simulation ---*/
+  const Number t0; /*--- Initial time of the simulation ---*/
+  const Number Tf; /*--- Final time of the simulation ---*/
 
-  typename Field::value_type cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
+  Number cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
 
   double MR_param;      /*--- Multiresolution parameter ---*/
   double MR_regularity; /*--- Multiresolution regularity ---*/
 
-  const SG_EOS<typename Field::value_type> Euler_EOS; /*--- Equation of state ---*/
+  const SG_EOS<Number> Euler_EOS; /*--- Equation of state ---*/
 
   #ifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> numerical_flux; /*--- variable to compute the numerical flux
@@ -99,10 +99,7 @@ private:
                                                   (this is necessary to call 'make_flux') ---*/
   #endif
 
-  std::size_t nfiles; /*--- Number of files desired for output ---*/
-
   std::string filename;     /*--- Auxiliary variable to store the name of output ---*/
-  std::string restart_file; /*--- String for the restart file ---*/
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
                                    namely the varialbes for which we solve a PDE system ---*/
@@ -117,18 +114,18 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void create_fields(); /*--- Auxiliary routine to initialize the fileds to the mesh ---*/
 
-  void init_variables(const Riemann_Parameters<double>& Riemann_param); /*--- Routine to initialize the variables
+  void init_variables(const Riemann_Parameters<Number>& Riemann_param); /*--- Routine to initialize the variables
                                                                               (both conserved and auxiliary, this is problem dependent) ---*/
 
-  void apply_bcs(const Riemann_Parameters<double>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
+  void apply_bcs(const Riemann_Parameters<Number>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
 
   void perform_mesh_adaptation(); /*--- Perform the mesh adaptation ---*/
 
   void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output and time step update ---*/
 
-  typename Field::value_type get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
+  Number get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
 
-  void check_data(unsigned int flag = 0); /*--- Auxiliary routine to check if (small) spurious negative values are present ---*/
+  void check_data(unsigned flag = 0); /*--- Auxiliary routine to check if (small) spurious negative values are present ---*/
 };
 
 //////////////////////////////////////////////////////////////
@@ -140,15 +137,14 @@ private:
 template<std::size_t dim>
 Euler_MR<dim>::Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                         const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                        const Simulation_Paramaters<double>& sim_param,
-                        const EOS_Parameters<double>& eos_param,
-                        const Riemann_Parameters<double>& Riemann_param):
+                        const Simulation_Paramaters<Number>& sim_param,
+                        const EOS_Parameters<Number>& eos_param,
+                        const Riemann_Parameters<Number>& Riemann_param):
   box(min_corner, max_corner),
   t0(sim_param.t0), Tf(sim_param.Tf), cfl(sim_param.Courant),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   Euler_EOS(eos_param.gamma, eos_param.pi_infty, eos_param.q_infty),
-  numerical_flux(Euler_EOS),
-  nfiles(sim_param.nfiles), restart_file(sim_param.restart_file)
+  numerical_flux(Euler_EOS)
   {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -161,13 +157,13 @@ Euler_MR<dim>::Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
     create_fields();
 
     /*--- Initialize the fields ---*/
-    if(restart_file.empty()) {
+    if(sim_param.restart_file.empty()) {
       mesh = {box, sim_param.min_level, sim_param.max_level, {{false}}};
       init_variables(Riemann_param);
     }
     else {
-      samurai::load(restart_file, mesh, conserved_variables,
-                                        vel, p, c);
+      samurai::load(sim_param.restart_file, mesh, conserved_variables,
+                                                  vel, p, c);
     }
 
     /*--- Apply boundary conditions ---*/
@@ -178,17 +174,17 @@ Euler_MR<dim>::Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
 //
 template<std::size_t dim>
 void Euler_MR<dim>::create_fields() {
-  conserved_variables = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<Number, EquationData::NVARS>("conserved", mesh);
 
-  p   = samurai::make_scalar_field<typename Field::value_type>("p", mesh);
-  c   = samurai::make_scalar_field<typename Field::value_type>("c", mesh);
-  vel = samurai::make_vector_field<typename Field::value_type, dim>("vel", mesh);
+  p   = samurai::make_scalar_field<Number>("p", mesh);
+  c   = samurai::make_scalar_field<Number>("c", mesh);
+  vel = samurai::make_vector_field<Number, dim>("vel", mesh);
 }
 
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void Euler_MR<dim>::init_variables(const Riemann_Parameters<double>& Riemann_param) {
+void Euler_MR<dim>::init_variables(const Riemann_Parameters<Number>& Riemann_param) {
   /*--- Resize the fields since now mesh has been created ---*/
   conserved_variables.resize();
   p.resize();
@@ -213,7 +209,7 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters<double>& Riemann_par
                          [&](const auto& cell)
                             {
                               const auto center = cell.center();
-                              const auto x      = static_cast<typename Field::value_type>(center[0]);
+                              const auto x      = static_cast<Number>(center[0]);
 
                               // Left state (primitive variables)
                               if(x <= xd) {
@@ -231,7 +227,7 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters<double>& Riemann_par
                               }
 
                               // Complete the conserved variables (and some auxiliary fields for the sake of completeness)
-                              auto norm2_vel_loc = static_cast<typename Field::value_type>(0.0);
+                              auto norm2_vel_loc = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 conserved_variables[cell][RHOU_INDEX + d] = conserved_variables[cell][RHO_INDEX]*vel[cell][d];
                                 norm2_vel_loc += vel[cell][d]*vel[cell][d];
@@ -239,7 +235,7 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters<double>& Riemann_par
 
                               const auto e_loc = Euler_EOS.e_value(conserved_variables[cell][RHO_INDEX], p[cell]);
                               conserved_variables[cell][RHOE_INDEX] = conserved_variables[cell][RHO_INDEX]*
-                                                                      (e_loc + static_cast<typename Field::value_type>(0.5)*norm2_vel_loc);
+                                                                      (e_loc + static_cast<Number>(0.5)*norm2_vel_loc);
 
                               c[cell] = Euler_EOS.c_value(conserved_variables[cell][RHO_INDEX], p[cell]);
                             }
@@ -249,7 +245,7 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters<double>& Riemann_par
 // Auxiliary routine to impose the boundary conditions
 //
 template<std::size_t dim>
-void Euler_MR<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param) {
+void Euler_MR<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) {
   const xt::xtensor_fixed<int, xt::xshape<1>> left  = {-1};
   const xt::xtensor_fixed<int, xt::xshape<1>> right = {1};
 
@@ -258,13 +254,13 @@ void Euler_MR<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param) {
                                           Riemann_param.rhoL*Riemann_param.uL,
                                           Riemann_param.rhoL*
                                           (Euler_EOS.e_value(Riemann_param.rhoL, Riemann_param.pL) +
-                                           static_cast<typename Field::value_type>(0.5)*Riemann_param.uL*Riemann_param.uL))->on(left);
+                                           static_cast<Number>(0.5)*Riemann_param.uL*Riemann_param.uL))->on(left);
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.rhoR,
                                           Riemann_param.rhoR*Riemann_param.uR,
                                           Riemann_param.rhoR*
                                           (Euler_EOS.e_value(Riemann_param.rhoR, Riemann_param.pR) +
-                                           static_cast<typename Field::value_type>(0.5)*Riemann_param.uR*Riemann_param.uR))->on(right);
+                                           static_cast<Number>(0.5)*Riemann_param.uR*Riemann_param.uR))->on(right);
 }
 
 //////////////////////////////////////////////////////////////
@@ -297,7 +293,7 @@ void Euler_MR<dim>::perform_mesh_adaptation() {
 // Auxiliary routine to check if spurious negative values arise
 //
 template<std::size_t dim>
-void Euler_MR<dim>::check_data(unsigned int flag) {
+void Euler_MR<dim>::check_data(unsigned flag) {
   /*--- Recompute data so as to save the whole state in case of diverging solution ---*/
   update_auxiliary_fields();
 
@@ -313,7 +309,7 @@ void Euler_MR<dim>::check_data(unsigned int flag) {
                          [&](const auto& cell)
                             {
                               // Sanity check for the density
-                              if(conserved_variables[cell][RHO_INDEX] < static_cast<typename Field::value_type>(0.0)) {
+                              if(conserved_variables[cell][RHO_INDEX] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative density " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables,
                                                                       vel, p, c);
@@ -327,7 +323,7 @@ void Euler_MR<dim>::check_data(unsigned int flag) {
                               }
 
                               // Sanity check for the pressure
-                              if(p[cell] < static_cast<typename Field::value_type>(0.0)) {
+                              if(p[cell] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative pressure " + op << std::endl;
                                 save(fs::current_path(), "_diverged", conserved_variables,
                                                                       vel, p, c);
@@ -347,15 +343,17 @@ void Euler_MR<dim>::check_data(unsigned int flag) {
 //
 template<std::size_t dim>
 typename Euler_MR<dim>::Field::value_type Euler_MR<dim>::get_max_lambda() const {
-  auto local_res = static_cast<typename Field::value_type>(0.0);
+  auto local_res = static_cast<Number>(0.0);
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
-                              local_res = std::max(std::abs(vel[cell][0]) + c[cell], local_res);
+                              for(std::size_t d = 0; d < dim; ++d) {
+                                local_res = std::max(std::abs(vel[cell][d]) + c[cell], local_res);
+                              }
                             });
 
-  typename Field::value_type global_res;
+  double global_res;
   MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
   return global_res;
@@ -373,15 +371,15 @@ void Euler_MR<dim>::update_auxiliary_fields() {
                          [&](const auto& cell)
                             {
                               const auto rho_loc     = conserved_variables[cell][RHO_INDEX];
-                              const auto inv_rho_loc = static_cast<typename Field::value_type>(1.0)/rho_loc;
-                              auto norm2_vel_loc     = static_cast<typename Field::value_type>(0.0);
+                              const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
+                              auto norm2_vel_loc     = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel_d_loc = conserved_variables[cell][RHOU_INDEX + d]*inv_rho_loc;
                                 vel[cell][d]         = vel_d_loc;
                                 norm2_vel_loc        += vel_d_loc*vel_d_loc;
                               }
                               auto e_loc       = conserved_variables[cell][RHOE_INDEX]*inv_rho_loc
-                                               - static_cast<typename Field::value_type>(0.5)*norm2_vel_loc;
+                                               - static_cast<Number>(0.5)*norm2_vel_loc;
                               const auto p_loc = Euler_EOS.pres_value(rho_loc, e_loc);
                               p[cell]          = p_loc;
                               c[cell]          = Euler_EOS.c_value(rho_loc, p_loc);
@@ -420,7 +418,7 @@ void Euler_MR<dim>::save(const fs::path& path,
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void Euler_MR<dim>::run() {
+void Euler_MR<dim>::run(const unsigned nfiles) {
   /*--- Default output arguemnts ---*/
   fs::path path = fs::current_path();
   #ifdef RUSANOV_FLUX
@@ -437,14 +435,14 @@ void Euler_MR<dim>::run() {
     filename = filename + "_order1";
   #endif
 
-  const auto dt_save = Tf/static_cast<typename Field::value_type>(nfiles);
+  const auto dt_save = Tf/static_cast<Number>(nfiles);
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_vector_field<typename Field::value_type, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_np1", mesh);
 
   /*--- Create the flux variable ---*/
   auto Discrete_flux = numerical_flux.make_flux();
@@ -455,10 +453,10 @@ void Euler_MR<dim>::run() {
                           p, vel, c);
 
   /*--- Save mesh size ---*/
-  const auto dx   = static_cast<typename Field::value_type>(mesh.cell_length(mesh.max_level()));
+  const auto dx   = static_cast<Number>(mesh.cell_length(mesh.max_level()));
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
   const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
-  unsigned int n_elements;
+  unsigned n_elements;
   MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -470,7 +468,7 @@ void Euler_MR<dim>::run() {
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
-  auto t            = static_cast<typename Field::value_type>(t0);
+  auto t            = static_cast<Number>(t0);
   auto dt           = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
     t += dt;
@@ -519,7 +517,7 @@ void Euler_MR<dim>::run() {
       try {
         auto Cons_Flux = Discrete_flux(conserved_variables);
         conserved_variables_tmp = conserved_variables - dt*Cons_Flux;
-        conserved_variables_np1 = static_cast<typename Field::value_type>(0.5)*
+        conserved_variables_np1 = static_cast<Number>(0.5)*
                                   (conserved_variables_tmp + conserved_variables_old);
         std::swap(conserved_variables.array(), conserved_variables_np1.array());
       }
@@ -541,7 +539,7 @@ void Euler_MR<dim>::run() {
     dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
     // Save the results
-    if(t >= static_cast<typename Field::value_type>(nsave + 1)*dt_save || t == Tf) {
+    if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(path, suffix, conserved_variables,
                          p, vel, c);

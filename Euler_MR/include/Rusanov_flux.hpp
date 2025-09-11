@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef Rusanov_flux_hpp
-#define Rusanov_flux_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
@@ -20,7 +19,9 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    RusanovFlux(const EOS<typename Field::value_type>& EOS_); /*--- Constructor which accepts in input the equation of state ---*/
+    using Number = Flux<Field>::Number;
+    
+    RusanovFlux(const EOS<Number>& EOS_); /*--- Constructor which accepts in input the equation of state ---*/
 
     auto make_flux(); /*--- Compute the flux over all the faces and directions ---*/
 
@@ -33,7 +34,7 @@ namespace samurai {
   // Constructor derived from base class
   //
   template<class Field>
-  RusanovFlux<Field>::RusanovFlux(const EOS<typename Field::value_type>& EOS_):
+  RusanovFlux<Field>::RusanovFlux(const EOS<Number>& EOS_):
     Flux<Field>(EOS_) {}
 
   // Implementation of a Rusanov flux
@@ -41,27 +42,27 @@ namespace samurai {
   template<class Field>
   FluxValue<typename Flux<Field>::cfg> RusanovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
                                                                                  const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                                                 std::size_t curr_d) {
+                                                                                 const std::size_t curr_d) {
     /*--- Left state ---*/
     // Pre-fetch density that will used several times
     const auto rhoL     = qL(RHO_INDEX);
-    const auto inv_rhoL = static_cast<typename Field::value_type>(1.0)/rhoL;
+    const auto inv_rhoL = static_cast<Number>(1.0)/rhoL;
 
     // Compute auxiliary primitive variables
     const auto velL_d = qL(RHOU_INDEX + curr_d)*inv_rhoL;
     auto eL = qL(RHOE_INDEX)*inv_rhoL;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      eL -= static_cast<typename Field::value_type>(0.5)*
+      eL -= static_cast<Number>(0.5)*
             (qL(RHOU_INDEX + d)*inv_rhoL)*(qL(RHOU_INDEX + d)*inv_rhoL);
     }
     const auto pL = this->Euler_EOS.pres_value(rhoL, eL);
     const auto cL = this->Euler_EOS.c_value(rhoL, pL);
 
     #ifdef VERBOSE_FLUX
-      if(rhoL < static_cast<typename Field::value_type>(0.0)) {
+      if(rhoL < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative density left state: " + std::to_string(rhoL)));
       }
-      if(pL < static_cast<typename Field::value_type>(0.0)) {
+      if(pL < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative pressure left state: " + std::to_string(pL)));
       }
     #endif
@@ -69,23 +70,23 @@ namespace samurai {
     /*--- Right state ---*/
     // Pre-fetch density that will used several times
     const auto rhoR     = qR(RHO_INDEX);
-    const auto inv_rhoR = static_cast<typename Field::value_type>(1.0)/rhoR;
+    const auto inv_rhoR = static_cast<Number>(1.0)/rhoR;
 
     // Compute auxiliary primitive variables
     auto velR_d = qR(RHOU_INDEX + curr_d)*inv_rhoR;
     auto eR = qR(RHOE_INDEX)*inv_rhoR;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      eR -= static_cast<typename Field::value_type>(0.5)*
+      eR -= static_cast<Number>(0.5)*
             (qR(RHOU_INDEX + d)*inv_rhoR)*(qR(RHOU_INDEX + d)*inv_rhoR);
     }
     const auto pR = this->Euler_EOS.pres_value(rhoR, eR);
     const auto cR = this->Euler_EOS.c_value(rhoR, pR);
 
     #ifdef VERBOSE_FLUX
-      if(rhoR < static_cast<typename Field::value_type>(0.0)) {
+      if(rhoR < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative density right state: " + std::to_string(rhoR)));
       }
-      if(pR < static_cast<typename Field::value_type>(0.0)) {
+      if(pR < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative pressure right state: " + std::to_string(pR)));
       }
     #endif
@@ -94,10 +95,10 @@ namespace samurai {
     const auto lambda = std::max(std::abs(velL_d) + cL,
                                  std::abs(velR_d) + cR);
 
-    return static_cast<typename Field::value_type>(0.5)*
+    return static_cast<Number>(0.5)*
            (this->evaluate_continuous_flux(qL, curr_d) +
             this->evaluate_continuous_flux(qR, curr_d)) - // centered contribution
-           static_cast<typename Field::value_type>(0.5)*lambda*(qR - qL); // upwinding contribution
+           static_cast<Number>(0.5)*lambda*(qR - qL); // upwinding contribution
   }
 
   // Implement the contribution of the discrete flux for all the dimensions.
@@ -149,5 +150,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

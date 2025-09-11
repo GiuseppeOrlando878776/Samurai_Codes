@@ -13,7 +13,6 @@
 #include "flux_base.hpp"
 
 // Specify the use of this namespace where we just store the indices
-// and some parameters related to the equations of state
 using namespace EquationData;
 
 /** This is the class for the high-order prediction for the Euler equations
