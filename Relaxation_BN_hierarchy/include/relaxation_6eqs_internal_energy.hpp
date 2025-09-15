@@ -646,7 +646,7 @@ void Relaxation<dim>::run() {
   const auto dx   = static_cast<Number>(mesh.cell_length(mesh.max_level()));
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
   const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
-  unsigned int n_elements;
+  unsigned n_elements;
   MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

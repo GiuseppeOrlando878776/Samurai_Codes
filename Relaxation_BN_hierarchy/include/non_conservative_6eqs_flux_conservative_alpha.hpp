@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef non_conservative_6eqs_conservative_alpha_flux_hpp
-#define non_conservative_6eqs_conservative_alpha_flux_hpp
+#pragma once
 
 #include "flux_6eqs_conservative_alpha_base.hpp"
 
@@ -23,7 +22,7 @@ namespace samurai {
   class NonConservativeFlux: public Flux<Field> {
   public:
     using Number = typename Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    
+
     NonConservativeFlux(const EOS<Number>& EOS_phase1,
                         const EOS<Number>& EOS_phase2); /*--- Constructor which accepts in input
                                                               the equations of state of the two phases ---*/
@@ -235,5 +234,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

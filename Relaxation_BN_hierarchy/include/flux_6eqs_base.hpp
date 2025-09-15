@@ -4,10 +4,8 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef flux_6eqs_base_hpp
-#define flux_6eqs_base_hpp
-
 #pragma once
+
 #include <samurai/schemes/fv.hpp>
 
 #include "eos.hpp"
@@ -292,5 +290,3 @@ namespace samurai {
   #endif
 
 } // end namespace samurai
-
-#endif

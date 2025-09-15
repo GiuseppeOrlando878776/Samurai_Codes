@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef HLLC_conservative_6eqs_internal_energy_flux_hpp
-#define HLLC_conservative_6eqs_internal_energy_flux_hpp
+#pragma once
 
 #include "flux_6eqs_internal_energy_base.hpp"
 
@@ -19,7 +18,7 @@ namespace samurai {
   class HLLCFlux_Conservative: public Flux<Field> {
   public:
     using Number = typename Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    
+
     HLLCFlux_Conservative(const SG_EOS<Number>& EOS_phase1_,
                           const SG_EOS<Number>& EOS_phase2_); /*--- Constructor which accepts in input
                                                                     the equations of state of the two phases ---*/
@@ -280,5 +279,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

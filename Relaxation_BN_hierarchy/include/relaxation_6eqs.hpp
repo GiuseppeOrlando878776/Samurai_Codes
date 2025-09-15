@@ -59,7 +59,7 @@ public:
              const Riemann_Parameters<double>& Riemann_param); /*--- Class constrcutor with the arguments related
                                                                      to the grid, to the physics and to the relaxation ---*/
 
-  void run(); /*--- Function which actually executes the temporal loop ---*/
+  void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const fs::path& path,
@@ -112,8 +112,6 @@ private:
     samurai::NonConservativeFlux<Field> numerical_flux_non_cons; /*--- variable to compute the numerical flux for the non-conservative part
                                                                        (this is necessary to call 'make_flux') ---*/
   #endif
-
-  std::size_t nfiles; /*--- Number of files desired for output ---*/
 
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
@@ -186,12 +184,11 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
   EOS_phase1(eos_param.gamma_1, eos_param.pi_infty_1, eos_param.q_infty_1, eos_param.c_v_1),
   EOS_phase2(eos_param.gamma_2, eos_param.pi_infty_2, eos_param.q_infty_2, eos_param.c_v_2),
   #ifdef HLLC_FLUX
-    numerical_flux(EOS_phase1, EOS_phase2),
+    numerical_flux(EOS_phase1, EOS_phase2)
   #else
     numerical_flux_cons(EOS_phase1, EOS_phase2),
-    numerical_flux_non_cons(EOS_phase1, EOS_phase2),
+    numerical_flux_non_cons(EOS_phase1, EOS_phase2)
   #endif
-  nfiles(sim_param.nfiles)
   {
     assertm(sim_param.min_level == sim_param.max_level,
             "The current implementation does not support multiresolution");
@@ -622,14 +619,14 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation() {
                                                          std::pow(rho2_loc, EOS_phase2.get_gamma());*/
 
                               // Newton method to compute the new volume fraction
-                              const auto tol               = static_cast<Number>(1e-8);
-                              const auto lambda            = static_cast<Number>(0.9); // Bound preserving parameter
-                              const unsigned int max_iters = 100;
-                              auto alpha_max               = static_cast<Number>(0.0);
-                              auto alpha_min               = static_cast<Number>(1.0);
+                              const auto tol           = static_cast<Number>(1e-8);
+                              const auto lambda        = static_cast<Number>(0.9); // Bound preserving parameter
+                              const unsigned max_iters = 100;
+                              auto alpha_max           = static_cast<Number>(0.0);
+                              auto alpha_min           = static_cast<Number>(1.0);
 
                               auto dalpha1      = static_cast<Number>(0.0);
-                              unsigned int nite = 0;
+                              unsigned nite = 0;
                               while(nite < max_iters &&
                                     static_cast<Number>(2.0)*(alpha_max - alpha_min)/(alpha_max + alpha_min) > tol) {
                                 p1_loc > p2_loc ? alpha_min = alpha1_loc :
@@ -867,7 +864,7 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void Relaxation<dim>::run() {
+void Relaxation<dim>::run(const unsigned nfiles) {
   /*--- Default output arguemnts ---*/
   fs::path path = fs::current_path();
   #ifdef HLLC_FLUX
@@ -920,7 +917,7 @@ void Relaxation<dim>::run() {
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
   const auto dx   = static_cast<Number>(mesh.cell_length(mesh.max_level()));
   const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
-  unsigned int n_elements;
+  unsigned n_elements;
   MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

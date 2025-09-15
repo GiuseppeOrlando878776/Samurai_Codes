@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) {
                                    sim_param, eos_param,
                                    Riemann_param);
 
-  Relaxation_Sim.run();
+  Relaxation_Sim.run(sim_param.nfiles);
 
   samurai::finalize();
 

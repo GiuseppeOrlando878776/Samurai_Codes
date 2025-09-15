@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef containers_hpp
-#define containers_hpp
+#pragma once
 
 // Declare a struct with the simulation parameters
 //
@@ -75,5 +74,3 @@ struct Riemann_Parameters {
   T rho2R;
   T p2R;
 };
-
-#endif

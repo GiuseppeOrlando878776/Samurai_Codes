@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef HLL_6eqs_flux_conservative_alpha_hpp
-#define HLL_6eqs_flux_conservative_alpha_hpp
+#pragma once
 
 #include "flux_6eqs_conservative_alpha_base.hpp"
 
@@ -188,5 +187,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

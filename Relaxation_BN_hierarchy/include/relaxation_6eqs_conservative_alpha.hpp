@@ -601,14 +601,14 @@ void Relaxation<dim>::apply_instantaneous_pressure_relaxation() {
                                                          std::pow(rho2_loc, EOS_phase2.get_gamma());*/
 
                               // Newton method to compute the new volume fraction
-                              const auto tol               = static_cast<Number>(1e-8);
-                              const auto lambda            = static_cast<Number>(0.9); // Bound preserving parameter
-                              const unsigned int max_iters = 100;
-                              auto alpha_max               = static_cast<Number>(0.0);
-                              auto alpha_min               = static_cast<Number>(1.0);
+                              const auto tol           = static_cast<Number>(1e-8);
+                              const auto lambda        = static_cast<Number>(0.9); // Bound preserving parameter
+                              const unsigned max_iters = 100;
+                              auto alpha_max           = static_cast<Number>(0.0);
+                              auto alpha_min           = static_cast<Number>(1.0);
 
                               auto dalpha1      = static_cast<Number>(0.0);
-                              unsigned int nite = 0;
+                              unsigned nite = 0;
                               while(nite < max_iters &&
                                     static_cast<Number>(2.0)*(alpha_max - alpha_min)/(alpha_max + alpha_min) > tol) {
                                 p1_loc > p2_loc ? alpha_min = alpha1_loc :
@@ -902,7 +902,7 @@ void Relaxation<dim>::run() {
   const auto dx   = static_cast<Number>(mesh.cell_length(mesh.max_level()));
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
   const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
-  unsigned int n_elements;
+  unsigned n_elements;
   MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
