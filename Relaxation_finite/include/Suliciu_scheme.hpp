@@ -11,15 +11,14 @@
 #include "flux_base.hpp"
 
 namespace samurai {
-  using namespace EquationData;
-
   /**
     * Implementation of the flux based on Suliciu-type relaxation
     */
   template<class Field>
   class RelaxationFlux: public Flux<Field> {
   public:
-    using Number = typename Flux<Field>::Number; /*--- Shortcut for the arithmetic type ---*/
+    using Indices = Flux<Field>::Indices; /*--- Shortcut for the indices storage ---*/
+    using Number  = Flux<Field>::Number;  /*--- Shortcut for the arithmetic type ---*/
 
     RelaxationFlux(const EOS<Number>& EOS_phase1_,
                    const EOS<Number>& EOS_phase2_,
@@ -126,76 +125,76 @@ namespace samurai {
     /*--- Left state ---*/
     // Pre-fetch variables that will be used several times so as to exploit possible vectorization
     // (as well as to enhance readability)
-    const auto alpha1_L = qL(ALPHA1_INDEX);
-    const auto m1_L     = qL(ALPHA1_RHO1_INDEX);
-    const auto m1E1_L   = qL(ALPHA1_RHO1_E1_INDEX);
-    const auto m2_L     = qL(ALPHA2_RHO2_INDEX);
-    const auto m2E2_L   = qL(ALPHA2_RHO2_E2_INDEX);
+    const auto alpha1_L = qL(Indices::ALPHA1_INDEX);
+    const auto m1_L     = qL(Indices::ALPHA1_RHO1_INDEX);
+    const auto m1E1_L   = qL(Indices::ALPHA1_RHO1_E1_INDEX);
+    const auto m2_L     = qL(Indices::ALPHA2_RHO2_INDEX);
+    const auto m2E2_L   = qL(Indices::ALPHA2_RHO2_E2_INDEX);
 
     // Phase 1
     const auto inv_m1_L   = static_cast<Number>(1.0)/m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto vel1_L_d   = qL(ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel1_L_d   = qL(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto rho1_L     = m1_L/alpha1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto inv_rho1_L = static_cast<Number>(1.0)/rho1_L;
     const auto E1_L       = m1E1_L*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1_L             = E1_L;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e1_L -= static_cast<Number>(0.5)*
-              ((qL(ALPHA1_RHO1_U1_INDEX + d)*inv_m1_L)*
-               (qL(ALPHA1_RHO1_U1_INDEX + d)*inv_m1_L)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+              ((qL(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1_L)*
+               (qL(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1_L)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
     const auto p1_L = this->EOS_phase1.pres_value_Rhoe(rho1_L, e1_L);
 
     // Phase 2
     const auto alpha2_L   = static_cast<Number>(1.0) - alpha1_L;
     const auto inv_m2_L   = static_cast<Number>(1.0)/m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto vel2_L_d   = qL(ALPHA2_RHO2_U2_INDEX + curr_d)*inv_m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel2_L_d   = qL(Indices::ALPHA2_RHO2_U2_INDEX + curr_d)*inv_m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto rho2_L     = m2_L/alpha2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto inv_rho2_L = static_cast<Number>(1.0)/rho2_L;
     const auto E2_L       = m2E2_L*inv_m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2_L             = E2_L;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e2_L -= static_cast<Number>(0.5)*
-              ((qL(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)*
-               (qL(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+              ((qL(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)*
+               (qL(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
     const auto p2_L = this->EOS_phase2.pres_value_Rhoe(rho2_L, e2_L);
 
     /*--- Right state ---*/
     // Pre-fetch variables that will be used several times so as to exploit possible vectorization
     // (as well as to enhance readability)
-    const auto alpha1_R = qR(ALPHA1_INDEX);
-    const auto m1_R     = qR(ALPHA1_RHO1_INDEX);
-    const auto m1E1_R   = qR(ALPHA1_RHO1_E1_INDEX);
-    const auto m2_R     = qR(ALPHA2_RHO2_INDEX);
-    const auto m2E2_R   = qR(ALPHA2_RHO2_E2_INDEX);
+    const auto alpha1_R = qR(Indices::ALPHA1_INDEX);
+    const auto m1_R     = qR(Indices::ALPHA1_RHO1_INDEX);
+    const auto m1E1_R   = qR(Indices::ALPHA1_RHO1_E1_INDEX);
+    const auto m2_R     = qR(Indices::ALPHA2_RHO2_INDEX);
+    const auto m2E2_R   = qR(Indices::ALPHA2_RHO2_E2_INDEX);
 
     // Phase 1
     const auto inv_m1_R   = static_cast<Number>(1.0)/m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto vel1_R_d   = qR(ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel1_R_d   = qR(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto rho1_R     = m1_R/alpha1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto inv_rho1_R = static_cast<Number>(1.0)/rho1_R;
     const auto E1_R       = m1E1_R*inv_m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e1_R             = E1_R;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e1_R -= static_cast<Number>(0.5)*
-              ((qR(ALPHA1_RHO1_U1_INDEX + d)*inv_m1_R)*
-               (qR(ALPHA1_RHO1_U1_INDEX + d)*inv_m1_R)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+              ((qR(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1_R)*
+               (qR(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1_R)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
     const auto p1_R = this->EOS_phase1.pres_value_Rhoe(rho1_R, e1_R);
 
     // Phase 2
     const auto alpha2_R   = static_cast<Number>(1.0) - alpha1_R;
     const auto inv_m2_R   = static_cast<Number>(1.0)/m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto vel2_R_d   = qR(ALPHA2_RHO2_U2_INDEX + curr_d)*inv_m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel2_R_d   = qR(Indices::ALPHA2_RHO2_U2_INDEX + curr_d)*inv_m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto rho2_R     = m2_R/alpha2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto inv_rho2_R = static_cast<Number>(1.0)/rho2_R;
     const auto E2_R       = m2E2_R*inv_m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2_R             = E2_R;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e2_R -= static_cast<Number>(0.5)*
-              ((qR(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)*
-               (qR(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+              ((qR(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)*
+               (qR(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
     const auto p2_R = this->EOS_phase2.pres_value_Rhoe(rho2_R, e2_R);
 
@@ -361,52 +360,52 @@ namespace samurai {
                             alpha1_p, tau1_p, u1_p, p1_p, E1_p);
 
     /*--- Build the "fluxes" ---*/
-    F_minus(ALPHA1_INDEX) = static_cast<Number>(0.0);
+    F_minus(Indices::ALPHA1_INDEX) = static_cast<Number>(0.0);
 
     const auto inv_tau1_m = static_cast<Number>(1.0)/tau1_m;
     const auto inv_tau1_p = static_cast<Number>(1.0)/tau1_p;
     const auto inv_tau2_m = static_cast<Number>(1.0)/tau2_m;
     const auto inv_tau2_p = static_cast<Number>(1.0)/tau2_p;
 
-    F_minus(ALPHA1_RHO1_INDEX)             = alpha1_m*inv_tau1_m*u1_m;
-    F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m*inv_tau1_m*u1_m*u1_m
-                                           + alpha1_m*p1_m;
+    F_minus(Indices::ALPHA1_RHO1_INDEX) = alpha1_m*inv_tau1_m*u1_m;
+    F_minus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_m*inv_tau1_m*u1_m*u1_m
+                                                    + alpha1_m*p1_m;
     const auto u1_star = uI_star;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       if(d != curr_d) {
-        F_minus(ALPHA1_RHO1_U1_INDEX + d) = static_cast<Number>(0.5)*u1_star*(m1_L + m1_R)
-                                          - static_cast<Number>(0.5)*std::abs(u1_star)*(m1_R - m1_L);
-        F_plus(ALPHA1_RHO1_U1_INDEX + d)  = F_minus(ALPHA1_RHO1_U1_INDEX + d);
+        F_minus(Indices::ALPHA1_RHO1_U1_INDEX + d) = static_cast<Number>(0.5)*u1_star*(m1_L + m1_R)
+                                                   - static_cast<Number>(0.5)*std::abs(u1_star)*(m1_R - m1_L);
+        F_plus(Indices::ALPHA1_RHO1_U1_INDEX + d)  = F_minus(Indices::ALPHA1_RHO1_U1_INDEX + d);
       }
     }
-    F_minus(ALPHA1_RHO1_E1_INDEX) = alpha1_m*inv_tau1_m*E1_m*u1_m
+    F_minus(Indices::ALPHA1_RHO1_E1_INDEX) = alpha1_m*inv_tau1_m*E1_m*u1_m
                                   + alpha1_m*p1_m*u1_m;
 
-    F_minus(ALPHA2_RHO2_INDEX)             = alpha2_m*inv_tau2_m*u2_m;
-    F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m*inv_tau2_m*u2_m*u2_m
-                                           + alpha2_m*p2_m;
+    F_minus(Indices::ALPHA2_RHO2_INDEX) = alpha2_m*inv_tau2_m*u2_m;
+    F_minus(Indices::ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m*inv_tau2_m*u2_m*u2_m
+                                                    + alpha2_m*p2_m;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       if(d != curr_d) {
-        F_minus(ALPHA2_RHO2_U2_INDEX + d) = static_cast<Number>(0.5)*u2_star*(m2_L + m2_R)
-                                          - static_cast<Number>(0.5)*std::abs(u2_star)*(m2_R - m2_L);
-        F_plus(ALPHA2_RHO2_U2_INDEX + d)  = F_minus(ALPHA2_RHO2_U2_INDEX + d);
+        F_minus(Indices::ALPHA2_RHO2_U2_INDEX + d) = static_cast<Number>(0.5)*u2_star*(m2_L + m2_R)
+                                                   - static_cast<Number>(0.5)*std::abs(u2_star)*(m2_R - m2_L);
+        F_plus(Indices::ALPHA2_RHO2_U2_INDEX + d)  = F_minus(Indices::ALPHA2_RHO2_U2_INDEX + d);
       }
     }
-    F_minus(ALPHA2_RHO2_E2_INDEX) = alpha2_m*inv_tau2_m*E2_m*u2_m
+    F_minus(Indices::ALPHA2_RHO2_E2_INDEX) = alpha2_m*inv_tau2_m*E2_m*u2_m
                                   + alpha2_m*p2_m*u2_m;
 
-    F_plus(ALPHA1_INDEX) = static_cast<Number>(0.0);
+    F_plus(Indices::ALPHA1_INDEX) = static_cast<Number>(0.0);
 
-    F_plus(ALPHA1_RHO1_INDEX)             = alpha1_p*inv_tau1_p*u1_p;
-    F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_p*inv_tau1_p*u1_p*u1_p
-                                          + alpha1_p*p1_p;
-    F_plus(ALPHA1_RHO1_E1_INDEX)          = alpha1_p*inv_tau1_p*E1_p*u1_p
+    F_plus(Indices::ALPHA1_RHO1_INDEX) = alpha1_p*inv_tau1_p*u1_p;
+    F_plus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) = alpha1_p*inv_tau1_p*u1_p*u1_p
+                                                   + alpha1_p*p1_p;
+    F_plus(Indices::ALPHA1_RHO1_E1_INDEX) = alpha1_p*inv_tau1_p*E1_p*u1_p
                                           + alpha1_p*p1_p*u1_p;
 
-    F_plus(ALPHA2_RHO2_INDEX)             = alpha2_p*inv_tau2_p*u2_p;
-    F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_p*inv_tau2_p*u2_p*u2_p
-                                          + alpha2_p*p2_p;
-    F_plus(ALPHA2_RHO2_E2_INDEX)          = alpha2_p*inv_tau2_p*E2_p*u2_p
+    F_plus(Indices::ALPHA2_RHO2_INDEX) = alpha2_p*inv_tau2_p*u2_p;
+    F_plus(Indices::ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_p*inv_tau2_p*u2_p*u2_p
+                                                   + alpha2_p*p2_p;
+    F_plus(Indices::ALPHA2_RHO2_E2_INDEX) = alpha2_p*inv_tau2_p*E2_p*u2_p
                                           + alpha2_p*p2_p*u2_p;
 
     /*--- Focus on non-conservative term ---*/
@@ -422,29 +421,29 @@ namespace samurai {
 
     if(uI_star < static_cast<Number>(0.0)) {
       #ifdef ORDER_2
-        F_minus(ALPHA1_INDEX) -= -uI_star*(alpha1_R_order1 - alpha1_L_order1);
+        F_minus(Indices::ALPHA1_INDEX) -= -uI_star*(alpha1_R_order1 - alpha1_L_order1);
       #else
-        F_minus(ALPHA1_INDEX) -= -uI_star*(alpha1_R - alpha1_L);
+        F_minus(Indices::ALPHA1_INDEX) -= -uI_star*(alpha1_R - alpha1_L);
       #endif
 
-      F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) -= -pidxalpha2;
-      F_minus(ALPHA1_RHO1_E1_INDEX) -= -uI_star*pidxalpha2;
+      F_minus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) -= -pidxalpha2;
+      F_minus(Indices::ALPHA1_RHO1_E1_INDEX) -= -uI_star*pidxalpha2;
 
-      F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) -= pidxalpha2;
-      F_minus(ALPHA2_RHO2_E2_INDEX) -= uI_star*pidxalpha2;
+      F_minus(Indices::ALPHA2_RHO2_U2_INDEX + curr_d) -= pidxalpha2;
+      F_minus(Indices::ALPHA2_RHO2_E2_INDEX) -= uI_star*pidxalpha2;
     }
     else {
       #ifdef ORDER_2
-        F_plus(ALPHA1_INDEX) += -uI_star*(alpha1_R_order1 - alpha1_L_order1);
+        F_plus(Indices::ALPHA1_INDEX) += -uI_star*(alpha1_R_order1 - alpha1_L_order1);
       #else
-        F_plus(ALPHA1_INDEX) += -uI_star*(alpha1_R - alpha1_L);
+        F_plus(Indices::ALPHA1_INDEX) += -uI_star*(alpha1_R - alpha1_L);
       #endif
 
-      F_plus(ALPHA1_RHO1_U1_INDEX + curr_d) += -pidxalpha2;
-      F_plus(ALPHA1_RHO1_E1_INDEX) += -uI_star*pidxalpha2;
+      F_plus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) += -pidxalpha2;
+      F_plus(Indices::ALPHA1_RHO1_E1_INDEX) += -uI_star*pidxalpha2;
 
-      F_plus(ALPHA2_RHO2_U2_INDEX + curr_d) += pidxalpha2;
-      F_plus(ALPHA2_RHO2_E2_INDEX) += uI_star*pidxalpha2;
+      F_plus(Indices::ALPHA2_RHO2_U2_INDEX + curr_d) += pidxalpha2;
+      F_plus(Indices::ALPHA2_RHO2_E2_INDEX) += uI_star*pidxalpha2;
     }
 
     c = std::max(c, std::max(std::max(std::abs(vel1_L_d - a1*inv_rho1_L), std::abs(vel1_R_d + a1*inv_rho1_R)),
@@ -487,7 +486,7 @@ namespace samurai {
                                                     FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
 
                                                     compute_discrete_flux(qL, qR,
-                                                                          field[1](ALPHA1_INDEX), field[2](ALPHA1_INDEX),
+                                                                          field[1](Indices::ALPHA1_INDEX), field[2](Indices::ALPHA1_INDEX),
                                                                           d, F_minus, F_plus, c);
                                                   #else
                                                     // Extract state

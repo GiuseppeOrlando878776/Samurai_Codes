@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef Suliciu_scheme_interface_2D_hpp
-#define Suliciu_scheme_interface_2D_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
@@ -14,15 +13,14 @@
 #include "Suliciu_base/flux_numeriques_2D.hpp"
 
 namespace samurai {
-  using namespace EquationData;
-
   /**
     * Implementation of the flux based on Suliciu-type relaxation
     */
   template<class Field>
   class RelaxationFlux {
   public:
-    using Number = typename Field::value_type; /*--- Shortcut for the arithmetic type ---*/
+    using Indices = Flux<Field>::Indices; /*--- Shortcut for the indices storage ---*/
+    using Number  = Flux<Field>::Number;  /*--- Shortcut for the arithmetic type ---*/
 
     RelaxationFlux() = default; /*--- Default constructor ---*/
 
@@ -51,9 +49,9 @@ namespace samurai {
   template<class Field>
   template<class Other>
   Other RelaxationFlux<Field>::FluxValue_to_Other(const FluxValue<typename Flux<Field>::cfg>& q) {
-    return Other(q(ALPHA1_INDEX),
-                 q(ALPHA1_RHO1_INDEX), q(ALPHA1_RHO1_U1_INDEX), q(ALPHA1_RHO1_U1_INDEX + 1), q(ALPHA1_RHO1_E1_INDEX),
-                 q(ALPHA2_RHO2_INDEX), q(ALPHA2_RHO2_U2_INDEX), q(ALPHA2_RHO2_U2_INDEX + 1), q(ALPHA2_RHO2_E2_INDEX));
+    return Other(q(Indices::ALPHA1_INDEX),
+                 q(Indices::ALPHA1_RHO1_INDEX), q(Indices::ALPHA1_RHO1_U1_INDEX), q(Indices::ALPHA1_RHO1_U1_INDEX + 1), q(Indices::ALPHA1_RHO1_E1_INDEX),
+                 q(Indices::ALPHA2_RHO2_INDEX), q(Indices::ALPHA2_RHO2_U2_INDEX), q(Indices::ALPHA2_RHO2_U2_INDEX + 1), q(Indices::ALPHA2_RHO2_E2_INDEX));
   }
 
   // Conversion from Samurai to other ("analogous") data structure for the state
@@ -63,15 +61,15 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg> RelaxationFlux<Field>::Other_to_FluxValue(const Other& q) {
     FluxValue<typename Flux<Field>::cfg> res;
 
-    res(ALPHA1_INDEX)	            = q.al1;
-    res(ALPHA1_RHO1_INDEX)	      = q.alrho1;
-    res(ALPHA1_RHO1_U1_INDEX)	    = q.alrhou1;
-    res(ALPHA1_RHO1_U1_INDEX + 1)	= q.alrhov1;
-    res(ALPHA1_RHO1_E1_INDEX)     = q.alrhoE1;
-    res(ALPHA2_RHO2_INDEX)	      = q.alrho2;
-    res(ALPHA2_RHO2_U2_INDEX)	    = q.alrhou2;
-    res(ALPHA2_RHO2_U2_INDEX + 1)	= q.alrhov2;
-    res(ALPHA2_RHO2_E2_INDEX)     = q.alrhoE2;
+    res(Indices::ALPHA1_INDEX)	           = q.al1;
+    res(Indices::ALPHA1_RHO1_INDEX)	       = q.alrho1;
+    res(Indices::ALPHA1_RHO1_U1_INDEX)	   = q.alrhou1;
+    res(Indices::ALPHA1_RHO1_U1_INDEX + 1) = q.alrhov1;
+    res(Indices::ALPHA1_RHO1_E1_INDEX)     = q.alrhoE1;
+    res(Indices::ALPHA2_RHO2_INDEX)	       = q.alrho2;
+    res(Indices::ALPHA2_RHO2_U2_INDEX)	   = q.alrhou2;
+    res(Indices::ALPHA2_RHO2_U2_INDEX + 1) = q.alrhov2;
+    res(Indices::ALPHA2_RHO2_E2_INDEX)     = q.alrhoE2;
 
     return res;
   }
@@ -136,5 +134,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

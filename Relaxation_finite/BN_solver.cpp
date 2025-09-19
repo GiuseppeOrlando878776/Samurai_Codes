@@ -15,13 +15,15 @@
 int main(int argc, char* argv[]) {
   using json = nlohmann::json;
 
-  auto& app = samurai::initialize("Suliciu-type relaxation scheme for the 1D Baer-Nunziato model", argc, argv);
+  auto& app = samurai::initialize("Suliciu-type relaxation scheme for the Baer-Nunziato model", argc, argv);
 
   std::ifstream ifs("input.json"); // Read a JSON file
   json input = json::parse(ifs);
 
   /*--- Set and declare simulation parameters ---*/
-  Simulation_Parameters<double> sim_param;
+  const std::size_t dim = 1; // Spatial dimension
+  using Number = BN_Solver<dim>::Number;
+  Simulation_Parameters<Number> sim_param;
 
   // Physical parameters
   sim_param.xL = input.value("xL", 0.0);
@@ -120,7 +122,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--restart_file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart file");
 
   /*--- Set and declare simulation parameters related to EOS ---*/
-  EOS_Parameters<double> eos_param;
+  EOS_Parameters<Number> eos_param;
 
   eos_param.gamma_1    = input.value("gamma_1", 3.0);
   eos_param.pi_infty_1 = input.value("pi_infty_1", 1e2);
@@ -144,7 +146,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--c_v_2", eos_param.c_v_2, "c_v_2")->capture_default_str()->group("EOS parameters");
 
   /*--- Set and declare simulation parameters related to initial condition ---*/
-  Riemann_Parameters<double> Riemann_param;
+  Riemann_Parameters<Number> Riemann_param;
 
   Riemann_param.xd      = input.value("xd", 0.8);
 
@@ -200,11 +202,11 @@ int main(int argc, char* argv[]) {
 
   /*--- Create the instance of the class to perform the simulation ---*/
   CLI11_PARSE(app, argc, argv);
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL};
-  xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR};
+  xt::xtensor_fixed<double, xt::xshape<dim>> min_corner = {sim_param.xL};
+  xt::xtensor_fixed<double, xt::xshape<dim>> max_corner = {sim_param.xR};
   auto BN_Solver_Sim = BN_Solver(min_corner, max_corner, sim_param, eos_param, Riemann_param);
 
-  BN_Solver_Sim.run();
+  BN_Solver_Sim.run(sim_param.nfiles);
 
   samurai::finalize();
 

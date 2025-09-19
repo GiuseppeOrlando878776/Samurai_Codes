@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef non_conservative_flux_hpp
-#define non_conservative_flux_hpp
+#pragma once
 
 //#define BR
 #define CENTERED
@@ -21,7 +20,8 @@ namespace samurai {
   template<class Field>
   class NonConservativeFlux: public Flux<Field> {
   public:
-    using Number = Flux<Field>::Number; /*--- Shortcut for the arithmetic type ---*/
+    using Indices = Flux<Field>::Indices; /*--- Shortcut for the indices storage ---*/
+    using Number  = Flux<Field>::Number;  /*--- Shortcut for the arithmetic type ---*/
 
     NonConservativeFlux(const EOS<Number>& EOS_phase1_,
                         const EOS<Number>& EOS_phase2_); /*--- Constructor which accepts in input
@@ -53,109 +53,117 @@ namespace samurai {
                                                          FluxValue<typename Flux<Field>::cfg>& F_minus,
                                                          FluxValue<typename Flux<Field>::cfg>& F_plus) {
     /*--- Zero contribution from continuity equations ---*/
-    F_minus(ALPHA1_RHO1_INDEX) = static_cast<Number>(0.0);
-    F_minus(ALPHA2_RHO2_INDEX) = static_cast<Number>(0.0);
-    F_plus(ALPHA1_RHO1_INDEX)  = static_cast<Number>(0.0);
-    F_plus(ALPHA2_RHO2_INDEX)  = static_cast<Number>(0.0);
+    F_minus(Indices::ALPHA1_RHO1_INDEX) = static_cast<Number>(0.0);
+    F_minus(Indices::ALPHA2_RHO2_INDEX) = static_cast<Number>(0.0);
+    F_plus(Indices::ALPHA1_RHO1_INDEX)  = static_cast<Number>(0.0);
+    F_plus(Indices::ALPHA2_RHO2_INDEX)  = static_cast<Number>(0.0);
+
+    /*-- Set to zero momentum contributions contributions. Only curr_d will be overwritten ---*/
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      F_minus(Indices::ALPHA1_RHO1_U1_INDEX + d) = static_cast<Number>(0.0);
+      F_plus(Indices::ALPHA1_RHO1_U1_INDEX + d)  = static_cast<Number>(0.0);
+      F_minus(Indices::ALPHA2_RHO2_U2_INDEX + d) = static_cast<Number>(0.0);
+      F_plus(Indices::ALPHA2_RHO2_U2_INDEX + d)  = static_cast<Number>(0.0);
+    }
 
     /*--- Left state ---*/
     // Pre-fetch variables that will be used several times so as to exploit possible vectorization
     // (as well as to enhance readability)
-    const auto alpha1_L = qL(ALPHA1_INDEX);
-    const auto m1_L     = qL(ALPHA1_RHO1_INDEX);
-    const auto m2_L     = qL(ALPHA2_RHO2_INDEX);
-    const auto m2E2_L   = qL(ALPHA2_RHO2_E2_INDEX);
+    const auto alpha1_L = qL(Indices::ALPHA1_INDEX);
+    const auto m1_L     = qL(Indices::ALPHA1_RHO1_INDEX);
+    const auto m2_L     = qL(Indices::ALPHA2_RHO2_INDEX);
+    const auto m2E2_L   = qL(Indices::ALPHA2_RHO2_E2_INDEX);
 
     // Interface velocity and interface pressure computed from left state
     const auto inv_m1_L = static_cast<Number>(1.0)/m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto inv_m2_L = static_cast<Number>(1.0)/m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto velI_L   = qL(ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto velI_L   = qL(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto rho2_L   = m2_L/(static_cast<Number>(1.0) - alpha1_L); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2_L           = m2E2_L*inv_m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e2_L -= static_cast<Number>(0.5)*
-              ((qL(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)*
-               (qL(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+              ((qL(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)*
+               (qL(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_L)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
     const auto pI_L = this->EOS_phase2.pres_value_Rhoe(rho2_L, e2_L);
 
     /*--- Right state ---*/
     // Pre-fetch variables that will be used several times so as to exploit possible vectorization
     // (as well as to enhance readability)
-    const auto alpha1_R = qR(ALPHA1_INDEX);
-    const auto m1_R     = qR(ALPHA1_RHO1_INDEX);
-    const auto m2_R     = qR(ALPHA2_RHO2_INDEX);
-    const auto m2E2_R   = qR(ALPHA2_RHO2_E2_INDEX);
+    const auto alpha1_R = qR(Indices::ALPHA1_INDEX);
+    const auto m1_R     = qR(Indices::ALPHA1_RHO1_INDEX);
+    const auto m2_R     = qR(Indices::ALPHA2_RHO2_INDEX);
+    const auto m2E2_R   = qR(Indices::ALPHA2_RHO2_E2_INDEX);
 
     // Interface velocity and interface pressure computed from right state
     const auto inv_m1_R = static_cast<Number>(1.0)/m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto inv_m2_R = static_cast<Number>(1.0)/m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    const auto velI_R   = qR(ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto velI_R   = qR(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto rho2_R   = m2_R/(static_cast<Number>(1.0) - alpha1_R); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     auto e2_R           = m2E2_R*inv_m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e2_R -= static_cast<Number>(0.5)*
-              ((qR(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)*
-               (qR(ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+              ((qR(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)*
+               (qR(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_R)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
     const auto pI_R = this->EOS_phase2.pres_value_Rhoe(rho2_R, e2_R);
 
     /*--- Build the non conservative flux ---*/
     #ifdef BR
-      F_minus(ALPHA1_INDEX) = static_cast<Number>(0.5)*
-                              (velI_L*alpha1_L + velI_R*alpha1_R) -
-                              static_cast<Number>(0.5)*
-                              (velI_L + velI_R)*alpha1_L;
-      F_plus(ALPHA1_INDEX)  = static_cast<Number>(0.5)*
-                              (velI_L*alpha1_L + velI_R*alpha1_R) -
-                              static_cast<Number>(0.5)*
-                              (velI_L + velI_R)*alpha1_R;
+      F_minus(Indices::ALPHA1_INDEX) = static_cast<Number>(0.5)*
+                                       (velI_L*alpha1_L + velI_R*alpha1_R) -
+                                       static_cast<Number>(0.5)*
+                                       (velI_L + velI_R)*alpha1_L;
+      F_plus(Indices::ALPHA1_INDEX)  = static_cast<Number>(0.5)*
+                                       (velI_L*alpha1_L + velI_R*alpha1_R) -
+                                       static_cast<Number>(0.5)*
+                                       (velI_L + velI_R)*alpha1_R;
 
-      F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = -(static_cast<Number>(0.5)*
-                                                 (pI_L*alpha1_L + pI_R*alpha1_R) -
-                                                 static_cast<Number>(0.5)*
-                                                 (pI_L + pI_R)*alpha1_L);
-      F_plus(ALPHA1_RHO1_U1_INDEX + curr_d)  = -(static_cast<Number>(0.5)*
-                                                 (pI_L*alpha1_L + pI_R*alpha1_R) -
-                                                 static_cast<Number>(0.5)*
-                                                 (pI_L + pI_R)*alpha1_R);
+      F_minus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) = -(static_cast<Number>(0.5)*
+                                                          (pI_L*alpha1_L + pI_R*alpha1_R) -
+                                                          static_cast<Number>(0.5)*
+                                                          (pI_L + pI_R)*alpha1_L);
+      F_plus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)  = -(static_cast<Number>(0.5)*
+                                                          (pI_L*alpha1_L + pI_R*alpha1_R) -
+                                                          static_cast<Number>(0.5)*
+                                                          (pI_L + pI_R)*alpha1_R);
 
-      F_minus(ALPHA1_RHO1_E1_INDEX) = -(static_cast<Number>(0.5)*
-                                        (pI_L*velI_L*alpha1_L + pI_R*velI_R*alpha1_R) -
-                                        static_cast<Number>(0.5)*
-                                        (pI_L*velI_L + pI_R*velI_R)*alpha1_L);
-      F_plus(ALPHA1_RHO1_E1_INDEX)  = -(static_cast<Number>(0.5)*
-                                        (pI_L*velI_L*alpha1_L + pI_R*velI_R*alpha1_R) -
-                                        static_cast<Number>(0.5)*
-                                        (pI_L*velI_L + pI_R*velI_R)*alpha1_R);
+      F_minus(Indices::ALPHA1_RHO1_E1_INDEX) = -(static_cast<Number>(0.5)*
+                                                 (pI_L*velI_L*alpha1_L + pI_R*velI_R*alpha1_R) -
+                                                 static_cast<Number>(0.5)*
+                                                 (pI_L*velI_L + pI_R*velI_R)*alpha1_L);
+      F_plus(Indices::ALPHA1_RHO1_E1_INDEX)  = -(static_cast<Number>(0.5)*
+                                                 (pI_L*velI_L*alpha1_L + pI_R*velI_R*alpha1_R) -
+                                                 static_cast<Number>(0.5)*
+                                                 (pI_L*velI_L + pI_R*velI_R)*alpha1_R);
     #elifdef CENTERED
-      F_minus(ALPHA1_INDEX) = velI_L*
-                              (static_cast<Number>(0.5)*
-                               (alpha1_L + alpha1_R));
-      F_plus(ALPHA1_INDEX)  = velI_R*
-                              (static_cast<Number>(0.5)*
-                               (alpha1_L + alpha1_R));
+      F_minus(Indices::ALPHA1_INDEX) = velI_L*
+                                       (static_cast<Number>(0.5)*
+                                       (alpha1_L + alpha1_R));
+      F_plus(Indices::ALPHA1_INDEX)  = velI_R*
+                                       (static_cast<Number>(0.5)*
+                                       (alpha1_L + alpha1_R));
 
-      F_minus(ALPHA1_RHO1_U1_INDEX + curr_d) = -pI_L*
+      F_minus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) = -pI_L*
+                                                         (static_cast<Number>(0.5)*
+                                                          (alpha1_L + alpha1_R));
+      F_plus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)  = -pI_R*
+                                                         (static_cast<Number>(0.5)*
+                                                          (alpha1_L + alpha1_R));
+
+      F_minus(Indices::ALPHA1_RHO1_E1_INDEX) = -velI_L*pI_L*
                                                 (static_cast<Number>(0.5)*
                                                  (alpha1_L + alpha1_R));
-      F_plus(ALPHA1_RHO1_U1_INDEX + curr_d)  = -pI_R*
+      F_plus(Indices::ALPHA1_RHO1_E1_INDEX)  = -velI_R*pI_R*
                                                 (static_cast<Number>(0.5)*
                                                  (alpha1_L + alpha1_R));
-
-      F_minus(ALPHA1_RHO1_E1_INDEX) = -velI_L*pI_L*
-                                       (static_cast<Number>(0.5)*
-                                        (alpha1_L + alpha1_R));
-      F_plus(ALPHA1_RHO1_E1_INDEX)  = -velI_R*pI_R*
-                                       (static_cast<Number>(0.5)*
-                                        (alpha1_L + alpha1_R));
     #endif
 
-    F_minus(ALPHA2_RHO2_U2_INDEX + curr_d) = -F_minus(ALPHA1_RHO1_U1_INDEX + curr_d);
-    F_plus(ALPHA2_RHO2_U2_INDEX + curr_d)  = -F_plus(ALPHA1_RHO1_U1_INDEX + curr_d);
+    F_minus(Indices::ALPHA2_RHO2_U2_INDEX + curr_d) = -F_minus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d);
+    F_plus(Indices::ALPHA2_RHO2_U2_INDEX + curr_d)  = -F_plus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d);
 
-    F_minus(ALPHA2_RHO2_E2_INDEX) = -F_minus(ALPHA1_RHO1_E1_INDEX);
-    F_plus(ALPHA2_RHO2_E2_INDEX)  = -F_plus(ALPHA1_RHO1_E1_INDEX);
+    F_minus(Indices::ALPHA2_RHO2_E2_INDEX) = -F_minus(Indices::ALPHA1_RHO1_E1_INDEX);
+    F_plus(Indices::ALPHA2_RHO2_E2_INDEX)  = -F_plus(Indices::ALPHA1_RHO1_E1_INDEX);
   }
 
   // Implement the contribution of the discrete flux for all the dimensions.
@@ -219,5 +227,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef eos_hpp
-#define eos_hpp
+#pragma once
 
 /**
   * Implementation of a generic class to handle the EOS. It has several
@@ -292,5 +291,3 @@ template<typename T>
 inline T SG_EOS<T>::get_cv() const {
   return c_v;
 }
-
-#endif

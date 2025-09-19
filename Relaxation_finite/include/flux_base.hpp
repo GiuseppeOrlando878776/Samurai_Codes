@@ -4,25 +4,21 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef flux_base_hpp
-#define flux_base_hpp
-
 #pragma once
+
 #include <samurai/schemes/fv.hpp>
 
 #include "eos.hpp"
 
 //#define ORDER_2
 
-namespace EquationData {
-  static constexpr std::size_t dim = 1; /*--- Spatial dimension. It would be ideal to be able to get it
-                                              directly from Field, but I need to move the definition of these indices ---*/
-
+template<std::size_t dim>
+struct EquationData {
   /*--- Declare suitable static variables for the sake of generalities in the indices ---*/
   static constexpr std::size_t ALPHA1_INDEX         = 0;
   static constexpr std::size_t ALPHA1_RHO1_INDEX    = 1;
   static constexpr std::size_t ALPHA1_RHO1_U1_INDEX = 2;
-  static constexpr std::size_t ALPHA1_RHO1_E1_INDEX = 2 + dim;
+  static constexpr std::size_t ALPHA1_RHO1_E1_INDEX = ALPHA1_RHO1_U1_INDEX + dim;
   static constexpr std::size_t ALPHA2_RHO2_INDEX    = ALPHA1_RHO1_E1_INDEX + 1;
   static constexpr std::size_t ALPHA2_RHO2_U2_INDEX = ALPHA2_RHO2_INDEX + 1;
   static constexpr std::size_t ALPHA2_RHO2_E2_INDEX = ALPHA2_RHO2_U2_INDEX + dim;
@@ -32,15 +28,13 @@ namespace EquationData {
   /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
   static constexpr std::size_t RHO1_INDEX = 1;
   static constexpr std::size_t U1_INDEX   = 2;
-  static constexpr std::size_t P1_INDEX   = 2 + dim;
+  static constexpr std::size_t P1_INDEX   = U1_INDEX + dim;
   static constexpr std::size_t RHO2_INDEX = P1_INDEX + 1;
   static constexpr std::size_t U2_INDEX   = RHO2_INDEX + 1;
   static constexpr std::size_t P2_INDEX   = U2_INDEX + dim;
-}
+};
 
 namespace samurai {
-  using namespace EquationData;
-
   /**
     * Generic class to compute the flux between a left and right state
     */
@@ -49,8 +43,8 @@ namespace samurai {
   public:
     /*--- Definitions and sanity checks ---*/
     static constexpr std::size_t field_size = Field::n_comp;
-    static_assert(field_size == EquationData::NVARS, "The number of elements in the state does not correpsond to the number of equations");
-    static_assert(Field::dim == EquationData::dim, "The spatial dimesions between Field and EquationData do not match");
+    using Indices = EquationData<Field::dim>;
+    static_assert(field_size == Indices::NVARS, "The number of elements in the state does not correpsond to the number of equations");
     static constexpr std::size_t output_field_size = field_size;
     #ifdef ORDER_2
       static constexpr std::size_t stencil_size = 4;
@@ -106,11 +100,11 @@ namespace samurai {
     FluxValue<cfg> res = q;
 
     /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization ---*/
-    const auto alpha1 = q(ALPHA1_INDEX);
-    const auto m1     = q(ALPHA1_RHO1_INDEX);
-    const auto m1E1   = q(ALPHA1_RHO1_E1_INDEX);
-    const auto m2     = q(ALPHA2_RHO2_INDEX);
-    const auto m2E2   = q(ALPHA2_RHO2_E2_INDEX);
+    const auto alpha1 = q(Indices::ALPHA1_INDEX);
+    const auto m1     = q(Indices::ALPHA1_RHO1_INDEX);
+    const auto m1E1   = q(Indices::ALPHA1_RHO1_E1_INDEX);
+    const auto m2     = q(Indices::ALPHA2_RHO2_INDEX);
+    const auto m2E2   = q(Indices::ALPHA2_RHO2_E2_INDEX);
 
     /*--- Compute density, velocity (along the dimension) and internal energy of phase 1 ---*/
     const auto rho1   = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -118,21 +112,21 @@ namespace samurai {
     auto e1           = m1E1*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e1 -= static_cast<Number>(0.5)*
-            ((q(ALPHA1_RHO1_U1_INDEX + d)*inv_m1)*
-             (q(ALPHA1_RHO1_U1_INDEX + d)*inv_m1)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+            ((q(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1)*
+             (q(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
     const auto pres1  = EOS_phase1.pres_value_Rhoe(rho1, e1);
-    const auto vel1_d = q(ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel1_d = q(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
     /*--- Compute the flux for the equations "associated" to phase 1 ---*/
-    res(ALPHA1_INDEX) = static_cast<Number>(0.0);
-    res(ALPHA1_RHO1_INDEX) *= vel1_d;
+    res(Indices::ALPHA1_INDEX) = static_cast<Number>(0.0);
+    res(Indices::ALPHA1_RHO1_INDEX) *= vel1_d;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      res(ALPHA1_RHO1_U1_INDEX + d) *= vel1_d;
+      res(Indices::ALPHA1_RHO1_U1_INDEX + d) *= vel1_d;
     }
-    res(ALPHA1_RHO1_U1_INDEX + curr_d) += alpha1*pres1;
-    res(ALPHA1_RHO1_E1_INDEX) *= vel1_d;
-    res(ALPHA1_RHO1_E1_INDEX) += alpha1*pres1*vel1_d;
+    res(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) += alpha1*pres1;
+    res(Indices::ALPHA1_RHO1_E1_INDEX) *= vel1_d;
+    res(Indices::ALPHA1_RHO1_E1_INDEX) += alpha1*pres1*vel1_d;
 
     /*--- Compute density, velocity (along the dimension) and internal energy of phase 2 ---*/
     const auto alpha2 = static_cast<Number>(1.0) - alpha1;
@@ -141,20 +135,20 @@ namespace samurai {
     auto e2           = m2E2*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     for(std::size_t d = 0; d < Field::dim; ++d) {
       e2 -= static_cast<Number>(0.5)*
-            ((q(ALPHA2_RHO2_U2_INDEX + d)*inv_m2)*
-             (q(ALPHA2_RHO2_U2_INDEX + d)*inv_m2)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+            ((q(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2)*
+             (q(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     }
     const auto pres2  = EOS_phase2.pres_value_Rhoe(rho2, e2);
-    const auto vel2_d = q(ALPHA2_RHO2_U2_INDEX + curr_d)*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto vel2_d = q(Indices::ALPHA2_RHO2_U2_INDEX + curr_d)*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
     /*--- Compute the flux for the equations "associated" to phase 2 ---*/
-    res(ALPHA2_RHO2_INDEX) *= vel2_d;
+    res(Indices::ALPHA2_RHO2_INDEX) *= vel2_d;
     for(std::size_t d = 0; d < Field::dim; ++d) {
-      res(ALPHA2_RHO2_U2_INDEX + d) *= vel2_d;
+      res(Indices::ALPHA2_RHO2_U2_INDEX + d) *= vel2_d;
     }
-    res(ALPHA2_RHO2_U2_INDEX + curr_d) += alpha2*pres2;
-    res(ALPHA2_RHO2_E2_INDEX) *= vel2_d;
-    res(ALPHA2_RHO2_E2_INDEX) += alpha2*pres2*vel2_d;
+    res(Indices::ALPHA2_RHO2_U2_INDEX + curr_d) += alpha2*pres2;
+    res(Indices::ALPHA2_RHO2_E2_INDEX) *= vel2_d;
+    res(Indices::ALPHA2_RHO2_E2_INDEX) += alpha2*pres2*vel2_d;
 
     return res;
   }
@@ -170,34 +164,34 @@ namespace samurai {
       FluxValue<cfg> prim;
 
       /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization ---*/
-      const auto alpha1 = cons(ALPHA1_INDEX);
-      const auto m1     = cons(ALPHA1_RHO1_INDEX);
-      const auto m1E1   = cons(ALPHA1_RHO1_E1_INDEX);
-      const auto m2     = cons(ALPHA2_RHO2_INDEX);
-      const auto m2E2   = cons(ALPHA2_RHO2_E2_INDEX);
+      const auto alpha1 = cons(Indices::ALPHA1_INDEX);
+      const auto m1     = cons(Indices::ALPHA1_RHO1_INDEX);
+      const auto m1E1   = cons(Indices::ALPHA1_RHO1_E1_INDEX);
+      const auto m2     = cons(Indices::ALPHA2_RHO2_INDEX);
+      const auto m2E2   = cons(Indices::ALPHA2_RHO2_E2_INDEX);
 
       /*--- Start with phase 1 ---*/
-      prim(ALPHA1_INDEX) = alpha1;
-      prim(RHO1_INDEX)   = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      prim(Indices::ALPHA1_INDEX) = alpha1;
+      prim(Indices::RHO1_INDEX)   = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto inv_m1  = static_cast<Number>(1.0)/m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e1            = m1E1*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      auto e1 = m1E1*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        prim(U1_INDEX + d) = cons(ALPHA1_RHO1_U1_INDEX + d)*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+        prim(Indices::U1_INDEX + d) = cons(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
         e1 -= static_cast<Number>(0.5)*
-              (prim(U1_INDEX + d)*prim(U1_INDEX + d));
+              (prim(Indices::U1_INDEX + d)*prim(Indices::U1_INDEX + d));
       }
-      prim(P1_INDEX) = EOS_phase1.pres_value_Rhoe(prim(RHO1_INDEX), e1);
+      prim(Indices::P1_INDEX) = EOS_phase1.pres_value_Rhoe(prim(Indices::RHO1_INDEX), e1);
 
       /*--- Proceed with phase 2 ---*/
-      prim(RHO2_INDEX)  = m2/(static_cast<Number>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      prim(Indices::RHO2_INDEX) = m2/(static_cast<Number>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
       const auto inv_m2 = static_cast<Number>(1.0)/m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e2           = m2E2*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+      auto e2 = m2E2*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        prim(U2_INDEX + d) = cons(ALPHA2_RHO2_U2_INDEX + d)*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+        prim(Indices::U2_INDEX + d) = cons(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
         e2 -= static_cast<Number>(0.5)*
-              (prim(U2_INDEX + d)*prim(U2_INDEX + d));
+              (prim(Indices::U2_INDEX + d)*prim(Indices::U2_INDEX + d));
       }
-      prim(P2_INDEX) = EOS_phase2.pres_value_Rhoe(prim(RHO2_INDEX), e2);
+      prim(Indices::P2_INDEX) = EOS_phase2.pres_value_Rhoe(prim(Indices::RHO2_INDEX), e2);
 
       /*--- Return computed primitive variables ---*/
       return prim;
@@ -211,34 +205,34 @@ namespace samurai {
       FluxValue<cfg> cons;
 
       /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization ---*/
-      const auto alpha1 = prim(ALPHA1_INDEX);
-      const auto rho1   = prim(RHO1_INDEX);
-      const auto p1     = prim(P1_INDEX);
-      const auto rho2   = prim(RHO2_INDEX);
-      const auto p2     = prim(P2_INDEX);
+      const auto alpha1 = prim(Indices::ALPHA1_INDEX);
+      const auto rho1   = prim(Indices::RHO1_INDEX);
+      const auto p1     = prim(Indices::P1_INDEX);
+      const auto rho2   = prim(Indices::RHO2_INDEX);
+      const auto p2     = prim(Indices::P2_INDEX);
 
       /*--- Start with phase 1 ---*/
-      cons(ALPHA1_INDEX)      = alpha1;
-      const auto m1           = alpha1*rho1;
-      cons(ALPHA1_RHO1_INDEX) = m1;
-      auto E1                 = EOS_phase1.e_value_RhoP(rho1, p1);
+      cons(Indices::ALPHA1_INDEX) = alpha1;
+      const auto m1 = alpha1*rho1;
+      cons(Indices::ALPHA1_RHO1_INDEX) = m1;
+      auto E1 = EOS_phase1.e_value_RhoP(rho1, p1);
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        cons(ALPHA1_RHO1_U1_INDEX + d) = m1*prim(U1_INDEX + d);
+        cons(Indices::ALPHA1_RHO1_U1_INDEX + d) = m1*prim(Indices::U1_INDEX + d);
         E1 += static_cast<Number>(0.5)*
-              (prim(U1_INDEX + d)*prim(U1_INDEX + d));
+              (prim(Indices::U1_INDEX + d)*prim(Indices::U1_INDEX + d));
       }
-      cons(ALPHA1_RHO1_E1_INDEX) = m1*E1;
+      cons(Indices::ALPHA1_RHO1_E1_INDEX) = m1*E1;
 
       /*--- Proceed with phase 2 ---*/
-      const auto m2           = (static_cast<Number>(1.0) - alpha1)*rho2;
-      cons(ALPHA2_RHO2_INDEX) = m2;
-      auto E2                 = EOS_phase2.e_value_RhoP(rho2, p2);
+      const auto m2 = (static_cast<Number>(1.0) - alpha1)*rho2;
+      cons(Indices::ALPHA2_RHO2_INDEX) = m2;
+      auto E2 = EOS_phase2.e_value_RhoP(rho2, p2);
       for(std::size_t d = 0; d < Field::dim; ++d) {
-        cons(ALPHA2_RHO2_U2_INDEX + d) = m2*prim(U2_INDEX + d);
+        cons(Indices::ALPHA2_RHO2_U2_INDEX + d) = m2*prim(Indices::U2_INDEX + d);
         E2 += static_cast<Number>(0.5)*
-              (prim(U2_INDEX + d)*prim(U2_INDEX + d));
+              (prim(Indices::U2_INDEX + d)*prim(Indices::U2_INDEX + d));
       }
-      cons(ALPHA2_RHO2_E2_INDEX) = m2*E2;
+      cons(Indices::ALPHA2_RHO2_E2_INDEX) = m2*E2;
 
       /*--- Return computed conserved variables ---*/
       return cons;
@@ -298,5 +292,3 @@ namespace samurai {
   #endif
 
 } // end namespace samurai
-
-#endif
