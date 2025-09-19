@@ -379,7 +379,7 @@ namespace samurai {
       }
     }
     F_minus(Indices::ALPHA1_RHO1_E1_INDEX) = alpha1_m*inv_tau1_m*E1_m*u1_m
-                                  + alpha1_m*p1_m*u1_m;
+                                           + alpha1_m*p1_m*u1_m;
 
     F_minus(Indices::ALPHA2_RHO2_INDEX) = alpha2_m*inv_tau2_m*u2_m;
     F_minus(Indices::ALPHA2_RHO2_U2_INDEX + curr_d) = alpha2_m*inv_tau2_m*u2_m*u2_m
@@ -392,7 +392,7 @@ namespace samurai {
       }
     }
     F_minus(Indices::ALPHA2_RHO2_E2_INDEX) = alpha2_m*inv_tau2_m*E2_m*u2_m
-                                  + alpha2_m*p2_m*u2_m;
+                                           + alpha2_m*p2_m*u2_m;
 
     F_plus(Indices::ALPHA1_INDEX) = static_cast<Number>(0.0);
 
