@@ -19,6 +19,8 @@ namespace samurai {
   public:
     using Indices = Flux<Field>::Indices; /*--- Shortcut for the indices storage ---*/
     using Number  = Flux<Field>::Number;  /*--- Shortcut for the arithmetic type ---*/
+    using cfg     = Flux<Field>::cfg;     /*--- Shortcut to specify the type of configuration
+                                                for the flux (nonlinear in this case) ---*/
 
     RusanovFlux(const EOS<Number>& EOS_phase1_,
                 const EOS<Number>& EOS_phase2_); /*--- Constructor which accepts in input
@@ -27,9 +29,9 @@ namespace samurai {
     auto make_flux(); /*--- Compute the flux over all the faces and directions ---*/
 
   private:
-    FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                                               const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d); /*--- Rusanov flux along direction curr_d ---*/
+    FluxValue<cfg> compute_discrete_flux(const FluxValue<cfg>& qL,
+                                         const FluxValue<cfg>& qR,
+                                         const std::size_t curr_d); /*--- Rusanov flux along direction curr_d ---*/
   };
 
   // Constructor derived from base class
@@ -42,9 +44,10 @@ namespace samurai {
   // Implementation of a Rusanov flux
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> RusanovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                                                                 const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                                                 std::size_t curr_d) {
+  FluxValue<typename RusanovFlux<Field>::cfg>
+  RusanovFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
+                                            const FluxValue<cfg>& qR,
+                                            std::size_t curr_d) {
     /*--- Left state ---*/
     // Pre-fetch variables that will be used several times so as to exploit possible vectorization
     // (as well as to enhance readability)
@@ -129,7 +132,7 @@ namespace samurai {
   //
   template<class Field>
   auto RusanovFlux<Field>::make_flux() {
-    FluxDefinition<typename Flux<Field>::cfg> discrete_flux;
+    FluxDefinition<cfg> discrete_flux;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
@@ -138,28 +141,28 @@ namespace samurai {
            static constexpr int d = decltype(integral_constant_d)::value;
 
            // Compute now the "discrete" flux function
-           discrete_flux[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
-                                                     const StencilData<typename Flux<Field>::cfg>& /*data*/,
-                                                     const StencilValues<typename Flux<Field>::cfg> field)
+           discrete_flux[d].cons_flux_function = [&](FluxValue<cfg>& flux,
+                                                     const StencilData<cfg>& /*data*/,
+                                                     const StencilValues<cfg> field)
                                                      {
                                                        #ifdef ORDER_2
                                                          // MUSCL reconstruction
-                                                         const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                                         const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                                         const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                                         const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+                                                         const FluxValue<cfg> primLL = this->cons2prim(field[0]);
+                                                         const FluxValue<cfg> primL  = this->cons2prim(field[1]);
+                                                         const FluxValue<cfg> primR  = this->cons2prim(field[2]);
+                                                         const FluxValue<cfg> primRR = this->cons2prim(field[3]);
 
-                                                         FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                              primR_recon;
+                                                         FluxValue<cfg> primL_recon,
+                                                                        primR_recon;
                                                          this->perform_reconstruction(primLL, primL, primR, primRR,
                                                                                       primL_recon, primR_recon);
 
-                                                         const FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                         const FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                         const FluxValue<cfg> qL = this->prim2cons(primL_recon);
+                                                         const FluxValue<cfg> qR = this->prim2cons(primR_recon);
                                                        #else
                                                          // Extract the states
-                                                         const FluxValue<typename Flux<Field>::cfg> qL = field[0];
-                                                         const FluxValue<typename Flux<Field>::cfg> qR = field[1];
+                                                         const FluxValue<cfg> qL = field[0];
+                                                         const FluxValue<cfg> qR = field[1];
                                                        #endif
 
                                                        flux = compute_discrete_flux(qL, qR, d);

@@ -44,8 +44,8 @@ class BN_Solver {
 public:
   using Config  = samurai::MRConfig<dim, 2>;
   using Field   = samurai::VectorField<samurai::MRMesh<Config>, double, EquationData<dim>::NVARS, false>;
-  using Number  = typename Field::value_type; /*--- Define the shortcut for the arithmetic type ---*/
-  using Indices = EquationData<dim>; /*--- Shortcut for the indices storage ---*/
+  using Number  = samurai::Flux<Field>::Number;  /*--- Define the shortcut for the arithmetic type ---*/
+  using Indices = samurai::Flux<Field>::Indices; /*--- Shortcut for the indices storage ---*/
 
   BN_Solver() = default; /*--- Default constructor. This will do nothing
                                and basically will never be used ---*/

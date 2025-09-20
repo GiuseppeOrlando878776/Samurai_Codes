@@ -92,7 +92,9 @@ namespace samurai {
   // Evaluate the 'continuous flux' along direction 'curr_d'
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d) {
+  FluxValue<typename Flux<Field>::cfg>
+  Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
+                                        const std::size_t curr_d) {
     /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
 
