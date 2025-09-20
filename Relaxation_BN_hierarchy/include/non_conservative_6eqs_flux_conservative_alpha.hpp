@@ -22,6 +22,8 @@ namespace samurai {
   class NonConservativeFlux: public Flux<Field> {
   public:
     using Number = typename Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
+    using cfg    = Flux<Field>::cfg; /*--- Shortcut to specify the type of configuration
+                                           for the flux (nonlinear in this case) ---*/
 
     NonConservativeFlux(const EOS<Number>& EOS_phase1,
                         const EOS<Number>& EOS_phase2); /*--- Constructor which accepts in input
@@ -30,11 +32,11 @@ namespace samurai {
     auto make_flux(); /*--- Compute the flux over all the faces and directions ---*/
 
   private:
-    void compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                               const FluxValue<typename Flux<Field>::cfg>& qR,
+    void compute_discrete_flux(const FluxValue<cfg>& qL,
+                               const FluxValue<cfg>& qR,
                                const std::size_t curr_d,
-                               FluxValue<typename Flux<Field>::cfg>& F_minus,
-                               FluxValue<typename Flux<Field>::cfg>& F_plus); /*--- Non-conservative flux ---*/
+                               FluxValue<cfg>& F_minus,
+                               FluxValue<cfg>& F_plus); /*--- Non-conservative flux ---*/
   };
 
   // Constructor derived from base class
@@ -47,11 +49,11 @@ namespace samurai {
   // Implementation of a non-conservative flux
   //
   template<class Field>
-  void NonConservativeFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                                         const FluxValue<typename Flux<Field>::cfg>& qR,
+  void NonConservativeFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
+                                                         const FluxValue<cfg>& qR,
                                                          const std::size_t curr_d,
-                                                         FluxValue<typename Flux<Field>::cfg>& F_minus,
-                                                         FluxValue<typename Flux<Field>::cfg>& F_plus) {
+                                                         FluxValue<cfg>& F_minus,
+                                                         FluxValue<cfg>& F_plus) {
     /*--- Zero contribution from volume fraction, continuity, and momentum equations ---*/
     F_minus(ALPHA1_INDEX)      = static_cast<Number>(0.0);
     F_plus(ALPHA1_INDEX)       = static_cast<Number>(0.0);
@@ -203,21 +205,21 @@ namespace samurai {
            static constexpr int d = decltype(integral_constant_d)::value;
 
            // Compute now the "discrete" non-conservative flux function
-           non_conservative_flux[d].flux_function = [&](samurai::FluxValuePair<typename Flux<Field>::cfg>& flux,
-                                                        const StencilData<typename Flux<Field>::cfg>& /*data*/,
-                                                        const StencilValues<typename Flux<Field>::cfg> field)
+           non_conservative_flux[d].flux_function = [&](FluxValuePair<cfg>& flux,
+                                                        const StencilData<cfg>& /*data*/,
+                                                        const StencilValues<cfg> field)
                                                         {
                                                           // Extract the states
                                                           #ifdef ORDER_2
-                                                            const FluxValue<typename Flux<Field>::cfg>& qL = field[1];
-                                                            const FluxValue<typename Flux<Field>::cfg>& qR = field[2];
+                                                            const FluxValue<cfg>& qL = field[1];
+                                                            const FluxValue<cfg>& qR = field[2];
                                                           #else
-                                                            const FluxValue<typename Flux<Field>::cfg>& qL = field[0];
-                                                            const FluxValue<typename Flux<Field>::cfg>& qR = field[1];
+                                                            const FluxValue<cfg>& qL = field[0];
+                                                            const FluxValue<cfg>& qR = field[1];
                                                           #endif
 
-                                                          FluxValue<typename Flux<Field>::cfg> F_minus,
-                                                                                               F_plus;
+                                                          FluxValue<cfg> F_minus,
+                                                                         F_plus;
 
                                                           compute_discrete_flux(qL, qR, d, F_minus, F_plus);
 

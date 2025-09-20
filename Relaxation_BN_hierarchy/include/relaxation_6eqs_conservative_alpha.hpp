@@ -48,15 +48,17 @@ template<std::size_t dim>
 class Relaxation {
 public:
   using Config = samurai::MRConfig<dim, 2, 2, 0>;
+  using Field  = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
+  using Number = samurai::Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
 
   Relaxation() = default; /*--- Default constructor. This will do nothing
                                 and basically will never be used ---*/
 
   Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
              const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-             const Simulation_Parameters<double>& sim_param,
-             const EOS_Parameters<double>& eos_param,
-             const Riemann_Parameters<double>& Riemann_param); /*--- Class constrcutor with the arguments related
+             const Simulation_Parameters<Number>& sim_param,
+             const EOS_Parameters<Number>& eos_param,
+             const Riemann_Parameters<Number>& Riemann_param); /*--- Class constrcutor with the arguments related
                                                                      to the grid, to the physics and to the relaxation ---*/
 
   void run(); /*--- Function which actually executes the temporal loop ---*/
@@ -72,8 +74,6 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field        = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
-  using Number       = typename Field::value_type; /*--- Define the shortcut for the arithmetic type ---*/
   using Field_Scalar = samurai::ScalarField<decltype(mesh), Number>;
   using Field_Vect   = samurai::VectorField<decltype(mesh), Number, dim, false>;
 
@@ -147,10 +147,10 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void create_fields(); /*--- Auxiliary routine to initialize the fileds to the mesh ---*/
 
-  void init_variables(const Riemann_Parameters<double>& Riemann_param); /*--- Routine to initialize the variables
+  void init_variables(const Riemann_Parameters<Number>& Riemann_param); /*--- Routine to initialize the variables
                                                                               (both conserved and auxiliary, this is problem dependent) ---*/
 
-  void apply_bcs(const Riemann_Parameters<double>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
+  void apply_bcs(const Riemann_Parameters<Number>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
 
   void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output ---*/
 
@@ -170,9 +170,9 @@ private:
 template<std::size_t dim>
 Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                             const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                            const Simulation_Parameters<double>& sim_param,
-                            const EOS_Parameters<double>& eos_param,
-                            const Riemann_Parameters<double>& Riemann_param):
+                            const Simulation_Parameters<Number>& sim_param,
+                            const EOS_Parameters<Number>& eos_param,
+                            const Riemann_Parameters<Number>& Riemann_param):
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false}}),
   t0(sim_param.t0), Tf(sim_param.Tf),
   apply_pressure_relax(sim_param.apply_pressure_relax),
@@ -214,7 +214,7 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
 template<std::size_t dim>
 void Relaxation<dim>::create_fields() {
   /*--- Create conserved and auxiliary fields ---*/
-  conserved_variables = samurai::make_vector_field<Number, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<Number, Field::n_comp>("conserved", mesh);
 
   rho        = samurai::make_scalar_field<Number>("rho", mesh);
   p          = samurai::make_scalar_field<Number>("p", mesh);
@@ -251,7 +251,7 @@ void Relaxation<dim>::create_fields() {
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void Relaxation<dim>::init_variables(const Riemann_Parameters<double>& Riemann_param) {
+void Relaxation<dim>::init_variables(const Riemann_Parameters<Number>& Riemann_param) {
   /*--- Initialize the fields with a loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -335,9 +335,10 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters<double>& Riemann_p
 // Auxiliary routine to impose the boundary conditions
 //
 template<std::size_t dim>
-void Relaxation<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param) {
+void Relaxation<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) {
   const xt::xtensor_fixed<int, xt::xshape<1>> left  = {-1};
   const xt::xtensor_fixed<int, xt::xshape<1>> right = {1};
+
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           (Riemann_param.alpha1L*
                                            Riemann_param.rho1L +
@@ -383,7 +384,7 @@ void Relaxation<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param)
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-typename Relaxation<dim>::Field::value_type Relaxation<dim>::get_max_lambda() {
+typename Relaxation<dim>::Number Relaxation<dim>::get_max_lambda() {
   /*--- Loop over all cells to compute the estimate ---*/
   auto local_res = static_cast<Number>(0.0);
 
@@ -442,7 +443,7 @@ typename Relaxation<dim>::Field::value_type Relaxation<dim>::get_max_lambda() {
                             }
                         );
 
-  Number global_res;
+  double global_res;
   MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
   return global_res;
@@ -868,14 +869,14 @@ void Relaxation<dim>::run() {
     filename = filename + "_order1";
   #endif
 
-  const double dt_save = Tf/static_cast<double>(nfiles);
+  const auto dt_save = Tf/static_cast<Number>(nfiles);
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<Number, Field::n_comp>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<Number, Field::n_comp>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<Number, Field::n_comp>("conserved_np1", mesh);
 
   /*--- Create the flux variables ---*/
   #ifdef HLLC_FLUX

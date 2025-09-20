@@ -48,15 +48,17 @@ template<std::size_t dim>
 class Relaxation {
 public:
   using Config = samurai::MRConfig<dim, 2, 2, 0>;
+  using Field  = samurai::VectorField<samurai::MRMesh<Config>, double, EquationData::NVARS, false>;
+  using Number = samurai::Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
 
   Relaxation() = default; /*--- Default constructor. This will do nothing
                                 and basically will never be used ---*/
 
   Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
              const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-             const Simulation_Parameters<double>& sim_param,
-             const EOS_Parameters<double>& eos_param,
-             const Riemann_Parameters<double>& Riemann_param); /*--- Class constrcutor with the arguments related
+             const Simulation_Parameters<Number>& sim_param,
+             const EOS_Parameters<Number>& eos_param,
+             const Riemann_Parameters<Number>& Riemann_param); /*--- Class constrcutor with the arguments related
                                                                      to the grid, to the physics and to the relaxation ---*/
 
   void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
@@ -74,8 +76,6 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field        = samurai::VectorField<decltype(mesh), double, EquationData::NVARS, false>;
-  using Number       = typename Field::value_type; /*--- Define the shortcut for the arithmetic type ---*/
   using Field_Scalar = samurai::ScalarField<decltype(mesh), Number>;
   using Field_Vect   = samurai::VectorField<decltype(mesh), Number, dim, false>;
 
@@ -146,10 +146,10 @@ private:
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void create_fields(); /*--- Auxiliary routine to initialize the fileds to the mesh ---*/
 
-  void init_variables(const Riemann_Parameters<double>& Riemann_param); /*--- Routine to initialize the variables
+  void init_variables(const Riemann_Parameters<Number>& Riemann_param); /*--- Routine to initialize the variables
                                                                               (both conserved and auxiliary, this is problem dependent) ---*/
 
-  void apply_bcs(const Riemann_Parameters<double>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
+  void apply_bcs(const Riemann_Parameters<Number>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
 
   void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output ---*/
 
@@ -171,9 +171,9 @@ private:
 template<std::size_t dim>
 Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                             const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                            const Simulation_Parameters<double>& sim_param,
-                            const EOS_Parameters<double>& eos_param,
-                            const Riemann_Parameters<double>& Riemann_param):
+                            const Simulation_Parameters<Number>& sim_param,
+                            const EOS_Parameters<Number>& eos_param,
+                            const Riemann_Parameters<Number>& Riemann_param):
   output_alpha1("alpha1_min.dat", std::ofstream::out),
   box(min_corner, max_corner), mesh(box, sim_param.min_level, sim_param.max_level, {{false}}),
   t0(sim_param.t0), Tf(sim_param.Tf),
@@ -251,7 +251,7 @@ void Relaxation<dim>::create_fields() {
 // Initialization of conserved and auxiliary variables
 //
 template<std::size_t dim>
-void Relaxation<dim>::init_variables(const Riemann_Parameters<double>& Riemann_param) {
+void Relaxation<dim>::init_variables(const Riemann_Parameters<Number>& Riemann_param) {
   /*--- Initialize the fields with a loop over all cells ---*/
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -337,9 +337,10 @@ void Relaxation<dim>::init_variables(const Riemann_Parameters<double>& Riemann_p
 // Auxiliary routine to impose the boundary conditions
 //
 template<std::size_t dim>
-void Relaxation<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param) {
+void Relaxation<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) {
   const samurai::DirectionVector<dim> left  = {-1};
   const samurai::DirectionVector<dim> right = {1};
+  
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.alpha1L,
                                           Riemann_param.alpha1L*
@@ -379,7 +380,7 @@ void Relaxation<dim>::apply_bcs(const Riemann_Parameters<double>& Riemann_param)
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-typename Relaxation<dim>::Field::value_type Relaxation<dim>::get_max_lambda() {
+typename Relaxation<dim>::Number Relaxation<dim>::get_max_lambda() {
   /*--- Loop over all cells to compute the estimate ---*/
   auto local_res = static_cast<Number>(0.0);
 

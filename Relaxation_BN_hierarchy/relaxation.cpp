@@ -21,7 +21,8 @@ int main(int argc, char* argv[]) {
   json input = json::parse(ifs);
 
   /*--- Set and declare some simulation parameters ---*/
-  Simulation_Parameters<double> sim_param;
+  using Number = Relaxation<EquationData::dim>::Number;
+  Simulation_Parameters<Number> sim_param;
 
   // Physical parameters
   sim_param.xL = input.value("xL", 0.0);
@@ -75,7 +76,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
 
   /*--- Set and declare simulation parameters related to EOS ---*/
-  EOS_Parameters<double> eos_param;
+  EOS_Parameters<Number> eos_param;
 
   eos_param.gamma_1    = input.value("gamma_1", 2.43);
   eos_param.pi_infty_1 = input.value("pi_infty_1", 5.3e9);
@@ -99,7 +100,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--c_v_2", eos_param.c_v_2, "c_v_2")->capture_default_str()->group("EOS parameters");
 
   /*--- Set and declare simulation parameters related to initial condition ---*/
-  Riemann_Parameters<double> Riemann_param;
+  Riemann_Parameters<Number> Riemann_param;
 
   Riemann_param.xd = input.value("xd", 0.6);
 

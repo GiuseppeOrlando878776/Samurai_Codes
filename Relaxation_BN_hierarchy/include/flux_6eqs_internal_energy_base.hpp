@@ -66,8 +66,9 @@ namespace samurai {
     const SG_EOS<Number>& EOS_phase1; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
     const SG_EOS<Number>& EOS_phase2; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
 
-    FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q
-                                                                                                      along direction curr_d ---*/
+    FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
+                                            const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q
+                                                                             along direction curr_d ---*/
 
     #ifdef ORDER_2
       FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
@@ -93,7 +94,9 @@ namespace samurai {
   // Evaluate the 'continuous flux' along direction 'curr_d'
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q, const std::size_t curr_d) {
+  FluxValue<typename Flux<Field>::cfg>
+  Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
+                                        const std::size_t curr_d) {
     /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
 
