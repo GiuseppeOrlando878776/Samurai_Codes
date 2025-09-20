@@ -26,12 +26,12 @@ struct EquationData {
   static constexpr std::size_t NVARS = ALPHA2_RHO2_E2_INDEX + 1;
 
   /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
-  static constexpr std::size_t RHO1_INDEX = 1;
-  static constexpr std::size_t U1_INDEX   = 2;
-  static constexpr std::size_t P1_INDEX   = U1_INDEX + dim;
-  static constexpr std::size_t RHO2_INDEX = P1_INDEX + 1;
-  static constexpr std::size_t U2_INDEX   = RHO2_INDEX + 1;
-  static constexpr std::size_t P2_INDEX   = U2_INDEX + dim;
+  static constexpr std::size_t RHO1_INDEX = ALPHA1_RHO1_INDEX;
+  static constexpr std::size_t U1_INDEX   = ALPHA1_RHO1_U1_INDEX;
+  static constexpr std::size_t P1_INDEX   = ALPHA1_RHO1_E1_INDEX;
+  static constexpr std::size_t RHO2_INDEX = ALPHA2_RHO2_INDEX;
+  static constexpr std::size_t U2_INDEX   = ALPHA2_RHO2_U2_INDEX;
+  static constexpr std::size_t P2_INDEX   = ALPHA2_RHO2_E2_INDEX;
 };
 
 namespace samurai {
