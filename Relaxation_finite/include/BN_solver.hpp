@@ -32,7 +32,7 @@ namespace fs = std::filesystem;
 
 #ifdef SULICIU_RELAXATION
   #include "Suliciu_scheme.hpp"
-#elidef RUSANOV_FLUX
+#elifdef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
   #include "non_conservative_flux.hpp"
 #endif
