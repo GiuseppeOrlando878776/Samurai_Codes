@@ -12,8 +12,6 @@
 //#define PERFORM_RECON
 
 namespace samurai {
-  using namespace EquationData;
-
   /**
     * Implementation of the non-conservative flux
     */

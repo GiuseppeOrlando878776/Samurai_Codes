@@ -9,8 +9,6 @@
 #include "flux_base.hpp"
 
 namespace samurai {
-  using namespace EquationData;
-
   /**
     * Implementation of a Rusanov flux
     */

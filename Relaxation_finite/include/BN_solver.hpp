@@ -32,7 +32,7 @@ namespace fs = std::filesystem;
 
 #ifdef SULICIU_RELAXATION
   #include "Suliciu_scheme.hpp"
-#else
+#elidef RUSANOV_FLUX
   #include "Rusanov_flux.hpp"
   #include "non_conservative_flux.hpp"
 #endif
@@ -469,7 +469,7 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
 //
 #ifdef RUSANOV_FLUX
   template<std::size_t dim>
-  typename BN_Solver<dim>::Field::value_type BN_Solver<dim>::get_max_lambda() const {
+  typename BN_Solver<dim>::Number BN_Solver<dim>::get_max_lambda() const {
     auto local_res = static_cast<Number>(0.0);
 
     samurai::for_each_cell(mesh,
