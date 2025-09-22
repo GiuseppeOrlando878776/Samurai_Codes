@@ -1826,7 +1826,7 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
     // Compute time step
     samurai::update_ghost_mr(conserved_variables);
     #ifdef SULICIU_RELAXATION
-      c = 0.0;
+      c = static_cast<Number>(0.0);
       auto Relaxation_Flux = Suliciu_flux(conserved_variables);
       dt = std::min(Tf - t, cfl*dx/c);
     #elifdef RUSANOV_FLUX
@@ -1901,7 +1901,7 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
     #ifdef ORDER_2
       samurai::update_ghost_mr(conserved_variables);
       #ifdef SULICIU_RELAXATION
-        c = 0.0;
+        c = static_cast<Number>(0.0);
         Relaxation_Flux = Suliciu_flux(conserved_variables);
 
         conserved_variables_tmp = conserved_variables - dt*Relaxation_Flux + dt*gravity(conserved_variables);
