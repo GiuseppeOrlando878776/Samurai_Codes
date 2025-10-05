@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef containers_hpp
-#define containers_hpp
+#pragma once
 
 // Declare a struct with the simulation parameters
 // (domain, levels, final time, and Courant number)
@@ -23,7 +22,7 @@ struct Simulation_Paramaters {
 
   T sigma;
 
-  bool   apply_relaxation;
+  bool apply_relaxation;
 
   T x0;
   T y0;
@@ -72,5 +71,3 @@ struct EOS_Parameters {
   T rho0_phase2;
   T c0_phase2;
 };
-
-#endif

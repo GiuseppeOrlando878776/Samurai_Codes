@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef barotropic_eos_hpp
-#define barotropic_eos_hpp
+#pragma once
 
 /**
  * Generic interface for a barotropic EOS
@@ -142,5 +141,3 @@ template<typename T>
 inline void LinearizedBarotropicEOS<T>::set_rho0(const T rho0_) {
   rho0 = rho0_;
 }
-
-#endif

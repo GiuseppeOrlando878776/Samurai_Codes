@@ -19,7 +19,8 @@ int main(int argc, char* argv[]) {
   json input = json::parse(ifs);
 
   /*--- Set and declare simulation parameters ---*/
-  Simulation_Paramaters<double> sim_param;
+  using Number = TwoScaleCapillarity<EquationData::dim>::Number;
+  Simulation_Paramaters<Number> sim_param;
 
   // Physical parameters
   sim_param.xL = input.value("xL", 0.0);
@@ -124,7 +125,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--restart_file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
 
   /*--- Set and declare simulation parameters related to EOS ---*/
-  EOS_Parameters<double> eos_param;
+  EOS_Parameters<Number> eos_param;
 
   eos_param.p0_phase1   = input.value("p0_phase1", 1e5);
   eos_param.rho0_phase1 = input.value("rho0_phase1", 1e3);
@@ -148,7 +149,7 @@ int main(int argc, char* argv[]) {
   auto TwoScaleCapillarity_Sim = TwoScaleCapillarity(min_corner, max_corner,
                                                      sim_param, eos_param);
 
-  TwoScaleCapillarity_Sim.run();
+  TwoScaleCapillarity_Sim.run(sim_param.nfiles);
 
   samurai::finalize();
 

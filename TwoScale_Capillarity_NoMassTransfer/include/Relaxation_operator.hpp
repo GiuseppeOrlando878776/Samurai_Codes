@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef Relaxation_operator_hpp
-#define Relaxation_operator_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
@@ -21,14 +20,16 @@ namespace samurai {
     /*--- Definitions and sanity checks ---*/
     static constexpr std::size_t output_field_size = Field::n_comp;
 
+    using Number = typename Field::Number; /*--- Define the shortcut for the arithmetic type ---*/
+
     using cfg = samurai::LocalCellSchemeConfig<SchemeType::NonLinear, output_field_size, Field>;
 
-    RelaxationOperator(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
-                       const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                       const typename Field::value_type sigma_,
-                       const typename Field::value_type lambda_ = static_cast<typename Field::value_type>(0.9),
-                       const typename Field::value_type atol_Newton_ = static_cast<typename Field::value_type>(1e-14),
-                       const typename Field::value_type rtol_Newton_ = static_cast<typename Field::value_type>(1e-12),
+    RelaxationOperator(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
+                       const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+                       const Number sigma_,
+                       const Number lambda_ = static_cast<Number>(0.9),
+                       const Number atol_Newton_ = static_cast<Number>(1e-14),
+                       const Number rtol_Newton_ = static_cast<Number>(1e-12),
                        const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     template<typename Field_Scalar, typename Field_Scalar_Unsigned>
@@ -40,26 +41,26 @@ namespace samurai {
                                      bool& relaxation_applied); /*--- Compute the flux over all the directions ---*/
 
   protected:
-    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1;
-    const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2;
+    const LinearizedBarotropicEOS<Number>& EOS_phase1;
+    const LinearizedBarotropicEOS<Number>& EOS_phase2;
 
-    const typename Field::value_type sigma; /*--- Surface tension coefficient ---*/
+    const Number sigma; /*--- Surface tension coefficient ---*/
 
-    const typename Field::value_type lambda;           /*--- Parameter for bound preserving strategy ---*/
-    const typename Field::value_type atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
-    const typename Field::value_type rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
-    const std::size_t                max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
+    const Number      lambda;           /*--- Parameter for bound preserving strategy ---*/
+    const Number      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
+    const Number      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
+    const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
   };
 
   // Constructor derived from the base class
   //
   template<class Field>
-  RelaxationOperator<Field>::RelaxationOperator(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
-                                                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                                                const typename Field::value_type sigma_,
-                                                const typename Field::value_type lambda_,
-                                                const typename Field::value_type atol_Newton_,
-                                                const typename Field::value_type rtol_Newton_,
+  RelaxationOperator<Field>::RelaxationOperator(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
+                                                const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+                                                const Number sigma_,
+                                                const Number lambda_,
+                                                const Number atol_Newton_,
+                                                const Number rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
     EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_), sigma(sigma_),
     lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
@@ -81,17 +82,21 @@ namespace samurai {
                                            {
                                              samurai::SchemeValue<cfg> local_field = field[cell];
                                              if(!std::isnan(H[cell])) {
-                                               /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-                                               const auto rho1 = local_field(M1_INDEX)/alpha1[cell]; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                                               const auto p1   = EOS_phase1.pres_value(rho1);
+                                               /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+                                               const auto m1_loc = local_field(M1_INDEX);
+                                               const auto m2_loc = local_field(M2_INDEX);
+                                               auto alpha1_loc   = alpha1[cell];
+                                               auto alpha2_loc   = static_cast<Number>(1.0) - alpha1_loc;
 
-                                               const auto rho2 = local_field(M2_INDEX)/
-                                                                 (static_cast<typename Field::value_type>(1.0) - alpha1[cell]);
-                                               /*--- TODO: Add a check in case of zero volume fraction ---*/
-                                               const auto p2   = EOS_phase2.pres_value(rho2);
+                                               /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
+                                               const auto rho1_loc = m1_loc/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                               const auto p1_loc   = EOS_phase1.pres_value(rho1_loc);
+
+                                               const auto rho2_loc = m2_loc/alpha2_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                               const auto p2_loc   = EOS_phase2.pres_value(rho2_loc);
 
                                                /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
-                                               const auto F = p1 - p2 - sigma*H[cell];
+                                               const auto F = p1_loc - p2_loc - sigma*H[cell];
 
                                                /*--- Perform the relaxation only where really needed ---*/
                                                if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H[cell])) &&
@@ -101,39 +106,35 @@ namespace samurai {
                                                  relaxation_applied = true;
 
                                                  // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-                                                 const auto dF_dalpha1 = -local_field(M1_INDEX)/(alpha1[cell]*alpha1[cell])*
-                                                                          EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
-                                                                         -local_field(M2_INDEX)/
-                                                                          ((static_cast<typename Field::value_type>(1.0) - alpha1[cell])*
-                                                                           (static_cast<typename Field::value_type>(1.0) - alpha1[cell]))*
-                                                                          EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
+                                                 const auto dF_dalpha1 = -m1_loc/(alpha1_loc*alpha1_loc)*
+                                                                          EOS_phase1.c_value(rho1_loc)*EOS_phase1.c_value(rho1_loc)
+                                                                         -m2_loc/(alpha2_loc*alpha2_loc)*
+                                                                          EOS_phase2.c_value(rho2_loc)*EOS_phase2.c_value(rho2_loc);
 
                                                  // Compute the large-scale volume fraction update
-                                                 dalpha1[cell] = -F/dF_dalpha1;
-                                                 if(dalpha1[cell] > static_cast<typename Field::value_type>(0.0)) {
-                                                   dalpha1[cell] = std::min(dalpha1[cell],
-                                                                            lambda*(static_cast<typename Field::value_type>(1.0) - alpha1[cell]));
+                                                 auto dalpha1_loc = F/dF_dalpha1;
+                                                 if(dalpha1_loc > static_cast<Number>(0.0)) {
+                                                   dalpha1_loc = std::min(dalpha1_loc, lambda*alpha2_loc);
                                                  }
-                                                 else if(dalpha1[cell] < static_cast<typename Field::value_type>(0.0)) {
-                                                   dalpha1[cell] = std::max(dalpha1[cell], -lambda*alpha1[cell]);
+                                                 else if(dalpha1[cell] < static_cast<Number>(0.0)) {
+                                                   dalpha1_loc = std::max(dalpha1_loc, -lambda*alpha1_loc);
                                                  }
+                                                 dalpha1[cell] = dalpha1_loc;
 
-                                                 if(alpha1[cell] + dalpha1[cell] < static_cast<typename Field::value_type>(0.0) ||
-                                                    alpha1[cell] + dalpha1[cell] > static_cast<typename Field::value_type>(1.0)) {
+                                                 if(alpha1_loc + dalpha1_loc < static_cast<Number>(0.0) ||
+                                                    alpha1_loc + dalpha1_loc > static_cast<Number>(1.0)) {
                                                    throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step ");
                                                  }
                                                  else {
-                                                   alpha1[cell] += dalpha1[cell];
+                                                   alpha1_loc += dalpha1_loc
+                                                   alpha1[cell] = alpha1_loc;
                                                  }
                                                }
 
-
                                                /*--- Update the vector of conserved variables
-                                                    (probably not the optimal choice since I need this update only at the end of the Newton loop,
-                                                     but the most coherent one thinking about the transfer of mass) ---*/
-                                               const auto rho = local_field(M1_INDEX)
-                                                              + local_field(M2_INDEX);
-                                               local_field(RHO_ALPHA1_INDEX) = rho*alpha1[cell];
+                                                     (probably not the optimal choice since I need this update only at the end of the Newton loop,
+                                                      but the most coherent one thinking about the transfer of mass) ---*/
+                                               local_field(RHO_ALPHA1_INDEX) = (m1_loc + m2_loc)*alpha1_loc;
                                              }
 
                                              return local_field;
@@ -143,5 +144,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

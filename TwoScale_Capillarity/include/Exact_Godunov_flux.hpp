@@ -19,9 +19,9 @@ namespace samurai {
   template<class Field>
   class GodunovFlux: public Flux<Field> {
   public:
-    using Number = typename Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    using cfg    = Flux<Field>::cfg; /*--- Shortcut to specify the type of configuration
-                                           for the flux (nonlinear in this case) ---*/
+    using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
+    using cfg    = Flux<Field>::cfg;   /*--- Shortcut to specify the type of configuration
+                                             for the flux (nonlinear in this case) ---*/
 
     GodunovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
                 const LinearizedBarotropicEOS<Number>& EOS_phase2_,

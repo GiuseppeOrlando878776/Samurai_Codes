@@ -7,10 +7,10 @@
 #include <samurai/algorithm/update.hpp>
 #include <samurai/mr/mesh.hpp>
 #include <samurai/box.hpp>
+#include <samurai/bc.hpp>
 #include <samurai/field.hpp>
 #include <samurai/io/restart.hpp>
 #include <samurai/io/hdf5.hpp>
-#include <numbers>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -463,6 +463,17 @@ void TwoScaleCapillarity<dim>::apply_bcs(const Number U0,
                                   static_cast<Number>(0.0),
                                   EOS_phase1.get_rho0(),
                                   static_cast<Number>(0.0)))->on(left);
+  /*samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
+                                          alpha_residual*EOS_phase1.get_rho0(),
+                                          (static_cast<Number>(1.0) - alpha_residual)*EOS_phase2.get_rho0(),
+                                          static_cast<Number>(0.0), static_cast<Number>(0.0), static_cast<Number>(0.0),
+                                          (alpha_residual*EOS_phase1.get_rho0() +
+                                           (static_cast<Number>(1.0) - alpha_residual)*EOS_phase2.get_rho0())*
+                                          alpha_residual,
+                                          (alpha_residual*EOS_phase1.get_rho0() +
+                                           (static_cast<Number>(1.0) - alpha_residual)*EOS_phase2.get_rho0())*U0,
+                                          (alpha_residual*EOS_phase1.get_rho0() +
+                                           (static_cast<Number>(1.0) - alpha_residual)*EOS_phase2.get_rho0())*V0)->on(left);*/
 
   const samurai::DirectionVector<dim> right = {1, 0};
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables,
@@ -525,7 +536,7 @@ void TwoScaleCapillarity<dim>::update_geometry() {
                               }
                               else {
                                 for(std::size_t d = 0; d < dim; ++d) {
-                                  normal[cell][d] = nan("");
+                                  normal[cell][d] = static_cast<Number>(nan(""));
                                 }
                               }
                             }
@@ -588,11 +599,11 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                               const auto r = sigma*mod_grad_alpha1_bar_loc/(rho_loc*c_loc*c_loc);
 
                               /*--- Update eigenvalue estimate ---*/
-                              local_res = std::max(std::max(std::abs(vel[cell][0]) + c_loc*(static_cast<Number>(1.0) +
-                                                                                            static_cast<Number>(0.125)*r),
-                                                            std::abs(vel[cell][1]) + c_loc*(static_cast<Number>(1.0) +
-                                                                                            static_cast<Number>(0.125)*r)),
-                                                   local_res);
+                              for(std::size_t d = 0; d < dim; ++d) {
+                                local_res = std::max(local_res,
+                                                     std::abs(vel[cell][d]) + c_loc*(static_cast<Number>(1.0) +
+                                                                                     static_cast<Number>(0.125)*r));
+                              }
                             }
                         );
 

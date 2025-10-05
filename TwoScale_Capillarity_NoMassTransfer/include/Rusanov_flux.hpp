@@ -4,12 +4,11 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef Rusanov_flux_hpp
-#define Rusanov_flux_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
-//#define VERBOSE_FLUX
+#define VERBOSE_FLUX
 
 namespace samurai {
   using namespace EquationData;
@@ -20,13 +19,17 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
-                const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                const typename Field::value_type sigma_,
-                const typename Field::value_type mod_grad_alpha1_min_,
-                const typename Field::value_type lambda_,
-                const typename Field::value_type atol_Newton_,
-                const typename Field::value_type rtol_Newton_,
+    using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
+    using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
+                                              for the flux (nonlinear in this case) ---*/
+
+    RusanovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
+                const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+                const Number sigma_,
+                const Number mod_grad_alpha1_min_,
+                const Number lambda_,
+                const Number atol_Newton_,
+                const Number rtol_Newton_,
                 const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     #ifdef ORDER_2
@@ -37,21 +40,21 @@ namespace samurai {
     #endif
 
   private:
-    FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                                               const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d); /*--- Rusanov flux along direction curr_d ---*/
+    FluxValue<cfg> compute_discrete_flux(const FluxValue<cfg>& qL,
+                                         const FluxValue<cfg>& qR,
+                                         const std::size_t curr_d); /*--- Rusanov flux along direction curr_d ---*/
   };
 
   // Constructor derived from the base class
   //
   template<class Field>
-  RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase1_,
-                                  const LinearizedBarotropicEOS<typename Field::value_type>& EOS_phase2_,
-                                  const typename Field::value_type sigma_,
-                                  const typename Field::value_type mod_grad_alpha1_min_,
-                                  const typename Field::value_type lambda_,
-                                  const typename Field::value_type atol_Newton_,
-                                  const typename Field::value_type rtol_Newton_,
+  RusanovFlux<Field>::RusanovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
+                                  const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+                                  const Number sigma_,
+                                  const Number mod_grad_alpha1_min_,
+                                  const Number lambda_,
+                                  const Number atol_Newton_,
+                                  const Number rtol_Newton_,
                                   const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase1_, EOS_phase2_,
                 sigma_, mod_grad_alpha1_min_,
@@ -60,80 +63,92 @@ namespace samurai {
   // Implementation of a Rusanov flux
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> RusanovFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                                                                 const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                                                 const std::size_t curr_d) {
+  FluxValue<typename RusanovFlux<Field>::cfg>
+  RusanovFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
+                                            const FluxValue<cfg>& qR,
+                                            const std::size_t curr_d) {
+    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    const auto m1_L         = qL(M1_INDEX);
+    const auto m2_L         = qL(M2_INDEX);
+    const auto rho_alpha1_L = qL(RHO_ALPHA1_INDEX);
+
+    const auto m1_R         = qR(M1_INDEX);
+    const auto m2_R         = qR(M2_INDEX);
+    const auto rho_alpha1_R = qR(RHO_ALPHA1_INDEX);
+
     /*--- Verify if left and right state are coherent ---*/
     #ifdef VERBOSE_FLUX
-      if(qL(M1_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(qL(M1_INDEX))));
+      if(m1_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
       }
-      if(qL(M2_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(qL(M2_INDEX))));
+      if(m2_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(m2_L)));
       }
-      if(qL(RHO_ALPHA1_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(qL(RHO_ALPHA1_INDEX))));
+      if(rho_alpha1_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(rho_alpha1_L)));
       }
 
-      if(qR(M1_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass phase 1 right state: " + std::to_string(qR(M1_INDEX))));
+      if(m1_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 1 right state: " + std::to_string(m1_R)));
       }
-      if(qR(M2_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(qR(M2_INDEX))));
+      if(m2_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(m2_R)));
       }
-      if(qR(RHO_ALPHA1_INDEX) < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(qL(RHO_ALPHA1_INDEX))));
+      if(rho_alpha1_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction phase 1 right state: " + std::to_string(rho_alpha1_R)));
       }
     #endif
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
-    const auto rho_L          = qL(M1_INDEX) + qL(M2_INDEX);
-    const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)/rho_L;
+    const auto rho_L          = m1_L + m2_L;
+    const auto inv_rho_L      = static_cast<Number>(1.0)/rho_L;
+    const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
-    const auto alpha1_L       = qL(RHO_ALPHA1_INDEX)/rho_L;
-    const auto rho1_L         = qL(M1_INDEX)/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_L         = qL(M2_INDEX)/(static_cast<typename Field::value_type>(1.0) - alpha1_L);
-                                /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_L = qL(M1_INDEX)*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                              + qL(M2_INDEX)*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto alpha1_L       = rho_alpha1_L*inv_rho_L;
+    const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L;
+    const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_L = m1_L*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
+                              + m2_L*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
     #ifdef VERBOSE_FLUX
-      if(rho_L < static_cast<typename Field::value_type>(0.0)) {
+      if(rho_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative density left state: " + std::to_string(rho_L)));
       }
-      if(rhoc_squared_L/rho_L < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative square speed of sound left state: " + std::to_string(rhoc_squared_L/rho_L)));
+      if(rhoc_squared_L*inv_rho_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative square speed of sound left state: " + std::to_string(rhoc_squared_L*inv_rho_L)));
       }
     #endif
-    const auto c_L = std::sqrt(rhoc_squared_L/rho_L);
+    const auto c_L = std::sqrt(rhoc_squared_L*inv_rho_L);
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
-    const auto rho_R          = qR(M1_INDEX) + qR(M2_INDEX);
-    const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)/rho_R;
+    const auto rho_R          = m1_R + m2_R;
+    const auto inv_rho_R      = static_cast<Number>(1.0)/rho_R;
+    const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
-    const auto alpha1_R       = qR(RHO_ALPHA1_INDEX)/rho_R;;
-    const auto rho1_R         = qR(M1_INDEX)/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho2_R         = qR(M2_INDEX)/(static_cast<typename Field::value_type>(1.0) - alpha1_R);
-                                /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_R = qR(M1_INDEX)*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                              + qR(M2_INDEX)*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto alpha1_R       = rho_alpha1_R*inv_rho_R;
+    const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R;
+    const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rhoc_squared_R = m1_R*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
+                              + m2_R*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
     #ifdef VERBOSE_FLUX
-      if(rho_R < static_cast<typename Field::value_type>(0.0)) {
+      if(rho_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative density right state: " + std::to_string(rho_R)));
       }
-      if(rhoc_squared_R/rho_R < static_cast<typename Field::value_type>(0.0)) {
-        throw std::runtime_error(std::string("Negative square speed of sound right state: " + std::to_string(rhoc_squared_R/rho_R)));
+      if(rhoc_squared_R*inv_rho_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative square speed of sound right state: " + std::to_string(rhoc_squared_R*inv_rho_R)));
       }
     #endif
-    const auto c_R = std::sqrt(rhoc_squared_R/rho_R);
+    const auto c_R = std::sqrt(rhoc_squared_R*inv_rho_R);
 
     /*--- Compute the estimate of the eigenvalue ---*/
     const auto lambda = std::max(std::abs(vel_d_L) + c_L,
                                  std::abs(vel_d_R) + c_R);
 
-    return static_cast<typename Field::value_type>(0.5)*
+    return static_cast<Number>(0.5)*
            (this->evaluate_hyperbolic_operator(qL, curr_d) +
             this->evaluate_hyperbolic_operator(qR, curr_d)) - // centered contribution
-           static_cast<typename Field::value_type>(0.5)*lambda*(qR - qL); // upwinding contribution
+           static_cast<Number>(0.5)*lambda*(qR - qL); // upwinding contribution
   }
 
   // Implement the contribution of the discrete flux for all the directions.
@@ -146,7 +161,7 @@ namespace samurai {
     auto RusanovFlux<Field>::make_flux()
   #endif
   {
-    FluxDefinition<typename Flux<Field>::cfg> Rusanov_f;
+    FluxDefinition<cfg> Rusanov_f;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
@@ -155,24 +170,24 @@ namespace samurai {
            static constexpr int d = decltype(integral_constant_d)::value;
 
            // Compute now the "discrete" flux function, in this case a Rusanov flux
-           Rusanov_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
-                                                 const StencilData<typename Flux<Field>::cfg>& data,
-                                                 const StencilValues<typename Flux<Field>::cfg> field)
+           Rusanov_f[d].cons_flux_function = [&](FluxValue<cfg>& flux,
+                                                 const StencilData<cfg>& data,
+                                                 const StencilValues<cfg> field)
                                                  {
                                                    #ifdef ORDER_2
                                                      // MUSCL reconstruction
-                                                     const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                                     const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                                     const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                                     const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+                                                     const FluxValue<cfg> primLL = this->cons2prim(field[0]);
+                                                     const FluxValue<cfg> primL  = this->cons2prim(field[1]);
+                                                     const FluxValue<cfg> primR  = this->cons2prim(field[2]);
+                                                     const FluxValue<cfg> primRR = this->cons2prim(field[3]);
 
-                                                     FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                          primR_recon;
+                                                     FluxValue<cfg> primL_recon,
+                                                                    primR_recon;
                                                      this->perform_reconstruction(primLL, primL, primR, primRR,
                                                                                   primL_recon, primR_recon);
 
-                                                     FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                     FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
+                                                     FluxValue<cfg> qL = this->prim2cons(primL_recon);
+                                                     FluxValue<cfg> qR = this->prim2cons(primR_recon);
 
                                                      #ifdef RELAX_RECONSTRUCTION
                                                        this->relax_reconstruction(qL, H[data.cells[1]][0]);
@@ -180,8 +195,8 @@ namespace samurai {
                                                      #endif
                                                   #else
                                                      // Extract the states
-                                                     const FluxValue<typename Flux<Field>::cfg> qL = field[0];
-                                                     const FluxValue<typename Flux<Field>::cfg> qR = field[1];
+                                                     const FluxValue<cfg> qL = field[0];
+                                                     const FluxValue<cfg> qR = field[1];
                                                   #endif
 
                                                   // Compute the numerical flux
@@ -197,5 +212,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif
