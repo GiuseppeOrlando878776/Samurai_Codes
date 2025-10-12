@@ -160,7 +160,7 @@ private:
   void apply_bcs(const Riemann_Parameters<Number>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
 
   #ifdef RUSANOV_FLUX
-    Number get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
+    Number get_max_lambda(); /*--- Compute the estimate of the maximum eigenvalue ---*/
   #endif
 
   void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output and time step update ---*/
@@ -469,7 +469,7 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
 //
 #ifdef RUSANOV_FLUX
   template<std::size_t dim>
-  typename BN_Solver<dim>::Number BN_Solver<dim>::get_max_lambda() const {
+  typename BN_Solver<dim>::Number BN_Solver<dim>::get_max_lambda() {
     auto local_res = static_cast<Number>(0.0);
 
     vel1.resize();
