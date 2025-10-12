@@ -60,8 +60,7 @@ public:
   void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
-  void save(const fs::path& path,
-            const std::string& suffix,
+  void save(const std::string& suffix,
             const Variables&... fields); /*--- Routine to save the results ---*/
 
 private:
@@ -114,6 +113,7 @@ private:
                                                                        (this is necessary to call 'make_flux') ---*/
   #endif
 
+  fs::path    path;     /*--- Auxiliary variable to store the output directory ---*/
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
@@ -472,6 +472,11 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
   typename BN_Solver<dim>::Number BN_Solver<dim>::get_max_lambda() const {
     auto local_res = static_cast<Number>(0.0);
 
+    vel1.resize();
+    vel2.resize();
+    c1.resize();
+    c2.resize();
+
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                               {
@@ -599,8 +604,7 @@ void BN_Solver<dim>::update_auxiliary_fields() {
 //
 template<std::size_t dim>
 template<class... Variables>
-void BN_Solver<dim>::save(const fs::path& path,
-                          const std::string& suffix,
+void BN_Solver<dim>::save(const std::string& suffix,
                           const Variables&... fields) {
   auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
@@ -1732,7 +1736,7 @@ void BN_Solver<dim>::compute_entropy_after_relaxation() {
 template<std::size_t dim>
 void BN_Solver<dim>::run(const unsigned nfiles) {
   /*--- Default output arguemnts ---*/
-  fs::path path = fs::current_path();
+  path = fs::current_path();
   #ifdef SULICIU_RELAXATION
     filename = "Relaxation_Suliciu";
   #elifdef RUSANOV_FLUX
@@ -1782,15 +1786,15 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables,
-                          rho, p, vel,
-                          vel1, rho1, p1, c1, T1, Y1,
-                          vel2, rho2, p2, c2, T2, alpha2, Y2,
-                          delta_pres, delta_temp, delta_vel,
-                          entropy_after_flux_phase1, entropy_production_flux_phase1,
-                          entropy_after_relaxation_phase1, entropy_production_relaxation_phase1,
-                          entropy_after_flux_phase2, entropy_production_flux_phase2,
-                          entropy_after_relaxation_phase2, entropy_production_relaxation_phase2);
+  save(suffix_init, conserved_variables,
+                    rho, p, vel,
+                    vel1, rho1, p1, c1, T1, Y1,
+                    vel2, rho2, p2, c2, T2, alpha2, Y2,
+                    delta_pres, delta_temp, delta_vel,
+                    entropy_after_flux_phase1, entropy_production_flux_phase1,
+                    entropy_after_relaxation_phase1, entropy_production_relaxation_phase1,
+                    entropy_after_flux_phase2, entropy_production_flux_phase2,
+                    entropy_after_relaxation_phase2, entropy_production_relaxation_phase2);
 
   /*--- Set mesh size ---*/
   const auto dx = static_cast<Number>(mesh.cell_length(mesh.max_level()));
@@ -1946,15 +1950,15 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
     update_auxiliary_fields();
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, suffix, conserved_variables,
-                         rho, p, vel,
-                         vel1, rho1, p1, c1, T1, Y1,
-                         vel2, rho2, p2, c2, T2, alpha2, Y2,
-                         delta_pres, delta_temp, delta_vel,
-                         entropy_after_flux_phase1, entropy_production_flux_phase1,
-                         entropy_after_relaxation_phase1, entropy_production_relaxation_phase1,
-                         entropy_after_flux_phase2, entropy_production_flux_phase2,
-                         entropy_after_relaxation_phase2, entropy_production_relaxation_phase2);
+      save(suffix, conserved_variables,
+                   rho, p, vel,
+                   vel1, rho1, p1, c1, T1, Y1,
+                   vel2, rho2, p2, c2, T2, alpha2, Y2,
+                   delta_pres, delta_temp, delta_vel,
+                   entropy_after_flux_phase1, entropy_production_flux_phase1,
+                   entropy_after_relaxation_phase1, entropy_production_relaxation_phase1,
+                   entropy_after_flux_phase2, entropy_production_flux_phase2,
+                   entropy_after_relaxation_phase2, entropy_production_relaxation_phase2);
 
       /*--- Save fields in a output file ---*/
       output_data.open("output_data.dat", std::ofstream::out);
