@@ -469,7 +469,8 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
 //
 #ifdef RUSANOV_FLUX
   template<std::size_t dim>
-  typename BN_Solver<dim>::Number BN_Solver<dim>::get_max_lambda() {
+  typename BN_Solver<dim>::Number
+  BN_Solver<dim>::get_max_lambda() {
     auto local_res = static_cast<Number>(0.0);
 
     vel1.resize();
