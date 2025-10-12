@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef containers_hpp
-#define containers_hpp
+#pragma once
 
 // Declare a struct with the simulation parameters
 // (domain, levels, final time, and Courant number)
@@ -75,5 +74,3 @@ struct EOS_Parameters {
   T rho0_phase2;
   T c0_phase2;
 };
-
-#endif

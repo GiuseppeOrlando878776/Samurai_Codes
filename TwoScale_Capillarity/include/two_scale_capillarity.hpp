@@ -554,6 +554,7 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
 
   alpha1.resize();
   vel.resize();
+  
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {

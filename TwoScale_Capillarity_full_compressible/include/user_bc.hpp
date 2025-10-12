@@ -6,9 +6,6 @@
 //
 #pragma once
 
-#ifndef user_bc_hpp
-#define user_bc_hpp
-
 #include <samurai/bc.hpp>
 
 #include "flux_base.hpp"
@@ -72,19 +69,18 @@ auto Inlet(const Field& Q,
     /*--- Compute the corresponding ghost state ---*/
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
     const auto alpha_g_D       = static_cast<typename Field::value_type>(1.0) - alpha_l_D - alpha_d_D;
-    Q_ghost[Ml_INDEX]          = alpha_l_D*rho_liq;
-    Q_ghost[Mg_INDEX]          = alpha_g_D*rho_g;
-    Q_ghost[Md_INDEX]          = alpha_d_D*rho_liq;
-    const auto rho_ghost       = Q_ghost[Ml_INDEX]
-                               + Q_ghost[Mg_INDEX]
-                               + Q_ghost[Md_INDEX];
-    Q_ghost[RHO_Z_INDEX]       = rho_ghost*z_D;
-    Q_ghost[RHO_ALPHA_l_INDEX] = rho_ghost*alpha_l_D;
-    Q_ghost[RHO_U_INDEX]       = rho_ghost*ux_D;
-    Q_ghost[RHO_U_INDEX + 1]   = rho_ghost*uy_D;
+    const auto ml_D            = alpha_l_D*rho_liq;
+    Q_ghost[Ml_INDEX]          = ml_D;
+    const auto mg_D            = alpha_g_D*rho_g;
+    Q_ghost[Mg_INDEX]          = mg_D;
+    const auto md_D            = alpha_d_D*rho_liq;
+    Q_ghost[Md_INDEX]          = md_D
+    const auto rho_D           = ml_D + mg_D + md_D;
+    Q_ghost[RHO_Z_INDEX]       = rho_D*z_D;
+    Q_ghost[RHO_ALPHA_l_INDEX] = rho_D*alpha_l_D;
+    Q_ghost[RHO_U_INDEX]       = rho_D*ux_D;
+    Q_ghost[RHO_U_INDEX + 1]   = rho_D*uy_D;
 
     return Q_ghost;
   };
 }
-
-#endif

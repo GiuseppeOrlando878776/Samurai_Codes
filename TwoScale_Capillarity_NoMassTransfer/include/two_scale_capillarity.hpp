@@ -421,6 +421,8 @@ typename TwoScaleCapillarity<dim>::Number
 TwoScaleCapillarity<dim>::get_max_lambda() {
   auto local_res = static_cast<Number>(0.0);
 
+  vel.resize();
+
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
