@@ -74,7 +74,7 @@ auto Inlet(const Field& Q,
     const auto mg_D            = alpha_g_D*rho_g;
     Q_ghost[Mg_INDEX]          = mg_D;
     const auto md_D            = alpha_d_D*rho_liq;
-    Q_ghost[Md_INDEX]          = md_D
+    Q_ghost[Md_INDEX]          = md_D;
     const auto rho_D           = ml_D + mg_D + md_D;
     Q_ghost[RHO_Z_INDEX]       = rho_D*z_D;
     Q_ghost[RHO_ALPHA_l_INDEX] = rho_D*alpha_l_D;

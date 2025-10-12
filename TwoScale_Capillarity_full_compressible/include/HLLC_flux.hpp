@@ -68,7 +68,7 @@ namespace samurai {
   // Implement the auxiliary routine that computes the middle state
   //
   template<class Field>
-  FluxValue<HLLCFlux<Field>::cfg>
+  FluxValue<typename HLLCFlux<Field>::cfg>
   HLLCFlux<Field>::compute_middle_state(const FluxValue<cfg>& q,
                                         const Number S,
                                         const Number S_star,
@@ -110,7 +110,7 @@ namespace samurai {
   // Implementation of a HLLC flux
   //
   template<class Field>
-  FluxValue<HLLCFlux<Field>::cfg>
+  FluxValue<typename HLLCFlux<Field>::cfg>
   HLLCFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
                                          const FluxValue<cfg>& qR,
                                          const std::size_t curr_d) {

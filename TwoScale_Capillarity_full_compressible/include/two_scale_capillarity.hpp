@@ -576,7 +576,7 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
   alpha_d.resize();
   Sigma_d.resize();
   vel.resize();
-  
+
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
@@ -1258,7 +1258,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
   /*--- Default output arguemnts ---*/
-  fs::path path = fs::current_path();
+  path = fs::current_path();
   filename = "liquid_column";
   #ifdef RUSANOV_FLUX
     filename += "_Rusanov";

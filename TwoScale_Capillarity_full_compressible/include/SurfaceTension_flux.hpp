@@ -60,7 +60,7 @@ namespace samurai {
   //
   template<class Field>
   template<typename Gradient>
-  FluxValue<SurfaceTensionFlux<Field>::cfg>
+  FluxValue<typename SurfaceTensionFlux<Field>::cfg>
   SurfaceTensionFlux<Field>::compute_discrete_flux(const Gradient& grad_alpha_l_L,
                                                    const Gradient& grad_alpha_l_R,
                                                    const std::size_t curr_d) {

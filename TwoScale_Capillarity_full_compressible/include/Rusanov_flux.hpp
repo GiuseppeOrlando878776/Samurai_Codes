@@ -64,7 +64,7 @@ namespace samurai {
   // Implementation of a Rusanov flux
   //
   template<class Field>
-  FluxValue<RusanovFlux<Field>::cfg>
+  FluxValue<typename RusanovFlux<Field>::cfg>
   RusanovFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
                                             const FluxValue<cfg>& qR,
                                             const std::size_t curr_d) {
