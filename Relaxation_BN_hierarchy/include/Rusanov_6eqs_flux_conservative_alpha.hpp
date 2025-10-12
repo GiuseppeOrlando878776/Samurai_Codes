@@ -17,7 +17,7 @@ namespace samurai {
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    using Number = typename Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
+    using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
     using cfg    = Flux<Field>::cfg; /*--- Shortcut to specify the type of configuration
                                            for the flux (nonlinear in this case) ---*/
 

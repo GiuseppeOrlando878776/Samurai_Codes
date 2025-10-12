@@ -64,8 +64,7 @@ public:
   void run(); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
-  void save(const fs::path& path,
-            const std::string& suffix,
+  void save(const std::string& suffix,
             const Variables&... fields); /*--- Routine to save the results ---*/
 
 private:
@@ -113,6 +112,7 @@ private:
 
   std::size_t nfiles; /*--- Number of files desired for output ---*/
 
+  fs::path    path;     /*--- Auxiliary variable to store the output directory ---*/
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
@@ -384,7 +384,8 @@ void Relaxation<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param)
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-typename Relaxation<dim>::Number Relaxation<dim>::get_max_lambda() {
+typename Relaxation<dim>::Number
+Relaxation<dim>::get_max_lambda() {
   /*--- Loop over all cells to compute the estimate ---*/
   auto local_res = static_cast<Number>(0.0);
 
@@ -482,8 +483,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
 //
 template<std::size_t dim>
 template<class... Variables>
-void Relaxation<dim>::save(const fs::path& path,
-                           const std::string& suffix,
+void Relaxation<dim>::save(const std::string& suffix,
                            const Variables&... fields) {
   auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
@@ -852,7 +852,7 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
 template<std::size_t dim>
 void Relaxation<dim>::run() {
   /*--- Default output arguemnts ---*/
-  fs::path path = fs::current_path();
+  path = fs::current_path();
   #ifdef HLLC_FLUX
     filename = "Relaxation_HLLC_6eqs_total_energy";
   #elifdef HLL_FLUX
@@ -894,10 +894,10 @@ void Relaxation<dim>::run() {
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables,
-                          rho, p, vel, c, delta_pres,
-                          rho1, p1, c1, T1, alpha1, e1,
-                          rho2, p2, c2, T2, alpha2, Y2, e2);
+  save(suffix_init, conserved_variables,
+                    rho, p, vel, c, delta_pres,
+                    rho1, p1, c1, T1, alpha1, e1,
+                    rho2, p2, c2, T2, alpha2, Y2, e2);
 
   /*--- Save mesh size ---*/
   const auto dx   = static_cast<Number>(mesh.cell_length(mesh.max_level()));
@@ -1014,10 +1014,10 @@ void Relaxation<dim>::run() {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
 
       update_auxiliary_fields();
-      save(path, suffix, conserved_variables,
-                         rho, p, vel, c, delta_pres,
-                         rho1, p1, c1, T1, alpha1, e1_0, e1, de1,
-                         rho2, p2, c2, T2, alpha2, Y2, e2_0, e2, de2);
+      save(suffix, conserved_variables,
+                   rho, p, vel, c, delta_pres,
+                   rho1, p1, c1, T1, alpha1, e1_0, e1, de1,
+                   rho2, p2, c2, T2, alpha2, Y2, e2_0, e2, de2);
     }
   }
 }

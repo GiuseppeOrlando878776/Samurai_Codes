@@ -64,8 +64,7 @@ public:
   void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
-  void save(const fs::path& path,
-            const std::string& suffix,
+  void save(const std::string& suffix,
             const Variables&... fields); /*--- Routine to save the results ---*/
 
 private:
@@ -113,6 +112,7 @@ private:
                                                                        (this is necessary to call 'make_flux') ---*/
   #endif
 
+  fs::path    path;     /*--- Auxiliary variable to store the output directory ---*/
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
@@ -215,7 +215,7 @@ Relaxation<dim>::Relaxation(const xt::xtensor_fixed<double, xt::xshape<dim>>& mi
 template<std::size_t dim>
 void Relaxation<dim>::create_fields() {
   /*--- Create conserved and auxiliary fields ---*/
-  conserved_variables = samurai::make_vector_field<Number, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<Number, Field::n_comp>("conserved", mesh);
 
   rho        = samurai::make_scalar_field<Number>("rho", mesh);
   p          = samurai::make_scalar_field<Number>("p", mesh);
@@ -340,7 +340,7 @@ template<std::size_t dim>
 void Relaxation<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) {
   const samurai::DirectionVector<dim> left  = {-1};
   const samurai::DirectionVector<dim> right = {1};
-  
+
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.alpha1L,
                                           Riemann_param.alpha1L*
@@ -380,7 +380,8 @@ void Relaxation<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param)
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-typename Relaxation<dim>::Number Relaxation<dim>::get_max_lambda() {
+typename Relaxation<dim>::Number
+Relaxation<dim>::get_max_lambda() {
   /*--- Loop over all cells to compute the estimate ---*/
   auto local_res = static_cast<Number>(0.0);
 
@@ -501,8 +502,7 @@ void Relaxation<dim>::update_auxiliary_fields() {
 //
 template<std::size_t dim>
 template<class... Variables>
-void Relaxation<dim>::save(const fs::path& path,
-                           const std::string& suffix,
+void Relaxation<dim>::save(const std::string& suffix,
                            const Variables&... fields) {
   auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
@@ -867,7 +867,7 @@ void Relaxation<dim>::apply_finite_rate_pressure_relaxation() {
 template<std::size_t dim>
 void Relaxation<dim>::run(const unsigned nfiles) {
   /*--- Default output arguemnts ---*/
-  fs::path path = fs::current_path();
+  path = fs::current_path();
   #ifdef HLLC_FLUX
     filename = "Relaxation_HLLC_6eqs_total_energy";
   #elifdef HLL_FLUX
@@ -888,10 +888,10 @@ void Relaxation<dim>::run(const unsigned nfiles) {
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<Number, Field::n_comp>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<Number, Field::n_comp("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<Number, Field::n_comp>("conserved_np1", mesh);
 
   /*--- Create the flux variables ---*/
   #ifdef HLLC_FLUX
@@ -909,10 +909,10 @@ void Relaxation<dim>::run(const unsigned nfiles) {
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables,
-                          rho, p, vel, c, delta_pres,
-                          rho1, p1, c1, T1, e1,
-                          rho2, p2, c2, T2, alpha2, Y2, e2);
+  save(suffix_init, conserved_variables,
+                    rho, p, vel, c, delta_pres,
+                    rho1, p1, c1, T1, e1,
+                    rho2, p2, c2, T2, alpha2, Y2, e2);
 
   /*--- Save mesh size (max level) ---*/
   using mesh_id_t = typename decltype(mesh)::mesh_id_t;
@@ -932,7 +932,7 @@ void Relaxation<dim>::run(const unsigned nfiles) {
   std::size_t nt    = 0;
   auto t            = static_cast<Number>(t0);
   get_min_alpha(t);
-  dt                = std::min(Tf - t, cfl*dx/get_max_lambda());
+  dt = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
     t += dt;
 
@@ -1041,10 +1041,10 @@ void Relaxation<dim>::run(const unsigned nfiles) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
 
       update_auxiliary_fields();
-      save(path, suffix, conserved_variables,
-                         rho, p, vel, c, delta_pres,
-                         rho1, p1, c1, T1, e1_0, e1, de1,
-                         rho2, p2, c2, T2, alpha2, Y2, e2_0, e2, de2);
+      save(suffix, conserved_variables,
+                   rho, p, vel, c, delta_pres,
+                   rho1, p1, c1, T1, e1_0, e1, de1,
+                   rho2, p2, c2, T2, alpha2, Y2, e2_0, e2, de2);
     }
   }
 }
