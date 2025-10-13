@@ -554,7 +554,7 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
 
   alpha1.resize();
   vel.resize();
-  
+
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
@@ -1541,9 +1541,15 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
                                 {
                                   const auto alpha1_d_loc = conserved_variables[cell][ALPHA1_D_INDEX];
 
-                                  Dt_alpha1_d[cell] = (alpha1_d_loc - conserved_variables_old[cell][ALPHA1_D_INDEX])/dt
-                                                    + vel[cell][0]*grad_alpha1_d[cell][0]
-                                                    + vel[cell][1]*grad_alpha1_d[cell][1];
+                                  #ifdef ORDER_2
+                                    Dt_alpha1_d[cell] = (alpha1_d_loc - conserved_variables_old[cell][ALPHA1_D_INDEX])/dt
+                                                      + vel[cell][0]*grad_alpha1_d[cell][0]
+                                                      + vel[cell][1]*grad_alpha1_d[cell][1];
+                                  #else
+                                    Dt_alpha1_d[cell] = (alpha1_d_loc - conserved_variables_np1[cell][ALPHA1_D_INDEX])/dt
+                                                      + vel[cell][0]*grad_alpha1_d[cell][0]
+                                                      + vel[cell][1]*grad_alpha1_d[cell][1];
+                                  #endif                    
 
                                   CV_alpha1_d[cell] = Dt_alpha1_d[cell] + alpha1_d_loc*div_vel[cell][0];
                                 }
