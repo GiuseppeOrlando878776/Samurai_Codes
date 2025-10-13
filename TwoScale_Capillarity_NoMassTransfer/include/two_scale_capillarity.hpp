@@ -268,6 +268,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                                               const Number alpha_residual) {
   /*--- Resize the fields since now mesh has been created ---*/
   conserved_variables.resize();
+  vel.resize();
   alpha1.resize();
   grad_alpha1.resize();
   normal.resize();
