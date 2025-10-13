@@ -431,11 +431,6 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                               const auto m1_loc = conserved_variables[cell][M1_INDEX];
                               const auto m2_loc = conserved_variables[cell][M2_INDEX];
 
-                              #ifndef RELAX_RECONSTRUCTION
-                                alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
-                                               (m1_loc + m2_loc);
-                              #endif
-
                               /*--- Compute the velocity along both horizontal and vertical direction ---*/
                               const auto rho_loc     = m1_loc + m2_loc;
                               const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
@@ -444,10 +439,10 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                               }
 
                               /*--- Compute frozen speed of sound ---*/
-                              const auto alpha1_loc   = alpha1[cell];
-                              const auto rho1_loc     = m1_loc/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                              const auto alpha2_loc   = static_cast<Number>(1.0) - alpha1_loc;
-                              const auto rho2_loc     = m2_loc/alpha2_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto alpha1_loc       = alpha1[cell];
+                              const auto rho1_loc         = m1_loc/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto alpha2_loc       = static_cast<Number>(1.0) - alpha1_loc;
+                              const auto rho2_loc         = m2_loc/alpha2_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
                               const auto rhoc_squared_loc = m1_loc*EOS_phase1.c_value(rho1_loc)*EOS_phase1.c_value(rho1_loc)
                                                           + m2_loc*EOS_phase2.c_value(rho2_loc)*EOS_phase2.c_value(rho2_loc);
                               const auto c_loc            = std::sqrt(rhoc_squared_loc*inv_rho_loc);
@@ -811,21 +806,22 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   auto t            = static_cast<Number>(t0);
-  auto dt           = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
+    // Apply mesh adaptation
+    perform_mesh_adaptation();
+
+    // Compute the time step
+    normal.resize();
+    H.resize();
+    grad_alpha1.resize();
+    update_geometry();
+    const auto dt = std::min(Tf - t, cfl*dx/get_max_lambda());
     t += dt;
-    if(t > Tf) {
-      dt += Tf - t;
-      t = Tf;
-    }
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if(rank == 0) {
       std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
     }
-
-    // Apply mesh adaptation
-    perform_mesh_adaptation();
 
     // Save current state in case of order 2
     #ifdef ORDER_2
@@ -837,10 +833,6 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
     // Convective operator
     samurai::update_ghost_mr(conserved_variables);
     #ifdef RELAX_RECONSTRUCTION
-      normal.resize();
-      H.resize();
-      grad_alpha1.resize();
-      update_geometry();
       samurai::update_ghost_mr(H);
     #endif
     try {
@@ -873,11 +865,6 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
                           );
     #ifdef VERBOSE
       check_data();
-    #endif
-    #ifndef RELAX_RECONSTRUCTION
-      normal.resize();
-      H.resize();
-      grad_alpha1.resize();
     #endif
     update_geometry();
 
@@ -973,12 +960,6 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
         update_geometry();
       #endif
     #endif
-
-    // Compute updated time step
-    #ifndef RELAX_RECONSTRUCTION
-      update_geometry();
-    #endif
-    dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
     // Save the results
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
