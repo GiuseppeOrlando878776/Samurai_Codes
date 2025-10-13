@@ -200,7 +200,7 @@ namespace samurai {
   // Implementation of a Godunov flux
   //
   template<class Field>
-  GodunovFlux<Field>::FluxValue<cfg>
+  FluxValue<typename GodunovFlux<Field>::cfg>
   GodunovFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
                                             const FluxValue<cfg>& qR,
                                             const std::size_t curr_d) {
@@ -263,7 +263,7 @@ namespace samurai {
     const auto rho_R          = m1_R + m2_R;
     const auto inv_rho_R      = static_cast<Number>(1.0)/rho_R;
     const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
-    const auto alpha1_R       = rho_alpha1_R*invrho_R;
+    const auto alpha1_R       = rho_alpha1_R*inv_rho_R;
     const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R;
     const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
