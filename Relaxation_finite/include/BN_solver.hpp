@@ -473,17 +473,50 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
   BN_Solver<dim>::get_max_lambda() {
     auto local_res = static_cast<Number>(0.0);
 
-    vel1.resize();
-    vel2.resize();
-    c1.resize();
-    c2.resize();
+    std::array<Number, dim> vel1_loc;
+    std::array<Number, dim> vel2_loc;
 
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                               {
+                                // Pre-fetch varaibles used multiple times in order to exploit (possible) vectorization
+                                // as well as to enhance readability
+                                const auto alpha1_loc = conserved_variables[cell][Indices::ALPHA1_INDEX];
+                                const auto m1_loc     = conserved_variables[cell][Indices::ALPHA1_RHO1_INDEX];
+                                const auto m1E1_loc   = conserved_variables[cell][Indices::ALPHA1_RHO1_E1_INDEX];
+                                const auto m2_loc     = conserved_variables[cell][Indices::ALPHA2_RHO2_INDEX];
+                                const auto m2E2_loc   = conserved_variables[cell][Indices::ALPHA2_RHO2_E2_INDEX];
+
+                                // Compute the fluid velocity and the speed of sound of phase 1
+                                const auto rho1_loc   = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
+                                                        /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                auto e1_loc           = m1E1_loc*inv_m1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                                 for(std::size_t d = 0; d < dim; ++d) {
-                                  local_res = std::max(std::max(std::abs(vel1[cell][d]) + c1[cell],
-                                                                std::abs(vel2[cell][d]) + c2[cell]),
+                                  vel1_loc[d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
+                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                  e1_loc -= static_cast<Number>(0.5)*(vel1_loc[d]*vel1_loc[d]);
+                                }
+                                const auto p1_loc = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_loc);
+                                const auto c1_loc = EOS_phase1.c_value_RhoP(rho1_loc, p1_loc);
+
+                                // Compute the fluid velocity and the speed of sound of phase 2
+                                const auto alpha2_loc = static_cast<Number>(1.0) - alpha1_loc;
+                                const auto rho2_loc   = m2_loc/alpha2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
+                                                        /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                auto e2_loc           = m2E2_loc*inv_m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                for(std::size_t d = 0; d < dim; ++d) {
+                                  vel2_loc[d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
+                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                  e2_loc -= static_cast<Number>(0.5)*(vel2_loc[d]*vel2_loc[d]);
+                                }
+                                const auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_loc);
+                                const auto c2_loc = EOS_phase2.c_value_RhoP(rho2_loc, p2_loc);
+
+                                for(std::size_t d = 0; d < dim; ++d) {
+                                  local_res = std::max(std::max(std::abs(vel1_loc[d]) + c1_loc,
+                                                                std::abs(vel2_loc[d]) + c2_loc),
                                                        local_res);
                                 }
                               }
@@ -491,8 +524,6 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
 
     double global_res;
     MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-
-    return global_res;
   }
 #endif
 
@@ -729,9 +760,10 @@ void BN_Solver<dim>::compute_coefficients_source_relaxation(const State& q,
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_relaxation_finite_rate() {
-  /*--- Resize fields because of (possible) multiresolution ---*/
-  vel1.resize();
-  vel2.resize();
+  /*--- Local arrays to store the velocity ---*/
+  std::array<Number, dim> vel1_loc;
+  std::array<Number, dim> vel2_loc;
+  std::array<Number, dim> delta_u;
 
   /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
@@ -746,17 +778,16 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                               auto m2E2_loc     = conserved_variables[cell][Indices::ALPHA2_RHO2_E2_INDEX];
 
                               // Compute updated delta_u (we have analytical formula)
-                              std::array<Number, dim> delta_u;
                               const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel1[cell][d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                vel2[cell][d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                delta_u[d] = (vel1[cell][d] - vel2[cell][d])*std::exp(-dt/tau_u);
+                                vel1_loc[d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel2_loc[d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                delta_u[d]  = (vel1_loc[d] - vel2_loc[d])*std::exp(-dt/tau_u);
                               }
 
                               // Solve the system for delta_p and delta_T
@@ -764,14 +795,14 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                               auto rho1_loc = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_loc   = m1E1_loc*inv_m1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e1_loc -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_loc -= static_cast<Number>(0.5)*vel1_loc[d]*vel1_loc[d];
                               }
                               auto p1_loc = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_loc);
 
                               auto rho2_loc = m2_loc/(static_cast<Number>(1.0) - alpha1_loc);
                               auto e2_loc   = m2E2_loc*inv_m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e2_loc -= static_cast<Number>(0.5)*vel2[cell][d]*vel2[cell][d];
+                                e2_loc -= static_cast<Number>(0.5)*vel2_loc[d]*vel2_loc[d];
                                 // Recall that vel1 and vel2 are the initial values!!!!
                               }
                               auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_loc);
@@ -815,17 +846,17 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                               auto norm2_deltau = static_cast<Number>(0.0);
                               auto norm2_vel1   = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
-                                const auto um_d = Y1_0*vel1[cell][d]
-                                                + Y2_0*vel2[cell][d];
+                                const auto um_d = Y1_0*vel1_loc[d]
+                                                + Y2_0*vel2_loc[d];
 
                                 norm2_um += um_d*um_d;
 
-                                vel1[cell][d] = um_d + Y2_0*delta_u[d];
-                                conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d] = m1_loc*vel1[cell][d];
-                                norm2_vel1 += vel1[cell][d]*vel1[cell][d];
+                                vel1_loc[d] = um_d + Y2_0*delta_u[d];
+                                conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d] = m1_loc*vel1_loc[d];
+                                norm2_vel1 += vel1_loc[d]*vel1_loc[d];
 
-                                vel2[cell][d] = um_d - Y1_0*delta_u[d];
-                                conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d] = m2_loc*vel2[cell][d];
+                                vel2_loc[d] = um_d - Y1_0*delta_u[d];
+                                conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d] = m2_loc*vel2_loc[d];
 
                                 norm2_deltau += delta_u[d]*delta_u[d];
                               }
@@ -937,7 +968,8 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
                               T1_loc = T2_loc + delta_T;
 
                               e1_loc = EOS_phase1.e_value_PT(p1_loc, T1_loc);
-                              conserved_variables[cell][Indices::ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc + static_cast<Number>(0.5)*norm2_vel1);
+                              conserved_variables[cell][Indices::ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc +
+                                                                                                 static_cast<Number>(0.5)*norm2_vel1);
 
                               rho1_loc = EOS_phase1.rho_value_PT(p1_loc, T1_loc);
                               conserved_variables[cell][Indices::ALPHA1_INDEX] = m1_loc/rho1_loc;
@@ -952,9 +984,11 @@ void BN_Solver<dim>::perform_relaxation_finite_rate() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
-  /*--- Resize fields because of (possible) multiresolution ---*/
-  vel1.resize();
-  vel2.resize();
+  /*--- Local arrays to store the velocity ---*/
+  std::array<Number, dim> vel1_loc;
+  std::array<Number, dim> vel2_loc;
+  std::array<Number, dim> delta_u;
+  std::array<Number, dim> vel_star;
 
   /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
@@ -976,12 +1010,12 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel1[cell][d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                vel2[cell][d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel1_loc[d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel2_loc[d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_0 -= static_cast<Number>(0.5)*vel1_loc[d]*vel1_loc[d];
                               }
 
                               /*--- Compute constant quantities
@@ -993,12 +1027,11 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                               const auto rhoE_0    = m1E1_loc + m2E2_loc;
                               auto norm2_vel       = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
-                                norm2_vel += (Y1_0*vel1[cell][d] + Y2_0*vel2[cell][d])*
-                                             (Y1_0*vel1[cell][d] + Y2_0*vel2[cell][d]);
+                                norm2_vel += (Y1_0*vel1_loc[d] + Y2_0*vel2_loc[d])*
+                                             (Y1_0*vel1_loc[d] + Y2_0*vel2_loc[d]);
                               }
 
                               /*--- Update the momentum (and the kinetic energy of phase 1) ---*/
-                              std::array<Number, dim> vel_star;
                               m1E1_loc = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel_star[d] = (conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d] +
@@ -1017,19 +1050,18 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                               auto e1_star    = e1_0;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 e1_star += static_cast<Number>(0.5)*chi1*
-                                           (vel1[cell][d] - vel2[cell][d])*(vel1[cell][d] - vel2[cell][d])*Y2_0;
-                                           // Recall that vel1 and vel2 are the initial values!!!!
+                                           (vel1_loc[d] - vel2_loc[d])*(vel1_loc[d] - vel2_loc[d])*Y2_0;
+                                           // Recall that vel1_loc and vel2_loc are the initial values!!!!
                               }
                               m1E1_loc += m1_loc*e1_star;
 
                               m2E2_loc = rhoE_0 - m1E1_loc;
 
                               /*--- Update the velocity of the two phases ---*/
-                              std::array<Number, dim> delta_u;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                delta_u[0]    = static_cast<Number>(0.0);
-                                vel1[cell][d] = vel_star[d];
-                                vel2[cell][d] = vel_star[d];
+                                delta_u[d]  = static_cast<Number>(0.0);
+                                vel1_loc[d] = vel_star[d];
+                                vel2_loc[d] = vel_star[d];
                               }
 
                               // Solve the system for delta_p and delta_T
@@ -1042,7 +1074,7 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                                               /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e2_0     = m2E2_loc/m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
-                                e2_0 -= static_cast<Number>(0.5)*vel2[cell][d]*vel2[cell][d];
+                                e2_0 -= static_cast<Number>(0.5)*vel2_loc[d]*vel2_loc[d];
                               }
                               auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_0);
 
@@ -1177,7 +1209,8 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
                               T1_loc = T2_loc + delta_T;
 
                               const auto e1_loc = EOS_phase1.e_value_PT(p1_loc, T1_loc);
-                              conserved_variables[cell][Indices::ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc + static_cast<Number>(0.5)*norm2_vel);
+                              conserved_variables[cell][Indices::ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc +
+                                                                                                 static_cast<Number>(0.5)*norm2_vel);
 
                               rho1_loc = EOS_phase1.rho_value_PT(p1_loc, T1_loc);
                               conserved_variables[cell][Indices::ALPHA1_INDEX] = m1_loc/rho1_loc;
@@ -1192,9 +1225,9 @@ void BN_Solver<dim>::perform_relaxation_finite_rate_pT() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
-  /*--- Resize fields because of multiresolution ---*/
-  vel1.resize();
-  vel2.resize();
+  /*--- Local arrays to store the velocity ---*/
+  std::array<Number, dim> vel1_loc;
+  std::array<Number, dim> vel2_loc;
 
   /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
@@ -1214,12 +1247,12 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel1[cell][d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                vel2[cell][d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel1_loc[d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel2_loc[d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_0 -= static_cast<Number>(0.5)*vel1_loc[d]*vel1_loc[d];
                               }
 
                               // Compute mixture density and (specific) total energy for the updates
@@ -1247,8 +1280,8 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
                               auto e1_star    = e1_0;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 e1_star += static_cast<Number>(0.5)*chi1*
-                                           (vel1[cell][d] - vel2[cell][d])*(vel1[cell][d] - vel2[cell][d])*Y2_0;
-                                           // Recall that vel1 and vel2 are the initial values!!!!
+                                           (vel1_loc[d] - vel2_loc[d])*(vel1_loc[d] - vel2_loc[d])*Y2_0;
+                                           // Recall that vel1_loc and vel2_loc are the initial values!!!!
                               }
                               m1E1_loc += m1_loc*e1_star;
 
@@ -1262,9 +1295,9 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
-  /*--- Resize fields because of (possible) multiresolution ---*/
-  vel1.resize();
-  vel2.resize();
+  /*--- Local arrays to store the velocity ---*/
+  std::array<Number, dim> vel1_loc;
+  std::array<Number, dim> vel2_loc;
 
   /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
@@ -1286,12 +1319,12 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel1[cell][d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                vel2[cell][d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel1_loc[d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel2_loc[d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_0 -= static_cast<Number>(0.5)*vel1_loc[d]*vel1_loc[d];
                               }
 
                               /*--- Compute mixture density and (specific) total energy for the updates ---*/
@@ -1321,8 +1354,8 @@ void BN_Solver<dim>::perform_instantaneous_velocity_pressure_relaxation() {
                               auto e1_star    = e1_0;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 e1_star += static_cast<Number>(0.5)*chi1*
-                                           (vel1[cell][d] - vel2[cell][d])*(vel1[cell][d] - vel2[cell][d])*Y2_0;
-                                           // Recall that vel1 and vel2 are the initial values!!!!
+                                           (vel1_loc[d] - vel2_loc[d])*(vel1_loc[d] - vel2_loc[d])*Y2_0;
+                                           // Recall that vel1_loc and vel2_loc are the initial values!!!!
                               }
                               m1E1_loc += m1_loc*e1_star;
 
@@ -1404,9 +1437,9 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
                               auto norm2_vel1       = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel1_d = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                                    /*--- TODO: Add treatment for vanishing volume fraction ---*/
                                 const auto vel2_d = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                                    /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                                 e1_0 -= static_cast<Number>(0.5)*vel1_d*vel1_d;
                                 e2_0 -= static_cast<Number>(0.5)*vel2_d*vel2_d;
@@ -1463,9 +1496,9 @@ void BN_Solver<dim>::perform_instantaneous_pressure_relaxation() {
 //
 template<std::size_t dim>
 void BN_Solver<dim>::perform_instantaneous_relaxation() {
-  /*--- Resize because of (possible) multiresolution ---*/
-  vel1.resize();
-  vel2.resize();
+  /*--- Local arrays to store the velocity ---*/
+  std::array<Number, dim> vel1_loc;
+  std::array<Number, dim> vel2_loc;
 
   /*--- Loop over all cells ---*/
   samurai::for_each_cell(mesh,
@@ -1487,12 +1520,12 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               auto e1_0             = m1E1_loc*inv_m1_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel1[cell][d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                vel2[cell][d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
-                                                /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel1_loc[d] = conserved_variables[cell][Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                vel2_loc[d] = conserved_variables[cell][Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
+                                              /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
-                                e1_0 -= static_cast<Number>(0.5)*vel1[cell][d]*vel1[cell][d];
+                                e1_0 -= static_cast<Number>(0.5)*vel1_loc[d]*vel1_loc[d];
                               }
 
                               /*--- Compute mixture density and (specific) total energy for the updates ---*/
@@ -1522,8 +1555,8 @@ void BN_Solver<dim>::perform_instantaneous_relaxation() {
                               auto e1_star    = e1_0;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 e1_star += static_cast<Number>(0.5)*chi1*
-                                           (vel1[cell][d] - vel2[cell][d])*(vel1[cell][d] - vel2[cell][d])*Y2_0;
-                                           // Recall that vel1 and vel2 are the initial values!!!!
+                                           (vel1_loc[d] - vel2_loc[d])*(vel1_loc[d] - vel2_loc[d])*Y2_0;
+                                           // Recall that vel1_loc and vel2_loc are the initial values!!!!
                               }
                               m1E1_loc += m1_loc*e1_star;
 
@@ -1948,8 +1981,9 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
     #endif
 
     // Save the results
-    update_auxiliary_fields();
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
+      update_auxiliary_fields();
+
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(suffix, conserved_variables,
                    rho, p, vel,
