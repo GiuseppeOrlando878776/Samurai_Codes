@@ -174,32 +174,38 @@ namespace samurai {
            static constexpr int d = decltype(integral_constant_d)::value;
 
            // Compute now the "discrete" flux function, in this case a HLL flux
-           HLL_f[d].cons_flux_function = [&](FluxValue<cfg>& flux,
-                                             const StencilData<cfg>& /*data*/,
-                                             const StencilValues<cfg> field)
-                                             {
-                                               #ifdef ORDER_2
-                                                 // MUSCL reconstruction
-                                                 const FluxValue<cfg> primLL = this->cons2prim(field[0]);
-                                                 const FluxValue<cfg> primL  = this->cons2prim(field[1]);
-                                                 const FluxValue<cfg> primR  = this->cons2prim(field[2]);
-                                                 const FluxValue<cfg> primRR = this->cons2prim(field[3]);
+           HLL_f[d].flux_function = [&](FluxValuePair<cfg>& flux,
+                                        const StencilData<cfg>& /*data*/,
+                                        const StencilValues<cfg> field)
+                                        {
+                                          #ifdef ORDER_2
+                                            // MUSCL reconstruction
+                                            const FluxValue<cfg> primLL = this->cons2prim(field[0]);
+                                            const FluxValue<cfg> primL  = this->cons2prim(field[1]);
+                                            const FluxValue<cfg> primR  = this->cons2prim(field[2]);
+                                            const FluxValue<cfg> primRR = this->cons2prim(field[3]);
 
-                                                 FluxValue<cfg> primL_recon,
-                                                                primR_recon;
-                                                 this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                              primL_recon, primR_recon);
+                                            FluxValue<cfg> primL_recon,
+                                                           primR_recon;
+                                            this->perform_reconstruction(primLL, primL, primR, primRR,
+                                                                         primL_recon, primR_recon);
 
-                                                 const FluxValue<cfg> qL = this->prim2cons(primL_recon);
-                                                 const FluxValue<cfg> qR = this->prim2cons(primR_recon);
-                                               #else
-                                                 // Extract the states
-                                                 const FluxValue<cfg> qL = field[0];
-                                                 const FluxValue<cfg> qR = field[1];
-                                               #endif
+                                            FluxValue<cfg> qL = this->prim2cons(primL_recon);
+                                            FluxValue<cfg> qR = this->prim2cons(primR_recon);
+                                          #else
+                                            // Extract the states
+                                            const FluxValue<cfg>& qL = field[0];
+                                            const FluxValue<cfg>& qR = field[1];
+                                          #endif
 
-                                               flux = compute_discrete_flux(qL, qR, d);
-                                             };
+                                          FluxValue<cfg> F_minus,
+                                                         F_plus;
+
+                                          compute_discrete_flux(qL, qR, d, F_minus, F_plus);
+
+                                          flux[0] = F_minus;
+                                          flux[1] = -F_plus;
+                                        };
         }
     );
 

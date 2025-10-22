@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(dam_break)
 
 set(SAMURAI_WITH_MPI On)
-find_package(samurai 0.26.0)
+find_package(samurai 0.27.0)
 find_package(CLI11)
 find_package(nlohmann_json REQUIRED)
 find_package(MPI)

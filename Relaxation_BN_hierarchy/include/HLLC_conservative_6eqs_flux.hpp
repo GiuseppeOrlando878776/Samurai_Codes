@@ -224,7 +224,7 @@ namespace samurai {
     F_plus = F_minus;
 
     /*--- Consider contribution of volume fraction ---*/
-    if(s_star < 0.0) {
+    if(s_star < static_cast<Number>(0.0)) {
       F_minus(ALPHA1_INDEX) = s_star*(alpha1_R - alpha1_L);
       F_plus(ALPHA1_INDEX)  = static_cast<Number>(0.0);
     }

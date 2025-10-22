@@ -50,17 +50,16 @@ namespace samurai {
   class Flux {
   public:
     /*--- Definitions and sanity checks ---*/
-    static constexpr std::size_t field_size = Field::n_comp;
-    static_assert(field_size == EquationData::NVARS, "The number of elements in the state does not correspond to the number of equations");
     static_assert(Field::dim == EquationData::dim, "The spatial dimensions between Field and the parameter list do not match");
-    static constexpr std::size_t output_field_size = field_size;
+    static_assert(Field::n_comp == EquationData::NVARS, "The number of elements in the state does not correspond to the number of equations");
     #ifdef ORDER_2
       static constexpr std::size_t stencil_size = 4;
     #else
       static constexpr std::size_t stencil_size = 2;
     #endif
 
-    using cfg    = FluxConfig<SchemeType::NonLinear, output_field_size, stencil_size, Field>;
+    using cfg = FluxConfig<SchemeType::NonLinear, stencil_size, Field, Field>;
+
     using Number = typename Field::value_type; /*--- Define the shortcut for the arithmetic type ---*/
 
     Flux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,

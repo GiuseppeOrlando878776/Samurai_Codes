@@ -36,8 +36,8 @@ namespace samurai {
     void compute_discrete_flux(const FluxValue<cfg>& qL,
                                const FluxValue<cfg>& qR,
                                const std::size_t curr_d,
-                               FluxValue<cfg>& H_minus,
-                               FluxValue<cfg>& H_plus); /*--- Compute the flux in a 'non-conservative' fashion
+                               FluxValue<cfg>& F_minus,
+                               FluxValue<cfg>& F_plus); /*--- Compute the flux in a 'non-conservative' fashion
                                                               (wave propagation formalism) ---*/
   };
 
@@ -114,8 +114,8 @@ namespace samurai {
   void HLLCFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
                                               const FluxValue<cfg>& qR,
                                               const std::size_t curr_d,
-                                              FluxValue<cfg>& H_minus,
-                                              FluxValue<cfg>& H_plus) {
+                                              FluxValue<cfg>& F_minus,
+                                              FluxValue<cfg>& F_plus) {
     /*--- Left state ---*/
     // Pre-fetch variables that will be used several times so as to exploit possible vectorization
     // (as well as to enhance readability)
@@ -208,22 +208,22 @@ namespace samurai {
 
     /*--- Compute the fluctuations (wave propagation formalism) ---*/
     if(s_L >= static_cast<Number>(0.0)) {
-      H_minus.fill(static_cast<Number>(0.0));
-      H_plus = s_R*(q_star_R - qR) + s_star*(q_star_L - q_star_R) + s_L*(qL - q_star_L);
+      F_minus.fill(static_cast<Number>(0.0));
+      F_plus = s_R*(q_star_R - qR) + s_star*(q_star_L - q_star_R) + s_L*(qL - q_star_L);
     }
     else if(s_L < static_cast<Number>(0.0) &&
             s_star >= static_cast<Number>(0.0)) {
-      H_minus = s_L*(q_star_L - qL);
-      H_plus  = s_R*(q_star_R - qR) + s_star*(q_star_L - q_star_R);
+      F_minus = s_L*(q_star_L - qL);
+      F_plus  = s_R*(q_star_R - qR) + s_star*(q_star_L - q_star_R);
     }
     else if(s_star < static_cast<Number>(0.0) &&
             s_R >= static_cast<Number>(0.0)) {
-      H_minus = s_L*(q_star_L - qL) + s_star*(q_star_R - q_star_L);
-      H_plus  = s_R*(q_star_R - qR);
+      F_minus = s_L*(q_star_L - qL) + s_star*(q_star_R - q_star_L);
+      F_plus  = s_R*(q_star_R - qR);
     }
     else if(s_R < static_cast<Number>(0.0)) {
-      H_minus = s_L*(q_star_L - qL) + s_star*(q_star_R - q_star_L) + s_R*(qR - q_star_R);
-      H_plus.fill(static_cast<Number>(0.0));
+      F_minus = s_L*(q_star_L - qL) + s_star*(q_star_R - q_star_L) + s_R*(qR - q_star_R);
+      F_plus.fill(static_cast<Number>(0.0));
     }
   }
 
@@ -264,13 +264,13 @@ namespace samurai {
                                               const FluxValue<cfg>& qR = field[1];
                                             #endif
 
-                                            FluxValue<cfg> H_minus,
-                                                           H_plus;
+                                            FluxValue<cfg> F_minus,
+                                                           F_plus;
 
-                                            compute_discrete_flux(qL, qR, d, H_minus, H_plus);
+                                            compute_discrete_flux(qL, qR, d, F_minus, F_plus);
 
-                                            flux[0] = H_minus;
-                                            flux[1] = -H_plus;
+                                            flux[0] = F_minus;
+                                            flux[1] = -F_plus;
                                          };
         }
     );
