@@ -5,15 +5,17 @@
 // Author: Giuseppe Orlando, 2025
 //
 #pragma once
+
 #include <samurai/schemes/fv.hpp>
 
-#include "eos.hpp"
+#include "../utilities.hpp"
+#include "../eos.hpp"
 
 //#define ORDER_2
 
 namespace EquationData {
   static constexpr std::size_t dim = 1; /*--- Spatial dimension. It would be ideal to be able to get it
-                                              direclty from Field, but I need to move the definition of these indices ---*/
+                                              directly from Field, but I need to move the definition of these indices ---*/
 
   /*--- Declare suitable static variables for the sake of generalities in the indices ---*/
   static constexpr std::size_t RHO_INDEX  = 0;
@@ -51,6 +53,15 @@ namespace samurai {
 
     Flux(const EOS<Number>& EOS_); /*--- Constructor which accepts in inputs the equation of state ---*/
 
+    virtual ~Flux() {} /*--- Virtual destructor (because pure virtual class) ---*/
+
+    inline void set_flux_name(const std::string& flux_name_); /*--- Set the name of the numerical flux ---*/
+
+    inline std::string get_flux_name() const; /*--- Get the name of the numerical flux ---*/
+
+    virtual decltype(make_flux_based_scheme(std::declval<FluxDefinition<cfg>>())) make_flux() = 0;
+    /*--- Compute the flux over all the faces and directions ---*/
+
   protected:
     const EOS<Number>& Euler_EOS; /*--- Pass it by reference because pure virtual (not so nice, maybe moving to pointers) ---*/
 
@@ -62,20 +73,30 @@ namespace samurai {
       FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conservative to primitive variables ---*/
 
       FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conservative variables ---*/
-
-      void perform_reconstruction(const FluxValue<cfg>& primLL,
-                                  const FluxValue<cfg>& primL,
-                                  const FluxValue<cfg>& primR,
-                                  const FluxValue<cfg>& primRR,
-                                  FluxValue<cfg>& primL_recon,
-                                  FluxValue<cfg>& primR_recon); /*--- Reconstruction for second order scheme ---*/
     #endif
+
+  private:
+    std::string flux_name; /*--- Name of the numerical flux ---*/
   };
 
   // Class constructor in order to be able to work with the equation of state
   //
   template<class Field>
   Flux<Field>::Flux(const EOS<Number>& EOS_): Euler_EOS(EOS_) {}
+
+  // Set the name of the numerical flux
+  //
+  template<class Field>
+  inline void Flux<Field>::set_flux_name(const std::string& flux_name_) {
+    flux_name = flux_name_;
+  }
+
+  // Get the name of the numerical flux
+  //
+  template<class Field>
+  inline std::string Flux<Field>::get_flux_name() const {
+    return flux_name;
+  }
 
   // Evaluate the 'continuous flux' along direction 'curr_d'
   //
@@ -122,7 +143,8 @@ namespace samurai {
     // Conversion from conserved to primitive variables
     //
     template<class Field>
-    FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
+    FluxValue<typename Flux<Field>::cfg>
+    Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
       /*--- Create a state to store the primitive variables ---*/
       FluxValue<cfg> prim;
 
@@ -147,7 +169,8 @@ namespace samurai {
     // Conversion from primitive to conserved variables
     //
     template<class Field>
-    FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
+    FluxValue<typename Flux<Field>::cfg>
+    Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
       /*--- Create a suitable variable to save the conserved variables ---*/
       FluxValue<cfg> cons;
 
@@ -167,58 +190,6 @@ namespace samurai {
 
       /*--- Return conserved variables ---*/
       return cons;
-    }
-
-    // Perform reconstruction for order 2 scheme
-    //
-    template<class Field>
-    void Flux<Field>::perform_reconstruction(const FluxValue<cfg>& primLL,
-                                             const FluxValue<cfg>& primL,
-                                             const FluxValue<cfg>& primR,
-                                             const FluxValue<cfg>& primRR,
-                                             FluxValue<cfg>& primL_recon,
-                                             FluxValue<cfg>& primR_recon) {
-      /*--- Initialize with the original state ---*/
-      primL_recon = primL;
-      primR_recon = primR;
-
-      /*--- Perform the reconstruction ---*/
-      const auto beta = static_cast<Number>(1.0); // MINMOD limiter
-      for(std::size_t comp = 0; comp < Field::n_comp; ++comp) {
-        if(primR(comp) - primL(comp) > static_cast<Number>(0.0)) {
-          primL_recon(comp) += static_cast<Number>(0.5)*
-                               std::max(static_cast<Number>(0.0),
-                                        std::max(std::min(beta*(primL(comp) - primLL(comp)),
-                                                          primR(comp) - primL(comp)),
-                                                 std::min(primL(comp) - primLL(comp),
-                                                          beta*(primR(comp) - primL(comp)))));
-        }
-        else if(primR(comp) - primL(comp) < static_cast<Number>(0.0)) {
-          primL_recon(comp) += static_cast<Number>(0.5)*
-                               std::min(static_cast<Number>(0.0),
-                                        std::min(std::max(beta*(primL(comp) - primLL(comp)),
-                                                          primR(comp) - primL(comp)),
-                                                 std::max(primL(comp) - primLL(comp),
-                                                          beta*(primR(comp) - primL(comp)))));
-        }
-
-        if(primRR(comp) - primR(comp) > static_cast<Number>(0.0)) {
-          primR_recon(comp) -= static_cast<Number>(0.5)*
-                               std::max(static_cast<Number>(0.0),
-                                        std::max(std::min(beta*(primR(comp) - primL(comp)),
-                                                          primRR(comp) - primR(comp)),
-                                                 std::min(primR(comp) - primL(comp),
-                                                          beta*(primRR(comp) - primR(comp)))));
-        }
-        else if(primRR(comp) - primR(comp) < static_cast<Number>(0.0)) {
-          primR_recon(comp) -= static_cast<Number>(0.5)*
-                               std::min(static_cast<Number>(0.0),
-                                        std::min(std::max(beta*(primR(comp) - primL(comp)),
-                                                          primRR(comp) - primR(comp)),
-                                                 std::max(primR(comp) - primL(comp),
-                                                          beta*(primRR(comp) - primR(comp)))));
-        }
-      }
     }
   #endif
 

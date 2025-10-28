@@ -10,7 +10,7 @@
 #include <samurai/numeric/prediction.hpp>
 #include <samurai/operators_base.hpp>
 
-#include "flux_base.hpp"
+#include "schemes/flux_base.hpp"
 
 // Specify the use of this namespace where we just store the indices
 using namespace EquationData;

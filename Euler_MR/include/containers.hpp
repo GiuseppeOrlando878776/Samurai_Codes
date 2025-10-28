@@ -22,6 +22,7 @@ struct Simulation_Paramaters {
 
   /*--- Numerical parameters ---*/
   T Courant;
+  std::string flux_name;
 
   /*--- MR parameters ---*/
   std::size_t min_level;

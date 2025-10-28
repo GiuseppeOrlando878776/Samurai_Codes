@@ -22,21 +22,11 @@ namespace fs = std::filesystem;
 /*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
 
+/*--- Include the header with the numerical fluxes ---*/
+#include "schemes.hpp"
+
 /*--- Define preprocessor to check whether to control data or not ---*/
 #define VERBOSE
-
-/*--- Include the headers with the numerical fluxes ---*/
-#define HLL_FLUX
-//#define HLLC_FLUX
-//#define RUSANOV_FLUX
-
-#ifdef HLLC_FLUX
-  #include "HLLC_flux.hpp"
-#elifdef HLL_FLUX
-  #include "HLL_flux.hpp"
-#elifdef RUSANOV_FLUX
-  #include "Rusanov_flux.hpp"
-#endif
 
 // Specify the use of this namespace where we just store the indices
 using namespace EquationData;
@@ -65,8 +55,7 @@ public:
   void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
-  void save(const fs::path& path,
-            const std::string& suffix,
+  void save(const std::string& suffix,
             const Variables&... fields); /*--- Routine to save the results ---*/
 
 private:
@@ -88,18 +77,11 @@ private:
 
   const SG_EOS<Number> Euler_EOS; /*--- Equation of state ---*/
 
-  #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> numerical_flux; /*--- variable to compute the numerical flux
-                                                      (this is necessary to call 'make_flux') ---*/
-  #elifdef HLLC_FLUX
-    samurai::HLLCFlux<Field> numerical_flux; /*--- variable to compute the numerical flux
-                                                   (this is necessary to call 'make_flux') ---*/
-  #elifdef HLL_FLUX
-    samurai::HLLFlux<Field> numerical_flux; /*--- variable to compute the numerical flux
-                                                  (this is necessary to call 'make_flux') ---*/
-  #endif
+  std::unique_ptr<samurai::Flux<Field>> numerical_flux; /*--- variable to compute the numerical flux
+                                                              (this is necessary to call 'make_flux') ---*/
 
-  std::string filename;     /*--- Auxiliary variable to store the name of output ---*/
+  fs::path    path;     /*--- Auxiliary variable to store the output directory ---*/
+  std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
                                    namely the varialbes for which we solve a PDE system ---*/
@@ -143,8 +125,7 @@ Euler_MR<dim>::Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
   box(min_corner, max_corner),
   t0(sim_param.t0), Tf(sim_param.Tf), cfl(sim_param.Courant),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
-  Euler_EOS(eos_param.gamma, eos_param.pi_infty, eos_param.q_infty),
-  numerical_flux(Euler_EOS)
+  Euler_EOS(eos_param.gamma, eos_param.pi_infty, eos_param.q_infty)
   {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -168,13 +149,17 @@ Euler_MR<dim>::Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
 
     /*--- Apply boundary conditions ---*/
     apply_bcs(Riemann_param);
+
+    /*--- Initiliaze the numerical flux ---*/
+    numerical_flux = get_numerical_flux<Field>(sim_param.flux_name, Euler_EOS);
+    numerical_flux->set_flux_name(sim_param.flux_name);
   }
 
 // Auxiliary routine to create the fields
 //
 template<std::size_t dim>
 void Euler_MR<dim>::create_fields() {
-  conserved_variables = samurai::make_vector_field<Number, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<Number, Field::n_comp>("conserved", mesh);
 
   p   = samurai::make_scalar_field<Number>("p", mesh);
   c   = samurai::make_scalar_field<Number>("c", mesh);
@@ -271,9 +256,6 @@ void Euler_MR<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) {
 //
 template<std::size_t dim>
 void Euler_MR<dim>::perform_mesh_adaptation() {
-  save(fs::current_path(), "_before_mesh_adaptation", conserved_variables,
-                                                      vel, p, c);
-
   auto prediction_fn = [&](auto& new_field, const auto& old_field) {
     return make_field_operator_function<Euler_prediction_op>(new_field, old_field, Euler_EOS);
   };
@@ -311,28 +293,28 @@ void Euler_MR<dim>::check_data(unsigned flag) {
                               // Sanity check for the density
                               if(conserved_variables[cell][RHO_INDEX] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative density " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables,
-                                                                      vel, p, c);
+                                save("_diverged", conserved_variables,
+                                                  vel, p, c);
                                 exit(1);
                               }
                               else if(std::isnan(conserved_variables[cell][RHO_INDEX])) {
                                 std::cerr << "NaN density " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables,
-                                                                      vel, p, c);
+                                save("_diverged", conserved_variables,
+                                                  vel, p, c);
                                 exit(1);
                               }
 
                               // Sanity check for the pressure
                               if(p[cell] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative pressure " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables,
-                                                                      vel, p, c);
+                                save("_diverged", conserved_variables,
+                                                  vel, p, c);
                                 exit(1);
                               }
                               else if(std::isnan(p[cell])) {
                                 std::cerr << "NaN pressure " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables,
-                                                                      vel, p, c);
+                                save("_diverged", conserved_variables,
+                                                  vel, p, c);
                                 exit(1);
                               }
                             }
@@ -391,8 +373,7 @@ void Euler_MR<dim>::update_auxiliary_fields() {
 //
 template<std::size_t dim>
 template<class... Variables>
-void Euler_MR<dim>::save(const fs::path& path,
-                         const std::string& suffix,
+void Euler_MR<dim>::save(const std::string& suffix,
                          const Variables&... fields) {
   auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
@@ -420,14 +401,8 @@ void Euler_MR<dim>::save(const fs::path& path,
 template<std::size_t dim>
 void Euler_MR<dim>::run(const unsigned nfiles) {
   /*--- Default output arguemnts ---*/
-  fs::path path = fs::current_path();
-  #ifdef RUSANOV_FLUX
-    filename = "Euler_MR_Rusanov";
-  #elifdef HLLC_FLUX
-    filename = "Euler_MR_HLLC";
-  #elifdef HLL_FLUX
-    filename = "Euler_MR_HLL";
-  #endif
+  path = fs::current_path();
+  filename = "Euler_MR_" + numerical_flux->get_flux_name();
 
   #ifdef ORDER_2
     filename = filename + "_order2";
@@ -439,18 +414,18 @@ void Euler_MR<dim>::run(const unsigned nfiles) {
 
   /*--- Auxiliary variables to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<Number, Field::n_comp>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<Number, Field::n_comp>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<Number, Field::n_comp>("conserved_np1", mesh);
 
   /*--- Create the flux variable ---*/
-  auto Discrete_flux = numerical_flux.make_flux();
+  auto Discrete_flux = numerical_flux->make_flux();
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables,
-                          p, vel, c);
+  save(suffix_init, conserved_variables,
+                    p, vel, c);
 
   /*--- Save mesh size ---*/
   const auto dx   = static_cast<Number>(mesh.cell_length(mesh.max_level()));
@@ -487,23 +462,21 @@ void Euler_MR<dim>::run(const unsigned nfiles) {
     #endif
 
     // Apply the numerical scheme
-    samurai::update_ghost_mr(conserved_variables);
     try {
-      auto Cons_Flux = Discrete_flux(conserved_variables);
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*Cons_Flux;
-        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+        conserved_variables_tmp = conserved_variables - dt*Discrete_flux(conserved_variables);
+        samurai::swap(conserved_variables, conserved_variables_tmp);
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*Cons_Flux;
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+        conserved_variables_np1 = conserved_variables - dt*Discrete_flux(conserved_variables);
+        samurai::swap(conserved_variables, conserved_variables_np1);
       #endif
     }
     catch(std::exception& e) {
       std::cerr << e.what() << std::endl;
-      save(fs::current_path(), "_diverged", conserved_variables,
-                                            vel, p, c);
+      save("_diverged", conserved_variables,
+                        vel, p, c);
       exit(1);
     }
     #ifdef VERBOSE
@@ -513,18 +486,16 @@ void Euler_MR<dim>::run(const unsigned nfiles) {
     // Consider the second stage for the second order
     #ifdef ORDER_2
       // Apply the numerical scheme
-      samurai::update_ghost_mr(conserved_variables);
       try {
-        auto Cons_Flux = Discrete_flux(conserved_variables);
-        conserved_variables_tmp = conserved_variables - dt*Cons_Flux;
+        conserved_variables_tmp = conserved_variables - dt*Discrete_flux(conserved_variables);
         conserved_variables_np1 = static_cast<Number>(0.5)*
                                   (conserved_variables_tmp + conserved_variables_old);
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+        samurai::swap(conserved_variables, conserved_variables_np1);
       }
       catch(std::exception& e) {
         std::cerr << e.what() << std::endl;
-        save(fs::current_path(), "_diverged", conserved_variables,
-                                              vel, p, c);
+        save("_diverged", conserved_variables,
+                          vel, p, c);
         exit(1);
       }
       #ifdef VERBOSE
@@ -541,8 +512,8 @@ void Euler_MR<dim>::run(const unsigned nfiles) {
     // Save the results
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
-      save(path, suffix, conserved_variables,
-                         p, vel, c);
+      save(suffix, conserved_variables,
+                   p, vel, c);
     }
   }
 }

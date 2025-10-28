@@ -32,7 +32,8 @@ int main(int argc, char* argv[]) {
   sim_param.Tf = input.value("Tf", 0.15);
 
   // Numerical parameters
-  sim_param.Courant = input.value("cfl", 0.45);
+  sim_param.Courant   = input.value("cfl", 0.45);
+  sim_param.flux_name = input.value("flux_name", "Rusanov");
 
   // MR parameters
   sim_param.min_level     = input.value("min-level", 7);
@@ -56,6 +57,7 @@ int main(int argc, char* argv[]) {
 
   // Numerical parameters
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--flux_name", sim_param.flux_name, "Desired numerical flux")->capture_default_str()->group("Numerical parameters");
 
   // MR parameters
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");

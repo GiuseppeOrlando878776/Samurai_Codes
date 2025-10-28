@@ -14,21 +14,24 @@ namespace samurai {
   using namespace EquationData;
 
   /**
-    * Implementation of a HLLC flux for the Euler system
+    * Implementation of a HLL flux for the Euler system
     */
   template<class Field>
   class HLLFlux: public Flux<Field> {
   public:
-    using Number = Flux<Field>::Number;
+    using cfg = Flux<Field>::cfg;
+
+    using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
 
     HLLFlux(const EOS<Number>& EOS_); /*--- Constructor which accepts in input the equation of state ---*/
 
-    auto make_flux(); /*--- Compute the flux over all the faces and directions ---*/
+    virtual decltype(make_flux_based_scheme(std::declval<FluxDefinition<cfg>>())) make_flux() override;
+    /*--- Compute the flux over all the faces and directions ---*/
 
   private:
-    FluxValue<typename Flux<Field>::cfg> compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                                               const FluxValue<typename Flux<Field>::cfg>& qR,
-                                                               const std::size_t curr_d); /*--- HLL flux along direction d ---*/
+    FluxValue<cfg> compute_discrete_flux(const FluxValue<cfg>& qL,
+                                         const FluxValue<cfg>& qR,
+                                         const std::size_t curr_d); /*--- HLL flux along direction curr_d ---*/
   };
 
   // Constructor derived from base class
@@ -40,9 +43,9 @@ namespace samurai {
   // Implementation of a HLL flux for the system
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg>
-  HLLFlux<Field>::compute_discrete_flux(const FluxValue<typename Flux<Field>::cfg>& qL,
-                                        const FluxValue<typename Flux<Field>::cfg>& qR,
+  FluxValue<typename HLLFlux<Field>::cfg>
+  HLLFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
+                                        const FluxValue<cfg>& qR,
                                         std::size_t curr_d) {
     /*--- Left state ---*/
     // Pre-fetch density that will used several times
@@ -114,8 +117,9 @@ namespace samurai {
   // Implement the contribution of the discrete flux for all the dimensions.
   //
   template<class Field>
-  auto HLLFlux<Field>::make_flux() {
-    FluxDefinition<typename Flux<Field>::cfg> HLL_f;
+  decltype(make_flux_based_scheme(std::declval<FluxDefinition<typename HLLFlux<Field>::cfg>>()))
+  HLLFlux<Field>::make_flux() {
+    FluxDefinition<cfg> HLL_flux;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
@@ -124,37 +128,37 @@ namespace samurai {
            static constexpr int d = decltype(integral_constant_d)::value;
 
            // Compute now the "discrete" flux function, in this case a HLL flux
-           HLL_f[d].cons_flux_function = [&](samurai::FluxValue<typename Flux<Field>::cfg>& flux,
-                                             const StencilData<typename Flux<Field>::cfg>& /*data*/,
-                                             const StencilValues<typename Flux<Field>::cfg> field)
-                                             {
-                                               #ifdef ORDER_2
-                                                 // MUSCL reconstruction
-                                                 const FluxValue<typename Flux<Field>::cfg> primLL = this->cons2prim(field[0]);
-                                                 const FluxValue<typename Flux<Field>::cfg> primL  = this->cons2prim(field[1]);
-                                                 const FluxValue<typename Flux<Field>::cfg> primR  = this->cons2prim(field[2]);
-                                                 const FluxValue<typename Flux<Field>::cfg> primRR = this->cons2prim(field[3]);
+           HLL_flux[d].cons_flux_function = [&](FluxValue<cfg>& flux,
+                                                const StencilData<cfg>& /*data*/,
+                                                const StencilValues<cfg> field)
+                                                {
+                                                  #ifdef ORDER_2
+                                                    // MUSCL reconstruction
+                                                    const FluxValue<cfg> primLL = this->cons2prim(field[0]);
+                                                    const FluxValue<cfg> primL  = this->cons2prim(field[1]);
+                                                    const FluxValue<cfg> primR  = this->cons2prim(field[2]);
+                                                    const FluxValue<cfg> primRR = this->cons2prim(field[3]);
 
-                                                 FluxValue<typename Flux<Field>::cfg> primL_recon,
-                                                                                      primR_recon;
-                                                 this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                              primL_recon, primR_recon);
+                                                    FluxValue<cfg> primL_recon,
+                                                                   primR_recon;
+                                                    perform_reconstruction<Field>(primLL, primL, primR, primRR,
+                                                                                  primL_recon, primR_recon);
 
-                                                 const FluxValue<typename Flux<Field>::cfg> qL = this->prim2cons(primL_recon);
-                                                 const FluxValue<typename Flux<Field>::cfg> qR = this->prim2cons(primR_recon);
-                                               #else
-                                                 // Extract the states
-                                                 const FluxValue<typename Flux<Field>::cfg> qL = field[0];
-                                                 const FluxValue<typename Flux<Field>::cfg> qR = field[1];
-                                               #endif
+                                                    const FluxValue<cfg> qL = this->prim2cons(primL_recon);
+                                                    const FluxValue<cfg> qR = this->prim2cons(primR_recon);
+                                                  #else
+                                                    // Extract the states
+                                                    const FluxValue<cfg> qL = field[0];
+                                                    const FluxValue<cfg> qR = field[1];
+                                                  #endif
 
-                                               flux = compute_discrete_flux(qL, qR, d);
-                                             };
+                                                  flux = compute_discrete_flux(qL, qR, d);
+                                                };
         }
     );
 
-    auto scheme = make_flux_based_scheme(HLL_f);
-    scheme.set_name("HLL");
+    auto scheme = make_flux_based_scheme(HLL_flux);
+    scheme.set_name(this->get_flux_name());
 
     return scheme;
   }

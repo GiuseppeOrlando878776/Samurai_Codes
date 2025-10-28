@@ -5,8 +5,9 @@
  "Tf": 0.15,
 
  "cfl": 0.45,
+ "flux_name": "HLL",
 
- "min-level": 7,
+ "min-level": 10,
  "max-level": 10,
  "MR_param": 1e-2,
  "MR_regularity": 0,
