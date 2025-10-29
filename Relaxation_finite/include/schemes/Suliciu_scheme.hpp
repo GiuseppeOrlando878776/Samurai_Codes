@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Author: Khaled Saleh, 2017-2019-2024
-//         Giuseppe Orlando, 2025
+// Authors: Khaled Saleh, 2017-2019-2024
+//          Giuseppe Orlando, 2025
 //
-#ifndef Suliciu_scheme_hpp
-#define Suliciu_scheme_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
@@ -456,7 +455,7 @@ namespace samurai {
   //
   template<class Field>
   auto RelaxationFlux<Field>::make_flux(Number& c) {
-    FluxDefinition<cfg> discrete_flux;
+    FluxDefinition<cfg> Suliciu_flux;
 
     // Perform the loop over each dimension to compute the flux contribution
     static_for<0, Field::dim>::apply(
@@ -465,46 +464,46 @@ namespace samurai {
            static constexpr int d = decltype(integral_constant_d)::value;
 
            // Compute now the "discrete" non-conservative flux function
-           discrete_flux[d].flux_function = [&](FluxValuePair<cfg>& flux,
-                                                const StencilData<cfg>& /*data*/,
-                                                const StencilValues<cfg> field)
-                                                {
-                                                  FluxValue<cfg> F_minus,
-                                                                                       F_plus;
+           Suliciu_flux[d].flux_function = [&](FluxValuePair<cfg>& flux,
+                                               const StencilData<cfg>& /*data*/,
+                                               const StencilValues<cfg> field)
+                                               {
+                                                 FluxValue<cfg> F_minus,
+                                                                F_plus;
 
-                                                  #ifdef ORDER_2
-                                                    // MUSCL reconstruction
-                                                    const FluxValue<cfg> primLL = this->cons2prim(field[0]);
-                                                    const FluxValue<cfg> primL  = this->cons2prim(field[1]);
-                                                    const FluxValue<cfg> primR  = this->cons2prim(field[2]);
-                                                    const FluxValue<cfg> primRR = this->cons2prim(field[3]);
+                                                 #ifdef ORDER_2
+                                                   // MUSCL reconstruction
+                                                   const FluxValue<cfg> primLL = this->cons2prim(field[0]);
+                                                   const FluxValue<cfg> primL  = this->cons2prim(field[1]);
+                                                   const FluxValue<cfg> primR  = this->cons2prim(field[2]);
+                                                   const FluxValue<cfg> primRR = this->cons2prim(field[3]);
 
-                                                    FluxValue<cfg> primL_recon,
-                                                                   primR_recon;
-                                                    this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                                 primL_recon, primR_recon);
+                                                   FluxValue<cfg> primL_recon,
+                                                                  primR_recon;
+                                                   perform_reconstruction(primLL, primL, primR, primRR,
+                                                                          primL_recon, primR_recon);
 
-                                                    FluxValue<cfg> qL = this->prim2cons(primL_recon);
-                                                    FluxValue<cfg> qR = this->prim2cons(primR_recon);
+                                                   FluxValue<cfg> qL = this->prim2cons(primL_recon);
+                                                   FluxValue<cfg> qR = this->prim2cons(primR_recon);
 
-                                                    compute_discrete_flux(qL, qR,
-                                                                          field[1](Indices::ALPHA1_INDEX), field[2](Indices::ALPHA1_INDEX),
-                                                                          d, F_minus, F_plus, c);
-                                                  #else
-                                                    // Extract state
-                                                    const FluxValue<cfg>& qL = field[0];
-                                                    const FluxValue<cfg>& qR = field[1];
+                                                   compute_discrete_flux(qL, qR,
+                                                                         field[1](Indices::ALPHA1_INDEX), field[2](Indices::ALPHA1_INDEX),
+                                                                         d, F_minus, F_plus, c);
+                                                 #else
+                                                   // Extract state
+                                                   const FluxValue<cfg>& qL = field[0];
+                                                   const FluxValue<cfg>& qR = field[1];
 
-                                                    compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
-                                                  #endif
+                                                   compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
+                                                 #endif
 
-                                                  flux[0] = F_minus;
-                                                  flux[1] = -F_plus;
-                                                };
+                                                 flux[0] = F_minus;
+                                                 flux[1] = -F_plus;
+                                               };
         }
     );
 
-    auto scheme = make_flux_based_scheme(discrete_flux);
+    auto scheme = make_flux_based_scheme(Suliciu_flux);
     scheme.set_name("Suliciu");
 
     return scheme;
@@ -1093,5 +1092,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

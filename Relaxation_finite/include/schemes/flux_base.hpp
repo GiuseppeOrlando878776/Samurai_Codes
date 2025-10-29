@@ -8,7 +8,8 @@
 
 #include <samurai/schemes/fv.hpp>
 
-#include "eos.hpp"
+#include "../eos.hpp"
+#include "../utilities.hpp"
 
 //#define ORDER_2
 
@@ -70,13 +71,6 @@ namespace samurai {
       FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
 
       FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conserved variables ---*/
-
-      void perform_reconstruction(const FluxValue<cfg>& primLL,
-                                  const FluxValue<cfg>& primL,
-                                  const FluxValue<cfg>& primR,
-                                  const FluxValue<cfg>& primRR,
-                                  FluxValue<cfg>& primL_recon,
-                                  FluxValue<cfg>& primR_recon); /*--- Reconstruction for second order scheme ---*/
     #endif
   };
 

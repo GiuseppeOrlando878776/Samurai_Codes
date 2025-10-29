@@ -31,10 +31,10 @@ namespace fs = std::filesystem;
 //#define RUSANOV_FLUX
 
 #ifdef SULICIU_RELAXATION
-  #include "Suliciu_scheme.hpp"
+  #include "schemes/Suliciu_scheme.hpp"
 #elifdef RUSANOV_FLUX
-  #include "Rusanov_flux.hpp"
-  #include "non_conservative_flux.hpp"
+  #include "schemes/Rusanov_flux.hpp"
+  #include "schemes/non_conservative_flux.hpp"
 #endif
 
 // This is the class for the simulation of a BN model
@@ -1240,7 +1240,7 @@ void BN_Solver<dim>::perform_instantaneous_velocity_relaxation() {
                               const auto m2_loc = conserved_variables[cell][Indices::ALPHA2_RHO2_INDEX];
                               auto m2E2_loc     = conserved_variables[cell][Indices::ALPHA2_RHO2_E2_INDEX];
 
-                              // Save phasic velocities and initial specific internal energy of phase 1 for the total energy update ---*/
+                              // Save phasic velocities and initial specific internal energy of phase 1 for the total energy update
                               const auto inv_m1_loc = static_cast<Number>(1.0)/m1_loc;
                                                       /*--- TODO: Add treatment for vanishing volume fraction ---*/
                               const auto inv_m2_loc = static_cast<Number>(1.0)/m2_loc;
@@ -1803,17 +1803,17 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
 
   /*--- Add the gravity contribution ---*/
   using cfg = samurai::LocalCellSchemeConfig<samurai::SchemeType::LinearHomogeneous,
-                                             Field::n_comp,
-                                             decltype(conserved_variables)>;
+                                             Field,
+                                             Field>;
   auto gravity = samurai::make_cell_based_scheme<cfg>();
-  gravity.coefficients_func() = [](Number)
+  gravity.coefficients_func() = [](samurai::StencilCoeffs<cfg>& coeffs, Number)
                                   {
-                                    samurai::StencilCoeffs<cfg> coeffs;
+                                    coeffs.fill(static_cast<Number>(0.0));
 
-                                    coeffs[0].fill(0.0);
-
-                                    coeffs[0](Indices::ALPHA1_RHO1_U1_INDEX, Indices::ALPHA1_RHO1_INDEX) = 9.8;
-                                    coeffs[0](Indices::ALPHA2_RHO2_U2_INDEX, Indices::ALPHA2_RHO2_INDEX) = 9.8;
+                                    coeffs(Indices::ALPHA1_RHO1_U1_INDEX,
+                                           Indices::ALPHA1_RHO1_INDEX) = static_cast<Number>(9.8);
+                                    coeffs(Indices::ALPHA2_RHO2_U2_INDEX,
+                                           Indices::ALPHA2_RHO2_INDEX) = static_cast<Number>(9.8);
 
                                     return coeffs;
                                   };

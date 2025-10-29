@@ -8,7 +8,7 @@
 
 #include <samurai/bc.hpp>
 
-#include "flux_base.hpp"
+#include "schemes/flux_base.hpp"
 
 // Default boundary condition
 //
