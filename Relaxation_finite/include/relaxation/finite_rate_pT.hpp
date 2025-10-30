@@ -316,7 +316,7 @@ namespace samurai {
                                                   Jac_update[0][1] = -m1_loc/
                                                                      (EOS_phase1.rho_value_PT(p2_loc + delta_p, T2_loc + delta_T)*
                                                                       EOS_phase1.rho_value_PT(p2_loc + delta_p, T2_loc + delta_T))*
-                                                                     EOS_phase1.drho_dT_P(T2_loc + delta_T, p2_loc + delta_T)
+                                                                     EOS_phase1.drho_dT_P(T2_loc + delta_T, p2_loc + delta_p)
                                                                      -m2_loc/
                                                                      (EOS_phase2.rho_value_PT(p2_loc, T2_loc)*
                                                                       EOS_phase2.rho_value_PT(p2_loc, T2_loc))*
