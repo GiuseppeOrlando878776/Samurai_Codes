@@ -151,7 +151,7 @@ namespace samurai {
     A[1][1] = static_cast<Number>(1.0) - dt*a_TT;
   }
 
-  // Implement the contribution of the discrete flux for all the directions.
+  // Implement the contribution of the relaxation operator.
   //
   template<class Field>
   decltype(make_cell_based_scheme<typename FiniteRatePresTemp<Field>::cfg>())

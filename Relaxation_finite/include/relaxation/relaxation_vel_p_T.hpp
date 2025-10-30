@@ -40,7 +40,7 @@ namespace samurai {
                                 const SG_EOS<Number>& EOS_phase2_):
     Source<Field>(), EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_) {}
 
-  // Implement the contribution of the discrete flux for all the directions.
+  // Implement the contribution of the relaxation operator.
   //
   template<class Field>
   decltype(make_cell_based_scheme<typename RelaxationVelPresTempOperator<Field>::cfg>())

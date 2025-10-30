@@ -174,7 +174,7 @@ namespace samurai {
     }
   }
 
-  // Implement the contribution of the discrete flux for all the directions.
+  // Implement the contribution of the relaxation operator.
   //
   template<class Field>
   decltype(make_cell_based_scheme<typename FiniteRatePresTempVel<Field>::cfg>())

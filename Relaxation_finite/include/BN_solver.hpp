@@ -273,6 +273,9 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
         }
       }
     }
+    else {
+      source_operator = std::make_unique<samurai::RelaxationDummyOperator<Field>>();
+    }
   }
 
 // Auxiliary routine to create the fields

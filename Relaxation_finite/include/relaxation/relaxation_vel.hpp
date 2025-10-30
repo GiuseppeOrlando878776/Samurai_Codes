@@ -25,7 +25,7 @@ namespace samurai {
     virtual decltype(make_cell_based_scheme<cfg>()) make_relaxation() override; /*--- Compute the relaxation ---*/
   };
 
-  // Implement the contribution of the discrete flux for all the directions.
+  // Implement the contribution of the relaxation operator.
   //
   template<class Field>
   decltype(make_cell_based_scheme<typename RelaxationVelOperator<Field>::cfg>())
