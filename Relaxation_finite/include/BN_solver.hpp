@@ -215,6 +215,16 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
                                                                                  sim_param.tau_T);
           source_operator->set_source_name("Finite rate");
         }
+        else if(sim_param.splitting_in_relaxation) {
+          source_operator = std::make_unique<samurai::FiniteRatePresTempVelSplit<Field>>(EOS_phase1, EOS_phase2,
+                                                                                         sim_param.atol_Newton_relaxation,
+                                                                                         sim_param.rtol_Newton_relaxation,
+                                                                                         sim_param.max_Newton_iters,
+                                                                                         sim_param.tau_u,
+                                                                                         sim_param.tau_p,
+                                                                                         sim_param.tau_T);
+          source_operator->set_source_name("Finite rate (splitting velocity and coupled pT)");
+        }
         else {
           source_operator = std::make_unique<samurai::FiniteRatePresTempVel<Field>>(EOS_phase1, EOS_phase2,
                                                                                     sim_param.atol_Newton_relaxation,

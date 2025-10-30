@@ -7,6 +7,7 @@
 #pragma once
 
 #include "relaxation/finite_rate_pT_vel.hpp"
+#include "relaxation/finite_rate_pT_vel_split.hpp"
 #include "relaxation/finite_rate_pT.hpp"
 
 #include "relaxation/relaxation_p.hpp"

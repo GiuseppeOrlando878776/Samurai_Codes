@@ -7,6 +7,7 @@
  "apply_relaxation": true,
 
  "apply_finite_rate_relaxation": true,
+ "splitting_in_relaxation": false, 
  "relax_instantaneous_velocity": false,
  "relax_velocity": false,
  "relax_pressure": false,

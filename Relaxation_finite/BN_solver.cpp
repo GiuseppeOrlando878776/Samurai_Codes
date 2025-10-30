@@ -39,10 +39,12 @@ int main(int argc, char* argv[]) {
   sim_param.dt      = input.value("dt", 1e-8);
 
   sim_param.apply_finite_rate_relaxation = input.value("apply_finite_rate_relaxation", false);
+  sim_param.splitting_in_relaxation      = input.value("splitting_in_relaxation", false);
   sim_param.relax_instantaneous_velocity = input.value("relax_instantaneous_velocity", false);
   sim_param.relax_velocity               = input.value("relax_velocity", false);
   sim_param.relax_pressure               = input.value("relax_pressure", false);
   sim_param.relax_temperature            = input.value("relax_temperature", false);
+
   sim_param.tau_u                        = input.value("tau_u", 1e-15);
   sim_param.tau_p                        = input.value("tau_p", 1e-10);
   sim_param.tau_T                        = input.value("tau_T", 1e10);
@@ -85,6 +87,8 @@ int main(int argc, char* argv[]) {
 
   app.add_option("--apply_finite_rate_relaxation", sim_param.apply_finite_rate_relaxation,
                  "If relaxation occurs, finite rate or not")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--splitting_in_relaxation", sim_param.splitting_in_relaxation,
+                 "If finite rate relaxation occurs, split velocity and pressure+temperature")->capture_default_str()->group("Numerical parameters");
   app.add_option("--relax_instantaneous_velocity", sim_param.relax_instantaneous_velocity,
                  "If finite rate relaxation occurs, instantaneous velocity relaxation or not")->capture_default_str()->group("Numerical parameters");
   app.add_option("--relax_velocity", sim_param.relax_velocity,
@@ -93,6 +97,7 @@ int main(int argc, char* argv[]) {
                  "If instantaneous relaxation, relax the pressure")->capture_default_str()->group("Numerical parameters");
   app.add_option("--relax_temperature", sim_param.relax_temperature,
                  "If instantaneous relaxation, relax the temperature (this can occur only with pressure)")->capture_default_str()->group("Numerical parameters");
+
   app.add_option("--tau_u", sim_param.tau_u, "Finite rate parameter for the velocity")->capture_default_str()->group("Numerical parameters");
   app.add_option("--tau_p", sim_param.tau_p, "Finite rate parameter for the pressure")->capture_default_str()->group("Numerical parameters");
   app.add_option("--tau_T", sim_param.tau_T, "Finite rate parameter for the temperature")->capture_default_str()->group("Numerical parameters");
