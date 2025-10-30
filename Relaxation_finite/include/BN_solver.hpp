@@ -27,11 +27,14 @@ namespace fs = std::filesystem;
 #include <samurai/io/restart.hpp>
 
 /*--- Include the headers with the numerical fluxes ---*/
-#define SULICIU_RELAXATION
+//#define SULICIU_RELAXATION
 //#define RUSANOV_FLUX
+#define HLLC_FLUX
 
 #ifdef SULICIU_RELAXATION
   #include "schemes/Suliciu_scheme.hpp"
+#elifdef HLLC_FLUX
+  #include "schemes/HLLC_flux_Daude.hpp"
 #elifdef RUSANOV_FLUX
   #include "schemes/Rusanov_flux.hpp"
   #include "schemes/non_conservative_flux.hpp"
@@ -94,6 +97,9 @@ private:
   #ifdef SULICIU_RELAXATION
     samurai::RelaxationFlux<Field> numerical_flux; /*--- Function to compute the numerical flux
                                                          (this is necessary to call 'make_flux') ---*/
+  #elifdef HLLC_FLUX
+    samurai::HLLCFlux<Field> numerical_flux; /*--- Function to compute the numerical flux
+                                                   (this is necessary to call 'make_flux') ---*/
   #elifdef RUSANOV_FLUX
     samurai::RusanovFlux<Field> numerical_flux_cons; /*--- Function to compute the numerical flux for the conservative part
                                                            (this is necessary to call 'make_flux') ---*/
@@ -142,7 +148,7 @@ private:
 
   void apply_bcs(const Riemann_Parameters<Number>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
 
-  #ifdef RUSANOV_FLUX
+  #if defined RUSANOV_FLUX  || defined HLLC_FLUX
     Number get_max_lambda(); /*--- Compute the estimate of the maximum eigenvalue ---*/
   #endif
 
@@ -172,6 +178,8 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
     numerical_flux(EOS_phase1, EOS_phase2,
                    sim_param.atol_Newton_Suliciu, sim_param.rtol_Newton_Suliciu,
                    sim_param.max_Newton_iters)
+  #elifdef HLLC_FLUX
+    numerical_flux(EOS_phase1, EOS_phase2)
   #elifdef RUSANOV_FLUX
     numerical_flux_cons(EOS_phase1, EOS_phase2),
     numerical_flux_non_cons(EOS_phase1, EOS_phase2)
@@ -436,7 +444,7 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
 
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
-#ifdef RUSANOV_FLUX
+#if defined RUSANOV_FLUX  || defined HLLC_FLUX
   template<std::size_t dim>
   typename BN_Solver<dim>::Number
   BN_Solver<dim>::get_max_lambda() {
@@ -493,6 +501,8 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
 
     double global_res;
     MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+    return global_res;
   }
 #endif
 
@@ -636,6 +646,8 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
   path = fs::current_path();
   #ifdef SULICIU_RELAXATION
     filename = "Relaxation_Suliciu";
+  #elifdef HLLC_FLUX
+    filename = "HLLC_Flux";
   #elifdef RUSANOV_FLUX
     filename = "Rusanov_Flux";
   #endif
@@ -659,6 +671,8 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
   #ifdef SULICIU_RELAXATION
     auto c = static_cast<Number>(0.0);
     auto Suliciu_flux = numerical_flux.make_flux(c);
+  #elifdef HLLC_FLUX
+    auto HLLC_flux = numerical_flux.make_flux();
   #elifdef RUSANOV_FLUX
     auto Rusanov_flux         = numerical_flux_cons.make_flux();
     auto NonConservative_flux = numerical_flux_non_cons.make_flux();
@@ -728,6 +742,9 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
       c = static_cast<Number>(0.0);
       auto Relaxation_Flux = Suliciu_flux(conserved_variables);
       dt = std::min(Tf - t, cfl*dx/c);
+    #elifdef HLLC_FLUX
+      auto Discrete_Flux = HLLC_flux(conserved_variables);
+      dt = std::min(Tf - t, cfl*dx/get_max_lambda());
     #elifdef RUSANOV_FLUX
       auto Cons_Flux    = Rusanov_flux(conserved_variables);
       auto NonCons_Flux = NonConservative_flux(conserved_variables);
@@ -750,6 +767,18 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
         conserved_variables_np1.resize();
         conserved_variables_np1 = conserved_variables
                                 - dt*Relaxation_Flux
+                                + dt*gravity(conserved_variables);
+      #endif
+    #elifdef HLLC_FLUX
+      #ifdef ORDER_2
+        conserved_variables_tmp.resize();
+        conserved_variables_tmp = conserved_variables
+                                - dt*Discrete_Flux
+                                + dt*gravity(conserved_variables);
+      #else
+        conserved_variables_np1.resize();
+        conserved_variables_np1 = conserved_variables
+                                - dt*Discrete_Flux
                                 + dt*gravity(conserved_variables);
       #endif
     #elifdef RUSANOV_FLUX
@@ -795,17 +824,18 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
     #ifdef ORDER_2
       #ifdef SULICIU_RELAXATION
         c = static_cast<Number>(0.0);
-        Relaxation_Flux = Suliciu_flux(conserved_variables);
 
         conserved_variables_tmp = conserved_variables
-                                - dt*Relaxation_Flux
+                                - dt*Suliciu_flux(conserved_variables)
+                                + dt*gravity(conserved_variables);
+      #elifdef HLLC_FLUX
+        conserved_variables_tmp = conserved_variables
+                                - dt*HLLC_flux(conserved_variables)
                                 + dt*gravity(conserved_variables);
       #elifdef RUSANOV_FLUX
-        Cons_Flux    = Rusanov_flux(conserved_variables);
-        NonCons_Flux = NonConservative_flux(conserved_variables);
-
         conserved_variables_tmp = conserved_variables
-                                - dt*Cons_Flux - dt*NonCons_Flux
+                                - dt*Rusanov_flux(conserved_variables)
+                                - dt*NonConservative_flux(conserved_variables)
                                 + dt*gravity(conserved_variables);
       #endif
       samurai::swap(conserved_variables, conserved_variables_tmp);

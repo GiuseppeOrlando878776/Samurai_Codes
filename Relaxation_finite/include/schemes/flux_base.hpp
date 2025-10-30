@@ -45,6 +45,12 @@ namespace samurai {
                                             const std::size_t curr_d); /*--- Evaluate the 'continuous' flux for the state q
                                                                              along direction curr_d ---*/
 
+    auto evaluate_phasic_continuous_flux(const auto& q,
+                                         const std::size_t curr_d,
+                                         const unsigned phase_idx); /*--- Evaluate the 'continuous' flux
+                                                                          of phase 'phase_idx' for the state q
+                                                                          along direction curr_d ---*/
+
     #ifdef ORDER_2
       FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
 
@@ -121,6 +127,55 @@ namespace samurai {
     res(Indices::ALPHA2_RHO2_U2_INDEX + curr_d) += alpha2*pres2;
     res(Indices::ALPHA2_RHO2_E2_INDEX) *= vel2_d;
     res(Indices::ALPHA2_RHO2_E2_INDEX) += alpha2*pres2*vel2_d;
+
+    return res;
+  }
+
+  // Evaluate the 'phasic continuous flux' along direction 'curr_d'
+  //
+  template<class Field>
+  auto Flux<Field>::evaluate_phasic_continuous_flux(const auto& q,
+                                                    const std::size_t curr_d,
+                                                    const unsigned phase_idx) {
+    /*--- Sanity check in terms of dimensions ---*/
+    assert(curr_d < Field::dim);
+
+    /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization.
+          The order is hard-coded, it can be made more general following the same appraoch in EquationData.
+          Since this is supposed to be likely temporary, we do not worry to much about that for the moment ---*/
+    const auto alphak = q.front();
+    const auto mk     = q[1];
+    const auto mkEk   = q.back();
+
+    /*--- Compute density, velocity (along the dimension) and internal energy ---*/
+    const auto rhok   = mk/alphak; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto inv_mk = static_cast<Number>(1.0)/mk; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    auto ek           = mkEk*inv_mk; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      ek -= static_cast<Number>(0.5)*
+            ((q[d + 2]*inv_mk)*(q[d + 2]*inv_mk)); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    }
+    Number pk;
+    if(phase_idx == 1) {
+      pk = EOS_phase1.pres_value_Rhoe(rhok, ek);
+    }
+    else if(phase_idx == 2) {
+      pk = EOS_phase2.pres_value_Rhoe(rhok, ek);
+    }
+    else {
+      std::cerr << "Unknown phasic index. Exiting..." << std::endl;
+      exit(1);
+    }
+    const auto velk_d = q[curr_d + 2]*inv_mk; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+
+    /*--- Compute the flux for the equations "associated" to phase k ---*/
+    std::array<Number, Field::dim + 2> res;
+    res.front() = mk*velk_d;
+    for(std::size_t d = 0; d < Field::dim; ++d) {
+      res[d + 1] = q[d + 2]*velk_d;
+    }
+    res[curr_d + 1] += alphak*pk;
+    res.back() = (mkEk + alphak*pk)*velk_d;
 
     return res;
   }

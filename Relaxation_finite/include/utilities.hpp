@@ -85,3 +85,66 @@ void perform_reconstruction(const samurai::FluxValue<cfg>& primLL,
     }
   }
 }
+
+// Auxiliary arithmetic operations for std::array
+//
+namespace Math {
+  // Sum between two std::array
+  //
+  template<typename T, std::size_t N>
+  std::array<T, N> operator+(const std::array<T, N>& a,
+                             const std::array<T, N>& b) {
+    std::array<T, N> result;
+
+    std::transform(a.begin(), a.end(), b.begin(), result.begin(),
+                   [](T x, T y)
+                     {
+                       return x + y;
+                     }
+                   );
+
+    return result;
+  }
+
+  // Difference between two std::array
+  //
+  template<typename T, std::size_t N>
+  std::array<T, N> operator-(const std::array<T, N>& a,
+                             const std::array<T, N>& b) {
+    std::array<T, N> result;
+
+    std::transform(a.begin(), a.end(), b.begin(), result.begin(),
+                   [](T x, T y)
+                     {
+                       return x - y;
+                     }
+                   );
+
+    return result;
+  }
+
+  // Multiplication by scalar and std::array
+  //
+  template<typename T, std::size_t N>
+  std::array<T, N> operator*(const T a,
+                             const std::array<T, N>& b) {
+    std::array<T, N> result;
+
+    std::transform(b.begin(), b.end(), result.begin(),
+                   [a](T x)
+                      {
+                        return a*x;
+                      }
+                  );
+
+    return result;
+  }
+
+  // Multiplication by std::array and scalar
+  //
+  template<typename T, std::size_t N>
+  std::array<T, N> operator*(const std::array<T, N>& a,
+                             const T b) {
+    return b*a;
+  }
+}
