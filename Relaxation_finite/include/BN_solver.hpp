@@ -66,7 +66,7 @@ public:
             const Riemann_Parameters<Number>& Riemann_param); /*--- Class constrcutor with the arguments related
                                                                     to the grid and to the physics. ---*/
 
-  void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
+  void run(const std::size_t nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const std::string& suffix,
@@ -708,7 +708,7 @@ void BN_Solver<dim>::save(const std::string& suffix,
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void BN_Solver<dim>::run(const unsigned nfiles) {
+void BN_Solver<dim>::run(const std::size_t nfiles) {
   /*--- Default output arguemnts ---*/
   path = fs::current_path();
   #ifdef SULICIU_RELAXATION

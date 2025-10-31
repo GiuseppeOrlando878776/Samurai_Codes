@@ -11,6 +11,8 @@
 
 //#define PERFORM_RECON
 
+#include "flux_base.hpp"
+
 namespace samurai {
   /**
     * Implementation of the non-conservative flux
@@ -193,8 +195,8 @@ namespace samurai {
 
                                                               FluxValue<cfg> primL_recon,
                                                                              primR_recon;
-                                                              perform_reconstruction(primLL, primL, primR, primRR,
-                                                                                     primL_recon, primR_recon);
+                                                              perform_reconstruction<Field, cfg>(primLL, primL, primR, primRR,
+                                                                                                 primL_recon, primR_recon);
 
                                                               FluxValue<cfg> qL = this->prim2cons(primL_recon);
                                                               FluxValue<cfg> qR = this->prim2cons(primR_recon);
