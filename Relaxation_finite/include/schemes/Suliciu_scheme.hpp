@@ -9,6 +9,8 @@
 
 #include "flux_base.hpp"
 
+#define VERBOSE_FLUX
+
 namespace samurai {
   /**
     * Implementation of the flux based on Suliciu-type relaxation
@@ -132,6 +134,22 @@ namespace samurai {
     const auto m2_L     = qL(Indices::ALPHA2_RHO2_INDEX);
     const auto m2E2_L   = qL(Indices::ALPHA2_RHO2_E2_INDEX);
 
+    // Verify if it is admissible
+    #ifdef VERBOSE_FLUX
+      if(m1_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
+      }
+      if(m2_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(m2_L)));
+      }
+      if(alpha1_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(alpha1_L)));
+      }
+      else if(alpha1_L > static_cast<Number>(1.0)) {
+        throw std::runtime_error(std::string("Exceeding volume fraction phase 1 left state: " + std::to_string(alpha1_L)));
+      }
+    #endif
+
     // Phase 1
     const auto inv_m1_L   = static_cast<Number>(1.0)/m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto vel1_L_d   = qL(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -170,6 +188,22 @@ namespace samurai {
     const auto m2_R     = qR(Indices::ALPHA2_RHO2_INDEX);
     const auto m2E2_R   = qR(Indices::ALPHA2_RHO2_E2_INDEX);
 
+    // Verify if it is admissible
+    #ifdef VERBOSE_FLUX
+      if(m1_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 1 right state: " + std::to_string(m1_R)));
+      }
+      if(m2_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(m2_R)));
+      }
+      if(alpha1_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction phase 1 right state: " + std::to_string(alpha1_R)));
+      }
+      else if(alpha1_R > static_cast<Number>(1.0)) {
+        throw std::runtime_error(std::string("Exceeding volume fraction phase 1 right state: " + std::to_string(alpha1_R)));
+      }
+    #endif
+
     // Phase 1
     const auto inv_m1_R   = static_cast<Number>(1.0)/m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto vel1_R_d   = qR(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -204,6 +238,14 @@ namespace samurai {
                        this->EOS_phase1.c_value_RhoP(rho1_R, p1_R)*rho1_R);
     auto a2 = std::max(this->EOS_phase2.c_value_RhoP(rho2_L, p2_L)*rho2_L,
                        this->EOS_phase2.c_value_RhoP(rho2_R, p2_R)*rho2_R);
+    #ifdef VERBOSE_FLUX
+      if(std::isnan(a1)) {
+        throw std::runtime_error(std::string("NaN speed of sound phase 1"));
+      }
+      if(std::isnan(a2)) {
+        throw std::runtime_error(std::string("NaN speed of sound phase 2"));
+      }
+    #endif
 
     /*--- Compute the transport step solving a non-linear equation with the Newton method ---*/
     // Compute "diesis" state (formulas (3.21) in Saleh ESAIM 2019, starting point for subsonic wave)

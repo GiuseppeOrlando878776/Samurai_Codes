@@ -43,6 +43,9 @@ namespace fs = std::filesystem;
 /*--- Include the header for the source term ---*/
 #include "relaxations.hpp"
 
+/*--- Define preprocessor to check whether to control data or not ---*/
+#define VERBOSE
+
 // This is the class for the simulation of a BN model
 //
 template<std::size_t dim>
@@ -151,6 +154,8 @@ private:
   #if defined RUSANOV_FLUX  || defined HLLC_FLUX
     Number get_max_lambda(); /*--- Compute the estimate of the maximum eigenvalue ---*/
   #endif
+
+  void check_data(unsigned flag = 0); /*--- Auxiliary routine to check if (small) spurious negative values are present ---*/
 
   void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output and time step update ---*/
 };
@@ -509,6 +514,65 @@ void BN_Solver<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) 
   }
 #endif
 
+// Auxiliary routine to check if spurious negative values arise
+//
+template<std::size_t dim>
+void BN_Solver<dim>::check_data(unsigned flag) {
+  std::string op;
+  if(flag == 0) {
+    op = "after hyperbolic operator";
+  }
+  else {
+    op = "after mesh adaptation";
+  }
+
+  samurai::for_each_cell(mesh,
+                         [&](const auto& cell)
+                            {
+                              // Start with the volume fraction
+                              if(conserved_variables[cell][Indices::ALPHA1_INDEX] < static_cast<Number>(0.0)) {
+                                std::cerr << "Negative volume fraction for phase 1 " + op << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(conserved_variables[cell][Indices::ALPHA1_INDEX] > static_cast<Number>(1.0)) {
+                                std::cerr << "Exceeding volume fraction for phase 1 " + op << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(std::isnan(conserved_variables[cell][Indices::ALPHA1_INDEX])) {
+                                std::cerr << "NaN volume fraction for phase 1 " + op << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+
+                              // Sanity check for m1
+                              if(conserved_variables[cell][Indices::ALPHA1_RHO1_INDEX] < static_cast<Number>(0.0)) {
+                                std::cerr << "Negative mass for phase 1 " + op << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(std::isnan(conserved_variables[cell][Indices::ALPHA1_RHO1_INDEX])) {
+                                std::cerr << "NaN mass for phase 1 " + op << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+
+                              // Sanity check for m2
+                              if(conserved_variables[cell][Indices::ALPHA2_RHO2_INDEX] < static_cast<Number>(0.0)) {
+                                std::cerr << "Negative mass for phase 2 " + op << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(std::isnan(conserved_variables[cell][Indices::ALPHA2_RHO2_INDEX])){
+                                std::cerr << "NaN mass for phase 2 " + op << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                            }
+                        );
+}
+
 // Update auxiliary fields after solution of the system
 //
 template<std::size_t dim>
@@ -733,6 +797,9 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
     mra_config.epsilon(MR_param);
     mra_config.regularity(MR_regularity);
     MRadaptation(mra_config);
+    #ifdef VERBOSE
+      check_data(1);
+    #endif
 
     // Save current state in case of order 2
     #ifdef ORDER_2
@@ -742,17 +809,32 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
 
     // Compute time step
     #ifdef SULICIU_RELAXATION
-      c = static_cast<Number>(0.0);
-      auto Relaxation_Flux = Suliciu_flux(conserved_variables);
-      dt = std::min(Tf - t, cfl*dx/c);
+      decltype(Suliciu_flux(conserved_variables)) RelaxationFlux;
+      try {
+        c = static_cast<Number>(0.0);
+        Relaxation_Flux = Suliciu_flux(conserved_variables);
+        dt = std::min(Tf - t, cfl*dx/c);
+      }
     #elifdef HLLC_FLUX
-      auto Discrete_Flux = HLLC_flux(conserved_variables);
-      dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+      decltype(HLLC_flux(conserved_variables)) Discrete_Flux;
+      try {
+        Discrete_Flux = HLLC_flux(conserved_variables);
+        dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+      }
     #elifdef RUSANOV_FLUX
-      auto Cons_Flux    = Rusanov_flux(conserved_variables);
-      auto NonCons_Flux = NonConservative_flux(conserved_variables);
-      dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+      decltype(Rusanov_flux(conserved_variables)) Cons_Flux;
+      decltype(NonConservative_flux(conserved_variables)) NonCons_Flux;
+      try {
+        Cons_Flux    = Rusanov_flux(conserved_variables);
+        NonCons_Flux = NonConservative_flux(conserved_variables);
+        dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+      }
     #endif
+    catch(const std::exception& e) {
+      std::cerr << e.what() << std::endl;
+      save("_diverged", conserved_variables);
+      exit(1);
+    }
     t += dt;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if(rank == 0) {
@@ -803,6 +885,9 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
     #else
       samurai::swap(conserved_variables, conserved_variables_np1);
     #endif
+    #ifdef VERBOSE
+      check_data();
+    #endif
 
     // Perform relaxation if desired
     if(apply_relaxation) {
@@ -826,22 +911,36 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
     /*--- Consider the second stage for the second order ---*/
     #ifdef ORDER_2
       #ifdef SULICIU_RELAXATION
-        c = static_cast<Number>(0.0);
+        try {
+          c = static_cast<Number>(0.0);
 
-        conserved_variables_tmp = conserved_variables
-                                - dt*Suliciu_flux(conserved_variables)
-                                + dt*gravity(conserved_variables);
+          conserved_variables_tmp = conserved_variables
+                                  - dt*Suliciu_flux(conserved_variables)
+                                  + dt*gravity(conserved_variables);
+        }
       #elifdef HLLC_FLUX
-        conserved_variables_tmp = conserved_variables
-                                - dt*HLLC_flux(conserved_variables)
-                                + dt*gravity(conserved_variables);
+        try {
+          conserved_variables_tmp = conserved_variables
+                                  - dt*HLLC_flux(conserved_variables)
+                                  + dt*gravity(conserved_variables);
+        }
       #elifdef RUSANOV_FLUX
-        conserved_variables_tmp = conserved_variables
-                                - dt*Rusanov_flux(conserved_variables)
-                                - dt*NonConservative_flux(conserved_variables)
-                                + dt*gravity(conserved_variables);
+        try {
+          conserved_variables_tmp = conserved_variables
+                                  - dt*Rusanov_flux(conserved_variables)
+                                  - dt*NonConservative_flux(conserved_variables)
+                                  + dt*gravity(conserved_variables);
+        }
       #endif
+      catch(const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        save("_diverged", conserved_variables);
+        exit(1);
+      }
       samurai::swap(conserved_variables, conserved_variables_tmp);
+      #ifdef VERBOSE
+        check_data();
+      #endif
 
       // Perform relaxation if desired
       if(apply_relaxation) {

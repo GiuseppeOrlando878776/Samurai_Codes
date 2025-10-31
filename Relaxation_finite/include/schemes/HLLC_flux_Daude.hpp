@@ -8,6 +8,8 @@
 
 #include "flux_base.hpp"
 
+#define VERBOSE_FLUX
+
 namespace samurai {
   using Math::operator+;
   using Math::operator-;
@@ -263,6 +265,22 @@ namespace samurai {
     const auto m1E1_L   = qL(Indices::ALPHA1_RHO1_E1_INDEX);
     const auto m2E2_L   = qL(Indices::ALPHA2_RHO2_E2_INDEX);
 
+    // Verify if it is admissible
+    #ifdef VERBOSE_FLUX
+      if(m1_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
+      }
+      if(m2_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(m2_L)));
+      }
+      if(alpha1_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(alpha1_L)));
+      }
+      else if(alpha1_L > static_cast<Number>(1.0)) {
+        throw std::runtime_error(std::string("Exceeding volume fraction phase 1 left state: " + std::to_string(alpha1_L)));
+      }
+    #endif
+
     // Phase 1
     const auto inv_m1_L = static_cast<Number>(1.0)/m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto vel1_L_d = qL(Indices::ALPHA1_RHO1_U1_INDEX + curr_d)*inv_m1_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -275,6 +293,11 @@ namespace samurai {
     }
     const auto p1_L = this->EOS_phase1.pres_value_Rhoe(rho1_L, e1_L);
     const auto c1_L = this->EOS_phase1.c_value_RhoP(rho1_L, p1_L);
+    #ifdef VERBOSE_FLUX
+      if(std::isnan(c1_L)) {
+        throw std::runtime_error(std::string("NaN speed of sound phase 1 left state"));
+      }
+    #endif
 
     // Phase 2
     const auto inv_m2_L = static_cast<Number>(1.0)/m2_L; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -289,6 +312,11 @@ namespace samurai {
     }
     const auto p2_L = this->EOS_phase2.pres_value_Rhoe(rho2_L, e2_L);
     const auto c2_L = this->EOS_phase2.c_value_RhoP(rho2_L, p2_L);
+    #ifdef VERBOSE_FLUX
+      if(std::isnan(c2_L)) {
+        throw std::runtime_error(std::string("NaN speed of sound phase 2 left state"));
+      }
+    #endif
 
     /*--- Right state ---*/
     // Pre-fetch variables that will be used several times so as to exploit possible vectorization
@@ -298,6 +326,22 @@ namespace samurai {
     const auto m2_R     = qR(Indices::ALPHA2_RHO2_INDEX);
     const auto m1E1_R   = qR(Indices::ALPHA1_RHO1_E1_INDEX);
     const auto m2E2_R   = qR(Indices::ALPHA2_RHO2_E2_INDEX);
+
+    // Verify if it is admissible
+    #ifdef VERBOSE_FLUX
+      if(m1_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 1 right state: " + std::to_string(m1_R)));
+      }
+      if(m2_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(m2_R)));
+      }
+      if(alpha1_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction phase 1 right state: " + std::to_string(alpha1_R)));
+      }
+      else if(alpha1_R > static_cast<Number>(1.0)) {
+        throw std::runtime_error(std::string("Exceeding volume fraction phase 1 right state: " + std::to_string(alpha1_R)));
+      }
+    #endif
 
     // Phase 1
     const auto inv_m1_R = static_cast<Number>(1.0)/m1_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -311,6 +355,11 @@ namespace samurai {
     }
     const auto p1_R = this->EOS_phase1.pres_value_Rhoe(rho1_R, e1_R);
     const auto c1_R = this->EOS_phase1.c_value_RhoP(rho1_R, p1_R);
+    #ifdef VERBOSE_FLUX
+      if(std::isnan(c1_R)) {
+        throw std::runtime_error(std::string("NaN speed of sound phase 1 right state"));
+      }
+    #endif
 
     // Phase 2
     const auto inv_m2_R = static_cast<Number>(1.0)/m2_R; /*--- TODO: Add treatment for vanishing volume fraction ---*/
@@ -325,6 +374,11 @@ namespace samurai {
     }
     const auto p2_R = this->EOS_phase2.pres_value_Rhoe(rho2_R, e2_R);
     const auto c2_R = this->EOS_phase2.c_value_RhoP(rho2_R, p2_R);
+    #ifdef VERBOSE_FLUX
+      if(std::isnan(c2_R)) {
+        throw std::runtime_error(std::string("NaN speed of sound phase 2 right state"));
+      }
+    #endif
 
     /*--- Compute speeds of wave propagation ---*/
     const auto S1_L = std::min(vel1_L_d - c1_L, vel1_R_d - c1_R);
