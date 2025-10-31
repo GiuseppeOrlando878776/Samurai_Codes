@@ -52,7 +52,7 @@ public:
            const Riemann_Parameters<Number>& Riemann_param); /*--- Class constrcutor with the arguments related
                                                                    to the grid and to the physics ---*/
 
-  void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
+  void run(const std::size_t nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const std::string& suffix,
@@ -304,15 +304,9 @@ void Euler_MR<dim>::check_data(unsigned flag) {
                                 exit(1);
                               }
 
-                              // Sanity check for the pressure
-                              if(p[cell] < static_cast<Number>(0.0)) {
-                                std::cerr << "Negative pressure " + op << std::endl;
-                                save("_diverged", conserved_variables,
-                                                  vel, p, c);
-                                exit(1);
-                              }
-                              else if(std::isnan(p[cell])) {
-                                std::cerr << "NaN pressure " + op << std::endl;
+                              // Sanity check for the speed of sound
+                              if(std::isnan(c[cell])) {
+                                std::cerr << "NaN speed of sound " + op << std::endl;
                                 save("_diverged", conserved_variables,
                                                   vel, p, c);
                                 exit(1);
@@ -399,7 +393,7 @@ void Euler_MR<dim>::save(const std::string& suffix,
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void Euler_MR<dim>::run(const unsigned nfiles) {
+void Euler_MR<dim>::run(const std::size_t nfiles) {
   /*--- Default output arguemnts ---*/
   path = fs::current_path();
   filename = "Euler_MR_" + numerical_flux->get_flux_name();
@@ -473,7 +467,7 @@ void Euler_MR<dim>::run(const unsigned nfiles) {
         samurai::swap(conserved_variables, conserved_variables_np1);
       #endif
     }
-    catch(std::exception& e) {
+    catch(const std::exception& e) {
       std::cerr << e.what() << std::endl;
       save("_diverged", conserved_variables,
                         vel, p, c);
@@ -492,7 +486,7 @@ void Euler_MR<dim>::run(const unsigned nfiles) {
                                   (conserved_variables_tmp + conserved_variables_old);
         samurai::swap(conserved_variables, conserved_variables_np1);
       }
-      catch(std::exception& e) {
+      catch(const std::exception& e) {
         std::cerr << e.what() << std::endl;
         save("_diverged", conserved_variables,
                           vel, p, c);

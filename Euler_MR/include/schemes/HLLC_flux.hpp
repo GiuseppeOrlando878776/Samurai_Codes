@@ -109,8 +109,8 @@ namespace samurai {
       if(rhoL < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative density left state: " + std::to_string(rhoL)));
       }
-      if(pL < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative pressure left state: " + std::to_string(pL)));
+      if(std::isnan(cL)) {
+        throw std::runtime_error(std::string("NaN speed of sound left state"));
       }
     #endif
 
@@ -132,8 +132,8 @@ namespace samurai {
       if(rhoR < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative density right state: " + std::to_string(rhoR)));
       }
-      if(pR < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative pressure right state: " + std::to_string(pR)));
+      if(std::isnan(cR)) {
+        throw std::runtime_error(std::string("NaN speed of sound right state"));
       }
     #endif
 

@@ -15,3 +15,4 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(Euler_MR Euler_MR.cpp)
 target_link_libraries(Euler_MR samurai::samurai CLI11::CLI11)
+target_include_directories(Euler_MR PRIVATE include)
