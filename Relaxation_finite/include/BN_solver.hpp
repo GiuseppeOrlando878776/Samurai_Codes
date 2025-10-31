@@ -809,7 +809,7 @@ void BN_Solver<dim>::run(const unsigned nfiles) {
 
     // Compute time step
     #ifdef SULICIU_RELAXATION
-      decltype(Suliciu_flux(conserved_variables)) RelaxationFlux;
+      decltype(Suliciu_flux(conserved_variables)) Relaxation_Flux;
       try {
         c = static_cast<Number>(0.0);
         Relaxation_Flux = Suliciu_flux(conserved_variables);
