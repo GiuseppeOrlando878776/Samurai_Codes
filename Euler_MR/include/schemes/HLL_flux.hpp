@@ -141,8 +141,8 @@ namespace samurai {
 
                                                     FluxValue<cfg> primL_recon,
                                                                    primR_recon;
-                                                    perform_reconstruction<Field>(primLL, primL, primR, primRR,
-                                                                                  primL_recon, primR_recon);
+                                                    perform_reconstruction<Field, cfg>(primLL, primL, primR, primRR,
+                                                                                       primL_recon, primR_recon);
 
                                                     const FluxValue<cfg> qL = this->prim2cons(primL_recon);
                                                     const FluxValue<cfg> qR = this->prim2cons(primR_recon);
