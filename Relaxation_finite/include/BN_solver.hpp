@@ -777,19 +777,11 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
     filename = "Rusanov_Flux";
   #endif
 
-  #ifdef ORDER_2
-    filename = filename + "_order2";
-  #else
-    filename = filename + "_order1";
-  #endif
+  filename = filename + "_order1";
 
   const auto dt_save = Tf/static_cast<Number>(nfiles);
 
   /*--- Auxiliary variables to save updated fields ---*/
-  #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_vector_field<Number, Field::n_comp>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_vector_field<Number, Field::n_comp>("conserved_old", mesh);
-  #endif
   auto conserved_variables_np1 = samurai::make_vector_field<Number, Field::n_comp>("conserved_np1", mesh);
 
   /*--- Create the flux variables ---*/
@@ -859,12 +851,6 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
       check_data(1);
     #endif
 
-    // Save current state in case of order 2
-    #ifdef ORDER_2
-      conserved_variables_old.resize();
-      conserved_variables_old = conserved_variables;
-    #endif
-
     // Compute time step
     #ifdef SULICIU_RELAXATION
       decltype(Suliciu_flux(conserved_variables)) Relaxation_Flux;
@@ -901,48 +887,23 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
 
     // Apply the numerical scheme
     #ifdef SULICIU_RELAXATION
-      #ifdef ORDER_2
-        conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables
-                                - dt*Relaxation_Flux
-                                + dt*gravity(conserved_variables);
-      #else
-        conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables
-                                - dt*Relaxation_Flux
-                                + dt*gravity(conserved_variables);
-      #endif
+      conserved_variables_np1.resize();
+      conserved_variables_np1 = conserved_variables
+                              - dt*Relaxation_Flux
+                              + dt*gravity(conserved_variables);
     #elifdef HLLC_FLUX
-      #ifdef ORDER_2
-        conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables
-                                - dt*Discrete_Flux
-                                + dt*gravity(conserved_variables);
-      #else
-        conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables
-                                - dt*Discrete_Flux
-                                + dt*gravity(conserved_variables);
-      #endif
+      conserved_variables_np1.resize();
+      conserved_variables_np1 = conserved_variables
+                              - dt*Discrete_Flux
+                              + dt*gravity(conserved_variables);
     #elifdef RUSANOV_FLUX
-      #ifdef ORDER_2
-        conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables
-                                - dt*Cons_Flux - dt*NonCons_Flux
-                                + dt*gravity(conserved_variables);
-      #else
-        conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables
-                                - dt*Cons_Flux - dt*NonCons_Flux
-                                + dt*gravity(conserved_variables);
-      #endif
+      conserved_variables_np1.resize();
+      conserved_variables_np1 = conserved_variables
+                              - dt*Cons_Flux - dt*NonCons_Flux
+                              + dt*gravity(conserved_variables);
     #endif
 
-    #ifdef ORDER_2
-      samurai::swap(conserved_variables, conserved_variables_tmp);
-    #else
-      samurai::swap(conserved_variables, conserved_variables_np1);
-    #endif
+    samurai::swap(conserved_variables, conserved_variables_np1);
     #ifdef VERBOSE
       check_data();
     #endif
@@ -951,13 +912,8 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
     if(apply_relaxation) {
       try {
         source_operator->set_dt(dt);
-        #ifdef ORDER_2
-          conserved_variables_tmp = Relaxation_operator(conserved_variables);
-          samurai::swap(conserved_variables_tmp, conserved_variables);
-        #else
-          conserved_variables_np1 = Relaxation_operator(conserved_variables);
-          samurai::swap(conserved_variables_np1, conserved_variables);
-        #endif
+        conserved_variables_np1 = Relaxation_operator(conserved_variables);
+        samurai::swap(conserved_variables_np1, conserved_variables);
       }
       catch(const std::exception& e) {
         std::cerr << e.what() << std::endl;
@@ -967,63 +923,6 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
     }
     #ifdef VERBOSE
       check_data(2);
-    #endif
-
-    /*--- Consider the second stage for the second order ---*/
-    #ifdef ORDER_2
-      #ifdef SULICIU_RELAXATION
-        try {
-          c = static_cast<Number>(0.0);
-
-          conserved_variables_tmp = conserved_variables
-                                  - dt*Suliciu_flux(conserved_variables)
-                                  + dt*gravity(conserved_variables);
-        }
-      #elifdef HLLC_FLUX
-        try {
-          conserved_variables_tmp = conserved_variables
-                                  - dt*HLLC_flux(conserved_variables)
-                                  + dt*gravity(conserved_variables);
-        }
-      #elifdef RUSANOV_FLUX
-        try {
-          conserved_variables_tmp = conserved_variables
-                                  - dt*Rusanov_flux(conserved_variables)
-                                  - dt*NonConservative_flux(conserved_variables)
-                                  + dt*gravity(conserved_variables);
-        }
-      #endif
-      catch(const std::exception& e) {
-        std::cerr << e.what() << std::endl;
-        save("_diverged", conserved_variables);
-        exit(1);
-      }
-      samurai::swap(conserved_variables, conserved_variables_tmp);
-      #ifdef VERBOSE
-        check_data();
-      #endif
-
-      // Perform relaxation if desired
-      if(apply_relaxation) {
-        try {
-          conserved_variables_tmp = Relaxation_operator(conserved_variables);
-          samurai::swap(conserved_variables_tmp, conserved_variables);
-        }
-        catch(const std::exception& e) {
-          std::cerr << e.what() << std::endl;
-          save("_diverged", conserved_variables);
-          exit(1);
-        }
-      }
-      #ifdef VERBOSE
-        check_data(2);
-      #endif
-
-      // Complete the evaluation
-      conserved_variables_np1.resize();
-      conserved_variables_np1 = static_cast<Number>(0.5)*
-                                (conserved_variables_old + conserved_variables);
-      samurai::swap(conserved_variables, conserved_variables_np1);
     #endif
 
     // Save the results

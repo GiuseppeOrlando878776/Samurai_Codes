@@ -91,10 +91,6 @@ namespace samurai {
 
     void compute_discrete_flux(const FluxValue<cfg>& qL,
                                const FluxValue<cfg>& qR,
-                               #ifdef ORDER_2
-                                  const Number alpha1_L_order1,
-                                  const Number alpha1_R_order1,
-                               #endif
                                const std::size_t curr_d,
                                FluxValue<cfg>& F_minus,
                                FluxValue<cfg>& F_plus,
@@ -117,10 +113,6 @@ namespace samurai {
   template<class Field>
   void RelaxationFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
                                                     const FluxValue<cfg>& qR,
-                                                    #ifdef ORDER_2
-                                                      const Number alpha1_L_order1,
-                                                      const Number alpha1_R_order1,
-                                                    #endif
                                                     std::size_t curr_d,
                                                     FluxValue<cfg>& F_minus,
                                                     FluxValue<cfg>& F_plus,
@@ -500,22 +492,11 @@ namespace samurai {
                                           + alpha2_p*p2_p*u2_p;
 
     /*--- Focus on non-conservative term ---*/
-    #ifdef ORDER_2
-      const auto alpha2_L_order1 = static_cast<Number>(1.0) - alpha1_L_order1;
-      const auto alpha2_R_order1 = static_cast<Number>(1.0) - alpha1_R_order1;
-      const auto pidxalpha2      = p2_diesis*(alpha2_R_order1 - alpha2_L_order1)
-                                 + psi(uI_star, a2, alpha2_L_order1, alpha2_R_order1, vel2_diesis, tau2L_diesis, tau2R_diesis);
-    #else
-      const auto pidxalpha2 = p2_diesis*(alpha2_R - alpha2_L)
-                            + psi(uI_star, a2, alpha2_L, alpha2_R, vel2_diesis, tau2L_diesis, tau2R_diesis);
-    #endif
+    const auto pidxalpha2 = p2_diesis*(alpha2_R - alpha2_L)
+                          + psi(uI_star, a2, alpha2_L, alpha2_R, vel2_diesis, tau2L_diesis, tau2R_diesis);
 
     if(uI_star < static_cast<Number>(0.0)) {
-      #ifdef ORDER_2
-        F_minus(Indices::ALPHA1_INDEX) -= -uI_star*(alpha1_R_order1 - alpha1_L_order1);
-      #else
-        F_minus(Indices::ALPHA1_INDEX) -= -uI_star*(alpha1_R - alpha1_L);
-      #endif
+      F_minus(Indices::ALPHA1_INDEX) -= -uI_star*(alpha1_R - alpha1_L);
 
       F_minus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) -= -pidxalpha2;
       F_minus(Indices::ALPHA1_RHO1_E1_INDEX) -= -uI_star*pidxalpha2;
@@ -524,11 +505,7 @@ namespace samurai {
       F_minus(Indices::ALPHA2_RHO2_E2_INDEX) -= uI_star*pidxalpha2;
     }
     else {
-      #ifdef ORDER_2
-        F_plus(Indices::ALPHA1_INDEX) += -uI_star*(alpha1_R_order1 - alpha1_L_order1);
-      #else
-        F_plus(Indices::ALPHA1_INDEX) += -uI_star*(alpha1_R - alpha1_L);
-      #endif
+      F_plus(Indices::ALPHA1_INDEX) += -uI_star*(alpha1_R - alpha1_L);
 
       F_plus(Indices::ALPHA1_RHO1_U1_INDEX + curr_d) += -pidxalpha2;
       F_plus(Indices::ALPHA1_RHO1_E1_INDEX) += -uI_star*pidxalpha2;
@@ -561,31 +538,11 @@ namespace samurai {
                                                  FluxValue<cfg> F_minus,
                                                                 F_plus;
 
-                                                 #ifdef ORDER_2
-                                                   // MUSCL reconstruction
-                                                   const FluxValue<cfg> primLL = this->cons2prim(field[0]);
-                                                   const FluxValue<cfg> primL  = this->cons2prim(field[1]);
-                                                   const FluxValue<cfg> primR  = this->cons2prim(field[2]);
-                                                   const FluxValue<cfg> primRR = this->cons2prim(field[3]);
+                                                 // Extract state
+                                                 const FluxValue<cfg>& qL = field[0];
+                                                 const FluxValue<cfg>& qR = field[1];
 
-                                                   FluxValue<cfg> primL_recon,
-                                                                  primR_recon;
-                                                   perform_reconstruction<Field, cfg>(primLL, primL, primR, primRR,
-                                                                                      primL_recon, primR_recon);
-
-                                                   FluxValue<cfg> qL = this->prim2cons(primL_recon);
-                                                   FluxValue<cfg> qR = this->prim2cons(primR_recon);
-
-                                                   compute_discrete_flux(qL, qR,
-                                                                         field[1](Indices::ALPHA1_INDEX), field[2](Indices::ALPHA1_INDEX),
-                                                                         d, F_minus, F_plus, c);
-                                                 #else
-                                                   // Extract state
-                                                   const FluxValue<cfg>& qL = field[0];
-                                                   const FluxValue<cfg>& qR = field[1];
-
-                                                   compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
-                                                 #endif
+                                                 compute_discrete_flux(qL, qR, d, F_minus, F_plus, c);
 
                                                  flux[0] = F_minus;
                                                  flux[1] = -F_plus;

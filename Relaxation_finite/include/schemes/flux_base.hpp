@@ -11,8 +11,6 @@
 #include "../eos.hpp"
 #include "../utilities.hpp"
 
-//#define ORDER_2
-
 namespace samurai {
   /**
     * Generic class to compute the flux between a left and right state
@@ -23,11 +21,7 @@ namespace samurai {
     /*--- Definitions and sanity checks ---*/
     using Indices = EquationData<Field::dim>;
     static_assert(Field::n_comp == Indices::NVARS, "The number of elements in the state does not correpsond to the number of equations");
-    #ifdef ORDER_2
-      static constexpr std::size_t stencil_size = 4;
-    #else
-      static constexpr std::size_t stencil_size = 2;
-    #endif
+    static constexpr std::size_t stencil_size = 2;
 
     using cfg = FluxConfig<SchemeType::NonLinear, stencil_size, Field, Field>;
 
@@ -50,12 +44,6 @@ namespace samurai {
                                          const unsigned phase_idx); /*--- Evaluate the 'continuous' flux
                                                                           of phase 'phase_idx' for the state q
                                                                           along direction curr_d ---*/
-
-    #ifdef ORDER_2
-      FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
-
-      FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conserved variables ---*/
-    #endif
   };
 
   // Class constructor in order to be able to work with the equation of state
@@ -179,91 +167,5 @@ namespace samurai {
 
     return res;
   }
-
-  // Implement functions for second order scheme
-  //
-  #ifdef ORDER_2
-    // Conversion from conserved to primitive variables
-    //
-    template<class Field>
-    FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
-      /*--- Create a suitable variable to set primitive variables ---*/
-      FluxValue<cfg> prim;
-
-      /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization ---*/
-      const auto alpha1 = cons(Indices::ALPHA1_INDEX);
-      const auto m1     = cons(Indices::ALPHA1_RHO1_INDEX);
-      const auto m1E1   = cons(Indices::ALPHA1_RHO1_E1_INDEX);
-      const auto m2     = cons(Indices::ALPHA2_RHO2_INDEX);
-      const auto m2E2   = cons(Indices::ALPHA2_RHO2_E2_INDEX);
-
-      /*--- Start with phase 1 ---*/
-      prim(Indices::ALPHA1_INDEX) = alpha1;
-      prim(Indices::RHO1_INDEX)   = m1/alpha1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto inv_m1  = static_cast<Number>(1.0)/m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e1 = m1E1*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        prim(Indices::U1_INDEX + d) = cons(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        e1 -= static_cast<Number>(0.5)*
-              (prim(Indices::U1_INDEX + d)*prim(Indices::U1_INDEX + d));
-      }
-      prim(Indices::P1_INDEX) = EOS_phase1.pres_value_Rhoe(prim(Indices::RHO1_INDEX), e1);
-
-      /*--- Proceed with phase 2 ---*/
-      prim(Indices::RHO2_INDEX) = m2/(static_cast<Number>(1.0) - alpha1); /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      const auto inv_m2 = static_cast<Number>(1.0)/m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      auto e2 = m2E2*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        prim(Indices::U2_INDEX + d) = cons(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-        e2 -= static_cast<Number>(0.5)*
-              (prim(Indices::U2_INDEX + d)*prim(Indices::U2_INDEX + d));
-      }
-      prim(Indices::P2_INDEX) = EOS_phase2.pres_value_Rhoe(prim(Indices::RHO2_INDEX), e2);
-
-      /*--- Return computed primitive variables ---*/
-      return prim;
-    }
-
-    // Conversion from primitive to conserved variables
-    //
-    template<class Field>
-    FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
-      /*--- Create a suitable variable to save the conserved variables ---*/
-      FluxValue<cfg> cons;
-
-      /*--- Pre-fetch variables that will be used several times so as to exploit possible vectorization ---*/
-      const auto alpha1 = prim(Indices::ALPHA1_INDEX);
-      const auto rho1   = prim(Indices::RHO1_INDEX);
-      const auto p1     = prim(Indices::P1_INDEX);
-      const auto rho2   = prim(Indices::RHO2_INDEX);
-      const auto p2     = prim(Indices::P2_INDEX);
-
-      /*--- Start with phase 1 ---*/
-      cons(Indices::ALPHA1_INDEX) = alpha1;
-      const auto m1 = alpha1*rho1;
-      cons(Indices::ALPHA1_RHO1_INDEX) = m1;
-      auto E1 = EOS_phase1.e_value_RhoP(rho1, p1);
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        cons(Indices::ALPHA1_RHO1_U1_INDEX + d) = m1*prim(Indices::U1_INDEX + d);
-        E1 += static_cast<Number>(0.5)*
-              (prim(Indices::U1_INDEX + d)*prim(Indices::U1_INDEX + d));
-      }
-      cons(Indices::ALPHA1_RHO1_E1_INDEX) = m1*E1;
-
-      /*--- Proceed with phase 2 ---*/
-      const auto m2 = (static_cast<Number>(1.0) - alpha1)*rho2;
-      cons(Indices::ALPHA2_RHO2_INDEX) = m2;
-      auto E2 = EOS_phase2.e_value_RhoP(rho2, p2);
-      for(std::size_t d = 0; d < Field::dim; ++d) {
-        cons(Indices::ALPHA2_RHO2_U2_INDEX + d) = m2*prim(Indices::U2_INDEX + d);
-        E2 += static_cast<Number>(0.5)*
-              (prim(Indices::U2_INDEX + d)*prim(Indices::U2_INDEX + d));
-      }
-      cons(Indices::ALPHA2_RHO2_E2_INDEX) = m2*E2;
-
-      /*--- Return computed conserved variables ---*/
-      return cons;
-    }
-  #endif
 
 } // end namespace samurai

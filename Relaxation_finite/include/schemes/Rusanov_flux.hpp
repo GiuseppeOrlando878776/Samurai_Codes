@@ -253,25 +253,9 @@ namespace samurai {
                                                     const StencilData<cfg>& /*data*/,
                                                     const StencilValues<cfg> field)
                                                     {
-                                                      #ifdef ORDER_2
-                                                        // MUSCL reconstruction
-                                                        const FluxValue<cfg> primLL = this->cons2prim(field[0]);
-                                                        const FluxValue<cfg> primL  = this->cons2prim(field[1]);
-                                                        const FluxValue<cfg> primR  = this->cons2prim(field[2]);
-                                                        const FluxValue<cfg> primRR = this->cons2prim(field[3]);
-
-                                                        FluxValue<cfg> primL_recon,
-                                                                       primR_recon;
-                                                        perform_reconstruction<Field, cfg>(primLL, primL, primR, primRR,
-                                                                                           primL_recon, primR_recon);
-
-                                                        const FluxValue<cfg> qL = this->prim2cons(primL_recon);
-                                                        const FluxValue<cfg> qR = this->prim2cons(primR_recon);
-                                                      #else
-                                                        // Extract the states
-                                                        const FluxValue<cfg> qL = field[0];
-                                                        const FluxValue<cfg> qR = field[1];
-                                                      #endif
+                                                      // Extract the states
+                                                      const FluxValue<cfg> qL = field[0];
+                                                      const FluxValue<cfg> qR = field[1];
 
                                                       flux = compute_discrete_flux(qL, qR, d);
                                                     };
