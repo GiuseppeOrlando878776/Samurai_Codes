@@ -262,7 +262,6 @@ namespace samurai {
                                                 e2_0 -= static_cast<Number>(0.5)*vel2_loc[d]*vel2_loc[d];
                                               }
                                               auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_0);
-                                              const auto p2_loc_0 = p2_loc;
                                               auto T2_loc = EOS_phase2.T_value_RhoP(rho2_loc, p2_loc);
 
                                               /*--- Compute matrix relaxation coefficients ---*/

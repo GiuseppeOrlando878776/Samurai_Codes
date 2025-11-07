@@ -522,9 +522,14 @@ void BN_Solver<dim>::check_data(unsigned flag) {
   if(flag == 0) {
     op = "after hyperbolic operator";
   }
-  else {
+  else if(flag == 1) {
     op = "after mesh adaptation";
   }
+  else if(flag == 2) {
+    op = "after relaxation";
+  }
+
+  update_auxiliary_fields();
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -532,16 +537,25 @@ void BN_Solver<dim>::check_data(unsigned flag) {
                               // Start with the volume fraction
                               if(conserved_variables[cell][Indices::ALPHA1_INDEX] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative volume fraction for phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables);
                                 exit(1);
                               }
                               else if(conserved_variables[cell][Indices::ALPHA1_INDEX] > static_cast<Number>(1.0)) {
                                 std::cerr << "Exceeding volume fraction for phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables);
                                 exit(1);
                               }
                               else if(std::isnan(conserved_variables[cell][Indices::ALPHA1_INDEX])) {
                                 std::cerr << "NaN volume fraction for phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(std::isinf(conserved_variables[cell][Indices::ALPHA1_INDEX])) {
+                                std::cerr << "Inf volume fraction for phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables);
                                 exit(1);
                               }
@@ -549,11 +563,19 @@ void BN_Solver<dim>::check_data(unsigned flag) {
                               // Sanity check for m1
                               if(conserved_variables[cell][Indices::ALPHA1_RHO1_INDEX] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative mass for phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables);
                                 exit(1);
                               }
                               else if(std::isnan(conserved_variables[cell][Indices::ALPHA1_RHO1_INDEX])) {
                                 std::cerr << "NaN mass for phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(std::isinf(conserved_variables[cell][Indices::ALPHA1_RHO1_INDEX])) {
+                                std::cerr << "Inf mass for phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables);
                                 exit(1);
                               }
@@ -561,11 +583,47 @@ void BN_Solver<dim>::check_data(unsigned flag) {
                               // Sanity check for m2
                               if(conserved_variables[cell][Indices::ALPHA2_RHO2_INDEX] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative mass for phase 2 " + op << std::endl;
+                                std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables);
                                 exit(1);
                               }
                               else if(std::isnan(conserved_variables[cell][Indices::ALPHA2_RHO2_INDEX])){
                                 std::cerr << "NaN mass for phase 2 " + op << std::endl;
+                                std::cerr << cell << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(std::isinf(conserved_variables[cell][Indices::ALPHA2_RHO2_INDEX])){
+                                std::cerr << "Inf mass for phase 2 " + op << std::endl;
+                                std::cerr << cell << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+
+                              // Sanity check for c1
+                              if(std::isnan(c1[cell])) {
+                                std::cerr << "NaN speed of sound of phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(std::isinf(c1[cell])) {
+                                std::cerr << "Inf speed of sound of phase 1 " + op << std::endl;
+                                std::cerr << cell << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+
+                              // Sanity check for c2
+                              if(std::isnan(c2[cell])) {
+                                std::cerr << "NaN speed of sound of phase 2 " + op << std::endl;
+                                std::cerr << cell << std::endl;
+                                save("_diverged", conserved_variables);
+                                exit(1);
+                              }
+                              else if(std::isinf(c2[cell])) {
+                                std::cerr << "Inf speed of sound of phase 2 " + op << std::endl;
+                                std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables);
                                 exit(1);
                               }
@@ -907,6 +965,9 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
         exit(1);
       }
     }
+    #ifdef VERBOSE
+      check_data(2);
+    #endif
 
     /*--- Consider the second stage for the second order ---*/
     #ifdef ORDER_2
@@ -954,6 +1015,9 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
           exit(1);
         }
       }
+      #ifdef VERBOSE
+        check_data(2);
+      #endif
 
       // Complete the evaluation
       conserved_variables_np1.resize();

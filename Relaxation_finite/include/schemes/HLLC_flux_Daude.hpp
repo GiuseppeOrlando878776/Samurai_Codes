@@ -107,7 +107,7 @@ namespace samurai {
     const auto a33 = -alpha1_R;
 
     /*--- Compute the determinant of the matrix ---*/
-    const auto det_A     = a12*(a23*a31 - a21*a33) + a13*(a21*a32 - a22*a31);
+    const auto det_A = a12*(a23*a31 - a21*a33) + a13*(a21*a32 - a22*a31);
     /*const auto det_A = (alpha2_L*inv_c2_tilde_L - alpha2_R*inv_c2_tilde_R)*
                        (alpha1_R*inv_c1_tilde_R - alpha1_L*inv_c1_tilde_L)
                      - (alpha2_L - alpha2_R)*(alpha2_L - alpha2_R)*
@@ -270,14 +270,34 @@ namespace samurai {
       if(m1_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
       }
+      else if(std::isinf(m1_L)) {
+        throw std::runtime_error(std::string("Inf mass phase 1 left state"));
+      }
+      else if(std::isnan(m1_L)) {
+        throw std::runtime_error(std::string("NaN mass phase 1 left state"));
+      }
+
       if(m2_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(m2_L)));
       }
+      else if(std::isinf(m2_L)) {
+        throw std::runtime_error(std::string("Inf mass phase 2 left state"));
+      }
+      else if(std::isnan(m2_L)) {
+        throw std::runtime_error(std::string("NaN mass phase 2 left state"));
+      }
+
       if(alpha1_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(alpha1_L)));
       }
       else if(alpha1_L > static_cast<Number>(1.0)) {
         throw std::runtime_error(std::string("Exceeding volume fraction phase 1 left state: " + std::to_string(alpha1_L)));
+      }
+      else if(std::isinf(alpha1_L)) {
+        throw std::runtime_error(std::string("Inf mass volume fraction phase 1 left state"));
+      }
+      else if(std::isnan(alpha1_L)) {
+        throw std::runtime_error(std::string("NaN mass volume fraction phase 1 left state"));
       }
     #endif
 
@@ -293,9 +313,13 @@ namespace samurai {
     }
     const auto p1_L = this->EOS_phase1.pres_value_Rhoe(rho1_L, e1_L);
     const auto c1_L = this->EOS_phase1.c_value_RhoP(rho1_L, p1_L);
+
     #ifdef VERBOSE_FLUX
       if(std::isnan(c1_L)) {
         throw std::runtime_error(std::string("NaN speed of sound phase 1 left state"));
+      }
+      else if(std::isinf(c1_L)) {
+        throw std::runtime_error(std::string("Inf speed of sound phase 1 left state"));
       }
     #endif
 
@@ -312,9 +336,13 @@ namespace samurai {
     }
     const auto p2_L = this->EOS_phase2.pres_value_Rhoe(rho2_L, e2_L);
     const auto c2_L = this->EOS_phase2.c_value_RhoP(rho2_L, p2_L);
+
     #ifdef VERBOSE_FLUX
       if(std::isnan(c2_L)) {
         throw std::runtime_error(std::string("NaN speed of sound phase 2 left state"));
+      }
+      else if(std::isinf(c2_L)) {
+        throw std::runtime_error(std::string("Inf speed of sound phase 2 left state"));
       }
     #endif
 
@@ -332,14 +360,34 @@ namespace samurai {
       if(m1_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 1 right state: " + std::to_string(m1_R)));
       }
+      else if(std::isinf(m1_R)) {
+        throw std::runtime_error(std::string("Inf mass phase 1 right state"));
+      }
+      else if(std::isnan(m1_R)) {
+        throw std::runtime_error(std::string("NaN mass phase 1 right state"));
+      }
+
       if(m2_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(m2_R)));
       }
+      else if(std::isinf(m2_R)) {
+        throw std::runtime_error(std::string("Inf mass phase 2 right state"));
+      }
+      else if(std::isnan(m2_R)) {
+        throw std::runtime_error(std::string("NaN mass phase 2 right state"));
+      }
+
       if(alpha1_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction phase 1 right state: " + std::to_string(alpha1_R)));
       }
       else if(alpha1_R > static_cast<Number>(1.0)) {
         throw std::runtime_error(std::string("Exceeding volume fraction phase 1 right state: " + std::to_string(alpha1_R)));
+      }
+      else if(std::isinf(alpha1_R)) {
+        throw std::runtime_error(std::string("Inf mass volume fraction phase 1 right state"));
+      }
+      else if(std::isnan(alpha1_R)) {
+        throw std::runtime_error(std::string("NaN mass volume fraction phase 1 right state"));
       }
     #endif
 
@@ -355,9 +403,13 @@ namespace samurai {
     }
     const auto p1_R = this->EOS_phase1.pres_value_Rhoe(rho1_R, e1_R);
     const auto c1_R = this->EOS_phase1.c_value_RhoP(rho1_R, p1_R);
+
     #ifdef VERBOSE_FLUX
       if(std::isnan(c1_R)) {
         throw std::runtime_error(std::string("NaN speed of sound phase 1 right state"));
+      }
+      else if(std::isinf(c1_R)) {
+        throw std::runtime_error(std::string("Inf speed of sound phase 1 right state"));
       }
     #endif
 
@@ -374,9 +426,13 @@ namespace samurai {
     }
     const auto p2_R = this->EOS_phase2.pres_value_Rhoe(rho2_R, e2_R);
     const auto c2_R = this->EOS_phase2.c_value_RhoP(rho2_R, p2_R);
+
     #ifdef VERBOSE_FLUX
       if(std::isnan(c2_R)) {
         throw std::runtime_error(std::string("NaN speed of sound phase 2 right state"));
+      }
+      else if(std::isinf(c2_R)) {
+        throw std::runtime_error(std::string("Inf speed of sound phase 2 right state"));
       }
     #endif
 
