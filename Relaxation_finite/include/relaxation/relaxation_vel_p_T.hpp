@@ -180,7 +180,7 @@ namespace samurai {
                                               local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX] = m1E1_loc;
 
                                               local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX] = rhoE_0 - m1E1_loc;
-                                           });
+                                            });
 
     return relaxation_step;
   }

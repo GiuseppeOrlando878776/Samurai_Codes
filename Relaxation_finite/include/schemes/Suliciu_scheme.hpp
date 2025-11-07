@@ -275,14 +275,14 @@ namespace samurai {
       if(std::isnan(a1)) {
         throw std::runtime_error(std::string("NaN speed of sound phase 1"));
       }
-      else if(std::isnan(a1)) {
+      else if(std::isinf(a1)) {
         throw std::runtime_error(std::string("Inf speed of sound phase 1"));
       }
 
       if(std::isnan(a2)) {
         throw std::runtime_error(std::string("NaN speed of sound phase 2"));
       }
-      else if(std::isnan(a2)) {
+      else if(std::isinf(a2)) {
         throw std::runtime_error(std::string("Inf speed of sound phase 2"));
       }
     #endif

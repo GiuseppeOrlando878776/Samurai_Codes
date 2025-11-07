@@ -236,7 +236,7 @@ namespace samurai {
                                                                 + Y2_0*vel2_loc[d];
 
                                                 vel1_loc[d] = um_d + Y2_0*delta_u[d];
-                                                norm2_vel1 += vel1_loc[d];
+                                                norm2_vel1 += vel1_loc[d]*vel1_loc[d];
                                                 local_conserved_variables[Indices::ALPHA1_RHO1_U1_INDEX + d] = m1_loc*vel1_loc[d];
                                                 m1E1_loc += static_cast<Number>(0.5)*
                                                             m1_loc*vel1_loc[d]*vel1_loc[d];
@@ -386,16 +386,15 @@ namespace samurai {
                                               T1_loc = T2_loc + delta_T;
 
                                               const auto e1_loc = EOS_phase1.e_value_PT(p1_loc, T1_loc);
-                                              local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc +
-                                                                                                                 static_cast<Number>(0.5)*norm2_vel1);
+                                              local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX] =
+                                              m1_loc*(e1_loc + static_cast<Number>(0.5)*norm2_vel1);
 
                                               rho1_loc = EOS_phase1.rho_value_PT(p1_loc, T1_loc);
-
                                               local_conserved_variables[Indices::ALPHA1_INDEX] = m1_loc/rho1_loc;
 
                                               local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX] =
                                               rhoE_0 - local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX];
-                                           });
+                                            });
 
     return relaxation_step;
   }
