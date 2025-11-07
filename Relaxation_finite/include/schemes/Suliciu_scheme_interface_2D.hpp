@@ -125,12 +125,8 @@ namespace samurai {
                                                const StencilValues<cfg> field)
                                                {
                                                  // Extract the states (first order only)
-                                                 #ifdef ORDER_2
-                                                   const auto& qL = field[1];
-                                                   const auto& qR = field[2];
-                                                 #else
-                                                   const auto& qL = field[0];
-                                                   const auto& qR = field[1];
+                                                 const auto& qL = field[0];
+                                                 const auto& qR = field[1];
 
                                                  FluxValue<cfg> F_minus,
                                                                 F_plus;
