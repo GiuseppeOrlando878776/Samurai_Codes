@@ -927,7 +927,9 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
 
     // Save the results
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
-      update_auxiliary_fields();
+      #ifndef VERBOSE
+        update_auxiliary_fields();
+      #endif  
 
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(suffix, conserved_variables,
