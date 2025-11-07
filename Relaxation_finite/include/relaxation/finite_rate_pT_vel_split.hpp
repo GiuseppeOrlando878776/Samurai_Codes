@@ -10,7 +10,7 @@
 
 namespace samurai {
   /**
-    * Implementation of a finite rate for pressure and temperature (instantaneous velocity)
+    * Implementation of a finite rate for velocity (splitted) and pressure+temperature
     */
   template<class Field>
   class FiniteRatePresTempVelSplit: public Source<Field> {
@@ -29,7 +29,8 @@ namespace samurai {
                                const unsigned max_Newton_iters_ = 60,
                                const Number tau_u_ = static_cast<Number>(1e10),
                                const Number tau_p_ = static_cast<Number>(1e10),
-                               const Number tau_T_ = static_cast<Number>(1e10)); /*--- Class constructor (EOS of the two phases and tolerances needed here) ---*/
+                               const Number tau_T_ = static_cast<Number>(1e10)); /*--- Class constructor
+                                                                                       (EOS of the two phases and tolerances needed here) ---*/
 
     virtual decltype(make_cell_based_scheme<cfg>()) make_relaxation() override; /*--- Compute the relaxation ---*/
 
@@ -220,10 +221,12 @@ namespace samurai {
                                               auto e1_star      = e1_0;
                                               m1E1_loc          = static_cast<Number>(0.0);
                                               auto norm2_deltau = static_cast<Number>(0.0);
+                                              auto norm2_vel1   = static_cast<Number>(0.0);
                                               const auto dt     = this->get_dt();
                                               for(std::size_t d = 0; d < Field::dim; ++d) {
-                                                e1_star += static_cast<Number>(0.5)*chi1*
-                                                           (vel1_loc[d] - vel2_loc[d])*(vel1_loc[d] - vel2_loc[d])*Y2_0;
+                                                e1_star += static_cast<Number>(0.5)*chi1*Y2_0*
+                                                           (vel1_loc[d] - vel2_loc[d])*(vel1_loc[d] - vel2_loc[d])*
+                                                           (static_cast<Number>(1.0) - std::exp(-static_cast<Number>(2.0)*dt/tau_u));
                                                            // Recall that vel1_loc and vel2_loc are (still) the initial values!!!!
 
                                                 delta_u[d] = (vel1_loc[d] - vel2_loc[d])*std::exp(-dt/tau_u);
@@ -233,6 +236,7 @@ namespace samurai {
                                                                 + Y2_0*vel2_loc[d];
 
                                                 vel1_loc[d] = um_d + Y2_0*delta_u[d];
+                                                norm2_vel1 += vel1_loc[d];
                                                 local_conserved_variables[Indices::ALPHA1_RHO1_U1_INDEX + d] = m1_loc*vel1_loc[d];
                                                 m1E1_loc += static_cast<Number>(0.5)*
                                                             m1_loc*vel1_loc[d]*vel1_loc[d];
@@ -247,18 +251,18 @@ namespace samurai {
                                               // Solve the system for delta_p and delta_T
                                               /*--- Compute the auxiliary fields to initalize delta_p and delta_T ---*/
                                               auto rho1_loc = m1_loc/alpha1_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                              e1_0          = e1_star
-                                                            - static_cast<Number>(0.5)*rho_0*(norm2_um + Y1_0*Y2_0*norm2_deltau);
+                                              e1_0          = e1_star;
                                               auto p1_loc   = EOS_phase1.pres_value_Rhoe(rho1_loc, e1_0);
                                               auto T1_loc   = EOS_phase1.T_value_RhoP(rho1_loc, p1_loc);
 
                                               auto rho2_loc = m2_loc/(static_cast<Number>(1.0) - alpha1_loc);
                                                               /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                              auto e2_0     = m2E2_loc/m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
+                                              auto e2_0     = m2E2_loc*inv_m2_loc; /*--- TODO: Add treatment for vanishing volume fraction ---*/
                                               for(std::size_t d = 0; d < Field::dim; ++d) {
                                                 e2_0 -= static_cast<Number>(0.5)*vel2_loc[d]*vel2_loc[d];
                                               }
                                               auto p2_loc = EOS_phase2.pres_value_Rhoe(rho2_loc, e2_0);
+                                              const auto p2_loc_0 = p2_loc;
                                               auto T2_loc = EOS_phase2.T_value_RhoP(rho2_loc, p2_loc);
 
                                               /*--- Compute matrix relaxation coefficients ---*/
@@ -296,7 +300,7 @@ namespace samurai {
                                                     because we are miming an instantaneous relaxation,
                                                     then p2 is set initially to around -10^3 which is not admissible!!! ---*/
                                               const auto rhoe_0 = rhoE_0
-                                                                - static_cast<Number>(0.5)*rho_0*norm2_um;
+                                                                - static_cast<Number>(0.5)*rho_0*(norm2_um + Y1_0*Y2_0*norm2_deltau);
                                               auto dp2 = std::numeric_limits<Number>::max();
                                               auto dT2 = std::numeric_limits<Number>::max();
                                               unsigned iter;
@@ -384,13 +388,14 @@ namespace samurai {
 
                                               const auto e1_loc = EOS_phase1.e_value_PT(p1_loc, T1_loc);
                                               local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX] = m1_loc*(e1_loc +
-                                                                                                                 static_cast<Number>(0.5)*norm2_um);
+                                                                                                                 static_cast<Number>(0.5)*norm2_vel1);
 
                                               rho1_loc = EOS_phase1.rho_value_PT(p1_loc, T1_loc);
+
                                               local_conserved_variables[Indices::ALPHA1_INDEX] = m1_loc/rho1_loc;
 
-                                              local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX] = rhoE_0
-                                                                                                       - local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX];
+                                              local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX] =
+                                              rhoE_0 - local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX];
                                            });
 
     return relaxation_step;
