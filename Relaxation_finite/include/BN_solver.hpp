@@ -27,9 +27,9 @@ namespace fs = std::filesystem;
 #include <samurai/io/restart.hpp>
 
 /*--- Include the headers with the numerical fluxes ---*/
-//#define SULICIU_RELAXATION
+#define SULICIU_RELAXATION
 //#define RUSANOV_FLUX
-#define HLLC_FLUX
+//#define HLLC_FLUX
 
 #ifdef SULICIU_RELAXATION
   #include "schemes/Suliciu_scheme.hpp"
@@ -644,7 +644,11 @@ void BN_Solver<dim>::check_data(unsigned flag) {
                               if(std::isnan(c1[cell])) {
                                 std::cerr << "NaN speed of sound of phase 1 " + op << std::endl;
                                 std::cerr << cell << std::endl;
-                                save("_diverged", conserved_variables);
+                                save("_diverged", conserved_variables,
+                                                  rho, p, vel,
+                                                  vel1, rho1, p1, c1, T1, Y1,
+                                                  vel2, rho2, p2, c2, T2, alpha2, Y2,
+                                                  delta_pres, delta_temp, delta_vel);
                                 exit(1);
                               }
                               else if(std::isinf(c1[cell])) {
