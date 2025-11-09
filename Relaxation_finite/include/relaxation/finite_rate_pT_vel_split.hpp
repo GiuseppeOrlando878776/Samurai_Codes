@@ -243,7 +243,7 @@ namespace samurai {
                                                             m1_loc*vel1_loc[d]*vel1_loc[d];
 
                                                 vel2_loc[d] = um_d - Y1_0*delta_u[d];
-                                                //norm2_vel1 += vel2_loc[d]*vel2_loc[d];
+                                                //norm2_vel2 += vel2_loc[d]*vel2_loc[d];
                                                 local_conserved_variables[Indices::ALPHA2_RHO2_U2_INDEX + d] = m2_loc*vel2_loc[d];
                                               }
                                               m1E1_loc += m1_loc*e1_star;
