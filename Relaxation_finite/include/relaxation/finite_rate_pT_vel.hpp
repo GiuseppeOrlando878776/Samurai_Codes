@@ -151,7 +151,7 @@ namespace samurai {
     const auto a_pT = -T_relax_coeff*(inv_m1_loc/kappa1 + inv_m2_loc/kappa2); /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto a_Tp = -p_relax_coeff*((pI_relax - rho1_loc*rho1_loc*Gamma1)*inv_m1_loc/cv1 +
                                       (pI_relax - rho2_loc*rho2_loc*Gamma2)*inv_m2_loc/cv2);
-    const auto a_TT = -T_relax_coeff*(inv_m1_loc*cv1 + inv_m2_loc*cv2); /*--- TODO: Add treatment for vanishing volume fraction ---*/
+    const auto a_TT = -T_relax_coeff*(inv_m1_loc/cv1 + inv_m2_loc/cv2); /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
     A[0][0] = static_cast<Number>(1.0) - dt*a_pp;
     A[0][1] = -dt*a_pT;
@@ -271,6 +271,7 @@ namespace samurai {
                                               auto norm2_um     = static_cast<Number>(0.0);
                                               auto norm2_deltau = static_cast<Number>(0.0);
                                               auto norm2_vel1   = static_cast<Number>(0.0);
+                                              //auto norm2_vel2   = static_cast<Number>(0.0);
                                               for(std::size_t d = 0; d < Field::dim; ++d) {
                                                 const auto um_d = Y1_0*vel1_loc[d]
                                                                 + Y2_0*vel2_loc[d];
@@ -283,6 +284,7 @@ namespace samurai {
 
                                                 vel2_loc[d] = um_d - Y1_0*delta_u[d];
                                                 local_conserved_variables[Indices::ALPHA2_RHO2_U2_INDEX + d] = m2_loc*vel2_loc[d];
+                                                //norm2_vel2 += vel2_loc[d]*vel2_loc[d];
 
                                                 norm2_deltau += delta_u[d]*delta_u[d];
                                               }
@@ -384,7 +386,7 @@ namespace samurai {
                                               // Once pressure and temperature have been update, finalize the update
                                               p1_loc = p2_loc + delta_p;
                                               T1_loc = T2_loc + delta_T;
-
+                                              
                                               e1_loc = EOS_phase1.e_value_PT(p1_loc, T1_loc);
                                               local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX] =
                                               m1_loc*(e1_loc + static_cast<Number>(0.5)*norm2_vel1);
@@ -394,6 +396,17 @@ namespace samurai {
 
                                               local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX] =
                                               rhoE_0 - local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX];
+
+                                              /*e2_loc = EOS_phase2.e_value_PT(p2_loc, T2_loc);
+                                              local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX] =
+                                              m2_loc*(e2_loc + static_cast<Number>(0.5)*norm2_vel2);
+
+                                              rho2_loc = EOS_phase2.rho_value_PT(p2_loc, T2_loc);
+                                              local_conserved_variables[Indices::ALPHA1_INDEX] =
+                                              static_cast<Number>(1.0) - m2_loc/rho2_loc;
+
+                                              local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX] =
+                                              rhoE_0 - local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX];*/
                                             });
 
     return relaxation_step;
