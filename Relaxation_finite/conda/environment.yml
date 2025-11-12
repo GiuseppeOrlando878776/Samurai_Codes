@@ -1,4 +1,4 @@
-name: samurai-0.26
+name: samurai-0.27
 channels:
   - conda-forge
 dependencies:
@@ -6,7 +6,7 @@ dependencies:
   - cli11
   - h5py
   - cxx-compiler
-  - samurai>=0.26
+  - samurai>=0.27
   - matplotlib
   - libboost-mpi
   - libboost-devel
