@@ -1278,7 +1278,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
   auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha_l);
 
   /*--- Save the initial condition ---*/
-  const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
+  const std::string suffix_init = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(0) : "";
   save(suffix_init, conserved_variables,
                     alpha_l, grad_alpha_l, normal, H,
                     p_liq, p_g, p,
