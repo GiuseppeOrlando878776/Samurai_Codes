@@ -1234,13 +1234,13 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
 
   /*--- Create the flux variable ---*/
   #ifdef RUSANOV_FLUX
-    #ifdef ORDER_2
+    #ifdef RELAX_RECONSTRUCTION
       auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity(H);
     #else
       auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity();
     #endif
   #elifdef HLLC_FLUX
-    #ifdef ORDER_2
+    #ifdef RELAX_RECONSTRUCTION
       auto numerical_flux_hyp = HLLC_flux.make_two_scale_capillarity(H);
     #else
       auto numerical_flux_hyp = HLLC_flux.make_two_scale_capillarity();
