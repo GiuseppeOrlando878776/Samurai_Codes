@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Authors: Loic Gouarin, 2025
+// Authors: Loïc Gouarin, 2025
 //          Giuseppe Orlando, 2025
 //
 #pragma once
@@ -10,10 +10,9 @@
 #include <samurai/numeric/prediction.hpp>
 #include <samurai/operators_base.hpp>
 
-#include "flux_base.hpp"
+#include "schemes/flux_base.hpp"
 
 // Specify the use of this namespace where we just store the indices
-// and some parameters related to the equations of state
 using namespace EquationData;
 
 /** This is the class for the high-order prediction for the two-scale capillarity model

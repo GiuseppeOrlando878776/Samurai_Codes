@@ -7,11 +7,10 @@
 #pragma once
 
 // Declare a struct with the simulation parameters
-// (domain, levels, final time, and Courant number)
 //
 template<typename T = double>
 struct Simulation_Paramaters {
-  /*--- Physical paramters ---*/
+  /*--- Physical parameters ---*/
   double xL;
   double xR;
   double yL;
@@ -56,6 +55,7 @@ struct Simulation_Paramaters {
   double      MR_regularity;
 
   /*--- Output parameters ---*/
+  std::string save_dir;
   std::size_t nfiles;
 
   /*--- Restart file ---*/

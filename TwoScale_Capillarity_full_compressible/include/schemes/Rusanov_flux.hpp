@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef Rusanov_flux_hpp
-#define Rusanov_flux_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
@@ -21,8 +20,8 @@ namespace samurai {
   class RusanovFlux: public Flux<Field> {
   public:
     using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    using cfg    = Flux<Field>::cfg; /*--- Shortcut to specify the type of configuration
-                                           for the flux (nonlinear in this case) ---*/
+    using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
+                                              for the flux (nonlinear in this case) ---*/
 
     RusanovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
                 const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
@@ -198,9 +197,9 @@ namespace samurai {
                                                      const FluxValue<cfg> primRR = this->cons2prim(field[3]);
 
                                                      FluxValue<cfg> primL_recon,
-                                                                                          primR_recon;
-                                                     this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                                  primL_recon, primR_recon);
+                                                                    primR_recon;
+                                                     Utilities::perform_reconstruction<Field, cfg>(primLL, primL, primR, primRR,
+                                                                                                   primL_recon, primR_recon);
 
                                                      FluxValue<cfg> qL = this->prim2cons(primL_recon);
                                                      FluxValue<cfg> qR = this->prim2cons(primR_recon);
@@ -227,5 +226,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

@@ -28,7 +28,7 @@
  "atol_Newton": 1e-12,
  "rtol_Newton": 1e-10,
  "max_Newton_iters": 60,
- 
+
  "min-level": 8,
  "max-level": 8,
  "MR_param": 1e-1,

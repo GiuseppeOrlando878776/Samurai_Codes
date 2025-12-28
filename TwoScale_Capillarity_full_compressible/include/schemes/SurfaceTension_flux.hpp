@@ -4,8 +4,7 @@
 //
 // Author: Giuseppe Orlando, 2025
 //
-#ifndef SurfaceTension_flux_hpp
-#define SurfaceTension_flux_hpp
+#pragma once
 
 #include "flux_base.hpp"
 
@@ -108,5 +107,3 @@ namespace samurai {
   }
 
 } // end of namespace
-
-#endif

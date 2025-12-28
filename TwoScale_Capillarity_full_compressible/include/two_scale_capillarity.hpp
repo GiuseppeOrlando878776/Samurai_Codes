@@ -10,7 +10,6 @@
 #include <samurai/field.hpp>
 #include <samurai/io/restart.hpp>
 #include <samurai/io/hdf5.hpp>
-#include <numbers>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -36,8 +35,7 @@ namespace fs = std::filesystem;
 #endif
 #include "SurfaceTension_flux.hpp"
 
-// Specify the use of this namespace where we just store the indices
-// and, in this case, some parameters related to EOS
+/*--- Specify the use of this namespace where we just store the indices ---*/
 using namespace EquationData;
 
 /*--- Define preprocessor to check whether to control data or not ---*/
@@ -48,8 +46,11 @@ using namespace EquationData;
 template<std::size_t dim>
 class TwoScaleCapillarity {
 public:
-  using Config = samurai::MRConfig<dim, 2, 2, 0>;
-  using Field  = samurai::VectorField<samurai::MRMesh<Config>, double, EquationData::NVARS, false>;
+  using Config = samurai::MRConfig<dim, 2, 1, 0>;
+  using Field  = samurai::VectorField<samurai::MRMesh<Config>,
+                                      double,
+                                      EquationData::NVARS,
+                                      false>;
   using Number = samurai::Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
 
   TwoScaleCapillarity() = default; /*--- Default constructor. This will do nothing
@@ -61,7 +62,7 @@ public:
                       const EOS_Parameters<Number>& eos_param); /*--- Class constructor with the arguments related
                                                                       to the grid, to the physics, and to the relaxation. ---*/
 
-  void run(const unsigned nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
+  void run(const std::size_t nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const std::string& suffix,
@@ -188,8 +189,6 @@ private:
 
   void check_data(unsigned flag = 0); /*--- Auxiliary routine to check if spurious values are present ---*/
 
-  void perform_mesh_adaptation(); /*--- Perform the mesh adaptation ---*/
-
   void apply_relaxation(); /*--- Apply the relaxation ---*/
 
   template<typename State, typename Gradient>
@@ -241,6 +240,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   SurfaceTension_flux(EOS_phase_liq, EOS_phase_gas,
                       sigma, mod_grad_alpha_l_min,
                       lambda, atol_Newton, rtol_Newton, max_Newton_iters),
+  path(sim_param.save_dir),
   gradient(samurai::make_gradient_order2<decltype(alpha_l)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>())
   {
@@ -453,14 +453,11 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                         );
 
   /*--- Set useful small-scale related fields ---*/
-  samurai::update_ghost_mr(alpha_d);
   grad_alpha_d = gradient(alpha_d);
 
-  samurai::update_ghost_mr(vel);
   div_vel = divergence(vel);
 
   /*--- Set auxiliary gradient alpha_l_bar volume fraction ---*/
-  samurai::update_ghost_mr(alpha_l_bar);
   grad_alpha_l_bar = gradient(alpha_l_bar);
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -481,7 +478,6 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               }
                             }
                         );
-  samurai::update_ghost_mr(normal_bar);
   H_bar = -divergence(normal_bar);
 }
 
@@ -506,26 +502,6 @@ void TwoScaleCapillarity<dim>::apply_bcs(const Number U0,
                                         static_cast<Number>(0.0),
                                         static_cast<Number>(0.0),
                                         static_cast<Number>(0.0))->on(right);
-
-  /*const samurai::DirectionVector<dim> top = {0, 1};
-  samurai::make_bc<samurai::Neumann<1>>(conserved_variables,
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0))->on(top);
-
-  const samurai::DirectionVector<dim> bottom = {0, -1};
-  samurai::make_bc<samurai::Neumann<1>>(conserved_variables,
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0),
-                                        static_cast<Number>(0.0))->on(bottom);*/
 }
 
 
@@ -537,7 +513,6 @@ void TwoScaleCapillarity<dim>::apply_bcs(const Number U0,
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::update_geometry() {
-  samurai::update_ghost_mr(alpha_l);
   grad_alpha_l = gradient(alpha_l);
 
   samurai::for_each_cell(mesh,
@@ -561,7 +536,6 @@ void TwoScaleCapillarity<dim>::update_geometry() {
                             }
                         );
 
-  samurai::update_ghost_mr(normal);
   H = -divergence(normal);
 }
 
@@ -627,40 +601,11 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                             }
                         );
 
+  const double local_res_d = static_cast<double>(local_res);
   double global_res;
-  MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_res_d, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-  return global_res;
-}
-
-// Perform the mesh adaptation strategy.
-//
-template<std::size_t dim>
-void TwoScaleCapillarity<dim>::perform_mesh_adaptation() {
-  auto prediction_fn = [&](auto& new_field, const auto& old_field) {
-    return make_field_operator_function<TwoScaleCapillarity_prediction_op>(new_field, old_field);
-  };
-
-  auto MRadaptation = samurai::make_MRAdapt(/*prediction_fn,*/ conserved_variables);
-  auto mra_config   = samurai::mra_config();
-  mra_config.epsilon(MR_param);
-  mra_config.regularity(MR_regularity);
-  MRadaptation(mra_config);
-
-  /*--- Sanity check after mesh adaptation ---*/
-  alpha_l.resize();
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                            {
-                              alpha_l[cell] = conserved_variables[cell][RHO_ALPHA_l_INDEX]/
-                                              (conserved_variables[cell][Ml_INDEX] +
-                                               conserved_variables[cell][Mg_INDEX] +
-                                               conserved_variables[cell][Md_INDEX]);
-                            }
-                        );
-  #ifdef VERBOSE
-    check_data(1);
-  #endif
+  return static_cast<Number>(global_res);
 }
 
 // Auxiliary function to check if spurious values are present
@@ -800,7 +745,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                                                  to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied,
                                                                  grad_alpha_l[cell], mass_transfer_NR);
                                 }
-                                catch(std::exception& e) {
+                                catch(const std::exception& e) {
                                   std::cerr << e.what() << std::endl;
                                   std::cerr << cell << std::endl;
                                   save("_diverged",
@@ -935,7 +880,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
           throw std::runtime_error("Negative time step found after relaxation of velocity");
         }
 
-        /*--- No specific condition to impose for the positivty of alpha_d since alpha_d = alpha_l*m_l/m_d and
+        /*--- No specific condition to impose for the positivty of alpha_d since alpha_d = alpha_l*m_d/m_l and
               m_d is increasing, m_l has already been imposed positive and alpha_l is going to be set with proper bounds later.
               On the other hand, there is no a priori superior limit, apart from the alpha_d_max which deactivates the mass transfer.
               Hence, in the first iteration, one can potentially reach alpha_d > alpha_d_max (likely unphyisical...) ---*/
@@ -1128,7 +1073,6 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               alpha_l_bar[cell]      = alpha_l_loc/(static_cast<Number>(1.0) - alpha_d_loc);
                             }
                         );
-  samurai::update_ghost_mr(alpha_l_bar, alpha_d);
   grad_alpha_l_bar.resize();
   grad_alpha_l_bar = gradient(alpha_l_bar);
   grad_alpha_d.resize();
@@ -1256,9 +1200,8 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
+void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
   /*--- Default output arguemnts ---*/
-  path = fs::current_path();
   filename = "liquid_column";
   #ifdef RUSANOV_FLUX
     filename += "_Rusanov";
@@ -1314,17 +1257,17 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
                     vel, div_vel,
                     alpha_l_bar, grad_alpha_l_bar, H_bar,
                     Mach);
-  Hlig.open("Hlig.dat", std::ofstream::out);
-  m_l_integral.open("m_l_integral.dat", std::ofstream::out);
-  m_d_integral.open("m_d_integral.dat", std::ofstream::out);
-  alpha_l_integral.open("alpha_l_integral.dat", std::ofstream::out);
-  grad_alpha_l_integral.open("grad_alpha_l_integral.dat", std::ofstream::out);
-  Sigma_d_integral.open("Sigma_d_integral.dat", std::ofstream::out);
-  alpha_d_integral.open("alpha_d_integral.dat", std::ofstream::out);
-  grad_alpha_d_integral.open("grad_alpha_d_integral.dat", std::ofstream::out);
-  grad_alpha_liq_integral.open("grad_alpha_liq_integral.dat", std::ofstream::out);
-  alpha_l_bar_integral.open("alpha_l_bar_integral.dat", std::ofstream::out);
-  grad_alpha_l_bar_integral.open("grad_alpha_l_bar_integral.dat", std::ofstream::out);
+  Hlig.open(path.string() + "/Hlig.dat", std::ofstream::out);
+  m_l_integral.open(path.string() + "/m_l_integral.dat", std::ofstream::out);
+  m_d_integral.open(path.string() + "/m_d_integral.dat", std::ofstream::out);
+  alpha_l_integral.open(path.string() + "/alpha_l_integral.dat", std::ofstream::out);
+  grad_alpha_l_integral.open(path.string() + "/grad_alpha_l_integral.dat", std::ofstream::out);
+  Sigma_d_integral.open(path.string() + "/Sigma_d_integral.dat", std::ofstream::out);
+  alpha_d_integral.open(path.string() + "/alpha_d_integral.dat", std::ofstream::out);
+  grad_alpha_d_integral.open(path.string() + "/grad_alpha_d_integral.dat", std::ofstream::out);
+  grad_alpha_liq_integral.open(path.string() + "/grad_alpha_liq_integral.dat", std::ofstream::out);
+  alpha_l_bar_integral.open(path.string() + "/alpha_l_bar_integral.dat", std::ofstream::out);
+  grad_alpha_l_bar_integral.open(path.string() + "/grad_alpha_l_bar_integral.dat", std::ofstream::out);
   auto t = static_cast<Number>(t0);
   execute_postprocess(t);
 
@@ -1341,12 +1284,34 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
     std::cout << std::endl;
   }
 
+  /*--- Declare operators for MR ---*/
+  /*auto prediction_fn = [&](auto& new_field, const auto& old_field) {
+    return make_field_operator_function<TwoScaleCapillarity_prediction_op>(new_field, old_field);
+  };*/
+  auto MRadaptation = samurai::make_MRAdapt(/*prediction_fn,*/ conserved_variables);
+  auto mra_config   = samurai::mra_config();
+  mra_config.epsilon(MR_param);
+  mra_config.regularity(MR_regularity);
+
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   while(t != Tf) {
     // Apply mesh adaptation
-    perform_mesh_adaptation();
+    MRadaptation(mra_config);
+    alpha_l.resize();
+    samurai::for_each_cell(mesh,
+                           [&](const auto& cell)
+                              {
+                                alpha_l[cell] = conserved_variables[cell][RHO_ALPHA_l_INDEX]/
+                                                (conserved_variables[cell][Ml_INDEX] +
+                                                 conserved_variables[cell][Mg_INDEX] +
+                                                 conserved_variables[cell][Md_INDEX]);
+                              }
+                          );
+    #ifdef VERBOSE
+      check_data(1);
+    #endif
 
     // Compute the time step
     normal.resize();
@@ -1369,23 +1334,23 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
 
     // Apply the numerical scheme without relaxation
     // Convective operator
-    samurai::update_ghost_mr(conserved_variables);
     #ifdef RELAX_RECONSTRUCTION
       samurai::update_ghost_mr(H);
     #endif
     try {
-      auto flux_hyp = numerical_flux_hyp(conserved_variables);
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
-        conserved_variables_tmp = conserved_variables - dt*flux_hyp;
-        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+        conserved_variables_tmp = conserved_variables
+                                - dt*numerical_flux_hyp(conserved_variables);
+        samurai::swap(conserved_variables, conserved_variables_tmp);
       #else
         conserved_variables_np1.resize();
-        conserved_variables_np1 = conserved_variables - dt*flux_hyp;
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+        conserved_variables_np1 = conserved_variables
+                                - dt*numerical_flux_hyp(conserved_variables);
+        samurai::swap(conserved_variables, conserved_variables_np1);
       #endif
     }
-    catch(std::exception& e) {
+    catch(const std::exception& e) {
       std::cerr << e.what() << std::endl;
       save("_diverged", conserved_variables, alpha_l);
       exit(1);
@@ -1407,14 +1372,15 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
     update_geometry();
 
     // Capillarity contribution
-    samurai::update_ghost_mr(conserved_variables, grad_alpha_l);
-    auto flux_st = numerical_flux_st(conserved_variables);
+    samurai::update_ghost_mr(grad_alpha_l);
     #ifdef ORDER_2
-      conserved_variables_tmp = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+      conserved_variables_tmp = conserved_variables
+                              - dt*numerical_flux_st(conserved_variables);
+      samurai::swap(conserved_variables, conserved_variables_tmp);
     #else
-      conserved_variables_np1 = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      conserved_variables_np1 = conserved_variables
+                              - dt*numerical_flux_st(conserved_variables);
+      samurai::swap(conserved_variables, conserved_variables_np1);
     #endif
 
     // Apply relaxation
@@ -1434,16 +1400,15 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
     #ifdef ORDER_2
       // Apply the numerical scheme
       // Convective operator
-      samurai::update_ghost_mr(conserved_variables);
       #ifdef RELAX_RECONSTRUCTION
         samurai::update_ghost_mr(H);
       #endif
       try {
-        auto flux_hyp = numerical_flux_hyp(conserved_variables);
-        conserved_variables_tmp = conserved_variables - dt*flux_hyp;
-        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+        conserved_variables_tmp = conserved_variables
+                                - dt*numerical_flux_hyp(conserved_variables);
+        samurai::swap(conserved_variables, conserved_variables_tmp);
       }
-      catch(std::exception& e) {
+      catch(const std::exception& e) {
         std::cerr << e.what() << std::endl;
         save("_diverged", conserved_variables, alpha_l);
         exit(1);
@@ -1465,10 +1430,10 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
       update_geometry();
 
       // Capillarity contribution
-      samurai::update_ghost_mr(conserved_variables, grad_alpha_l);
-      flux_st = numerical_flux_st(conserved_variables);
-      conserved_variables_tmp = conserved_variables - dt*flux_st;
-      std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+      samurai::update_ghost_mr(grad_alpha_l);
+      conserved_variables_tmp = conserved_variables
+                              - dt*numerical_flux_st(conserved_variables);
+      samurai::swap(conserved_variables, conserved_variables_tmp);
 
       // Apply relaxation
       if(apply_relax) {
@@ -1481,7 +1446,7 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
       conserved_variables_np1.resize();
       conserved_variables_np1 = static_cast<Number>(0.5)*
                                 (conserved_variables_old + conserved_variables);
-      std::swap(conserved_variables.array(), conserved_variables_np1.array());
+      samurai::swap(conserved_variables, conserved_variables_np1);
 
       // Recompute volume fraction gradient and curvature for the next time step
       #ifdef RELAX_RECONSTRUCTION
@@ -1565,12 +1530,11 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
                                   Mach[cell]             = std::sqrt(norm2_vel_loc)/cf_loc;
                                 }
                             );
-      samurai::update_ghost_mr(vel, normal_bar);
       div_vel = divergence(vel);
       H_bar   = -divergence(normal_bar);
 
       // Perform the saving
-      const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
+      const std::string suffix = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(++nsave) : "";
       save(suffix, conserved_variables,
                    alpha_l, grad_alpha_l, normal, H,
                    p_liq, p_g, p,

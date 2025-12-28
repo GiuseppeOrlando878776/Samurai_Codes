@@ -8,7 +8,8 @@
 
 #include <samurai/schemes/fv.hpp>
 
-#include "barotropic_eos.hpp"
+#include "../barotropic_eos.hpp"
+#include "../utilities.hpp"
 
 /*--- Preprocessor to define whether order 2 is desired ---*/
 #define ORDER_2
@@ -109,13 +110,6 @@ namespace samurai {
     FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conserved variables ---*/
 
     #ifdef ORDER_2
-      void perform_reconstruction(const FluxValue<cfg>& primLL,
-                                  const FluxValue<cfg>& primL,
-                                  const FluxValue<cfg>& primR,
-                                  const FluxValue<cfg>& primRR,
-                                  FluxValue<cfg>& primL_recon,
-                                  FluxValue<cfg>& primR_recon); /*--- Reconstruction for second order scheme ---*/
-
       #ifdef RELAX_RECONSTRUCTION
         template<typename State>
         void perform_Newton_step_relaxation(State conserved_variables,
@@ -321,60 +315,6 @@ namespace samurai {
 
     return cons;
   }
-
-  // Perform reconstruction for order 2 scheme
-  //
-  #ifdef ORDER_2
-    template<class Field>
-    void Flux<Field>::perform_reconstruction(const FluxValue<cfg>& primLL,
-                                             const FluxValue<cfg>& primL,
-                                             const FluxValue<cfg>& primR,
-                                             const FluxValue<cfg>& primRR,
-                                             FluxValue<cfg>& primL_recon,
-                                             FluxValue<cfg>& primR_recon) {
-      /*--- Initialize with the original state ---*/
-      primL_recon = primL;
-      primR_recon = primR;
-
-      /*--- Perform the reconstruction ---*/
-      const auto beta = static_cast<Number>(1.0); // MINMOD limiter
-      for(std::size_t comp = 0; comp < Field::n_comp; ++comp) {
-        if(primR(comp) - primL(comp) > static_cast<Number>(0.0)) {
-          primL_recon(comp) += static_cast<Number>(0.5)*
-                               std::max(static_cast<Number>(0.0),
-                                        std::max(std::min(beta*(primL(comp) - primLL(comp)),
-                                                          primR(comp) - primL(comp)),
-                                                 std::min(primL(comp) - primLL(comp),
-                                                          beta*(primR(comp) - primL(comp)))));
-        }
-        else if(primR(comp) - primL(comp) < static_cast<Number>(0.0)) {
-          primL_recon(comp) += static_cast<Number>(0.5)*
-                               std::min(static_cast<Number>(0.0),
-                                        std::min(std::max(beta*(primL(comp) - primLL(comp)),
-                                                          primR(comp) - primL(comp)),
-                                                 std::max(primL(comp) - primLL(comp),
-                                                          beta*(primR(comp) - primL(comp)))));
-        }
-
-        if(primRR(comp) - primR(comp) > static_cast<Number>(0.0)) {
-          primR_recon(comp) -= static_cast<Number>(0.5)*
-                               std::max(static_cast<Number>(0.0),
-                                        std::max(std::min(beta*(primR(comp) - primL(comp)),
-                                                          primRR(comp) - primR(comp)),
-                                                 std::min(primR(comp) - primL(comp),
-                                                          beta*(primRR(comp) - primR(comp)))));
-        }
-        else if(primRR(comp) - primR(comp) < static_cast<Number>(0.0)) {
-          primR_recon(comp) -= static_cast<Number>(0.5)*
-                               std::min(static_cast<Number>(0.0),
-                                        std::min(std::max(beta*(primR(comp) - primL(comp)),
-                                                          primRR(comp) - primR(comp)),
-                                                 std::max(primR(comp) - primL(comp),
-                                                          beta*(primRR(comp) - primR(comp)))));
-        }
-      }
-    }
-  #endif
 
   // Relax reconstruction
   //

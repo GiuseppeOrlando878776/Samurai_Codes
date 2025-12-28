@@ -8,10 +8,9 @@
 
 #include <samurai/bc.hpp>
 
-#include "flux_base.hpp"
+#include "schemes/flux_base.hpp"
 
 // Specify the use of this namespace where we just store the indices
-// and, in this case, some parameters related to EOS
 using namespace EquationData;
 
 // Default boundary condition
