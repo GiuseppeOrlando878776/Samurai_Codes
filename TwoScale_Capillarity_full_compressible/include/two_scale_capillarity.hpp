@@ -811,12 +811,10 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     /*--- Prepare for mass transfer if desired ---*/
     const auto rho_loc = m_l_loc + m_g_loc + m_d_loc;
 
-    // Compute factor term for the source term of the momentum equation
-    auto H_lim        = std::min(H_loc, Hmax);
-    const auto fac_Ru = sigma*H_lim*(static_cast<Number>(3.0)/kappa - static_cast<Number>(1.0));
+    // Compute region where performing inter-scale transfer
+    auto H_lim = std::min(H_loc, Hmax);
     if(mass_transfer_NR) {
-      if(fac_Ru > static_cast<Number>(0.0) &&
-         alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
+      if(alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
          -grad_alpha_l_loc[0]*local_conserved_variables(RHO_U_INDEX)
          -grad_alpha_l_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0) &&
          alpha_d_loc < alpha_d_max) {
@@ -864,6 +862,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       auto dtau_ov_epsilon = std::numeric_limits<Number>::infinity();
 
       // Bound preserving condition for m_l, velocity and small-scale volume fraction
+      Number fac_Ru;
       if(dH > static_cast<Number>(0.0)) {
         // Bound preserving condition for m_l
         dtau_ov_epsilon = lambda/(sigma*dH);
@@ -872,6 +871,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         }
 
         // Bound preserving for the velocity
+        fac_Ru = sigma*H_lim*(static_cast<Number>(3.0)/kappa - static_cast<Number>(1.0));
         const auto mom_dot_vel   = (local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX) +
                                     local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
         auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(alpha_l_loc*sigma*dH*fac_Ru);
@@ -989,6 +989,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
 
       if(alpha_l_loc + dalpha_l_loc < static_cast<Number>(0.0) ||
          alpha_l_loc + dalpha_l_loc > static_cast<Number>(1.0)) {
+        // I should never get here. Added only for the sake of safety!!
         throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step");
       }
       else {
@@ -1105,11 +1106,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               p[cell]                = (alpha_l_loc + alpha_d_loc)*p_liq_loc
                                                      + alpha_g_loc*p_g_loc
                                                      - static_cast<Number>(2.0/3.0)*sigma*Sigma_d[cell];
-                              const auto H_lim       = std::min(H[cell][0], Hmax);
-                              const auto fac_Ru      = sigma*H_lim*
-                                                       (static_cast<Number>(3.0)/kappa - static_cast<Number>(1.0));
-                              if(fac_Ru > static_cast<Number>(0.0) &&
-                                 alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
+                              if(alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
                                  -grad_alpha_l[cell][0]*conserved_variables[cell][RHO_U_INDEX]
                                  -grad_alpha_l[cell][1]*conserved_variables[cell][RHO_U_INDEX + 1] > static_cast<Number>(0.0) &&
                                  alpha_d[cell] < alpha_d_max) {
@@ -1156,41 +1153,73 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                         );
 
   /*--- Perform MPI collective operations ---*/
+  double local_H_lig_d = static_cast<double>(local_H_lig);
   double global_H_lig;
-  MPI_Allreduce(&local_H_lig, &global_H_lig, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_H_lig_d, &global_H_lig, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+  double local_m_l_int_d = static_cast<double>(local_m_l_int);
   double global_m_l_int;
-  MPI_Allreduce(&local_m_l_int, &global_m_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_m_l_int_d, &global_m_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_m_d_int_d = static_cast<double>(local_m_d_int);
   double global_m_d_int;
-  MPI_Allreduce(&local_m_d_int, &global_m_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_m_d_int_d, &global_m_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_alpha_l_int_d = static_cast<double>(local_alpha_l_int);
   double global_alpha_l_int;
-  MPI_Allreduce(&local_alpha_l_int, &global_alpha_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_alpha_l_int_d, &global_alpha_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_grad_alpha_l_int_d = static_cast<double>(local_grad_alpha_l_int);
   double global_grad_alpha_l_int;
-  MPI_Allreduce(&local_grad_alpha_l_int, &global_grad_alpha_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_grad_alpha_l_int_d, &global_grad_alpha_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_Sigma_d_int_d = static_cast<double>(local_Sigma_d_int);
   double global_Sigma_d_int;
-  MPI_Allreduce(&local_Sigma_d_int, &global_Sigma_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_Sigma_d_int_d, &global_Sigma_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_grad_alpha_d_int_d = static_cast<double>(local_grad_alpha_d_int);
   double global_grad_alpha_d_int;
-  MPI_Allreduce(&local_grad_alpha_d_int, &global_grad_alpha_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_grad_alpha_d_int_d, &global_grad_alpha_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_alpha_d_int_d = static_cast<double>(local_alpha_d_int);
   double global_alpha_d_int;
-  MPI_Allreduce(&local_alpha_d_int, &global_alpha_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_alpha_d_int_d, &global_alpha_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_grad_alpha_liq_int_d = static_cast<double>(local_grad_alpha_liq_int);
   double global_grad_alpha_liq_int;
-  MPI_Allreduce(&local_grad_alpha_liq_int, &global_grad_alpha_liq_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_grad_alpha_liq_int_d, &global_grad_alpha_liq_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_alpha_l_bar_int_d = static_cast<double>(local_alpha_l_bar_int);
   double global_alpha_l_bar_int;
-  MPI_Allreduce(&local_alpha_l_bar_int, &global_alpha_l_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_alpha_l_bar_int_d, &global_alpha_l_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  double local_grad_alpha_l_bar_int_d = static_cast<double>(local_grad_alpha_l_bar_int);
   double global_grad_alpha_l_bar_int;
-  MPI_Allreduce(&local_grad_alpha_l_bar_int, &global_grad_alpha_l_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_grad_alpha_l_bar_int_d, &global_grad_alpha_l_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
   /*--- Save the data ---*/
-  Hlig                      << std::fixed << std::setprecision(12) << time << '\t' << global_H_lig                << std::endl;
-  m_l_integral              << std::fixed << std::setprecision(12) << time << '\t' << global_m_l_int              << std::endl;
-  m_d_integral              << std::fixed << std::setprecision(12) << time << '\t' << global_m_d_int              << std::endl;
-  alpha_l_integral          << std::fixed << std::setprecision(12) << time << '\t' << global_alpha_l_int          << std::endl;
-  grad_alpha_l_integral     << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha_l_int     << std::endl;
-  Sigma_d_integral          << std::fixed << std::setprecision(12) << time << '\t' << global_Sigma_d_int          << std::endl;
-  alpha_d_integral          << std::fixed << std::setprecision(12) << time << '\t' << global_alpha_d_int          << std::endl;
-  grad_alpha_d_integral     << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha_d_int     << std::endl;
-  grad_alpha_liq_integral   << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha_liq_int   << std::endl;
-  alpha_l_bar_integral      << std::fixed << std::setprecision(12) << time << '\t' << global_alpha_l_bar_int      << std::endl;
-  grad_alpha_l_bar_integral << std::fixed << std::setprecision(12) << time << '\t' << global_grad_alpha_l_bar_int << std::endl;
+  Hlig                      << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_H_lig)                << std::endl;
+  m_l_integral              << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_m_l_int)              << std::endl;
+  m_d_integral              << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_m_d_int)              << std::endl;
+  alpha_l_integral          << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_alpha_l_int)          << std::endl;
+  grad_alpha_l_integral     << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_grad_alpha_l_int)     << std::endl;
+  Sigma_d_integral          << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_Sigma_d_int)          << std::endl;
+  alpha_d_integral          << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_alpha_d_int)          << std::endl;
+  grad_alpha_d_integral     << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_grad_alpha_d_int)     << std::endl;
+  grad_alpha_liq_integral   << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_grad_alpha_liq_int)   << std::endl;
+  alpha_l_bar_integral      << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_alpha_l_bar_int)      << std::endl;
+  grad_alpha_l_bar_integral << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_grad_alpha_l_bar_int) << std::endl;
 }
 
 //////////////////////////////////////////////////////////////
@@ -1232,7 +1261,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
   #endif
   auto conserved_variables_np1 = samurai::make_vector_field<Number, Field::n_comp>("conserved_np1", mesh);
 
-  /*--- Create the flux variable ---*/
+  /*--- Create the flux variables ---*/
   #ifdef RUSANOV_FLUX
     #ifdef RELAX_RECONSTRUCTION
       auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity(H);
@@ -1271,7 +1300,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
   auto t = static_cast<Number>(t0);
   execute_postprocess(t);
 
-  /*--- Set initial time step ---*/
+  /*--- Save mesh size (so as to compute time step) ---*/
   const auto dx = static_cast<Number>(mesh.cell_length(mesh.max_level()));
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

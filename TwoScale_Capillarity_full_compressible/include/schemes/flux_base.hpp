@@ -381,7 +381,7 @@ namespace samurai {
 
             if(alpha_l + dalpha_l < static_cast<Number>(0.0) ||
                alpha_l + dalpha_l > static_cast<Number>(1.0)) {
-              // I should never get here. Added only for the sake of safety!!   
+              // I should never get here. Added only for the sake of safety!!
               throw std::runtime_error("Bounds exceeding value for large-scale liquid volume fraction inside Newton step of reconstruction");
             }
             else {
