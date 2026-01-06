@@ -131,8 +131,8 @@ int main(int argc, char* argv[]) {
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
 
   // Output parameters
-  app.add_option("--save-dir", sim_param.save_dir, "Output directory")->capture_default_str()->group("Output");
-  app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Output");
+  app.add_option("--save-dir", sim_param.save_dir, "Output directory")->capture_default_str()->group("Output parameters");
+  app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Output parameters");
 
   // Restart file
   app.add_option("--restart_file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
@@ -157,7 +157,7 @@ int main(int argc, char* argv[]) {
 
   /*--- Create the instance of the class to perform the simulation ---*/
   CLI11_PARSE(app, argc, argv);
-  
+
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL, sim_param.yL};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR, sim_param.yR};
   auto TwoScaleCapillarity_Sim = TwoScaleCapillarity(min_corner, max_corner,

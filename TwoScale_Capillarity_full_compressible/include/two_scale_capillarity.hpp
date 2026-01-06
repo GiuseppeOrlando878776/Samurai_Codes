@@ -453,11 +453,14 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                         );
 
   /*--- Set useful small-scale related fields ---*/
+  samurai::update_ghost_mr(alpha_d);
   grad_alpha_d = gradient(alpha_d);
 
+  samurai::update_ghost_mr(vel);
   div_vel = divergence(vel);
 
   /*--- Set auxiliary gradient alpha_l_bar volume fraction ---*/
+  samurai::update_ghost_mr(alpha_l_bar);
   grad_alpha_l_bar = gradient(alpha_l_bar);
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -478,6 +481,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               }
                             }
                         );
+  samurai::update_ghost_mr(normal_bar);
   H_bar = -divergence(normal_bar);
 }
 
@@ -513,6 +517,7 @@ void TwoScaleCapillarity<dim>::apply_bcs(const Number U0,
 //
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::update_geometry() {
+  samurai::update_ghost_mr(alpha_l);
   grad_alpha_l = gradient(alpha_l);
 
   samurai::for_each_cell(mesh,
@@ -536,6 +541,7 @@ void TwoScaleCapillarity<dim>::update_geometry() {
                             }
                         );
 
+  samurai::update_ghost_mr(normal);
   H = -divergence(normal);
 }
 
@@ -880,7 +886,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
           throw std::runtime_error("Negative time step found after relaxation of velocity");
         }
 
-        /*--- No specific condition to impose for the positivty of alpha_d since alpha_d = alpha_l*m_d/m_l and
+        /*--- No specific condition to impose for the positivity of alpha_d since alpha_d = alpha_l*m_d/m_l and
               m_d is increasing, m_l has already been imposed positive and alpha_l is going to be set with proper bounds later.
               On the other hand, there is no a priori superior limit, apart from the alpha_d_max which deactivates the mass transfer.
               Hence, in the first iteration, one can potentially reach alpha_d > alpha_d_max (likely unphyisical...) ---*/
@@ -1074,6 +1080,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               alpha_l_bar[cell]      = alpha_l_loc/(static_cast<Number>(1.0) - alpha_d_loc);
                             }
                         );
+  samurai::update_ghost_mr(alpha_l_bar, alpha_d);
   grad_alpha_l_bar.resize();
   grad_alpha_l_bar = gradient(alpha_l_bar);
   grad_alpha_d.resize();
@@ -1559,6 +1566,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                                   Mach[cell]             = std::sqrt(norm2_vel_loc)/cf_loc;
                                 }
                             );
+      samurai::update_ghost_mr(vel, normal_bar);
       div_vel = divergence(vel);
       H_bar   = -divergence(normal_bar);
 
