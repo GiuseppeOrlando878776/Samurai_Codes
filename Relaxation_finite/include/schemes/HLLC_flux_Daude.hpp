@@ -107,11 +107,7 @@ namespace samurai {
     const auto a33 = -alpha1_R;
 
     /*--- Compute the determinant of the matrix ---*/
-    const auto det_A = a12*(a23*a31 - a21*a33) + a13*(a21*a32 - a22*a31);
-    /*const auto det_A = (alpha2_L*inv_c2_tilde_L - alpha2_R*inv_c2_tilde_R)*
-                       (alpha1_R*inv_c1_tilde_R - alpha1_L*inv_c1_tilde_L)
-                     - (alpha2_L - alpha2_R)*(alpha2_L - alpha2_R)*
-                       inv_c1_tilde_L*inv_c1_tilde_R;*/
+    const auto det_A     = a12*(a23*a31 - a21*a33) + a13*(a21*a32 - a22*a31);
     const auto inv_det_A = static_cast<Number>(1.0)/det_A;
 
     const auto det_A1 = rhs_p2_star*(a22*a33 - a23*a32) + rhs_p1_star_L*(a13*a32 - a12*a33);

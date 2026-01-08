@@ -26,7 +26,7 @@ namespace samurai {
                           const SG_EOS<Number>& EOS_phase2_,
                           const Number atol_Newton_relaxation_ = static_cast<Number>(1e-12),
                           const Number rtol_Newton_relaxation_ = static_cast<Number>(1e-10),
-                          const unsigned max_Newton_iters_ = 60,
+                          const std::size_t max_Newton_iters_ = 60,
                           const Number tau_u_ = static_cast<Number>(1e10),
                           const Number tau_p_ = static_cast<Number>(1e10),
                           const Number tau_T_ = static_cast<Number>(1e10)); /*--- Class constructor (EOS of the two phases and tolerances needed here) ---*/
@@ -37,9 +37,9 @@ namespace samurai {
     const SG_EOS<Number>& EOS_phase1; /*--- EOS phase 1 ---*/
     const SG_EOS<Number>& EOS_phase2; /*--- EOS phase 2 ---*/
 
-    Number   atol_Newton_relaxation; /*--- Absolute tolerance for the Newton method that reupdates the variables ---*/
-    Number   rtol_Newton_relaxation; /*--- Relative tolerance for the Newton method that reupdates the variables ---*/
-    unsigned max_Newton_iters;       /*--- Maximum number of iteration of Newton method that reupdates the variables ---*/
+    Number      atol_Newton_relaxation; /*--- Absolute tolerance for the Newton method that reupdates the variables ---*/
+    Number      rtol_Newton_relaxation; /*--- Relative tolerance for the Newton method that reupdates the variables ---*/
+    std::size_t max_Newton_iters;       /*--- Maximum number of iteration of Newton method that reupdates the variables ---*/
 
     Number tau_u; /*--- Relaxation parameter for the velocity ---*/
     Number tau_p; /*--- Relaxation parameter for the pressure ---*/
@@ -63,7 +63,7 @@ namespace samurai {
                         const SG_EOS<Number>& EOS_phase2_,
                         const Number atol_Newton_relaxation_,
                         const Number rtol_Newton_relaxation_,
-                        const unsigned max_Newton_iters_,
+                        const std::size_t max_Newton_iters_,
                         const Number tau_u_,
                         const Number tau_p_,
                         const Number tau_T_):
@@ -386,7 +386,7 @@ namespace samurai {
                                               // Once pressure and temperature have been update, finalize the update
                                               p1_loc = p2_loc + delta_p;
                                               T1_loc = T2_loc + delta_T;
-                                              
+
                                               e1_loc = EOS_phase1.e_value_PT(p1_loc, T1_loc);
                                               local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX] =
                                               m1_loc*(e1_loc + static_cast<Number>(0.5)*norm2_vel1);

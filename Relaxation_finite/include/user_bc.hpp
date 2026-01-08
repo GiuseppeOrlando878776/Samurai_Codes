@@ -17,21 +17,12 @@ struct Default: public samurai::Bc<Field> {
   INIT_BC(Default, samurai::Flux<Field>::stencil_size)
 
   inline stencil_t get_stencil(constant_stencil_size_t) const override {
-    #ifdef ORDER_2
-      return samurai::line_stencil_from<Field::dim, 0, samurai::Flux<Field>::stencil_size>(-1);
-    #else
-      return samurai::line_stencil_from<Field::dim, 0, samurai::Flux<Field>::stencil_size>(0);
-    #endif
+    return samurai::line_stencil_from<Field::dim, 0, samurai::Flux<Field>::stencil_size>(0);
   }
 
   inline apply_function_t get_apply_function(constant_stencil_size_t, const direction_t&) const override {
     return [](Field& U, const stencil_cells_t& cells, const value_t& value) {
-      #ifdef ORDER_2
-        U[cells[2]] = value;
-        U[cells[3]] = value;
-      #else
-        U[cells[1]] = value;
-      #endif
+      U[cells[1]] = value;
     };
   }
 };

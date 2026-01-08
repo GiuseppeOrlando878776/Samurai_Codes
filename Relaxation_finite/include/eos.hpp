@@ -73,11 +73,11 @@ public:
   SG_EOS(const SG_EOS&) = default; /*--- Default copy-constructor ---*/
 
   SG_EOS(const T gamma_,
-         const T pi_infty_ = 0.0,
-         const T q_infty_ = 0.0,
-         const T c_v_ = 1.0);      /*--- Constructor which accepts as arguments
-                                         the isentropic exponent and the three parameters
-                                         that characterize the fluid ---*/
+         const T pi_infty_ = static_cast<T>(0.0),
+         const T q_infty_ = static_cast<T>(0.0),
+         const T c_v_ = static_cast<T>(1.0));  /*--- Constructor which accepts as arguments
+                                                     the isentropic exponent and the three parameters
+                                                     that characterize the fluid ---*/
 
   virtual T pres_value_Rhoe(const T rho, const T e) const override; /*--- Function to compute the pressure from the density and the internal energy ---*/
 
@@ -199,7 +199,7 @@ T SG_EOS<T>::c_value_RhoP(const T rho, const T pres) const {
 //
 template<typename T>
 T SG_EOS<T>::s_value_Rhoe(const T rho, const T e) const {
-  const T v = 1.0/rho;
+  const T v = static_cast<T>(1.0)/rho;
 
   return c_v*std::log(std::pow(v,gamma - static_cast<T>(1.0))*(e - q_infty - pi_infty*v));
 }

@@ -51,6 +51,7 @@ struct Simulation_Parameters {
   double      MR_regularity;
 
   /*--- Output parameters ---*/
+  std::string save_dir;
   std::size_t nfiles;
 
   /*--- Restart file ---*/

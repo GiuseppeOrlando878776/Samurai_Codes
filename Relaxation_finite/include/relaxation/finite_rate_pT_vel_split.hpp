@@ -26,7 +26,7 @@ namespace samurai {
                                const SG_EOS<Number>& EOS_phase2_,
                                const Number atol_Newton_relaxation_ = static_cast<Number>(1e-12),
                                const Number rtol_Newton_relaxation_ = static_cast<Number>(1e-10),
-                               const unsigned max_Newton_iters_ = 60,
+                               const std::size_t max_Newton_iters_ = 60,
                                const Number tau_u_ = static_cast<Number>(1e10),
                                const Number tau_p_ = static_cast<Number>(1e10),
                                const Number tau_T_ = static_cast<Number>(1e10)); /*--- Class constructor
@@ -38,9 +38,9 @@ namespace samurai {
     const SG_EOS<Number>& EOS_phase1; /*--- EOS phase 1 ---*/
     const SG_EOS<Number>& EOS_phase2; /*--- EOS phase 2 ---*/
 
-    Number   atol_Newton_relaxation; /*--- Absolute tolerance for the Newton method that reupdates the variables ---*/
-    Number   rtol_Newton_relaxation; /*--- Relative tolerance for the Newton method that reupdates the variables ---*/
-    unsigned max_Newton_iters;       /*--- Maximum number of iteration of Newton method that reupdates the variables ---*/
+    Number      atol_Newton_relaxation; /*--- Absolute tolerance for the Newton method that reupdates the variables ---*/
+    Number      rtol_Newton_relaxation; /*--- Relative tolerance for the Newton method that reupdates the variables ---*/
+    std::size_t max_Newton_iters;       /*--- Maximum number of iteration of Newton method that reupdates the variables ---*/
 
     Number tau_u; /*--- Relaxation parameter for the velocity ---*/
     Number tau_p; /*--- Relaxation parameter for the pressure ---*/
@@ -58,13 +58,13 @@ namespace samurai {
   template<class Field>
   FiniteRatePresTempVelSplit<Field>::
   FiniteRatePresTempVelSplit(const SG_EOS<Number>& EOS_phase1_,
-                     const SG_EOS<Number>& EOS_phase2_,
-                     const Number atol_Newton_relaxation_,
-                     const Number rtol_Newton_relaxation_,
-                     const unsigned max_Newton_iters_,
-                     const Number tau_u_,
-                     const Number tau_p_,
-                     const Number tau_T_):
+                             const SG_EOS<Number>& EOS_phase2_,
+                             const Number atol_Newton_relaxation_,
+                             const Number rtol_Newton_relaxation_,
+                             const std::size_t max_Newton_iters_,
+                             const Number tau_u_,
+                             const Number tau_p_,
+                             const Number tau_T_):
     Source<Field>(), EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_),
     atol_Newton_relaxation(atol_Newton_relaxation_),
     rtol_Newton_relaxation(rtol_Newton_relaxation_),

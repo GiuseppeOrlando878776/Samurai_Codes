@@ -51,8 +51,11 @@ namespace fs = std::filesystem;
 template<std::size_t dim>
 class BN_Solver {
 public:
-  using Config  = samurai::MRConfig<dim, 2>;
-  using Field   = samurai::VectorField<samurai::MRMesh<Config>, double, EquationData<dim>::NVARS, false>;
+  using Config  = samurai::MRConfig<dim>;
+  using Field   = samurai::VectorField<samurai::MRMesh<Config>,
+                                       double,
+                                       EquationData<dim>::NVARS,
+                                       false>;
   using Number  = samurai::Flux<Field>::Number;  /*--- Define the shortcut for the arithmetic type ---*/
   using Indices = samurai::Flux<Field>::Indices; /*--- Shortcut for the indices storage ---*/
 
@@ -182,13 +185,14 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
   #ifdef SULICIU_RELAXATION
     numerical_flux(EOS_phase1, EOS_phase2,
                    sim_param.atol_Newton_Suliciu, sim_param.rtol_Newton_Suliciu,
-                   sim_param.max_Newton_iters)
+                   sim_param.max_Newton_iters),
   #elifdef HLLC_FLUX
     numerical_flux(EOS_phase1, EOS_phase2)
   #elifdef RUSANOV_FLUX
     numerical_flux_cons(EOS_phase1, EOS_phase2),
-    numerical_flux_non_cons(EOS_phase1, EOS_phase2)
+    numerical_flux_non_cons(EOS_phase1, EOS_phase2),
   #endif
+  path(sim_param.save_dir)
   {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -824,7 +828,6 @@ void BN_Solver<dim>::save(const std::string& suffix,
 template<std::size_t dim>
 void BN_Solver<dim>::run(const std::size_t nfiles) {
   /*--- Default output arguemnts ---*/
-  path = fs::current_path();
   #ifdef SULICIU_RELAXATION
     filename = "Relaxation_Suliciu";
   #elifdef HLLC_FLUX
@@ -892,16 +895,18 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
     std::cout << std::endl;
   }
 
+  /*--- Declare operators for multiresolution ---*/
+  auto MRadaptation = samurai::make_MRAdapt(conserved_variables);
+  auto mra_config   = samurai::mra_config();
+  mra_config.epsilon(MR_param);
+  mra_config.regularity(MR_regularity);
+
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   auto t            = static_cast<Number>(t0);
   while(t != Tf) {
     // Apply mesh adaptation
-    auto MRadaptation = samurai::make_MRAdapt(conserved_variables);
-    auto mra_config   = samurai::mra_config();
-    mra_config.epsilon(MR_param);
-    mra_config.regularity(MR_regularity);
     MRadaptation(mra_config);
     #ifdef VERBOSE
       check_data(1);
@@ -1005,7 +1010,7 @@ void BN_Solver<dim>::run(const std::size_t nfiles) {
                    delta_pres, delta_temp, delta_vel);
 
       /*--- Save fields in a output file ---*/
-      output_data.open("output_data.dat", std::ofstream::out);
+      output_data.open(path.string() + "/output_data.dat", std::ofstream::out);
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                              {
