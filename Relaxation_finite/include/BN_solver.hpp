@@ -187,7 +187,7 @@ BN_Solver<dim>::BN_Solver(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_
                    sim_param.atol_Newton_Suliciu, sim_param.rtol_Newton_Suliciu,
                    sim_param.max_Newton_iters),
   #elifdef HLLC_FLUX
-    numerical_flux(EOS_phase1, EOS_phase2)
+    numerical_flux(EOS_phase1, EOS_phase2),
   #elifdef RUSANOV_FLUX
     numerical_flux_cons(EOS_phase1, EOS_phase2),
     numerical_flux_non_cons(EOS_phase1, EOS_phase2),
