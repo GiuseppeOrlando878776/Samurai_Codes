@@ -115,7 +115,7 @@ namespace samurai {
     const auto inv_rho = static_cast<Number>(1.0)/rho;
 
     /*--- Start computing the flux ---*/
-    const auto vel_d = q(RHOU_INDEX + curr_d)/q(RHO_INDEX);
+    const auto vel_d = q(RHOU_INDEX + curr_d)*inv_rho;
     res(RHO_INDEX) *= vel_d;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       res(RHOU_INDEX + d) *= vel_d;
