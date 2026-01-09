@@ -28,7 +28,7 @@ namespace fs = std::filesystem;
 /*--- Define preprocessor to check whether to control data or not ---*/
 #define VERBOSE
 
-// Specify the use of this namespace where we just store the indices
+/*--- Specify the use of this namespace where we just store the indices ---*/
 using namespace EquationData;
 
 #define assertm(exp, msg) assert(((void)msg, exp))
@@ -39,7 +39,10 @@ template<std::size_t dim>
 class Euler_MR {
 public:
   using Config = samurai::MRConfig<dim, 2, 2, 1>;
-  using Field  = samurai::VectorField<samurai::MRMesh<Config>, double, EquationData::NVARS, false>;
+  using Field  = samurai::VectorField<samurai::MRMesh<Config>,
+                                      double,
+                                      EquationData::NVARS,
+                                      false>;
   using Number = typename Field::value_type;
 
   Euler_MR() = default; /*--- Default constructor. This will do nothing
@@ -101,8 +104,6 @@ private:
 
   void apply_bcs(const Riemann_Parameters<Number>& Riemann_param); /*--- Auxiliary routine for the boundary conditions ---*/
 
-  void perform_mesh_adaptation(); /*--- Perform the mesh adaptation ---*/
-
   void update_auxiliary_fields(); /*--- Routine to update auxiliary fields for output and time step update ---*/
 
   Number get_max_lambda() const; /*--- Compute the estimate of the maximum eigenvalue ---*/
@@ -125,7 +126,8 @@ Euler_MR<dim>::Euler_MR(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
   box(min_corner, max_corner),
   t0(sim_param.t0), Tf(sim_param.Tf), cfl(sim_param.Courant),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
-  Euler_EOS(eos_param.gamma, eos_param.pi_infty, eos_param.q_infty)
+  Euler_EOS(eos_param.gamma, eos_param.pi_infty, eos_param.q_infty),
+  path(sim_param.save_dir)
   {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -252,26 +254,6 @@ void Euler_MR<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) {
 /*---- FOCUS NOW ON THE AUXILIARY FUNCTIONS ---*/
 /////////////////////////////////////////////////////////////
 
-// Perform the mesh adaptation strategy.
-//
-template<std::size_t dim>
-void Euler_MR<dim>::perform_mesh_adaptation() {
-  auto prediction_fn = [&](auto& new_field, const auto& old_field) {
-    return make_field_operator_function<Euler_prediction_op>(new_field, old_field, Euler_EOS);
-  };
-
-  //samurai::update_ghost_mr(c);
-  auto MRadaptation = samurai::make_MRAdapt(prediction_fn, c);
-  auto mra_config   = samurai::mra_config();
-  mra_config.epsilon(MR_param);
-  mra_config.regularity(MR_regularity);
-  MRadaptation(mra_config, conserved_variables);
-
-  #ifdef VERBOSE
-    check_data(1);
-  #endif
-}
-
 // Auxiliary routine to check if spurious negative values arise
 //
 template<std::size_t dim>
@@ -318,7 +300,7 @@ void Euler_MR<dim>::check_data(unsigned flag) {
 // Compute the estimate of the maximum eigenvalue for CFL condition
 //
 template<std::size_t dim>
-typename Euler_MR<dim>::Field::value_type Euler_MR<dim>::get_max_lambda() const {
+typename Euler_MR<dim>::Number Euler_MR<dim>::get_max_lambda() const {
   auto local_res = static_cast<Number>(0.0);
 
   samurai::for_each_cell(mesh,
@@ -329,10 +311,11 @@ typename Euler_MR<dim>::Field::value_type Euler_MR<dim>::get_max_lambda() const 
                               }
                             });
 
+  double local_res_d = static_cast<double>(local_res);
   double global_res;
-  MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_res_d, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-  return global_res;
+  return static_cast<Number>(global_res);
 }
 
 // Update auxiliary fields after solution of the system
@@ -395,7 +378,6 @@ void Euler_MR<dim>::save(const std::string& suffix,
 template<std::size_t dim>
 void Euler_MR<dim>::run(const std::size_t nfiles) {
   /*--- Default output arguemnts ---*/
-  path = fs::current_path();
   filename = "Euler_MR_" + numerical_flux->get_flux_name();
 
   #ifdef ORDER_2
@@ -434,6 +416,16 @@ void Euler_MR<dim>::run(const std::size_t nfiles) {
     std::cout << std::endl;
   }
 
+  /*--- Declare operators for multiresolution ---*/
+  auto prediction_fn = [&](auto& new_field, const auto& old_field) {
+    return make_field_operator_function<Euler_prediction_op>(new_field, old_field, Euler_EOS);
+  };
+  //update_ghost_mr(c);
+  auto MRadaptation = samurai::make_MRAdapt(prediction_fn, c);
+  auto mra_config   = samurai::mra_config();
+  mra_config.epsilon(MR_param);
+  mra_config.regularity(MR_regularity);
+
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
@@ -447,7 +439,11 @@ void Euler_MR<dim>::run(const std::size_t nfiles) {
     }
 
     // Apply mesh adaptation
-    perform_mesh_adaptation();
+    //update_ghost_mr(conserved_variables);
+    MRadaptation(mra_config, conserved_variables);
+    #ifdef VERBOSE
+      check_data(1);
+    #endif
 
     // Save current state in case of order 2
     #ifdef ORDER_2

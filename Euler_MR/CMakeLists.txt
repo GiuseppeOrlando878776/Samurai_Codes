@@ -14,5 +14,7 @@ find_package(MPI)
 set(CMAKE_CXX_STANDARD 17)
 
 add_executable(Euler_MR Euler_MR.cpp)
+set_target_properties(Euler_MR PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 target_link_libraries(Euler_MR samurai::samurai CLI11::CLI11)
 target_include_directories(Euler_MR PRIVATE include)

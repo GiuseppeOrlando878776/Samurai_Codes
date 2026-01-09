@@ -25,24 +25,25 @@ int main(int argc, char* argv[]) {
   Simulation_Paramaters<Number> sim_param;
 
   // Physical parameters
-  sim_param.xL = input.value("xL", 0.0);
-  sim_param.xR = input.value("xR", 1.0);
+  sim_param.xL = input.value("xL", static_cast<double>(0.0));
+  sim_param.xR = input.value("xR", static_cast<double>(1.0));
 
-  sim_param.t0 = input.value("t0", 0.0);
-  sim_param.Tf = input.value("Tf", 0.15);
+  sim_param.t0 = input.value("t0", static_cast<Number>(0.0));
+  sim_param.Tf = input.value("Tf", static_cast<Number>(0.15));
 
   // Numerical parameters
-  sim_param.Courant   = input.value("cfl", 0.45);
+  sim_param.Courant   = input.value("cfl", static_cast<Number>(0.45));
   sim_param.flux_name = input.value("flux_name", "Rusanov");
 
   // MR parameters
-  sim_param.min_level     = input.value("min-level", 7);
-  sim_param.max_level     = input.value("max-level", 10);
-  sim_param.MR_param      = input.value("MR_param", 1e-2);
-  sim_param.MR_regularity = input.value("MR_regularity", 0);
+  sim_param.min_level     = input.value("min-level", static_cast<std::size_t>(7));
+  sim_param.max_level     = input.value("max-level", static_cast<std::size_t>(10));
+  sim_param.MR_param      = input.value("MR_param", static_cast<double>(1e-2));
+  sim_param.MR_regularity = input.value("MR_regularity", static_cast<double>(0));
 
   // Output parameters
-  sim_param.nfiles = input.value("nfiles", 10);
+  sim_param.save_dir = input.value("save-dir", fs::current_path());
+  sim_param.nfiles   = input.value("nfiles", static_cast<std::size_t>(10));
 
   // Restart file
   sim_param.restart_file = input.value("restart_file","");
@@ -66,7 +67,8 @@ int main(int argc, char* argv[]) {
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
 
   // Output parameters
-  app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
+  app.add_option("--save-dir", sim_param.save_dir, "Output directory")->capture_default_str()->group("Output parameters");
+  app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Output parameters");
 
   // Restart file
   app.add_option("--restart_file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
@@ -74,9 +76,9 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters<Number> eos_param;
 
-  eos_param.gamma    = input.value("gamma", 1.4);
-  eos_param.pi_infty = input.value("pi_infty", 0.0);
-  eos_param.q_infty  = input.value("q_infty", 0.0);
+  eos_param.gamma    = input.value("gamma", static_cast<Number>(1.4));
+  eos_param.pi_infty = input.value("pi_infty", static_cast<Number>(0.0));
+  eos_param.q_infty  = input.value("q_infty", static_cast<Number>(0.0));
 
   /*--- Allow for parsing from command line ---*/
   app.add_option("--gammma", eos_param.gamma, "gamma")->capture_default_str()->group("EOS parameters");
@@ -86,15 +88,15 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to initial condition ---*/
   Riemann_Parameters<Number> Riemann_param;
 
-  Riemann_param.xd   = input.value("xd", 0.5);
+  Riemann_param.xd   = input.value("xd", static_cast<Number>(0.5));
 
-  Riemann_param.rhoL = input.value("rhoL", 1.0);
-  Riemann_param.pL   = input.value("pL", 0.4);
-  Riemann_param.uL   = input.value("uL", -2.0);
+  Riemann_param.rhoL = input.value("rhoL", static_cast<Number>(1.0));
+  Riemann_param.pL   = input.value("pL", static_cast<Number>(0.4));
+  Riemann_param.uL   = input.value("uL", static_cast<Number>(-2.0));
 
-  Riemann_param.rhoR = input.value("rhoR", 1.0);
-  Riemann_param.pR   = input.value("pR", 0.4);
-  Riemann_param.uR   = input.value("uR", 2.0);
+  Riemann_param.rhoR = input.value("rhoR", static_cast<Number>(1.0));
+  Riemann_param.pR   = input.value("pR", static_cast<Number>(0.4));
+  Riemann_param.uR   = input.value("uR", static_cast<Number>(2.0));
 
   /*--- Allow for parsing from command line ---*/
   app.add_option("--xd", Riemann_param.xd, "Initial discontinuity location")->capture_default_str()->group("Initial conditions");

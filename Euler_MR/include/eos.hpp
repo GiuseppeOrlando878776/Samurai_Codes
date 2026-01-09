@@ -47,9 +47,9 @@ public:
 
   SG_EOS(const T gamma_,
          const T pi_infty_,
-         const T q_infty_ = 0.0); /*--- Constructor which accepts as arguments
-                                        the isentropic exponent and the two parameters
-                                        that characterize the fluid ---*/
+         const T q_infty_ = static_cast<T>(0.0)); /*--- Constructor which accepts as arguments
+                                                        the isentropic exponent and the two parameters
+                                                        that characterize the fluid ---*/
 
   inline virtual T pres_value(const T rho, const T e) const override; /*--- Function to compute the pressure
                                                                             from the density and the internal energy ---*/
