@@ -28,7 +28,8 @@ struct Simulation_Paramaters {
   T W0;
 
   /*--- Numerical parameters ---*/
-  T Courant;
+  T           Courant;
+  std::string flux_name;
 
   T           lambda;
   T           atol_Newton;
@@ -42,6 +43,7 @@ struct Simulation_Paramaters {
   double      MR_regularity;
 
   /*--- Output parameters ---*/
+  std::string save_dir;
   std::size_t nfiles;
 
   /*--- Restart file ---*/

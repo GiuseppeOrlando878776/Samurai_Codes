@@ -11,7 +11,6 @@
 #include <samurai/field.hpp>
 #include <samurai/io/restart.hpp>
 #include <samurai/io/hdf5.hpp>
-#include <numbers>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -19,36 +18,23 @@ namespace fs = std::filesystem;
 /*--- Add header files for the multiresolution ---*/
 #include <samurai/mr/adapt.hpp>
 
-/*--- Add header for PETSC ---*/
-#include <samurai/petsc.hpp>
-
 /*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
 
-/*--- Add user implemented boundary condition ---*/
+/*--- Include the header with the custom bundary condition ---*/
 #include "user_bc.hpp"
+
+/*--- Include the header with the numerical fluxes ---*/
+#include "schemes.hpp"
 
 /*--- Define preprocessor to check whether to control data or not ---*/
 #define VERBOSE
 
-/*--- Include the headers with the numerical fluxes ---*/
-//#define RUSANOV_FLUX
-//#define HLL_FLUX
-#define HLLC_FLUX
-
-#ifdef RUSANOV_FLUX
-  #include "Rusanov_flux.hpp"
-#elifdef HLL_FLUX
-  #include "HLL_flux.hpp"
-#elifdef HLLC_FLUX
-  #include "HLLC_flux.hpp"
-#endif
-
-// Specify the use of this namespace where we just store the indices
+/*--- Specify the use of this namespace where we just store the indices ---*/
 using namespace EquationData;
 
 /*--- Define preprocessor to choose whether gravity has to be tretaed implicitly or not ---*/
-#define GRAVITY_IMPLICIT
+//#define GRAVITY_IMPLICIT
 
 /** This is the class for the simulation of a model
  *  for the dam-break problem
@@ -56,8 +42,11 @@ using namespace EquationData;
 template<std::size_t dim>
 class DamBreak {
 public:
-  using Config = samurai::MRConfig<dim, 2, 2, 0>;
-  using Field  = samurai::VectorField<samurai::MRMesh<Config>, double, EquationData::NVARS, false>;
+  using Config = samurai::MRConfig<dim, 2, 1, 0>;
+  using Field  = samurai::VectorField<samurai::MRMesh<Config>,
+                                      double,
+                                      EquationData::NVARS,
+                                      false>;
   using Number = typename Field::value_type;
 
   DamBreak() = default; /*--- Default constructor. This will do nothing
@@ -69,11 +58,10 @@ public:
            const EOS_Parameters<Number>& eos_param); /*--- Class constrcutor with the arguments related
                                                            to the grid and to the physics ---*/
 
-  void run(const unsigned n_files = 10); /*--- Function which actually executes the temporal loop ---*/
+  void run(const std::size_t n_files = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
-  void save(const fs::path& path,
-            const std::string& suffix,
+  void save(const std::string& suffix,
             const Variables&... fields); /*--- Routine to save the results ---*/
 
 private:
@@ -103,15 +91,12 @@ private:
   LinearizedBarotropicEOS<Number> EOS_phase1,
                                   EOS_phase2; /*--- The two variables which take care of the
                                                     barotropic EOS to compute the speed of sound ---*/
-  #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> numerical_flux; /*--- Auxiliary variable to compute the flux ---*/
-  #elifdef HLL_FLUX
-    samurai::HLLFlux<Field> numerical_flux; /*--- Auxiliary variable to compute the flux ---*/
-  #elifdef HLLC_FLUX
-    samurai::HLLCFlux<Field> numerical_flux; /*--- Auxiliary variable to compute the flux ---*/
-  #endif
 
-  std::string filename;     /*--- Auxiliary variable to store the name of output ---*/
+  std::unique_ptr<samurai::Flux<Field>> numerical_flux; /*--- variable to compute the numerical flux
+                                                              (this is necessary to call 'make_flux') ---*/
+
+  fs::path    path;     /*--- Auxiliary variable to store the output directory ---*/
+  std::string filename; /*--- Auxiliary variable to store the name of output ---*/
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
                                    namely the varialbes for which we solve a PDE system ---*/
@@ -175,8 +160,7 @@ DamBreak<dim>::DamBreak(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
-  numerical_flux(EOS_phase1, EOS_phase2,
-                 lambda, atol_Newton, rtol_Newton, max_Newton_iters),
+  path(sim_param.save_dir),
   gradient(samurai::make_gradient_order2<decltype(alpha1)>())
   {
     int rank;
@@ -201,13 +185,19 @@ DamBreak<dim>::DamBreak(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_co
 
     /*--- Apply boundary conditions ---*/
     apply_bcs();
+
+    /*--- Initiliaze the numerical flux ---*/
+    numerical_flux = get_numerical_flux<Field>(sim_param.flux_name,
+                                               EOS_phase1, EOS_phase2,
+                                               lambda, atol_Newton, rtol_Newton, max_Newton_iters);
+    numerical_flux->set_flux_name(sim_param.flux_name);
   }
 
 // Auxiliary routine to create the fields
 //
 template<std::size_t dim>
 void DamBreak<dim>::create_fields() {
-  conserved_variables = samurai::make_vector_field<Number, EquationData::NVARS>("conserved", mesh);
+  conserved_variables = samurai::make_vector_field<Number, Field::n_comp>("conserved", mesh);
 
   alpha1  = samurai::make_scalar_field<Number>("alpha1", mesh);
 
@@ -264,7 +254,8 @@ void DamBreak<dim>::init_variables(const Number L0,
 
                               // Set mass phase 2
                               p2[cell] = EOS_phase2.get_p0();
-                              conserved_variables[cell][M2_INDEX] = (static_cast<Number>(1.0) - alpha1[cell])*EOS_phase2.rho_value(p2[cell]);
+                              conserved_variables[cell][M2_INDEX] = (static_cast<Number>(1.0) - alpha1[cell])*
+                                                                    EOS_phase2.rho_value(p2[cell]);
 
                               // Set conserved variable associated to volume fraction
                               rho[cell] = conserved_variables[cell][M1_INDEX]
@@ -303,7 +294,8 @@ template<std::size_t dim>
 typename DamBreak<dim>::Number DamBreak<dim>::get_max_lambda() {
   auto local_res = static_cast<Number>(0.0);
 
-  vel.resize();
+  std::array<Number, dim> local_vel;
+
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
@@ -316,7 +308,7 @@ typename DamBreak<dim>::Number DamBreak<dim>::get_max_lambda() {
                               const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
                               const auto alpha1_loc  = conserved_variables[cell][RHO_ALPHA1_INDEX]*inv_rho_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]*inv_rho_loc;
+                                local_vel[d] = conserved_variables[cell][RHO_U_INDEX + d]*inv_rho_loc;
                               }
 
                               // Compute frozen speed of sound
@@ -334,46 +326,16 @@ typename DamBreak<dim>::Number DamBreak<dim>::get_max_lambda() {
 
                               // Update eigenvalue estimate
                               for(std::size_t d = 0; d < dim; ++d) {
-                                local_res = std::max(std::abs(vel[cell][d]) + c, local_res);
+                                local_res = std::max(std::abs(local_vel[d]) + c, local_res);
                               }
                             }
                         );
 
+  const double local_res_d = static_cast<double>(local_res);
   double global_res;
-  MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+  MPI_Allreduce(&local_res_d, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-  return global_res;
-}
-
-// Perform the mesh adaptation strategy.
-//
-template<std::size_t dim>
-void DamBreak<dim>::perform_mesh_adaptation() {
-  /*--- Compute the criterion for MR ---*/
-  alpha1.resize();
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                            {
-                              alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
-                                             (conserved_variables[cell][M1_INDEX] +
-                                              conserved_variables[cell][M2_INDEX]);
-                            }
-                        );
-  samurai::update_ghost_mr(alpha1);
-  grad_alpha1.resize();
-  grad_alpha1 = gradient(alpha1);
-
-  /*--- Perform MR ---*/
-  auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
-  auto mra_config   = samurai::mra_config();
-  mra_config.epsilon(MR_param);
-  mra_config.regularity(MR_regularity);
-  MRadaptation(mra_config, conserved_variables);
-
-  // Sanity check after mesh adaptation
-  #ifdef VERBOSE
-    check_data(1);
-  #endif
+  return static_cast<Number>(global_res);
 }
 
 // Auxiliary routine to check if spurious negative values arise
@@ -397,41 +359,48 @@ void DamBreak<dim>::check_data(unsigned flag) {
                                               conserved_variables[cell][M2_INDEX]);
                               if(alpha1[cell] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative volume fraction for phase 1 " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                                save("_diverged", conserved_variables,
+                                                  alpha1);
                                 exit(1);
                               }
                               else if(alpha1[cell] > static_cast<Number>(1.0)) {
                                 std::cerr << "Exceeding volume fraction for phase 1 " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                                save("_diverged", conserved_variables,
+                                                  alpha1);
                                 exit(1);
                               }
                               else if(std::isnan(alpha1[cell])) {
                                 std::cerr << "NaN volume fraction for phase 1 " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                                save("_diverged", conserved_variables,
+                                                  alpha1);
                                 exit(1);
                               }
 
                               // Sanity check for m1
                               if(conserved_variables[cell][M1_INDEX] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative mass for phase 1 " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                                save("_diverged", conserved_variables,
+                                                  alpha1);
                                 exit(1);
                               }
                               else if(std::isnan(conserved_variables[cell][M1_INDEX])) {
                                 std::cerr << "NaN mass for phase 1 " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                                save("_diverged", conserved_variables,
+                                                  alpha1);
                                 exit(1);
                               }
 
                               // Sanity check for m2
                               if(conserved_variables[cell][M2_INDEX] < static_cast<Number>(0.0)) {
                                 std::cerr << "Negative mass for phase 2 " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                                save("_diverged", conserved_variables,
+                                                  alpha1);
                                 exit(1);
                               }
                               else if(std::isnan(conserved_variables[cell][M2_INDEX])){
                                 std::cerr << "NaN mass for phase 2 " + op << std::endl;
-                                save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                                save("_diverged", conserved_variables,
+                                                  alpha1);
                                 exit(1);
                               }
                             }
@@ -460,11 +429,14 @@ void DamBreak<dim>::apply_relaxation() {
                            [&](const auto& cell)
                               {
                                 try {
-                                  perform_Newton_step_relaxation(conserved_variables[cell], dalpha1[cell], alpha1[cell], local_relaxation_applied);
+                                  perform_Newton_step_relaxation(conserved_variables[cell],
+                                                                 dalpha1[cell], alpha1[cell],
+                                                                 local_relaxation_applied);
                                 }
-                                catch(std::exception& e) {
+                                catch(const std::exception& e) {
                                   std::cerr << e.what() << std::endl;
-                                  save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+                                  save("_diverged", conserved_variables,
+                                                    alpha1);
                                 }
                               }
                           );
@@ -475,7 +447,8 @@ void DamBreak<dim>::apply_relaxation() {
     // Newton cycle diverged
     if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
       std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
-      save(fs::current_path(), "_diverged", conserved_variables, alpha1);
+      save("_diverged", conserved_variables,
+                        alpha1);
       exit(1);
     }
 
@@ -496,11 +469,14 @@ void DamBreak<dim>::perform_Newton_step_relaxation(State local_conserved_variabl
   const auto m2_loc = local_conserved_variables(M2_INDEX);
 
   /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-  const auto rho1_loc = m1_loc/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
-  const auto p1_loc   = EOS_phase1.pres_value(rho1_loc);
+  const auto inv_alpha1_loc = static_cast<Number>(1.0)/alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+  const auto rho1_loc       = m1_loc*inv_alpha1_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+  const auto p1_loc         = EOS_phase1.pres_value(rho1_loc);
 
-  const auto rho2_loc = m2_loc/(static_cast<Number>(1.0) - alpha1_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
-  const auto p2_loc   = EOS_phase2.pres_value(rho2_loc);
+  const auto alpha2_loc     = static_cast<Number>(1.0) - alpha1_loc;
+  const auto inv_alpha2_loc = static_cast<Number>(1.0)/alpha2_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+  const auto rho2_loc       = m2_loc*inv_alpha2_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+  const auto p2_loc         = EOS_phase2.pres_value(rho2_loc);
 
   /*--- Compute the nonlinear function for which we seek the zero (basically the pressure equilibrium) ---*/
   const auto F = p1_loc - p2_loc;
@@ -511,17 +487,15 @@ void DamBreak<dim>::perform_Newton_step_relaxation(State local_conserved_variabl
     local_relaxation_applied = true;
 
     /*--- Compute the derivative w.r.t volume fraction recalling that for a barotropic EOS dp/drho = c^2 ---*/
-    const auto dF_dalpha1_loc = -m1_loc/(alpha1_loc*alpha1_loc)*
+    const auto dF_dalpha1_loc = -m1_loc*inv_alpha1_loc*inv_alpha1_loc*
                                 EOS_phase1.c_value(rho1_loc)*EOS_phase1.c_value(rho1_loc)
-                                -m2_loc/((static_cast<Number>(1.0) - alpha1_loc)*
-                                         (static_cast<Number>(1.0) - alpha1_loc))*
+                                -m2_loc*inv_alpha2_loc*inv_alpha2_loc*
                                 EOS_phase2.c_value(rho2_loc)*EOS_phase2.c_value(rho2_loc);
 
     /*--- Compute the volume fraction update with a bound-preserving strategy ---*/
     dalpha1_loc = -F/dF_dalpha1_loc;
     if(dalpha1_loc > static_cast<Number>(0.0)) {
-      dalpha1_loc = std::min(dalpha1_loc,
-                             lambda*(static_cast<Number>(1.0) - alpha1_loc));
+      dalpha1_loc = std::min(dalpha1_loc, lambda*alpha2_loc);
     }
     else if(dalpha1_loc < static_cast<Number>(0.0)) {
       dalpha1_loc = std::max(dalpha1_loc, -lambda*alpha1_loc);
@@ -549,9 +523,8 @@ void DamBreak<dim>::perform_Newton_step_relaxation(State local_conserved_variabl
 //
 template<std::size_t dim>
 template<class... Variables>
-void DamBreak<dim>::save(const fs::path& path,
-                              const std::string& suffix,
-                              const Variables&... fields) {
+void DamBreak<dim>::save(const std::string& suffix,
+                         const Variables&... fields) {
   auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
 
   if(!fs::exists(path)) {
@@ -566,6 +539,7 @@ void DamBreak<dim>::save(const fs::path& path,
                         );
 
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
+  samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields..., level_);
 }
 
 //////////////////////////////////////////////////////////////
@@ -575,17 +549,9 @@ void DamBreak<dim>::save(const fs::path& path,
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void DamBreak<dim>::run(const unsigned nfiles) {
+void DamBreak<dim>::run(const std::size_t nfiles) {
   /*--- Default output arguemnts ---*/
-  fs::path path = fs::current_path();
-  filename = "dam_break";
-  #ifdef RUSANOV_FLUX
-    filename += "_Rusanov";
-  #elifdef HLL_FLUX
-    filename += "_HLL";
-  #elifdef HLLC_FLUX
-    filename += "_HLLC";
-  #endif
+  filename = "dam_break_" + numerical_flux->get_flux_name();
 
   #ifdef ORDER_2
     filename += "_order2";
@@ -600,38 +566,34 @@ void DamBreak<dim>::run(const unsigned nfiles) {
 
   /*--- Auxiliary variable to save updated fields ---*/
   #ifdef ORDER_2
-    auto conserved_variables_tmp = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_tmp", mesh);
-    auto conserved_variables_old = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_old", mesh);
+    auto conserved_variables_tmp = samurai::make_vector_field<Number, Field::n_comp>("conserved_tmp", mesh);
+    auto conserved_variables_old = samurai::make_vector_field<Number, Field::n_comp>("conserved_old", mesh);
   #endif
-  auto conserved_variables_np1 = samurai::make_vector_field<Number, EquationData::NVARS>("conserved_np1", mesh);
+  auto conserved_variables_np1 = samurai::make_vector_field<Number, Field::n_comp>("conserved_np1", mesh);
 
   /*--- Create the flux variable ---*/
-  auto Discrete_flux = numerical_flux.make_flux();
+  auto Discrete_flux = numerical_flux->make_flux();
 
   /*--- Create the gravity term ---*/
   #ifdef GRAVITY_IMPLICIT
     auto id = samurai::make_identity<decltype(conserved_variables)>(); // Identity matrix for the purpose of implicitation
   #endif
   using cfg = samurai::LocalCellSchemeConfig<samurai::SchemeType::LinearHomogeneous,
-                                             Field::n_comp,
-                                             decltype(conserved_variables)>;
+                                             Field,
+                                             Field>;
   auto gravity = samurai::make_cell_based_scheme<cfg>();
-  gravity.coefficients_func() = [](Number)
+  gravity.coefficients_func() = [](samurai::StencilCoeffs<cfg>& coeffs, Number)
                                   {
-                                    samurai::StencilCoeffs<cfg> coeffs;
+                                    coeffs.fill(static_cast<Number>(0.0));
 
-                                    coeffs[0].fill(0.0);
-
-                                    coeffs[0](RHO_U_INDEX + 1, M1_INDEX) = -9.81;
-                                    coeffs[0](RHO_U_INDEX + 1, M2_INDEX) = -9.81;
-
-                                    return coeffs;
+                                    coeffs(RHO_U_INDEX + 1, M1_INDEX) = static_cast<Number>(-9.81);
+                                    coeffs(RHO_U_INDEX + 1, M2_INDEX) = static_cast<Number>(-9.81);
                                   };
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_0" : "";
-  save(path, suffix_init, conserved_variables,
-                          alpha1, rho, p1, p2, p, vel);
+  save(suffix_init, conserved_variables,
+                    alpha1, rho, p1, p2, p, vel);
 
   /*--- Save mesh size ---*/
   const auto dx   = static_cast<Number>(mesh.cell_length(mesh.max_level()));
@@ -646,24 +608,47 @@ void DamBreak<dim>::run(const unsigned nfiles) {
     std::cout << std::endl;
   }
 
+  /*--- Delcare operators for multiresolution ---*/
+  /*auto prediction_fn = [&](auto& new_field, const auto& old_field) {
+    return make_field_operator_function<DamBreak_prediction_op>(new_field, old_field);
+  };*/
+  //auto MRadaptation = samurai::make_MRAdapt(grad_alpha1);
+  auto MRadaptation = samurai::make_MRAdapt(/*prediction_fn,*/ conserved_variables);
+  auto mra_config   = samurai::mra_config();
+  mra_config.epsilon(MR_param);
+  mra_config.regularity(MR_regularity);
+
   /*--- Start the loop ---*/
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   auto t            = static_cast<Number>(t0);
-  auto dt           = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
+    // Apply mesh adaptation
+    /*alpha1.resize();
+    samurai::for_each_cell(mesh,
+                           [&](const auto& cell)
+                              {
+                                alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/
+                                               (conserved_variables[cell][M1_INDEX] +
+                                                conserved_variables[cell][M2_INDEX]);
+                              }
+                          );
+    samurai::update_ghost_mr(alpha1);
+    grad_alpha1.resize();
+    grad_alpha1 = gradient(alpha1);*/
+    MRadaptation(mra_config);
+    //MRadaptation(mra_config, conserved_variables);
+    #ifdef VERBOSE
+      check_data(1);
+    #endif
+
+    // Compute the time step
+    const auto dt = std::min(Tf - t, cfl*dx/get_max_lambda());
     t += dt;
-    if(t > Tf) {
-      dt += Tf - t;
-      t = Tf;
-    }
 
     if(rank == 0) {
       std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
     }
-
-    // Apply mesh adaptation
-    perform_mesh_adaptation();
 
     // Save current state in case of order 2
     #ifdef ORDER_2
@@ -672,34 +657,36 @@ void DamBreak<dim>::run(const unsigned nfiles) {
     #endif
 
     // Apply the numerical scheme without relaxation
-    samurai::update_ghost_mr(conserved_variables);
     try {
-      auto flux_conserved = Discrete_flux(conserved_variables);
       #ifdef ORDER_2
         conserved_variables_tmp.resize();
         #ifdef GRAVITY_IMPLICIT
           auto implicit_operator = id - dt*gravity;
-          auto rhs = conserved_variables - dt*flux_conserved;
+          auto rhs = conserved_variables - dt*Discrete_flux(conserved_variables);
           samurai::petsc::solve(implicit_operator, conserved_variables_tmp, rhs);
         #else
-          conserved_variables_tmp = conserved_variables - dt*flux_conserved + dt*gravity(conserved_variables);
+          conserved_variables_tmp = conserved_variables
+                                  - dt*Discrete_flux(conserved_variables)
+                                  + dt*gravity(conserved_variables);
         #endif
-        std::swap(conserved_variables.array(), conserved_variables_tmp.array());
+        samurai::swap(conserved_variables, conserved_variables_tmp);
       #else
         conserved_variables_np1.resize();
         #ifdef GRAVITY_IMPLICIT
           auto implicit_operator = id - dt*gravity;
-          auto rhs = conserved_variables - dt*flux_conserved;
+          auto rhs = conserved_variables - dt*Discrete_flux(conserved_variables);
           samurai::petsc::solve(implicit_operator, conserved_variables_np1, rhs);
         #else
-          conserved_variables_np1 = conserved_variables - dt*flux_conserved + dt*gravity(conserved_variables);
+          conserved_variables_np1 = conserved_variables
+                                  - dt*Discrete_flux(conserved_variables)
+                                  + dt*gravity(conserved_variables);
         #endif
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+        samurai::swap(conserved_variables, conserved_variables_np1);
       #endif
     }
-    catch(std::exception& e) {
+    catch(const std::exception& e) {
       std::cerr << e.what() << std::endl;
-      save(fs::current_path(), "_diverged", conserved_variables);
+      save("_diverged", conserved_variables);
       exit(1);
     }
     #ifdef VERBOSE
@@ -726,24 +713,24 @@ void DamBreak<dim>::run(const unsigned nfiles) {
     // Consider the second stage for the second order
     #ifdef ORDER_2
       // Apply the numerical scheme
-      samurai::update_ghost_mr(conserved_variables);
       try {
-        auto flux_conserved = Discrete_flux(conserved_variables);
         #ifdef GRAVITY_IMPLICIT
           auto implicit_operator = id - dt*gravity;
-          auto rhs = conserved_variables - dt*flux_conserved;
+          auto rhs = conserved_variables - dt*Discrete_flux(conserved_variables);
           samurai::petsc::solve(implicit_operator, conserved_variables_tmp, rhs);
         #else
-          conserved_variables_tmp = conserved_variables - dt*flux_conserved + dt*gravity(conserved_variables);
+          conserved_variables_tmp = conserved_variables
+                                  - dt*Discrete_flux(conserved_variables)
+                                  + dt*gravity(conserved_variables);
         #endif
         conserved_variables_np1.resize();
         conserved_variables_np1 = static_cast<Number>(0.5)*
                                   (conserved_variables_tmp + conserved_variables_old);
-        std::swap(conserved_variables.array(), conserved_variables_np1.array());
+        samurai::swap(conserved_variables, conserved_variables_np1);
       }
-      catch(std::exception& e) {
+      catch(const std::exception& e) {
         std::cerr << e.what() << std::endl;
-        save(fs::current_path(), "_diverged", conserved_variables);
+        save("_diverged", conserved_variables);
         exit(1);
       }
       #ifdef VERBOSE
@@ -767,14 +754,11 @@ void DamBreak<dim>::run(const unsigned nfiles) {
       }
     #endif
 
-    /*--- Compute updated time step ---*/
-    dt = std::min(Tf - t, cfl*dx/get_max_lambda());
-
-    /*--- Save the results ---*/
+    // Save the results
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
 
-      // Compute auxiliary fields for the output
+      /*--- Compute auxiliary fields for the output ---*/
       if(!apply_relax) {
         rho.resize();
         alpha1.resize();
@@ -782,6 +766,7 @@ void DamBreak<dim>::run(const unsigned nfiles) {
       p1.resize();
       p2.resize();
       p.resize();
+      vel.resize();
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                                 {
@@ -791,27 +776,38 @@ void DamBreak<dim>::run(const unsigned nfiles) {
 
                                   // Recompute volume fraction in case relaxation is not applied
                                   // (and therefore they have not been updated)
-                                  rho[cell] = m1_loc + m2_loc;
+                                  const auto rho_loc     = m1_loc + m2_loc;
+                                  const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
+                                  rho[cell] = rho_loc;
                                   if(!apply_relax) {
-                                    alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]/rho[cell];
+                                    alpha1[cell] = conserved_variables[cell][RHO_ALPHA1_INDEX]*inv_rho_loc;
+                                  }
+
+                                  // Update the velocity
+                                  for(std::size_t d = 0; d < dim; ++d) {
+                                    vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]*inv_rho_loc;
                                   }
 
                                   // Compute pressure fields
-                                  const auto rho1_loc = m1_loc/alpha1[cell];
+                                  const auto alpha1_loc = alpha1[cell];
+                                  const auto rho1_loc   = m1_loc/alpha1_loc;
                                   /*--- TODO: Add a check in case of zero volume fraction ---*/
-                                  p1[cell] = EOS_phase1.pres_value(rho1_loc);
+                                  const auto p1_loc = EOS_phase1.pres_value(rho1_loc);
+                                  p1[cell] = p1_loc;
 
-                                  const auto rho2_loc = m2_loc/(static_cast<Number>(1.0) - alpha1[cell]);
+                                  const auto alpha2_loc = static_cast<Number>(1.0) - alpha1_loc;
+                                  const auto rho2_loc   = m2_loc/alpha2_loc;
                                   /*--- TODO: Add a check in case of zero volume fraction ---*/
-                                  p2[cell] = EOS_phase2.pres_value(rho2_loc);
+                                  const auto p2_loc = EOS_phase2.pres_value(rho2_loc);
+                                  p2[cell] = p2_loc;
 
-                                  p[cell] = alpha1[cell]*p1[cell]
-                                          + (static_cast<Number>(1.0) - alpha1[cell])*p2[cell];
+                                  p[cell] = alpha1_loc*p1_loc
+                                          + alpha2_loc*p2_loc;
                                 }
                             );
 
-      save(path, suffix, conserved_variables,
-                         alpha1, rho, p1, p2, p, vel);
+      save(suffix, conserved_variables,
+                   alpha1, rho, p1, p2, p, vel);
     }
   }
 }

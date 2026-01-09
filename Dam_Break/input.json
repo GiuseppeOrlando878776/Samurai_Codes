@@ -15,6 +15,7 @@
  "W0": 0.4,
 
  "cfl": 0.3,
+ "flux_name": "HLLC",
 
  "lambda": 0.9,
  "atol_Newton": 1e-14,

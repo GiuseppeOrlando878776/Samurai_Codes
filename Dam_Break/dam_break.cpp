@@ -38,31 +38,33 @@ int main(int argc, char* argv[]) {
   sim_param.zL = input.value("yL", 0.0);
   sim_param.zR = input.value("yR", 1.0);
 
-  sim_param.t0 = input.value("t0", 0.0);
-  sim_param.Tf = input.value("Tf", 0.6);
+  sim_param.t0 = input.value("t0", static_cast<Number>(0.0));
+  sim_param.Tf = input.value("Tf", static_cast<Number>(0.6));
 
   sim_param.apply_relaxation = input.value("apply_relaxation", true);
 
-  sim_param.L0 = input.value("L0", 0.4);
-  sim_param.H0 = input.value("H0", 0.8);
-  sim_param.W0 = input.value("W0", 0.4);
+  sim_param.L0 = input.value("L0", static_cast<Number>(0.4));
+  sim_param.H0 = input.value("H0", static_cast<Number>(0.8));
+  sim_param.W0 = input.value("W0", static_cast<Number>(0.4));
 
   // Numerical parameters
-  sim_param.Courant = input.value("cfl", 0.45);
+  sim_param.Courant   = input.value("cfl", static_cast<Number>(0.45));
+  sim_param.flux_name = input.value("flux_name", "Rusanov");
 
-  sim_param.lambda           = input.value("lambda", 0.9);
-  sim_param.atol_Newton      = input.value("atol_Newton", 1e-12);
-  sim_param.rtol_Newton      = input.value("rtol_Newton", 1e-10);
-  sim_param.max_Newton_iters = input.value("max_Newton_iters", 60);
+  sim_param.lambda           = input.value("lambda", static_cast<Number>(0.9));
+  sim_param.atol_Newton      = input.value("atol_Newton", static_cast<Number>(1e-12));
+  sim_param.rtol_Newton      = input.value("rtol_Newton", static_cast<Number>(1e-10));
+  sim_param.max_Newton_iters = input.value("max_Newton_iters", static_cast<std::size_t>(60));
 
   // MR parameters
-  sim_param.min_level     = input.value("min-level", 4);
-  sim_param.max_level     = input.value("max-level", 4);
-  sim_param.MR_param      = input.value("MR_param", 1e-2);
-  sim_param.MR_regularity = input.value("MR_regularity", 0);
+  sim_param.min_level     = input.value("min-level", static_cast<std::size_t>(4));
+  sim_param.max_level     = input.value("max-level", static_cast<std::size_t>(4));
+  sim_param.MR_param      = input.value("MR_param", static_cast<double>(1e-2));
+  sim_param.MR_regularity = input.value("MR_regularity", static_cast<double>(0));
 
   // Output parameters
-  sim_param.nfiles = input.value("nfiles", 10);
+  sim_param.save_dir = input.value("save-dir", fs::current_path());
+  sim_param.nfiles   = input.value("nfiles", static_cast<std::size_t>(10));
 
   // Restart file
   sim_param.restart_file = input.value("restart_file","");
@@ -85,6 +87,7 @@ int main(int argc, char* argv[]) {
 
   // Numerical parameters
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Numerical parameters");
+  app.add_option("--flux_name", sim_param.flux_name, "Desired numerical flux")->capture_default_str()->group("Numerical parameters");
 
   app.add_option("--lambda", sim_param.lambda,
                  "Parameter for bound preserving strategy")->capture_default_str()->group("Numerical parameters");
@@ -102,7 +105,8 @@ int main(int argc, char* argv[]) {
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
 
   // Output parameters
-  app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
+  app.add_option("--save-dir", sim_param.save_dir, "Output directory")->capture_default_str()->group("Output parameters");
+  app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Output parameters");
 
   // Restart file
   app.add_option("--restart_file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
@@ -110,13 +114,13 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters<Number> eos_param;
 
-  eos_param.p0_phase1   = input.value("p0_phase1", 1e5);
-  eos_param.rho0_phase1 = input.value("rho0_phase1", 1e3);
-  eos_param.c0_phase1   = input.value("c0_phase1", 15.0);
+  eos_param.p0_phase1   = input.value("p0_phase1", static_cast<Number>(1e5));
+  eos_param.rho0_phase1 = input.value("rho0_phase1", static_cast<Number>(1e3));
+  eos_param.c0_phase1   = input.value("c0_phase1", static_cast<Number>(15.0));
 
-  eos_param.p0_phase2   = input.value("p0_phase2", 1e5);
-  eos_param.rho0_phase2 = input.value("rho0_phase2", 1.0);
-  eos_param.c0_phase2   = input.value("c0_phase1", 3.4);
+  eos_param.p0_phase2   = input.value("p0_phase2", static_cast<Number>(1e5));
+  eos_param.rho0_phase2 = input.value("rho0_phase2", static_cast<Number>(1.0));
+  eos_param.c0_phase2   = input.value("c0_phase1", static_cast<Number>(3.4));
 
   app.add_option("--p0_phase1", eos_param.p0_phase1, "p0_phase1")->capture_default_str()->group("EOS parameters");
   app.add_option("--rho0_phase1", eos_param.p0_phase1, "rho0_phase1")->capture_default_str()->group("EOS parameters");

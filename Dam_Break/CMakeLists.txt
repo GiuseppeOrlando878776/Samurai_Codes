@@ -14,6 +14,8 @@ pkg_check_modules(PETSC PETSc)
 set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_CXX_STANDARD 17)
-
 add_executable(dam_break dam_break.cpp)
+set_target_properties(dam_break PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 target_link_libraries(dam_break samurai::samurai CLI11::CLI11 ${PETSC_LINK_LIBRARIES} ${MPI_LIBRARIES})
+target_include_directories(dam_break PRIVATE include)

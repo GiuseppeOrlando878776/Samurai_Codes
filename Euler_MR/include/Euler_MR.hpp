@@ -430,20 +430,21 @@ void Euler_MR<dim>::run(const std::size_t nfiles) {
   std::size_t nsave = 0;
   std::size_t nt    = 0;
   auto t            = static_cast<Number>(t0);
-  auto dt           = std::min(Tf - t, cfl*dx/get_max_lambda());
   while(t != Tf) {
-    t += dt;
-
-    if(rank == 0) {
-      std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
-    }
-
     // Apply mesh adaptation
     //update_ghost_mr(conserved_variables);
     MRadaptation(mra_config, conserved_variables);
     #ifdef VERBOSE
       check_data(1);
     #endif
+
+    // Compute time step
+    auto dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+    t += dt;
+
+    if(rank == 0) {
+      std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+    }
 
     // Save current state in case of order 2
     #ifdef ORDER_2

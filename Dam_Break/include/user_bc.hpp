@@ -8,10 +8,9 @@
 
 #include <samurai/bc.hpp>
 
-#include "flux_base.hpp"
+#include "schemes/flux_base.hpp"
 
 // Specify the use of this namespace where we just store the indices
-// and, in this case, some parameters related to EOS
 using namespace EquationData;
 
 // Default boundary condition
@@ -46,7 +45,8 @@ template<class Field>
 auto NonReflecting(const Field& Q) {
   return [&Q](const auto& normal, const auto& cell_in, const auto& /*coord*/) {
     /*--- Compute the corresponding ghost state ---*/
-    xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
+    xt::xtensor_fixed<typename Field::value_type,
+                      xt::xshape<Field::n_comp>> Q_ghost;
     Q_ghost[M1_INDEX]         = Q[cell_in](M1_INDEX);
     Q_ghost[M2_INDEX]         = Q[cell_in](M2_INDEX);
     Q_ghost[RHO_ALPHA1_INDEX] = Q[cell_in](RHO_ALPHA1_INDEX);
