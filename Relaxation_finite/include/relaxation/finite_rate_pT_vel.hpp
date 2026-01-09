@@ -26,7 +26,7 @@ namespace samurai {
                           const SG_EOS<Number>& EOS_phase2_,
                           const Number atol_Newton_relaxation_ = static_cast<Number>(1e-12),
                           const Number rtol_Newton_relaxation_ = static_cast<Number>(1e-10),
-                          const std::size_t max_Newton_iters_ = 60,
+                          const std::size_t max_Newton_iters_ = static_cast<std::size_t>(60),
                           const Number tau_u_ = static_cast<Number>(1e10),
                           const Number tau_p_ = static_cast<Number>(1e10),
                           const Number tau_T_ = static_cast<Number>(1e10)); /*--- Class constructor (EOS of the two phases and tolerances needed here) ---*/
