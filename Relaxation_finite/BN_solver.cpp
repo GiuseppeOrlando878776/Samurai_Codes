@@ -26,8 +26,8 @@ int main(int argc, char* argv[]) {
   Simulation_Parameters<Number> sim_param;
 
   // Physical parameters
-  sim_param.xL = input.value("xL", static_cast<Number>(0.0));
-  sim_param.xR = input.value("xR", static_cast<Number>(1.0));
+  sim_param.xL = input.value("xL", static_cast<double>(0.0));
+  sim_param.xR = input.value("xR", static_cast<double>(1.0));
 
   sim_param.t0 = input.value("t0", static_cast<Number>(0.0));
   sim_param.Tf = input.value("Tf", static_cast<Number>(0.007));
@@ -51,16 +51,16 @@ int main(int argc, char* argv[]) {
 
   sim_param.atol_Newton_Suliciu = input.value("atol_Newton_Suliciu", static_cast<Number>(1e-8));
   sim_param.rtol_Newton_Suliciu = input.value("rtol_Newton_Suliciu", static_cast<Number>(1e-6));
-  sim_param.max_Newton_iters    = input.value("max_Newton_iters", 60);
+  sim_param.max_Newton_iters    = input.value("max_Newton_iters", static_cast<std::size_t>(60));
 
   sim_param.atol_Newton_relaxation = input.value("atol_Newton_relaxation", static_cast<Number>(1e-12));
   sim_param.rtol_Newton_relaxation = input.value("rtol_Newton_relaxation", static_cast<Number>(1e-6));
 
   // Mesh parameters
-  sim_param.min_level     = input.value("min-level", 10);
-  sim_param.max_level     = input.value("max-level", 10);
-  sim_param.MR_param      = input.value("MR_param", 1e-1);
-  sim_param.MR_regularity = input.value("MR_regularity", 1);
+  sim_param.min_level     = input.value("min-level", static_cast<std::size_t>(10));
+  sim_param.max_level     = input.value("max-level", static_cast<std::size_t>(10));
+  sim_param.MR_param      = input.value("MR_param", static_cast<double>(1e-1));
+  sim_param.MR_regularity = input.value("MR_regularity", static_cast<double>(1));
 
   // Output parameters
   sim_param.save_dir = input.value("save-dir", fs::current_path());
