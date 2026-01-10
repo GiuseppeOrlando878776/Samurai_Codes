@@ -439,8 +439,10 @@ void Euler_MR<dim>::run(const std::size_t nfiles) {
     #endif
 
     // Compute time step
-    auto dt = std::min(Tf - t, cfl*dx/get_max_lambda());
-    t += dt;
+    #ifndef VERBOSE
+      update_auxiliary_fields();
+    #endif
+    const auto dt = std::min(Tf - t, cfl*dx/get_max_lambda());
 
     if(rank == 0) {
       std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
@@ -494,14 +496,12 @@ void Euler_MR<dim>::run(const std::size_t nfiles) {
       #endif
     #endif
 
-    // Compute updated time step
-    #if !defined VERBOSE
-      update_auxiliary_fields();
-    #endif
-    dt = std::min(Tf - t, cfl*dx/get_max_lambda());
-
     // Save the results
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
+      #ifndef VERBOSE
+        update_auxiliary_fields();
+      #endif
+
       const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
       save(suffix, conserved_variables,
                    p, vel, c);
