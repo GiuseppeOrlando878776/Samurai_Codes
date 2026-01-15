@@ -168,6 +168,7 @@ private:
   std::ofstream grad_alpha_liq_integral;
   std::ofstream alpha_l_bar_integral;
   std::ofstream grad_alpha_l_bar_integral;
+  std::ofstream Etot_integral;
 
   /*--- Now, it's time to declare some member functions that we will employ ---*/
   void update_geometry(); /*--- Auxiliary routine to compute normals and curvature ---*/
@@ -601,8 +602,7 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                               /*--- Update eigenvalue estimate ---*/
                               for(std::size_t d = 0; d < dim; ++d) {
                                 local_res = std::max(local_res,
-                                                     std::abs(vel[cell][d]) + c_loc*(static_cast<Number>(1.0) +
-                                                                                     static_cast<Number>(0.125)*r));
+                                                     std::abs(vel[cell][d]) + c_loc*std::sqrt(static_cast<Number>(1.0) + r));
                               }
                             }
                         );
@@ -877,7 +877,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         }
 
         // Bound preserving for the velocity
-        fac_Ru = sigma*H_lim*(static_cast<Number>(3.0)/kappa - static_cast<Number>(1.0));
+        fac_Ru = sigma*Hmax*(static_cast<Number>(3.0)/kappa - static_cast<Number>(1.0));
         const auto mom_dot_vel   = (local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX) +
                                     local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
         auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(alpha_l_loc*sigma*dH*fac_Ru);
@@ -1067,6 +1067,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
   auto local_grad_alpha_liq_int   = static_cast<Number>(0.0);
   auto local_alpha_l_bar_int      = static_cast<Number>(0.0);
   auto local_grad_alpha_l_bar_int = static_cast<Number>(0.0);
+  auto local_Etot_int             = static_cast<Number>(0.0);
 
   alpha_l_bar.resize();
   alpha_d.resize();
@@ -1125,11 +1126,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                                                        std::cbrt(rho_liq_loc*rho_liq_loc);
                               Sigma_d[cell]          = Sigma_d_loc;
 
-                              // Compute the integral quantities
-                              auto cell_volume = static_cast<Number>(cell.length);
-                              for(std::size_t d = 1; d < dim; ++d) {
-                                cell_volume *= static_cast<Number>(cell.length);
-                              }
+                              // Compute geometric Euclidean norms
                               auto mod2_grad_alpha_l_loc     = static_cast<Number>(0.0);
                               auto mod2_grad_alpha_d_loc     = static_cast<Number>(0.0);
                               auto mod2_grad_alpha_liq_loc   = static_cast<Number>(0.0);
@@ -1146,6 +1143,25 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               const auto mod_grad_alpha_liq_loc   = std::sqrt(mod2_grad_alpha_liq_loc);
                               const auto mod_grad_alpha_l_bar_loc = std::sqrt(mod2_grad_alpha_l_bar_loc);
 
+                              // Compute the total energy (Hamiltonian)
+                              const auto rho_loc = m_l_loc + m_g_loc + m_d_loc;
+                              auto norm2_vel_loc = static_cast<Number>(0.0);
+                              for(std::size_t d = 0; d < dim; ++d) {
+                                norm2_vel_loc += vel[cell][d]*vel[cell][d];
+                              }
+                              const auto e_liq_loc = (m_l_loc + m_d_loc)*EOS_phase_liq.e_value(rho_liq_loc);
+                              const auto e_g_loc   = m_g_loc*EOS_phase_gas.e_value(rho_g_loc);
+
+                              const auto Etot_loc = static_cast<Number>(0.5)*rho_loc*norm2_vel_loc
+                                                  + e_liq_loc + e_g_loc
+                                                  + sigma*(mod_grad_alpha_l_loc + Sigma_d_loc);
+
+                              // Compute the integral quantities
+                              auto cell_volume = static_cast<Number>(cell.length);
+                              for(std::size_t d = 1; d < dim; ++d) {
+                                cell_volume *= static_cast<Number>(cell.length);
+                              }
+
                               local_m_l_int += m_l_loc*cell_volume;
                               local_m_d_int += m_d_loc*cell_volume;
                               local_alpha_l_int += alpha_l_loc*cell_volume;
@@ -1156,6 +1172,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               local_grad_alpha_liq_int += mod_grad_alpha_liq_loc*cell_volume;
                               local_alpha_l_bar_int += alpha_l_bar[cell]*cell_volume;
                               local_grad_alpha_l_bar_int += mod_grad_alpha_l_bar_loc*cell_volume;
+                              local_Etot_int += Etot_loc*cell_volume;
                             }
                         );
 
@@ -1204,6 +1221,10 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
   double global_grad_alpha_l_bar_int;
   MPI_Allreduce(&local_grad_alpha_l_bar_int_d, &global_grad_alpha_l_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
+  double local_Etot_int_d = static_cast<double>(local_Etot_int);
+  double global_Etot_int;
+  MPI_Allreduce(&local_Etot_int_d, &global_Etot_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
   /*--- Save the data ---*/
   Hlig                      << std::fixed << std::setprecision(12)              << time << '\t'
                             << static_cast<Number>(global_H_lig)                << std::endl;
@@ -1227,6 +1248,8 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                             << static_cast<Number>(global_alpha_l_bar_int)      << std::endl;
   grad_alpha_l_bar_integral << std::fixed << std::setprecision(12)              << time << '\t'
                             << static_cast<Number>(global_grad_alpha_l_bar_int) << std::endl;
+  Etot_integral             << std::fixed << std::setprecision(12)              << time << '\t'
+                            << static_cast<Number>(global_Etot_int)             << std::endl;
 }
 
 //////////////////////////////////////////////////////////////
@@ -1304,6 +1327,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
   grad_alpha_liq_integral.open(path.string() + "/grad_alpha_liq_integral.dat", std::ofstream::out);
   alpha_l_bar_integral.open(path.string() + "/alpha_l_bar_integral.dat", std::ofstream::out);
   grad_alpha_l_bar_integral.open(path.string() + "/grad_alpha_l_bar_integral.dat", std::ofstream::out);
+  Etot_integral.open(path.string() + "/Etot_integral.dat", std::ofstream::out);
   auto t = static_cast<Number>(t0);
   execute_postprocess(t);
 
@@ -1594,4 +1618,5 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
   grad_alpha_liq_integral.close();
   alpha_l_bar_integral.close();
   grad_alpha_l_bar_integral.close();
+  Etot_integral.close();
 }
