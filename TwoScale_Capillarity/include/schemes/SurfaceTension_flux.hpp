@@ -18,8 +18,8 @@ namespace samurai {
   class SurfaceTensionFlux: public Flux<Field> {
   public:
     using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    using cfg    = Flux<Field>::cfg; /*--- Shortcut to specify the type of configuration
-                                           for the flux (nonlinear in this case) ---*/
+    using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
+                                              for the flux (nonlinear in this case) ---*/
 
     SurfaceTensionFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
                        const LinearizedBarotropicEOS<Number>& EOS_phase2_,

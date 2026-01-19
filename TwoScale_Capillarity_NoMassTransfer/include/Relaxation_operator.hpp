@@ -12,7 +12,7 @@ namespace samurai {
   using namespace EquationData;
 
   /**
-    * Implementation of a Rusanov flux
+    * Implementation of a relaxation operator
     */
   template<class Field>
   class RelaxationOperator {

@@ -1226,30 +1226,54 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
   MPI_Allreduce(&local_Etot_int_d, &global_Etot_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
   /*--- Save the data ---*/
-  Hlig                      << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_H_lig)                << std::endl;
-  m_l_integral              << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_m_l_int)              << std::endl;
-  m_d_integral              << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_m_d_int)              << std::endl;
-  alpha_l_integral          << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_alpha_l_int)          << std::endl;
-  grad_alpha_l_integral     << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_grad_alpha_l_int)     << std::endl;
-  Sigma_d_integral          << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_Sigma_d_int)          << std::endl;
-  alpha_d_integral          << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_alpha_d_int)          << std::endl;
-  grad_alpha_d_integral     << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_grad_alpha_d_int)     << std::endl;
-  grad_alpha_liq_integral   << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_grad_alpha_liq_int)   << std::endl;
-  alpha_l_bar_integral      << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_alpha_l_bar_int)      << std::endl;
-  grad_alpha_l_bar_integral << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_grad_alpha_l_bar_int) << std::endl;
-  Etot_integral             << std::fixed << std::setprecision(12)              << time << '\t'
-                            << static_cast<Number>(global_Etot_int)             << std::endl;
+  Hlig                      << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_H_lig)
+                            << std::endl;
+  m_l_integral              << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_m_l_int)
+                            << std::endl;
+  m_d_integral              << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_m_d_int)
+                            << std::endl;
+  alpha_l_integral          << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_alpha_l_int)
+                            << std::endl;
+  grad_alpha_l_integral     << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_grad_alpha_l_int)
+                            << std::endl;
+  Sigma_d_integral          << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_Sigma_d_int)
+                            << std::endl;
+  alpha_d_integral          << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_alpha_d_int)
+                            << std::endl;
+  grad_alpha_d_integral     << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_grad_alpha_d_int)
+                            << std::endl;
+  grad_alpha_liq_integral   << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_grad_alpha_liq_int)
+                            << std::endl;
+  alpha_l_bar_integral      << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_alpha_l_bar_int)
+                            << std::endl;
+  grad_alpha_l_bar_integral << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_grad_alpha_l_bar_int)
+                            << std::endl;
+  Etot_integral             << std::fixed << std::setprecision(12)
+                            << time << '\t'
+                            << static_cast<Number>(global_Etot_int)
+                            << std::endl;
 }
 
 //////////////////////////////////////////////////////////////

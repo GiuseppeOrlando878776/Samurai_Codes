@@ -23,55 +23,56 @@ int main(int argc, char* argv[]) {
   Simulation_Paramaters<Number> sim_param;
 
   // Physical parameters
-  sim_param.xL = input.value("xL", 0.0);
-  sim_param.xR = input.value("xR", 4.0);
-  sim_param.yL = input.value("yL", 0.0);
-  sim_param.yR = input.value("yR", 2.0);
+  sim_param.xL = input.value("xL", static_cast<double>(0.0));
+  sim_param.xR = input.value("xR", static_cast<double>(4.0));
+  sim_param.yL = input.value("yL", static_cast<double>(0.0));
+  sim_param.yR = input.value("yR", static_cast<double>(2.0));
 
-  sim_param.t0 = input.value("t0", 0.0);
-  sim_param.Tf = input.value("Tf", 2.5);
+  sim_param.t0 = input.value("t0", static_cast<Number>(0.0));
+  sim_param.Tf = input.value("Tf", static_cast<Number>(2.5));
 
-  sim_param.sigma = input.value("sigma", 1e-2);
+  sim_param.sigma = input.value("sigma", static_cast<Number>(1e-2));
 
   sim_param.apply_relaxation = input.value("apply_relaxation", true);
   sim_param.mass_transfer    = input.value("mass_transfer", false);
-  sim_param.Hmax             = input.value("Hmax", 40.0);
-  sim_param.kappa            = input.value("kappa", 1.0);
-  sim_param.alpha1d_max      = input.value("alpha1d_max", 0.5);
-  sim_param.alpha1_bar_min   = input.value("alpha1_bar_min", 0.01);
-  sim_param.alpha1_bar_max   = input.value("alpha1_bar_max", 0.1);
+  sim_param.Hmax             = input.value("Hmax", static_cast<Number>(40.0));
+  sim_param.kappa            = input.value("kappa", static_cast<Number>(1.0));
+  sim_param.alpha1d_max      = input.value("alpha1d_max", static_cast<Number>(0.5));
+  sim_param.alpha1_bar_min   = input.value("alpha1_bar_min", static_cast<Number>(0.01));
+  sim_param.alpha1_bar_max   = input.value("alpha1_bar_max", static_cast<Number>(0.1));
 
-  sim_param.x0         = input.value("x0", 1.0);
-  sim_param.y0         = input.value("y0", 1.0);
-  sim_param.U0         = input.value("U0", 6.66);
-  sim_param.U1         = input.value("U1", 0.0);
-  sim_param.V0         = input.value("V0", 0.0);
-  sim_param.R          = input.value("R", 0.15);
-  sim_param.eps_over_R = input.value("eps_over_R", 0.2);
+  sim_param.x0         = input.value("x0", static_cast<Number>(1.0));
+  sim_param.y0         = input.value("y0", static_cast<Number>(1.0));
+  sim_param.U0         = input.value("U0", static_cast<Number>(6.66));
+  sim_param.U1         = input.value("U1", static_cast<Number>(0.0));
+  sim_param.V0         = input.value("V0", static_cast<Number>(0.0));
+  sim_param.R          = input.value("R", static_cast<Number>(0.15));
+  sim_param.eps_over_R = input.value("eps_over_R", static_cast<Number>(0.2));
 
   // Numerical parameters
-  sim_param.Courant = input.value("cfl", 0.4);
+  sim_param.Courant = input.value("cfl", static_cast<Number>(0.4));
 
-  sim_param.alpha_residual          = input.value("alpha_residual", 1e-8);
-  sim_param.mod_grad_alpha1_bar_min = input.value("mod_grad_alpha1_bar_min", 0.0);
+  sim_param.alpha_residual          = input.value("alpha_residual", static_cast<Number>(1e-8));
+  sim_param.mod_grad_alpha1_bar_min = input.value("mod_grad_alpha1_bar_min", static_cast<Number>(0.0));
 
-  sim_param.lambda           = input.value("lambda", 0.9);
-  sim_param.atol_Newton      = input.value("atol_Newton", 1e-14);
-  sim_param.rtol_Newton      = input.value("rtol_Newton", 1e-12);
-  sim_param.max_Newton_iters = input.value("max_Newton_iters", 60);
+  sim_param.lambda           = input.value("lambda", static_cast<Number>(0.9));
+  sim_param.atol_Newton      = input.value("atol_Newton", static_cast<Number>(1e-12));
+  sim_param.rtol_Newton      = input.value("rtol_Newton", static_cast<Number>(1e-10));
+  sim_param.max_Newton_iters = input.value("max_Newton_iters", static_cast<std::size_t>(60));
 
-  sim_param.atol_Newton_p_star  = input.value("atol_Newton_p_star", 1e-10);
-  sim_param.rtol_Newton_p_star  = input.value("rtol_Newton_p_star", 1e-8);
-  sim_param.tol_Newton_alpha1_d = input.value("tol_Newton_alpha1_d", 1e-8);
+  sim_param.atol_Newton_p_star  = input.value("atol_Newton_p_star", static_cast<Number>(1e-10));
+  sim_param.rtol_Newton_p_star  = input.value("rtol_Newton_p_star", static_cast<Number>(1e-8));
+  sim_param.tol_Newton_alpha1_d = input.value("tol_Newton_alpha1_d", static_cast<Number>(1e-8));
 
   // MR paramters
-  sim_param.min_level     = input.value("min-level", 8);
-  sim_param.max_level     = input.value("max-level", 8);
-  sim_param.MR_param      = input.value("MR_param", 1e-1);
-  sim_param.MR_regularity = input.value("MR_regularity", 0);
+  sim_param.min_level     = input.value("min-level", static_cast<std::size_t>(8));
+  sim_param.max_level     = input.value("max-level", static_cast<std::size_t>(8));
+  sim_param.MR_param      = input.value("MR_param", static_cast<double>(1e-1));
+  sim_param.MR_regularity = input.value("MR_regularity", static_cast<double>(0));
 
   // Output parameters
-  sim_param.nfiles = input.value("nfiles", 10);
+  sim_param.save_dir = input.value("save-dir", fs::current_path());
+  sim_param.nfiles   = input.value("nfiles", static_cast<std::size_t>(10));
 
   /*--- Allow for parsing from command line ---*/
   // Physical parameters
@@ -137,7 +138,8 @@ int main(int argc, char* argv[]) {
   app.add_option("--MR_regularity", sim_param.MR_regularity, "Multiresolution regularity")->capture_default_str()->group("AMR parameter");
 
   // Output parameters
-  app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Ouput");
+  app.add_option("--save-dir", sim_param.save_dir, "Output directory")->capture_default_str()->group("Output parameters");
+  app.add_option("--nfiles", sim_param.nfiles, "Number of output files")->capture_default_str()->group("Output parameters");
 
   // Restart file
   app.add_option("--restart_file", sim_param.restart_file, "Name of the restart file")->capture_default_str()->group("Restart");
@@ -148,13 +150,13 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters<Number> eos_param;
 
-  eos_param.p0_phase1   = input.value("p0_phase1", 1e5);
-  eos_param.rho0_phase1 = input.value("rho0_phase1", 1e3);
-  eos_param.c0_phase1   = input.value("c0_phase1", 1e1);
+  eos_param.p0_phase1   = input.value("p0_phase1", static_cast<Number>(1e5));
+  eos_param.rho0_phase1 = input.value("rho0_phase1", static_cast<Number>(1e3));
+  eos_param.c0_phase1   = input.value("c0_phase1", static_cast<Number>(1e1));
 
-  eos_param.p0_phase2   = input.value("p0_phase2", 1e5);
-  eos_param.rho0_phase2 = input.value("rho0_phase2", 1.0);
-  eos_param.c0_phase2   = input.value("c0_phase1", 1e1);
+  eos_param.p0_phase2   = input.value("p0_phase2", static_cast<Number>(1e5));
+  eos_param.rho0_phase2 = input.value("rho0_phase2", static_cast<Number>(1.0));
+  eos_param.c0_phase2   = input.value("c0_phase1", static_cast<Number>(1e1));
 
   app.add_option("--p0_phase1", eos_param.p0_phase1, "p0_phase1")->capture_default_str()->group("EOS parameters");
   app.add_option("--rho0_phase1", eos_param.p0_phase1, "rho0_phase1")->capture_default_str()->group("EOS parameters");

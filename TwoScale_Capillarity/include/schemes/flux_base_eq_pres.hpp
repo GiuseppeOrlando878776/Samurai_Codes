@@ -8,7 +8,8 @@
 
 #include <samurai/schemes/fv.hpp>
 
-#include "barotropic_eos.hpp"
+#include "../barotropic_eos.hpp"
+#include "../utilities.hpp.hpp"
 
 /*--- Preprocessor to define whether order 2 is desired ---*/
 #define ORDER_2
@@ -111,28 +112,19 @@ namespace samurai {
 
     FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conserved variables ---*/
 
-    #ifdef ORDER_2
-      void perform_reconstruction(const FluxValue<cfg>& primLL,
-                                  const FluxValue<cfg>& primL,
-                                  const FluxValue<cfg>& primR,
-                                  const FluxValue<cfg>& primRR,
-                                  FluxValue<cfg>& primL_recon,
-                                  FluxValue<cfg>& primR_recon); /*--- Reconstruction for second order scheme ---*/
+    #ifdef RELAX_RECONSTRUCTION
+      template<typename State>
+      void perform_Newton_step_relaxation(State conserved_variables,
+                                          const Number H_bar,
+                                          Number& dalpha1_bar,
+                                          Number& alpha1_bar,
+                                          bool& relaxation_applied); /*--- Perform a Newton step relaxation for a state vector
+                                                                           (it is not a real space dependent procedure,
+                                                                            but I would need to be able to do it inside the flux location
+                                                                            for MUSCL reconstruction) ---*/
 
-      #ifdef RELAX_RECONSTRUCTION
-        template<typename State>
-        void perform_Newton_step_relaxation(State conserved_variables,
-                                            const Number H_bar,
-                                            Number& dalpha1_bar,
-                                            Number& alpha1_bar,
-                                            bool& relaxation_applied); /*--- Perform a Newton step relaxation for a state vector
-                                                                             (it is not a real space dependent procedure,
-                                                                              but I would need to be able to do it inside the flux location
-                                                                              for MUSCL reconstruction) ---*/
-
-        void relax_reconstruction(FluxValue<cfg>& q,
-                                  const Number H_bar); /*--- Relax reconstructed state ---*/
-      #endif
+      void relax_reconstruction(FluxValue<cfg>& q,
+                                const Number H_bar); /*--- Relax reconstructed state ---*/
     #endif
   };
 
@@ -321,161 +313,105 @@ namespace samurai {
     return cons;
   }
 
-  // Perform reconstruction for order 2 scheme
+  // Relax reconstruction
   //
-  #ifdef ORDER_2
+  #ifdef RELAX_RECONSTRUCTION
+    // Perform a Newton step relaxation for a single vector state (i.e. a single cell) without mass transfer
+    //
     template<class Field>
-    void Flux<Field>::perform_reconstruction(const FluxValue<cfg>& primLL,
-                                             const FluxValue<cfg>& primL,
-                                             const FluxValue<cfg>& primR,
-                                             const FluxValue<cfg>& primRR,
-                                             FluxValue<cfg>& primL_recon,
-                                             FluxValue<cfg>& primR_recon) {
-      /*--- Initialize with the original state ---*/
-      primL_recon = primL;
-      primR_recon = primR;
+    template<typename State>
+    void Flux<Field>::perform_Newton_step_relaxation(State conserved_variables,
+                                                     const Number H_bar,
+                                                     Number& dalpha1_bar,
+                                                     Number& alpha1_bar,
+                                                     bool& relaxation_applied) {
+      /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+      const auto m1       = conserved_variables(M1_INDEX);
+      const auto m2       = conserved_variables(M2_INDEX);
+      const auto m1_d     = conserved_variables(M1_D_INDEX);
+      const auto alpha1_d = conserved_variables(ALPHA1_D_INDEX);
 
-      /*--- Perform the reconstruction ---*/
-      const auto beta = static_cast<Number>(1.0); // MINMOD limiter
-      for(std::size_t comp = 0; comp < Field::n_comp; ++comp) {
-        if(primR(comp) - primL(comp) > static_cast<Number>(0.0)) {
-          primL_recon(comp) += static_cast<Number>(0.5)*
-                               std::max(static_cast<Number>(0.0),
-                                        std::max(std::min(beta*(primL(comp) - primLL(comp)),
-                                                          primR(comp) - primL(comp)),
-                                                 std::min(primL(comp) - primLL(comp),
-                                                          beta*(primR(comp) - primL(comp)))));
+      /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
+      const auto alpha1 = alpha1_bar*(static_cast<Number>(1.0) - alpha1_d);
+      const auto rho1   = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+      const auto p1     = EOS_phase1.pres_value(rho1);
+
+      const auto alpha2 = static_cast<Number>(1.0) - alpha1 - alpha1_d;
+      const auto rho2   = m2/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
+      const auto p2     = EOS_phase2.pres_value(rho2);
+
+      /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
+      const auto F = std::isnan(H_bar) ? p1 - p2 :
+                                         (static_cast<Number>(1.0) - alpha1_d)*(p1 - p2) - sigma*H_bar;
+
+      /*--- Perform the relaxation only where really needed ---*/
+      if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_bar)) &&
+         std::abs(dalpha1_bar) > atol_Newton) {
+        relaxation_applied = true;
+
+        // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
+        const auto alpha2_bar     = static_cast<Number>(1.0) - alpha1_bar;
+        const auto dF_dalpha1_bar = -m1/(alpha1_bar*alpha1_bar)*
+                                    EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
+                                    -m2/(alpha2_bar*alpha2_bar)*
+                                    EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
+
+        // Compute the large-scale volume fraction update
+        dalpha1_bar = -F/dF_dalpha1_bar;
+        if(dalpha1_bar > static_cast<Number>(0.0)) {
+          dalpha1_bar = std::min(dalpha1_bar, lambda*alpha2_bar);
         }
-        else if(primR(comp) - primL(comp) < static_cast<Number>(0.0)) {
-          primL_recon(comp) += static_cast<Number>(0.5)*
-                               std::min(static_cast<Number>(0.0),
-                                        std::min(std::max(beta*(primL(comp) - primLL(comp)),
-                                                          primR(comp) - primL(comp)),
-                                                 std::max(primL(comp) - primLL(comp),
-                                                          beta*(primR(comp) - primL(comp)))));
+        else if(dalpha1_bar < static_cast<Number>(0.0)) {
+          dalpha1_bar = std::max(dalpha1_bar, -lambda*alpha1_bar);
         }
 
-        if(primRR(comp) - primR(comp) > static_cast<Number>(0.0)) {
-          primR_recon(comp) -= static_cast<Number>(0.5)*
-                               std::max(static_cast<Number>(0.0),
-                                        std::max(std::min(beta*(primR(comp) - primL(comp)),
-                                                          primRR(comp) - primR(comp)),
-                                                 std::min(primR(comp) - primL(comp),
-                                                          beta*(primRR(comp) - primR(comp)))));
+        if(alpha1_bar + dalpha1_bar < static_cast<Number>(0.0) ||
+           alpha1_bar + dalpha1_bar > static_cast<Number>(1.0)) {
+          throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step of reconstruction");
         }
-        else if(primRR(comp) - primR(comp) < static_cast<Number>(0.0)) {
-          primR_recon(comp) -= static_cast<Number>(0.5)*
-                               std::min(static_cast<Number>(0.0),
-                                        std::min(std::max(beta*(primR(comp) - primL(comp)),
-                                                          primRR(comp) - primR(comp)),
-                                                 std::max(primR(comp) - primL(comp),
-                                                          beta*(primRR(comp) - primR(comp)))));
+        else {
+          alpha1_bar += dalpha1_bar;
+        }
+      }
+
+      /*--- Update the vector of conserved variables (probably not the optimal choice since I need this update only at the end of the Newton loop,
+            but the most coherent one thinking about the transfer of mass) ---*/
+      conserved_variables(RHO_ALPHA1_BAR_INDEX) = (m1 + m2 + m1_d)*alpha1_bar;
+    }
+
+    // Relax the reconstruction
+    //
+    template<class Field>
+    void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q,
+                                           const Number H_bar) {
+      /*--- Declare and set relevant parameters ---*/
+      std::size_t Newton_iter = 0;
+      bool relaxation_applied = true;
+
+      Number dalpha1_bar = std::numeric_limits<Number>::infinity();
+      Number alpha1_bar  = q(RHO_ALPHA1_BAR_INDEX)/
+                           (q(M1_INDEX) + q(M2_INDEX) + q(M1_D_INDEX));
+
+      /*--- Apply Newton method ---*/
+      while(relaxation_applied == true) {
+        relaxation_applied = false;
+        Newton_iter++;
+
+        try {
+          this->perform_Newton_step_relaxation(q, H_bar, dalpha1_bar, alpha1_bar, relaxation_applied);
+        }
+        catch(std::exception& e) {
+          std::cerr << e.what() << std::endl;
+          exit(1);
+        }
+
+        // Newton cycle diverged
+        if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
+          std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
+          exit(1);
         }
       }
     }
-  #endif
-
-  // Relax reconstruction
-  //
-  #ifdef ORDER_2
-    #ifdef RELAX_RECONSTRUCTION
-      // Perform a Newton step relaxation for a single vector state (i.e. a single cell) without mass transfer
-      //
-      template<class Field>
-      template<typename State>
-      void Flux<Field>::perform_Newton_step_relaxation(State conserved_variables,
-                                                       const Number H_bar,
-                                                       Number& dalpha1_bar,
-                                                       Number& alpha1_bar,
-                                                       bool& relaxation_applied) {
-        /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
-        const auto m1       = conserved_variables(M1_INDEX);
-        const auto m2       = conserved_variables(M2_INDEX);
-        const auto m1_d     = conserved_variables(M1_D_INDEX);
-        const auto alpha1_d = conserved_variables(ALPHA1_D_INDEX);
-
-        /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-        const auto alpha1 = alpha1_bar*(static_cast<Number>(1.0) - alpha1_d);
-        const auto rho1   = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
-        const auto p1     = EOS_phase1.pres_value(rho1);
-
-        const auto alpha2 = static_cast<Number>(1.0) - alpha1 - alpha1_d;
-        const auto rho2   = m2/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
-        const auto p2     = EOS_phase2.pres_value(rho2);
-
-        /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
-        const auto F = std::isnan(H_bar) ? p1 - p2 :
-                                           (static_cast<Number>(1.0) - alpha1_d)*(p1 - p2) - sigma*H_bar;
-
-        /*--- Perform the relaxation only where really needed ---*/
-        if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_bar)) &&
-           std::abs(dalpha1_bar) > atol_Newton) {
-          relaxation_applied = true;
-
-          // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-          const auto alpha2_bar     = static_cast<Number>(1.0) - alpha1_bar;
-          const auto dF_dalpha1_bar = -m1/(alpha1_bar*alpha1_bar)*
-                                       EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
-                                      -m2/(alpha2_bar*alpha2_bar)*
-                                       EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
-
-          // Compute the large-scale volume fraction update
-          dalpha1_bar = -F/dF_dalpha1_bar;
-          if(dalpha1_bar > static_cast<Number>(0.0)) {
-            dalpha1_bar = std::min(dalpha1_bar, lambda*alpha2_bar);
-          }
-          else if(dalpha1_bar < static_cast<Number>(0.0)) {
-            dalpha1_bar = std::max(dalpha1_bar, -lambda*alpha1_bar);
-          }
-
-          if(alpha1_bar + dalpha1_bar < static_cast<Number>(0.0) ||
-             alpha1_bar + dalpha1_bar > static_cast<Number>(1.0)) {
-            throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step of reconstruction");
-          }
-          else {
-            alpha1_bar += dalpha1_bar;
-          }
-        }
-
-        /*--- Update the vector of conserved variables (probably not the optimal choice since I need this update only at the end of the Newton loop,
-              but the most coherent one thinking about the transfer of mass) ---*/
-        conserved_variables(RHO_ALPHA1_BAR_INDEX) = (m1 + m2 + m1_d)*alpha1_bar;
-      }
-
-      // Relax the reconstruction
-      //
-      template<class Field>
-      void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q,
-                                             const Number H_bar) {
-        /*--- Declare and set relevant parameters ---*/
-        std::size_t Newton_iter = 0;
-        bool relaxation_applied = true;
-
-        Number dalpha1_bar = std::numeric_limits<Number>::infinity();
-        Number alpha1_bar  = q(RHO_ALPHA1_BAR_INDEX)/
-                             (q(M1_INDEX) + q(M2_INDEX) + q(M1_D_INDEX));
-
-        /*--- Apply Newton method ---*/
-        while(relaxation_applied == true) {
-          relaxation_applied = false;
-          Newton_iter++;
-
-          try {
-            this->perform_Newton_step_relaxation(q, H_bar, dalpha1_bar, alpha1_bar, relaxation_applied);
-          }
-          catch(std::exception& e) {
-            std::cerr << e.what() << std::endl;
-            exit(1);
-          }
-
-          // Newton cycle diverged
-          if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
-            std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
-            exit(1);
-          }
-        }
-      }
-    #endif
   #endif
 
 } // end namespace samurai

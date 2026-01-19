@@ -20,8 +20,8 @@ namespace samurai {
   class HLLCFlux: public Flux<Field> {
   public:
     using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    using cfg    = Flux<Field>::cfg; /*--- Shortcut to specify the type of configuration
-                                           for the flux (nonlinear in this case) ---*/
+    using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
+                                              for the flux (nonlinear in this case) ---*/
 
     HLLCFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
              const LinearizedBarotropicEOS<Number>& EOS_phase2_,
@@ -32,7 +32,7 @@ namespace samurai {
              const Number rtol_Newton_,
              const std::size_t max_Newton_iters_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
-    #ifdef ORDER_2
+    #ifdef RELAX_RECONSTRUCTION
       template<typename Field_Scalar>
       auto make_two_scale_capillarity(const Field_Scalar& H_bar); /*--- Compute the flux over all the directions ---*/
     #else
@@ -235,7 +235,7 @@ namespace samurai {
   // Implement the contribution of the discrete flux for all the directions.
   //
   template<class Field>
-  #ifdef ORDER_2
+  #ifdef RELAX_RECONSTRUCTION
     template<typename Field_Scalar>
     auto HLLCFlux<Field>::make_two_scale_capillarity(const Field_Scalar& H_bar)
   #else
@@ -264,8 +264,8 @@ namespace samurai {
 
                                                   FluxValue<cfg> primL_recon,
                                                                  primR_recon;
-                                                  this->perform_reconstruction(primLL, primL, primR, primRR,
-                                                                               primL_recon, primR_recon);
+                                                  Utilities::perform_reconstruction<Field, cfg>(primLL, primL, primR, primRR,
+                                                                                                primL_recon, primR_recon);
 
                                                   FluxValue<cfg> qL = this->prim2cons(primL_recon);
                                                   FluxValue<cfg> qR = this->prim2cons(primR_recon);
