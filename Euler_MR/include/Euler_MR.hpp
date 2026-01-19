@@ -38,7 +38,7 @@ using namespace EquationData;
 template<std::size_t dim>
 class Euler_MR {
 public:
-  using Config = samurai::MRConfig<dim, 2, 2, 1>;
+  using Config = samurai::MRConfig<dim, 2, 1, 1>;
   using Field  = samurai::VectorField<samurai::MRMesh<Config>,
                                       double,
                                       EquationData::NVARS,
@@ -233,8 +233,8 @@ void Euler_MR<dim>::init_variables(const Riemann_Parameters<Number>& Riemann_par
 //
 template<std::size_t dim>
 void Euler_MR<dim>::apply_bcs(const Riemann_Parameters<Number>& Riemann_param) {
-  const xt::xtensor_fixed<int, xt::xshape<1>> left  = {-1};
-  const xt::xtensor_fixed<int, xt::xshape<1>> right = {1};
+  const samurai::DirectionVector<dim> left  = {-1};
+  const samurai::DirectionVector<dim> right = {1};
 
   samurai::make_bc<samurai::Dirichlet<1>>(conserved_variables,
                                           Riemann_param.rhoL,
@@ -443,6 +443,7 @@ void Euler_MR<dim>::run(const std::size_t nfiles) {
       update_auxiliary_fields();
     #endif
     const auto dt = std::min(Tf - t, cfl*dx/get_max_lambda());
+    t += dt;
 
     if(rank == 0) {
       std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;

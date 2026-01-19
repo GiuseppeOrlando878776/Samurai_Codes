@@ -27,6 +27,8 @@ int main(int argc, char* argv[]) {
   // Physical parameters
   sim_param.xL = input.value("xL", static_cast<double>(0.0));
   sim_param.xR = input.value("xR", static_cast<double>(1.0));
+  sim_param.yL = input.value("yL", static_cast<double>(0.0));
+  sim_param.yR = input.value("yR", static_cast<double>(1.0));
 
   sim_param.t0 = input.value("t0", static_cast<Number>(0.0));
   sim_param.Tf = input.value("Tf", static_cast<Number>(0.15));
@@ -52,6 +54,8 @@ int main(int argc, char* argv[]) {
   // Physical parameters
   app.add_option("--xL", sim_param.xL, "x Left-end of the domain")->capture_default_str()->group("Physical parameters");
   app.add_option("--xR", sim_param.xR, "x Right-end of the domain")->capture_default_str()->group("Physical parameters");
+  app.add_option("--yL", sim_param.yL, "y Bottom-end of the domain")->capture_default_str()->group("Physical parameters");
+  app.add_option("--yR", sim_param.yR, "y Top-end of the domain")->capture_default_str()->group("Physical parameters");
 
   app.add_option("--t0", sim_param.t0, "Initial time")->capture_default_str()->group("Physical parameters");
   app.add_option("--Tf", sim_param.Tf, "Final time")->capture_default_str()->group("Physical parameters");
