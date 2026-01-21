@@ -9,7 +9,7 @@
 #include <samurai/schemes/fv.hpp>
 
 #include "../barotropic_eos.hpp"
-#include "../utilities.hpp.hpp"
+#include "../utilities.hpp"
 
 /*--- Preprocessor to define whether order 2 is desired ---*/
 #define ORDER_2
