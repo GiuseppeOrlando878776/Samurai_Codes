@@ -1581,7 +1581,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                             );
 
       // Perform the saving
-      const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
+      const std::string suffix = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(++nsave) : "";
       save(suffix, conserved_variables,
                    alpha1_bar, grad_alpha1_bar, normal, H_bar,
                    p1, p2, p_bar,
