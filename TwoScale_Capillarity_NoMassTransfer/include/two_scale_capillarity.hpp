@@ -764,19 +764,19 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
 
   /*--- Create the flux variable ---*/
   #ifdef RUSANOV_FLUX
-    #ifdef ORDER_2
+    #ifdef RELAX_RECONSTRUCTION
       auto numerical_flux_hyp = Rusanov_flux.make_flux(H);
     #else
       auto numerical_flux_hyp = Rusanov_flux.make_flux();
     #endif
   #elifdef GODUNOV_FLUX
-    #ifdef ORDER_2
+    #ifdef RELAX_RECONSTRUCTION
       auto numerical_flux_hyp = Godunov_flux.make_flux(H);
     #else
       auto numerical_flux_hyp = Godunov_flux.make_flux();
     #endif
   #elifdef HLLC_FLUX
-    #ifdef ORDER_2
+    #ifdef RELAX_RECONSTRUCTION
       auto numerical_flux_hyp = HLLC_flux.make_flux(H);
     #else
       auto numerical_flux_hyp = HLLC_flux.make_flux();
@@ -963,7 +963,7 @@ void TwoScaleCapillarity<dim>::run(const unsigned nfiles) {
 
     // Save the results
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
-      const std::string suffix = (nfiles != 1) ? fmt::format("_ite_{}", ++nsave) : "";
+      const std::string suffix = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(++nsave) : "";
       save(suffix, conserved_variables,
                    alpha1, grad_alpha1, normal, H,
                    Newton_iterations);
