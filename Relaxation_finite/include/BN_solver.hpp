@@ -628,7 +628,7 @@ void BN_Solver<dim>::check_data(unsigned flag) {
                                                   delta_pres, delta_temp, delta_vel);
                                 exit(1);
                               }
-                              else if(std::isnan(local_conserved_variables(Indices::ALPHA2_RHO2_INDEX))){
+                              else if(std::isnan(local_conserved_variables(Indices::ALPHA2_RHO2_INDEX))) {
                                 std::cerr << "NaN mass for phase 2 " + op << std::endl;
                                 std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables,
@@ -638,7 +638,7 @@ void BN_Solver<dim>::check_data(unsigned flag) {
                                                   delta_pres, delta_temp, delta_vel);
                                 exit(1);
                               }
-                              else if(std::isinf(local_conserved_variables(Indices::ALPHA2_RHO2_INDEX))){
+                              else if(std::isinf(local_conserved_variables(Indices::ALPHA2_RHO2_INDEX))) {
                                 std::cerr << "Inf mass for phase 2 " + op << std::endl;
                                 std::cerr << cell << std::endl;
                                 save("_diverged", conserved_variables,
