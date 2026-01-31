@@ -51,21 +51,21 @@ auto Outflow(const Field& Q,
 
     /*--- Compute the corresponding ghost state ---*/
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
-    Q_ghost[Indices::ALPHA1_INDEX] = alpha1_plus;
-    Q_ghost[Indices::ALPHA1_RHO1_INDEX] = m1_plus;
-    Q_ghost[Indices::ALPHA1_RHO1_U1_INDEX] = m1u1_plus;
+    Q_ghost(Indices::ALPHA1_INDEX) = alpha1_plus;
+    Q_ghost(Indices::ALPHA1_RHO1_INDEX) = m1_plus;
+    Q_ghost(Indices::ALPHA1_RHO1_U1_INDEX) = m1u1_plus;
     const auto rho1_plus = m1_plus/alpha1_plus; /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto u1_plus = m1u1_plus/m1_plus; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    Q_ghost[Indices::ALPHA1_RHO1_E1_INDEX] = m1_plus*
+    Q_ghost(Indices::ALPHA1_RHO1_E1_INDEX) = m1_plus*
                                              (EOS_phase1.e_value_RhoP(rho1_plus, p1_D) +
                                               static_cast<typename Field::value_type>(0.5)*u1_plus*u1_plus);
 
-    Q_ghost[Indices::ALPHA2_RHO2_INDEX] = m2_plus;
-    Q_ghost[Indices::ALPHA2_RHO2_U2_INDEX] = m2u2_plus;
+    Q_ghost(Indices::ALPHA2_RHO2_INDEX) = m2_plus;
+    Q_ghost(Indices::ALPHA2_RHO2_U2_INDEX) = m2u2_plus;
     const auto rho2_plus = m2_plus/(static_cast<typename Field::value_type>(1.0) - alpha1_plus);
                            /*--- TODO: Add treatment for vanishing volume fraction ---*/
     const auto u2_plus = m2u2_plus/m2_plus; /*--- TODO: Add treatment for vanishing volume fraction ---*/
-    Q_ghost[Indices::ALPHA2_RHO2_E2_INDEX] = m2_plus*
+    Q_ghost(Indices::ALPHA2_RHO2_E2_INDEX) = m2_plus*
                                              (EOS_phase2.e_value_RhoP(rho2_plus, p2_D) +
                                               static_cast<typename Field::value_type>(0.5)*u2_plus*u2_plus);
 

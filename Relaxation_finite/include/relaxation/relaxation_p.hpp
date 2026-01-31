@@ -56,11 +56,11 @@ namespace samurai {
 
                                               // Pre-fetch several variables that will be used several times so as to exploit (possible) vectorization
                                               // as well as to enhance readability
-                                              auto alpha1_loc   = local_conserved_variables[Indices::ALPHA1_INDEX];
-                                              const auto m1_loc = local_conserved_variables[Indices::ALPHA1_RHO1_INDEX];
-                                              auto m1E1_loc     = local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX];
-                                              const auto m2_loc = local_conserved_variables[Indices::ALPHA2_RHO2_INDEX];
-                                              auto m2E2_loc     = local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX];
+                                              auto alpha1_loc   = local_conserved_variables(Indices::ALPHA1_INDEX);
+                                              const auto m1_loc = local_conserved_variables(Indices::ALPHA1_RHO1_INDEX);
+                                              auto m1E1_loc     = local_conserved_variables(Indices::ALPHA1_RHO1_E1_INDEX);
+                                              const auto m2_loc = local_conserved_variables(Indices::ALPHA2_RHO2_INDEX);
+                                              auto m2E2_loc     = local_conserved_variables(Indices::ALPHA2_RHO2_E2_INDEX);
 
                                               // Focus on the pressure relaxation
                                               /*--- Compute the initial fields for the pressure relaxation ---*/
@@ -72,9 +72,9 @@ namespace samurai {
                                               auto e2_0             = m2E2_loc*inv_m2_loc;
                                               auto norm2_vel1       = static_cast<Number>(0.0);
                                               for(std::size_t d = 0; d < Field::dim; ++d) {
-                                                const auto vel1_d = local_conserved_variables[Indices::ALPHA1_RHO1_U1_INDEX + d]*inv_m1_loc;
+                                                const auto vel1_d = local_conserved_variables(Indices::ALPHA1_RHO1_U1_INDEX + d)*inv_m1_loc;
                                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
-                                                const auto vel2_d = local_conserved_variables[Indices::ALPHA2_RHO2_U2_INDEX + d]*inv_m2_loc;
+                                                const auto vel2_d = local_conserved_variables(Indices::ALPHA2_RHO2_U2_INDEX + d)*inv_m2_loc;
                                                                     /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                                                 e1_0 -= static_cast<Number>(0.5)*vel1_d*vel1_d;
@@ -113,7 +113,7 @@ namespace samurai {
                                               alpha1_loc *= ((EOS_phase1.get_gamma() - static_cast<Number>(1.0))*p_star +
                                                              static_cast<Number>(2.0)*p1_loc + C1)/
                                                             ((EOS_phase1.get_gamma() + static_cast<Number>(1.0))*p_star + C1);
-                                              local_conserved_variables[Indices::ALPHA1_INDEX] = alpha1_loc;
+                                              local_conserved_variables(Indices::ALPHA1_INDEX) = alpha1_loc;
 
                                               /*--- Update the total energy of both phases ---*/
                                               const auto E1_loc = EOS_phase1.e_value_RhoP(m1_loc/alpha1_loc, p_star)
@@ -121,9 +121,9 @@ namespace samurai {
                                                                 /*--- TODO: Add treatment for vanishing volume fraction ---*/
 
                                               m1E1_loc = m1_loc*E1_loc;
-                                              local_conserved_variables[Indices::ALPHA1_RHO1_E1_INDEX] = m1E1_loc;
+                                              local_conserved_variables(Indices::ALPHA1_RHO1_E1_INDEX) = m1E1_loc;
 
-                                              local_conserved_variables[Indices::ALPHA2_RHO2_E2_INDEX] = rhoE_0 - m1E1_loc;
+                                              local_conserved_variables(Indices::ALPHA2_RHO2_E2_INDEX) = rhoE_0 - m1E1_loc;
                                             });
 
     return relaxation_step;
