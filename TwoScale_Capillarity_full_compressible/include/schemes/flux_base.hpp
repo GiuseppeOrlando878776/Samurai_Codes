@@ -347,8 +347,7 @@ namespace samurai {
         const auto F_LS    = m_l*(delta_p - sigma*H);
         const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
                              conserved_variables(RHO_Z_INDEX)*std::cbrt(m_l);
-        const auto F_SS    = m_d*delta_p
-                           - (static_cast<Number>(1.0)/std::cbrt(alpha_l))*aux_SS;
+        const auto F_SS    = m_d*delta_p - (static_cast<Number>(1.0)/std::cbrt(alpha_l))*aux_SS;
                              /*--- TODO: Add a check in case of zero volume fraction ---*/
         const auto F       = F_LS + F_SS;
 
