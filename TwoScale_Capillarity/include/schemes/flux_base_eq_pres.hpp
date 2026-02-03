@@ -345,7 +345,8 @@ namespace samurai {
                                          (static_cast<Number>(1.0) - alpha1_d)*(p1 - p2) - sigma*H_bar;
 
       /*--- Perform the relaxation only where really needed ---*/
-      if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_bar)) &&
+      if(std::abs(F) > atol_Newton + rtol_Newton*((std::isnan(H_bar) ?
+                                                  EOS_phase1.get_p0() : std::min(EOS_phase1.get_p0(), sigma*std::abs(H_bar))) &&
          std::abs(dalpha1_bar) > atol_Newton) {
         relaxation_applied = true;
 
