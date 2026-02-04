@@ -344,11 +344,11 @@ namespace samurai {
 
         /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
         const auto delta_p = p_liq - p_g;
-        const auto F_LS    = m_l*(delta_p - sigma*H);
+        const auto F_LS    = alpha_l*(delta_p - sigma*H);
         const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
-                             conserved_variables(RHO_Z_INDEX)*std::cbrt(m_l);
-        const auto F_SS    = m_d*delta_p - (static_cast<Number>(1.0)/std::cbrt(alpha_l))*aux_SS;
+                             conserved_variables(RHO_Z_INDEX)*std::pow(m_l, static_cast<Number>(-2.0/3.0));
                              /*--- TODO: Add a check in case of zero volume fraction ---*/
+        const auto F_SS    = alpha_d*delta_p - std::pow(alpha_l, static_cast<Number>(2.0/3.0))*aux_SS;
         const auto F       = F_LS + F_SS;
 
         /*--- Perform the relaxation only where really needed ---*/
@@ -362,11 +362,11 @@ namespace samurai {
                                          -m_g/(alpha_g*alpha_g)*
                                          EOS_phase_gas.c_value(rho_g)*EOS_phase_gas.c_value(rho_g)*
                                          (m_l + m_d)/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
-          const auto dF_LS_dalpha_l    = m_l*ddelta_p_dalpha_l;
-          const auto dF_SS_dalpha_l    = m_d*ddelta_p_dalpha_l
-                                       + static_cast<Number>(1.0/3.0)*
-                                         std::pow(alpha_l, static_cast<Number>(-4.0/3.0))*aux_SS;
-                                         /*--- TODO: Add a check in case of zero volume fraction ---*/
+          const auto dF_LS_dalpha_l    = (delta_p - sigma*H) + alpha_l*ddelta_p_dalpha_l;
+          const auto dF_SS_dalpha_l    = (m_d/m_l)*delta_p
+                                       + alpha_d*ddelta_p_dalpha_l
+                                       - static_cast<Number>(2.0/3.0)*aux_SS/std::cbrt(alpha_l);
+                                       /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 
           // Compute the large-scale volume fraction update

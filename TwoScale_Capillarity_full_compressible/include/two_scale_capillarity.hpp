@@ -845,12 +845,12 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
 
     // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
     const auto delta_p = p_liq_loc - p_g_loc;
-    const auto F_LS    = m_l_loc*(delta_p - sigma*H_lim);
+    const auto F_LS    = alpha_l_loc*(delta_p - sigma*H_lim);
     const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
-                         local_conserved_variables(RHO_Z_INDEX)*std::cbrt(m_l_loc);
-    const auto F_SS    = m_d_loc*delta_p
-                       - static_cast<Number>(1.0)/std::cbrt(alpha_l_loc)*aux_SS;
+                         local_conserved_variables(RHO_Z_INDEX)*std::pow(m_l_loc, static_cast<Number>(-2.0/3.0));
                          /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto F_SS    = alpha_d_loc*delta_p
+                       - std::pow(alpha_l_loc, static_cast<Number>(2.0/3.0))*aux_SS;
     const auto F       = F_LS + F_SS;
 
     // Perform the relaxation only where really needed
@@ -866,11 +866,11 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                                      -m_g_loc/(alpha_g_loc*alpha_g_loc)*
                                      EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
                                      (m_l_loc + m_d_loc)/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
-      const auto dF_LS_dalpha_l    = m_l_loc*ddelta_p_dalpha_l;
-      const auto dF_SS_dalpha_l    = m_d_loc*ddelta_p_dalpha_l
-                                   + static_cast<Number>(1.0/3.0)*
-                                     std::pow(alpha_l_loc, static_cast<Number>(-4.0/3.0))*aux_SS;
-                                     /*--- TODO: Add a check in case of zero volume fraction ---*/
+      const auto dF_LS_dalpha_l    = (delta_p - sigma*H_lim) + alpha_l_loc*ddelta_p_dalpha_l;
+      const auto dF_SS_dalpha_l    = (m_d_loc/m_l_loc)*delta_p
+                                   + alpha_d_loc*ddelta_p_dalpha_l
+                                   - static_cast<Number>(2.0/3.0)*aux_SS/std::cbrt(alpha_l_loc);
+                                   /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 
       // Compute the pseudo time step starting as initial guess from the ideal unmodified Newton method
@@ -907,18 +907,18 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       const auto ddelta_p_dmd = -m_g_loc/(alpha_g_loc*alpha_g_loc)*
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*inv_rho_liq_loc;
                                 /*--- TODO: Add a check in case of zero volume fraction ---*/
-      const auto dF_LS_dmd    = m_l_loc*ddelta_p_dmd;
-      const auto dF_SS_dmd    = delta_p + m_d_loc*ddelta_p_dmd;
+      const auto dF_LS_dmd    = alpha_l_loc*ddelta_p_dmd;
+      const auto dF_SS_dmd    = (delta_p + m_d_loc*ddelta_p_dmd)*inv_rho_liq_loc;
       const auto dF_dmd       = dF_LS_dmd + dF_SS_dmd;
 
       const auto ddelta_p_dml = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)/alpha_l_loc
                               + m_g_loc/(alpha_g_loc*alpha_g_loc)*
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
                                 (alpha_l_loc*m_d_loc)/(m_l_loc*m_l_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
-      const auto dF_LS_dml    = (delta_p - sigma*H_lim) + m_l_loc*ddelta_p_dml;
-      const auto dF_SS_dml    = m_d_loc*ddelta_p_dml
-                              - static_cast<Number>(1.0/3.0)*aux_SS/(std::cbrt(alpha_l_loc)*m_l_loc);
-                                /*--- TODO: Add a check in case of zero volume fraction ---*/
+      const auto dF_LS_dml    = alpha_l_loc*ddelta_p_dml;
+      const auto dF_SS_dml    = (m_d_loc*ddelta_p_dml +
+                                 static_cast<Number>(2.0/3.0)*aux_SS/std::cbrt(alpha_l_loc))*inv_rho_liq_loc
+                              - F_SS/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_dml       = dF_LS_dml + dF_SS_dml;
 
       const auto R            = dF_dml
@@ -929,8 +929,8 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
 
       // Upper bound
       const auto R_ml          = -m_l_loc*sigma*dH;
-      const auto a             = (R_ml*inv_rho_liq_loc)*R;
-      auto b                   = (F + lambda*(static_cast<Number>(1.0) - alpha_l_loc)*dF_dalpha_l)*inv_rho_liq_loc;
+      const auto a             = R_ml*R;
+      auto b                   = F + lambda*(static_cast<Number>(1.0) - alpha_l_loc)*dF_dalpha_l;
       auto D                   = b*b
                                - static_cast<Number>(4.0)*a*(-lambda*(static_cast<Number>(1.0) - alpha_l_loc));
       auto dtau_ov_epsilon_tmp = std::numeric_limits<Number>::infinity();
@@ -947,7 +947,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       dtau_ov_epsilon = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
       // Lower bound
       dtau_ov_epsilon_tmp = std::numeric_limits<Number>::infinity();
-      b                   = (F - lambda*alpha_l_loc*dF_dalpha_l)*inv_rho_liq_loc;
+      b                   = F - lambda*alpha_l_loc*dF_dalpha_l;
       D                   = b*b
                           - static_cast<Number>(4.0)*a*(lambda*alpha_l_loc);
       if(D > static_cast<Number>(0.0) &&
@@ -981,8 +981,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       else {
         const auto dm_l = dtau_ov_epsilon*R_ml;
 
-        dalpha_l_loc = (dtau_ov_epsilon*inv_rho_liq_loc)/
-                       (static_cast<Number>(1.0) - dtau_ov_epsilon*inv_rho_liq_loc*dF_dalpha_l)*
+        dalpha_l_loc = dtau_ov_epsilon/(static_cast<Number>(1.0) - dtau_ov_epsilon*dF_dalpha_l)*
                        (F + dm_l*R);
 
         if(dm_l > static_cast<Number>(0.0)) {
