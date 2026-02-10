@@ -146,7 +146,7 @@ int main(int argc, char* argv[]) {
 
   eos_param.p0_phase2   = input.value("p0_phase2", static_cast<Number>(1e5));
   eos_param.rho0_phase2 = input.value("rho0_phase2", static_cast<Number>(1.0));
-  eos_param.c0_phase2   = input.value("c0_phase1", static_cast<Number>(1e1));
+  eos_param.c0_phase2   = input.value("c0_phase2", static_cast<Number>(1e1));
 
   app.add_option("--p0_phase1", eos_param.p0_phase1, "p0_phase1")->capture_default_str()->group("EOS parameters");
   app.add_option("--rho0_phase1", eos_param.p0_phase1, "rho0_phase1")->capture_default_str()->group("EOS parameters");
