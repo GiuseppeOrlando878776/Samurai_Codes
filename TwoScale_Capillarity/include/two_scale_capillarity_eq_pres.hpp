@@ -588,7 +588,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
     op = "after hyperbolic operator (i.e. at the beginning of the relaxation)";
   }
   else {
-    op = "after mesh adptation";
+    op = "after mesh adaptation";
   }
 
   samurai::for_each_cell(mesh,
@@ -1055,7 +1055,9 @@ void TwoScaleCapillarity<dim>::save(const std::string& suffix,
                         );
 
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
-  samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields..., level_);
+  if(!(suffix.find("diverged") != std::string::npos)) {
+    samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields...);
+  }
 }
 
 // Execute postprocessing

@@ -77,9 +77,8 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field_Scalar       = samurai::ScalarField<decltype(mesh), Number>;
-  using Field_Vect         = samurai::VectorField<decltype(mesh), Number, dim, false>;
-  using Field_ScalarVector = samurai::VectorField<decltype(mesh), Number, 1, false>;
+  using Field_Scalar = samurai::ScalarField<decltype(mesh), Number>;
+  using Field_Vect   = samurai::VectorField<decltype(mesh), Number, dim, false>;
 
   const Number t0; /*--- Initial time of the simulation ---*/
   const Number Tf; /*--- Final time of the simulation ---*/
@@ -140,14 +139,13 @@ private:
   Field_Scalar alpha1_d,
                Dt_alpha1_d,
                CV_alpha1_d,
-               alpha1;
+               alpha1,
+               H_bar,
+               div_vel;
 
   Field_Vect grad_alpha1_d,
              vel,
              grad_alpha1;
-
-  Field_ScalarVector H_bar,
-                     div_vel;
 
   samurai::ScalarField<decltype(mesh), std::size_t> to_be_relaxed;
   samurai::ScalarField<decltype(mesh), std::size_t> Newton_iterations;
@@ -293,7 +291,7 @@ void TwoScaleCapillarity<dim>::create_fields() {
   alpha1_bar      = samurai::make_scalar_field<Number>("alpha1_bar", mesh);
   grad_alpha1_bar = samurai::make_vector_field<Number, dim>("grad_alpha1_bar", mesh);
   normal          = samurai::make_vector_field<Number, dim>("normal", mesh);
-  H_bar           = samurai::make_vector_field<Number, 1>("H_bar", mesh);
+  H_bar           = samurai::make_scalar_field<Number>("H_bar", mesh);
 
   dalpha1_bar     = samurai::make_scalar_field<Number>("dalpha1_bar", mesh);
 
@@ -304,7 +302,7 @@ void TwoScaleCapillarity<dim>::create_fields() {
   alpha1_d        = samurai::make_scalar_field<Number>("alpha1_d", mesh);
   grad_alpha1_d   = samurai::make_vector_field<Number, dim>("grad_alpha1_d", mesh);
   vel             = samurai::make_vector_field<Number, dim>("vel", mesh);
-  div_vel         = samurai::make_vector_field<Number, 1>("div_vel", mesh);
+  div_vel         = samurai::make_scalar_field<Number>("div_vel", mesh);
   Dt_alpha1_d     = samurai::make_scalar_field<Number>("Dt_alpha1_d", mesh);
   CV_alpha1_d     = samurai::make_scalar_field<Number>("CV_alpha1_d", mesh);
   alpha1          = samurai::make_scalar_field<Number>("alpha1", mesh);
@@ -394,8 +392,8 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               }
                               else {
                                 p1[cell] = EOS_phase2.get_p0();
-                                if(r >= R && r < R + eps_R && !std::isnan(H_bar[cell][0])) {
-                                  p1[cell] += sigma*H_bar[cell][0];
+                                if(r >= R && r < R + eps_R && !std::isnan(H_bar[cell])) {
+                                  p1[cell] += sigma*H_bar[cell];
                                 }
                                 else {
                                   p1[cell] += sigma/R;
@@ -617,7 +615,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
     op = "after hyperbolic operator (i.e. at the beginning of the relaxation)";
   }
   else {
-    op = "after mesh adptation";
+    op = "after mesh adaptation";
   }
 
   samurai::for_each_cell(mesh,
@@ -762,7 +760,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                            {
                              try {
                                perform_Newton_step_relaxation(conserved_variables[cell],
-                                                              H_bar[cell][0], dalpha1_bar[cell], alpha1_bar[cell],
+                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
                                                               to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied,
                                                               grad_alpha1_bar[cell], mass_transfer_NR);
                              }
@@ -1069,7 +1067,9 @@ void TwoScaleCapillarity<dim>::save(const std::string& suffix,
                         );
 
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
-  samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields..., level_);
+  if(!(suffix.find("diverged") != std::string::npos)) {
+    samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields...);
+  }
 }
 
 // Execute postprocessing
@@ -1120,7 +1120,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               const auto alpha1_loc     = alpha1[cell];
                               const auto alpha1_bar_loc = alpha1_bar[cell];
                               const auto alpha2_bar_loc = static_cast<Number>(1.0) - alpha1_bar_loc;
-                              const auto H_bar_loc      = H_bar[cell][0];
+                              const auto H_bar_loc      = H_bar[cell];
 
                               // Compue H_lig
                               const auto rho1_loc  = m1_loc/alpha1_loc;
@@ -1589,7 +1589,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                                                       + vel[cell][1]*grad_alpha1_d[cell][1];
                                   #endif
 
-                                  CV_alpha1_d[cell] = Dt_alpha1_d[cell] + alpha1_d_loc*div_vel[cell][0];
+                                  CV_alpha1_d[cell] = Dt_alpha1_d[cell] + alpha1_d_loc*div_vel[cell];
                                 }
                             );
 

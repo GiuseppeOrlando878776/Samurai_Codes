@@ -78,9 +78,8 @@ private:
 
   samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
 
-  using Field_Scalar       = samurai::ScalarField<decltype(mesh), Number>;
-  using Field_Vect         = samurai::VectorField<decltype(mesh), Number, dim, false>;
-  using Field_ScalarVector = samurai::VectorField<decltype(mesh), Number, 1, false>;
+  using Field_Scalar = samurai::ScalarField<decltype(mesh), Number>;
+  using Field_Vect   = samurai::VectorField<decltype(mesh), Number, dim, false>;
 
   const Number t0; /*--- Initial time of the simulation ---*/
   const Number Tf; /*--- Final time of the simulation ---*/
@@ -123,13 +122,12 @@ private:
   /*--- Now we declare a bunch of fields which depend from the state, but it is useful
         to have it so as to avoid recomputation ---*/
   Field_Scalar alpha1,
-               dalpha1;
+               dalpha1,
+               H;
 
   Field_Vect vel,
              normal,
              grad_alpha1;
-
-  Field_ScalarVector H;
 
   samurai::ScalarField<decltype(mesh), std::size_t> to_be_relaxed;
   samurai::ScalarField<decltype(mesh), std::size_t> Newton_iterations;
@@ -250,7 +248,7 @@ void TwoScaleCapillarity<dim>::create_fields() {
   alpha1      = samurai::make_scalar_field<Number>("alpha1", mesh);
   grad_alpha1 = samurai::make_vector_field<Number, dim>("grad_alpha1", mesh);
   normal      = samurai::make_vector_field<Number, dim>("normal", mesh);
-  H           = samurai::make_vector_field<Number, 1>("H", mesh);
+  H           = samurai::make_scalar_field<Number>("H", mesh);
 
   dalpha1     = samurai::make_scalar_field<Number>("dalpha1", mesh);
 
@@ -324,8 +322,8 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               }
                               else {
                                 p1 = EOS_phase2.get_p0();
-                                if(r >= R && r < R + eps_R && !std::isnan(H[cell][0])) {
-                                  p1 += sigma*H[cell][0];
+                                if(r >= R && r < R + eps_R && !std::isnan(H[cell])) {
+                                  p1 += sigma*H[cell];
                                 }
                                 else {
                                   p1 += sigma/R;
@@ -481,7 +479,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
     op = "after hyperbolic operator (i.e. at the beginning of the relaxation)";
   }
   else {
-    op = "after mesh adpatation";
+    op = "after mesh adaptation";
   }
 
   samurai::for_each_cell(mesh,
@@ -573,7 +571,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                               {
                                 try {
                                   perform_Newton_step_relaxation(conserved_variables[cell],
-                                                                 H[cell][0], dalpha1[cell], alpha1[cell],
+                                                                 H[cell], dalpha1[cell], alpha1[cell],
                                                                  to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied);
                                 }
                                 catch(const std::exception& e) {
@@ -694,7 +692,9 @@ void TwoScaleCapillarity<dim>::save(const std::string& suffix,
                         );
 
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
-  samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields..., level_);
+  if(!(suffix.find("diverged") != std::string::npos)) {
+    samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields...);
+  }
 }
 
 // Implement the function that effectively performs the temporal loop
