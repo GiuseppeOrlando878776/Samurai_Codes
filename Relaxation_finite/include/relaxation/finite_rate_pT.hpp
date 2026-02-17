@@ -159,7 +159,8 @@ namespace samurai {
     auto relaxation_step = samurai::make_cell_based_scheme<cfg>();
     relaxation_step.set_name(this->get_source_name());
 
-    /*--- Perform the instantaneous velocity relaxation ---*/
+    /*--- Perform instantaneous velocity relaxation and then
+          coupled finite-rate pressure and temperature ---*/
     relaxation_step.set_scheme_function([&](samurai::SchemeValue<cfg>& local_conserved_variables,
                                             const auto& cell, const auto& field)
                                             {

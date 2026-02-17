@@ -30,7 +30,7 @@ namespace samurai {
   RelaxationDummyOperator<Field>::make_relaxation() {
     auto relaxation_step = samurai::make_cell_based_scheme<cfg>();
 
-    /*--- Perform the instantaneous velocity relaxation ---*/
+    /*--- Dummy relaxation (do nothing) ---*/
     relaxation_step.set_scheme_function([&](samurai::SchemeValue<cfg>& local_conserved_variables,
                                             const auto& cell, const auto& field)
                                             {
