@@ -40,6 +40,8 @@ struct Simulation_Paramaters {
   /*--- Numerical parameters ---*/
   T Courant;
 
+  bool apply_filter;
+
   T alpha_residual;
   T mod_grad_alpha_l_min;
 

@@ -34,6 +34,7 @@ int main(int argc, char* argv[]) {
   sim_param.sigma = input.value("sigma", static_cast<Number>(1e-2));
 
   sim_param.apply_relaxation = input.value("apply_relaxation", true);
+  sim_param.apply_filter     = input.value("apply_filter", true);
   sim_param.mass_transfer    = input.value("mass_transfer", false);
   sim_param.Hmax             = input.value("Hmax", static_cast<Number>(40.0));
   sim_param.kappa            = input.value("kappa", static_cast<Number>(1.0));
@@ -110,6 +111,8 @@ int main(int argc, char* argv[]) {
 
   // Numerical parameters
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Numerical parameters");
+
+  app.add_option("--apply_filter", sim_param.apply_filter, "Apply or not filtering")->capture_default_str()->group("Numerical parameters");
 
   app.add_option("--alpha_residual", sim_param.alpha_residual, "Residual large scale volume fraction")->capture_default_str()->group("Numerical parameters");
   app.add_option("--mod_grad_alpha_l_min", sim_param.mod_grad_alpha_l_min,

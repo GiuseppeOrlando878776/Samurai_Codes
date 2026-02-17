@@ -93,6 +93,8 @@ private:
 
   Number cfl; /*--- Courant number of the simulation so as to compute the time step ---*/
 
+  bool apply_filter; /*--- Choose whether to apply or not the filtering ---*/
+
   const Number mod_grad_alpha_l_min; /*--- Minimum threshold for which not computing anymore the unit normal ---*/
 
   const Number      lambda;           /*--- Parameter for bound preserving strategy ---*/
@@ -136,7 +138,8 @@ private:
                Sigma_d,
                H,
                H_bar,
-               div_vel;
+               div_vel,
+               H_filter;
 
   Field_Vect grad_alpha_d,
              vel,
@@ -153,6 +156,17 @@ private:
 
   using divergence_type = decltype(samurai::make_divergence_order2<decltype(normal)>());
   divergence_type divergence;
+
+  /*--- Setup a filter to 'smooth' a field. NOTE: this is specific for 2D (9 = 3^dim) ---*/
+  template<class Field_Filter>
+  using cfg_filter = samurai::CellBasedSchemeConfig<samurai::SchemeType::LinearHomogeneous, 1, 9, 4, 0, 0,
+                                                    Field_Filter,
+                                                    Field_Filter>;
+
+  template<class Field_Filter>
+  using cell_based_scheme = decltype(samurai::make_cell_based_scheme<cfg_filter<Field_Filter>>());
+
+  cell_based_scheme<Field_Scalar> filter;
 
   /*--- Auxiliary output streams for post-processing ---*/
   std::ofstream Hlig;
@@ -221,7 +235,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   mass_transfer(sim_param.mass_transfer), Hmax(sim_param.Hmax),
   kappa(sim_param.kappa), alpha_d_max(sim_param.alpha_d_max),
   alpha_l_min(sim_param.alpha_l_min), alpha_l_max(sim_param.alpha_l_max),
-  cfl(sim_param.Courant), mod_grad_alpha_l_min(sim_param.mod_grad_alpha_l_min),
+  cfl(sim_param.Courant), apply_filter(sim_param.apply_filter),
+  mod_grad_alpha_l_min(sim_param.mod_grad_alpha_l_min),
   lambda(sim_param.lambda), atol_Newton(sim_param.atol_Newton),
   rtol_Newton(sim_param.rtol_Newton), max_Newton_iters(sim_param.max_Newton_iters),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
@@ -241,7 +256,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
                       lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   path(sim_param.save_dir),
   gradient(samurai::make_gradient_order2<decltype(alpha_l)>()),
-  divergence(samurai::make_divergence_order2<decltype(normal)>())
+  divergence(samurai::make_divergence_order2<decltype(normal)>()),
+  filter(samurai::make_cell_based_scheme<cfg_filter<Field_Scalar>>())
   {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -249,6 +265,24 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
       std::cout << "Initializing variables " << std::endl;
       std::cout << std::endl;
     }
+
+    /*--- Complete creation of filter ---*/
+    filter.stencil() = {{-1, 1}, {0, 1}, {1, 1},
+                        {-1, 0}, {0, 0}, {1, 0},
+                        {-1, -1}, {0, -1}, {1, -1}};
+
+    filter.coefficients_func() = [](samurai::StencilCoeffs<cfg_filter<Field_Scalar>>& coeffs, Number)
+                                    {
+                                      coeffs[0] = static_cast<Number>(1.0/16.0);
+                                      coeffs[1] = static_cast<Number>(1.0/8.0);
+                                      coeffs[2] = static_cast<Number>(1.0/16.0);
+                                      coeffs[3] = static_cast<Number>(1.0/8.0);
+                                      coeffs[4] = static_cast<Number>(1.0/4.0);
+                                      coeffs[5] = static_cast<Number>(1.0/8.0);
+                                      coeffs[6] = static_cast<Number>(1.0/16.0);
+                                      coeffs[7] = static_cast<Number>(1.0/8.0);
+                                      coeffs[8] = static_cast<Number>(1.0/16.0);
+                                    };
 
     /*--- Attach the fields to the mesh ---*/
     create_fields();
@@ -304,6 +338,7 @@ void TwoScaleCapillarity<dim>::create_fields() {
   grad_alpha_l_bar = samurai::make_vector_field<Number, dim>("grad_alpha_l_bar", mesh);
   normal_bar       = samurai::make_vector_field<Number, dim>("normal_bar", mesh);
   H_bar            = samurai::make_scalar_field<Number>("H_bar", mesh);
+  H_filter         = samurai::make_scalar_field<Number>("H_unfiltered", mesh);
 
   Mach = samurai::make_scalar_field<Number>("Mach", mesh);
 
@@ -338,6 +373,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
   grad_alpha_l_bar.resize();
   normal_bar.resize();
   H_bar.resize();
+  H_filter.resize();
   Mach.resize();
   to_be_relaxed.resize();
   Newton_iterations.resize();
@@ -542,6 +578,12 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 
   samurai::update_ghost_mr(normal);
   H = -divergence(normal);
+
+  /*--- Apply the filter to the curvature ---*/
+  if(apply_filter) {
+    H_filter = filter(H);
+    samurai::swap(H_filter, H);
+  }
 }
 
 // Compute the estimate of the maximum eigenvalue for CFL condition
@@ -761,7 +803,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                   std::cerr << cell << std::endl;
                                   save("_diverged",
                                        conserved_variables,
-                                       alpha_l, dalpha_l, grad_alpha_l, normal, H,
+                                       alpha_l, dalpha_l, grad_alpha_l, normal, H, H_filter,
                                        to_be_relaxed, Newton_iterations);
                                   exit(1);
                                 }
@@ -776,7 +818,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
       std::cerr << "Newton method not converged in the post-hyperbolic relaxation" << std::endl;
       save("_diverged",
            conserved_variables,
-           alpha_l, dalpha_l, grad_alpha_l, normal, H,
+           alpha_l, dalpha_l, grad_alpha_l, normal, H, H_filter,
            to_be_relaxed, Newton_iterations);
       exit(1);
     }
@@ -1361,7 +1403,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                     p_liq, p_g, p,
                     alpha_d, Sigma_d, grad_alpha_d,
                     vel, div_vel,
-                    alpha_l_bar, grad_alpha_l_bar, H_bar,
+                    alpha_l_bar, grad_alpha_l_bar, H_bar, H_filter,
                     Mach);
   Hlig.open(path.string() + "/Hlig.dat", std::ofstream::out);
   m_l_integral.open(path.string() + "/m_l_integral.dat", std::ofstream::out);
@@ -1426,6 +1468,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     normal.resize();
     H.resize();
     grad_alpha_l.resize();
+    H_filter.resize();
     update_geometry();
     const auto dt = std::min(Tf - t, cfl*dx/get_max_lambda());
     t += dt;
@@ -1674,7 +1717,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                    p_liq, p_g, p,
                    alpha_d, Sigma_d, grad_alpha_d,
                    vel, div_vel,
-                   alpha_l_bar, grad_alpha_l_bar, H_bar,
+                   alpha_l_bar, grad_alpha_l_bar, H_bar, H_filter,
                    Newton_iterations, Mach);
     }
   }

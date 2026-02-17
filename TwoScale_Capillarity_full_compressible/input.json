@@ -26,6 +26,8 @@
 
  "cfl": 0.4,
 
+ "apply_filter": false,
+
  "alpha_residual": 1e-8,
  "mod_grad_alpha_l_min": 1e-3,
 
@@ -40,6 +42,7 @@
  "MR_regularity": 0,
 
  "nfiles": 10,
+ "save-dir": "HLLC_512x256_NO_FILTER_BIS",
 
  "p0_phase1": 1e5,
  "rho0_phase1": 1e3,
