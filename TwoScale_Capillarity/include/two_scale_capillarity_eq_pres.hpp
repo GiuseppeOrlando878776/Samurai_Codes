@@ -445,14 +445,17 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
 
   /*--- Set useful small-scale related fields ---*/
   samurai::update_ghost_mr(alpha1_d);
-  grad_alpha1_d = gradient(alpha1_d);
+  grad_alpha1_d.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha1_d, alpha1_d);
 
   samurai::update_ghost_mr(vel);
-  div_vel = divergence(vel);
+  div_vel.fill(static_cast<Number>(0.0));
+  divergence.apply(div_vel, vel);
 
   /*--- Set auxiliary gradient large-scale volume fraction ---*/
   samurai::update_ghost_mr(alpha1);
-  grad_alpha1 = gradient(alpha1);
+  grad_alpha1.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha1, alpha1);
 }
 
 // Auxiliary routine to impose the boundary conditions
@@ -489,8 +492,8 @@ void TwoScaleCapillarity<dim>::apply_bcs(const Number U0,
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::update_geometry() {
   samurai::update_ghost_mr(alpha1_bar);
-
-  grad_alpha1_bar = gradient(alpha1_bar);
+  grad_alpha1_bar.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha1_bar, alpha1_bar);
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -734,7 +737,8 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                              try {
                                perform_Newton_step_relaxation(conserved_variables[cell],
                                                               H_bar[cell][0], dalpha1_bar[cell], alpha1_bar[cell],
-                                                              to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied, type_relaxation[cell],
+                                                              to_be_relaxed[cell], Newton_iterations[cell],
+                                                              local_relaxation_applied, type_relaxation[cell],
                                                               grad_alpha1_bar[cell], mass_transfer_NR);
                              }
                              catch(const std::exception& e) {
@@ -1089,10 +1093,12 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                         );
   samurai::update_ghost_mr(alpha1);
   grad_alpha1.resize();
-  grad_alpha1 = gradient(alpha1);
+  grad_alpha1.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha1, alpha1);
   samurai::update_ghost_mr(alpha1_d);
   grad_alpha1_d.resize();
-  grad_alpha1_d = gradient(alpha1_d);
+  grad_alpha1_d.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha1_d, alpha1_d);
 
   p1.resize();
   p2.resize();
@@ -1561,7 +1567,8 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       CV_alpha1_d.resize();
 
       samurai::update_ghost_mr(vel);
-      div_vel = divergence(vel);
+      div_vel.fill(static_cast<Number>(0.0));
+      divergence.apply(div_vel, vel);
 
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)

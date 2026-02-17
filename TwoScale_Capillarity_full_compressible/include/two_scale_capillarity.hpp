@@ -489,14 +489,17 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
 
   /*--- Set useful small-scale related fields ---*/
   samurai::update_ghost_mr(alpha_d);
-  grad_alpha_d = gradient(alpha_d);
+  grad_alpha_d.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha_d, alpha_d);
 
   samurai::update_ghost_mr(vel);
-  div_vel = divergence(vel);
+  div_vel.fill(static_cast<Number>(0.0));
+  divergence.apply(div_vel, vel);
 
   /*--- Set auxiliary gradient alpha_l_bar volume fraction ---*/
   samurai::update_ghost_mr(alpha_l_bar);
-  grad_alpha_l_bar = gradient(alpha_l_bar);
+  grad_alpha_l_bar.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha_l_bar, alpha_l_bar);
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
@@ -553,7 +556,8 @@ void TwoScaleCapillarity<dim>::apply_bcs(const Number U0,
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::update_geometry() {
   samurai::update_ghost_mr(alpha_l);
-  grad_alpha_l = gradient(alpha_l);
+  grad_alpha_l.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha_l, alpha_l);
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -581,7 +585,7 @@ void TwoScaleCapillarity<dim>::update_geometry() {
 
   /*--- Apply the filter to the curvature ---*/
   if(apply_filter) {
-    H_filter = filter(H);
+    filter.apply(H_filter, H);
     samurai::swap(H_filter, H);
   }
 }
@@ -1137,9 +1141,11 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                         );
   samurai::update_ghost_mr(alpha_l_bar, alpha_d);
   grad_alpha_l_bar.resize();
-  grad_alpha_l_bar = gradient(alpha_l_bar);
+  grad_alpha_l_bar.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha_l_bar, alpha_l_bar);
   grad_alpha_d.resize();
-  grad_alpha_d = gradient(alpha_d);
+  grad_alpha_d.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha_d, alpha_d);
 
   Sigma_d.resize();
   p_liq.resize();

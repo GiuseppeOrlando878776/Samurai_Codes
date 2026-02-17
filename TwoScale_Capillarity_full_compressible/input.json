@@ -42,7 +42,6 @@
  "MR_regularity": 0,
 
  "nfiles": 10,
- "save-dir": "HLLC_512x256_NO_FILTER_BIS",
 
  "p0_phase1": 1e5,
  "rho0_phase1": 1e3,

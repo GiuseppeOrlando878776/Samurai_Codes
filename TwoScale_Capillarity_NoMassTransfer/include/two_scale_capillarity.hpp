@@ -386,8 +386,8 @@ void TwoScaleCapillarity<dim>::apply_bcs(const Number U0,
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::update_geometry() {
   samurai::update_ghost_mr(alpha1);
-
-  grad_alpha1 = gradient(alpha1);
+  grad_alpha1.fill(static_cast<Number>(0.0));
+  gradient.apply(grad_alpha1, alpha1);
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -572,7 +572,8 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                                 try {
                                   perform_Newton_step_relaxation(conserved_variables[cell],
                                                                  H[cell], dalpha1[cell], alpha1[cell],
-                                                                 to_be_relaxed[cell], Newton_iterations[cell], local_relaxation_applied);
+                                                                 to_be_relaxed[cell], Newton_iterations[cell],
+                                                                 local_relaxation_applied);
                                 }
                                 catch(const std::exception& e) {
                                   std::cerr << e.what() << std::endl;
