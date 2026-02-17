@@ -823,12 +823,16 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     const auto rho_loc = m_l_loc + m_g_loc + m_d_loc;
 
     // Compute region where performing inter-scale transfer
-    auto H_lim = std::min(H_loc, Hmax);
+    auto H_lim             = std::min(H_loc, Hmax);
+    const auto fac_Ru      = sigma*Hmax*(static_cast<Number>(3.0)/kappa - static_cast<Number>(1.0));
+    const auto mom_dot_vel = (local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX) +
+                              local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
     if(mass_transfer_NR) {
       if(alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
          -grad_alpha_l_loc[0]*local_conserved_variables(RHO_U_INDEX)
          -grad_alpha_l_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0) &&
-         alpha_d_loc < alpha_d_max) {
+         alpha_d_loc < alpha_d_max &&
+         fac_Ru <= static_cast<Number>(0.5)*mom_dot_vel) {
         ;
       }
       else {
@@ -875,7 +879,6 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       auto dtau_ov_epsilon = std::numeric_limits<Number>::infinity();
 
       // Bound preserving condition for m_l, velocity and small-scale volume fraction
-      Number fac_Ru;
       if(dH > static_cast<Number>(0.0)) {
         // Bound preserving condition for m_l
         dtau_ov_epsilon = lambda/(sigma*dH);
@@ -884,9 +887,6 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         }
 
         // Bound preserving for the velocity
-        fac_Ru = sigma*Hmax*(static_cast<Number>(3.0)/kappa - static_cast<Number>(1.0));
-        const auto mom_dot_vel   = (local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX) +
-                                    local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
         auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(alpha_l_loc*sigma*dH*fac_Ru); /*--- TODO: Add a check in case of zero volume fraction ---*/
         dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
         if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
