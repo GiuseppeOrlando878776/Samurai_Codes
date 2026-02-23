@@ -679,20 +679,7 @@ template<std::size_t dim>
 template<class... Variables>
 void TwoScaleCapillarity<dim>::save(const std::string& suffix,
                                     const Variables&... fields) {
-  auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
-
-  if(!fs::exists(path)) {
-    fs::create_directory(path);
-  }
-
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                            {
-                              level_[cell] = cell.level;
-                            }
-                        );
-
-  samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
+  samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields...);
   if(!(suffix.find("diverged") != std::string::npos)) {
     samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields...);
   }

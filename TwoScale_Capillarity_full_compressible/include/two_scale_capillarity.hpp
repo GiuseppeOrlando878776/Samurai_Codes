@@ -302,7 +302,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
                                                   p_liq, p_g, p,
                                                   alpha_d, Sigma_d, grad_alpha_d,
                                                   vel, div_vel,
-                                                  alpha_l_bar, grad_alpha_l_bar, H_bar,
+                                                  alpha_l_bar, grad_alpha_l_bar, H_bar, H_filter,
                                                   Mach);
       /*--- TO DO: Likely periodic bcs will not work ---*/
     }
@@ -1088,20 +1088,7 @@ template<std::size_t dim>
 template<class... Variables>
 void TwoScaleCapillarity<dim>::save(const std::string& suffix,
                                     const Variables&... fields) {
-  auto level_ = samurai::make_scalar_field<std::size_t>("level", mesh);
-
-  if(!fs::exists(path)) {
-    fs::create_directory(path);
-  }
-
-  samurai::for_each_cell(mesh,
-                         [&](const auto& cell)
-                            {
-                              level_[cell] = cell.level;
-                            }
-                        );
-
-  samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields..., level_);
+  samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields...);
   if(!(suffix.find("diverged") != std::string::npos)) {
     samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields...);
   }
