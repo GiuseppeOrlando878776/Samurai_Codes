@@ -1045,6 +1045,10 @@ template<std::size_t dim>
 template<class... Variables>
 void TwoScaleCapillarity<dim>::save(const std::string& suffix,
                                     const Variables&... fields) {
+  if(!fs::exists(path)) {
+    fs::create_directory(path);
+  }
+
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields...);
   if(!(suffix.find("diverged") != std::string::npos)) {
     samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields...);
