@@ -878,7 +878,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
          -grad_alpha_l_loc[0]*local_conserved_variables(RHO_U_INDEX)
          -grad_alpha_l_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0) &&
          alpha_d_loc < alpha_d_max &&
-         fac_Ru <= static_cast<Number>(0.5)*mom_dot_vel) {
+         alpha_l_loc*fac_Ru <= static_cast<Number>(0.5)*mom_dot_vel) {
         ;
       }
       else {
@@ -1091,7 +1091,7 @@ void TwoScaleCapillarity<dim>::save(const std::string& suffix,
   if(!fs::exists(path)) {
     fs::create_directory(path);
   }
-  
+
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields...);
   if(!(suffix.find("diverged") != std::string::npos)) {
     samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields...);
@@ -1163,8 +1163,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               // Compue H_lig
                               if(alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
                                  -grad_alpha_l_loc[0]*local_conserved_variables(RHO_U_INDEX)
-                                 -grad_alpha_l_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0) &&
-                                 alpha_d_loc < alpha_d_max) {
+                                 -grad_alpha_l_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0)) {
                                 local_H_lig = std::max(H[cell], local_H_lig);
                               }
 
