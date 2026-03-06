@@ -288,12 +288,11 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               const auto y      = static_cast<Number>(center[1]);
                               const auto r      = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
                               const auto w      = (r >= R && r < R + eps_R) ?
-                                                  std::max(std::exp(static_cast<Number>(2.0)*
-                                                                    (r - R)*(r - R)/(eps_R*eps_R)*
-                                                                    ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(3.0))/
-                                                                    (((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(1.0))*
-                                                                     ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(1.0)))),
-                                                           static_cast<Number>(0.0)) :
+                                                  std::exp(static_cast<Number>(2.0)*
+                                                           (r - R)*(r - R)/(eps_R*eps_R)*
+                                                           ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(3.0))/
+                                                           (((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(1.0))*
+                                                            ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(1.0)))) :
                                                   ((r < R) ? static_cast<Number>(1.0) :
                                                              static_cast<Number>(0.0));
 
@@ -682,7 +681,7 @@ void TwoScaleCapillarity<dim>::save(const std::string& suffix,
   if(!fs::exists(path)) {
     fs::create_directory(path);
   }
-  
+
   samurai::save(path, fmt::format("{}{}", filename, suffix), mesh, fields...);
   if(!(suffix.find("diverged") != std::string::npos)) {
     samurai::dump(path, fmt::format("{}{}", filename, "_restart"), mesh, fields...);

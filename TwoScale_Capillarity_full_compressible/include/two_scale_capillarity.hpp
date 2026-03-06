@@ -290,6 +290,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
     /*--- Initialize the fields ---*/
     if(sim_param.restart_file.empty()) {
       mesh = {box, sim_param.min_level, sim_param.max_level, {{false, true}}};
+
       init_variables(sim_param.x0, sim_param.y0,
                      sim_param.U0, sim_param.U1,
                      sim_param.V0,
@@ -391,12 +392,11 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               const auto y      = static_cast<Number>(center[1]);
                               const auto r      = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
                               const auto w      = (r >= R && r < R + eps_R) ?
-                                                  std::max(std::exp(static_cast<Number>(2.0)*
-                                                                    (r - R)*(r - R)/(eps_R*eps_R)*
-                                                                    ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(3.0))/
-                                                                    (((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(1.0))*
-                                                                     ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(1.0)))),
-                                                           static_cast<Number>(0.0)) :
+                                                  std::exp(static_cast<Number>(2.0)*
+                                                           (r - R)*(r - R)/(eps_R*eps_R)*
+                                                           ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(3.0))/
+                                                           (((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(1.0))*
+                                                            ((r - R)*(r - R)/(eps_R*eps_R) - static_cast<Number>(1.0)))) :
                                                   ((r < R) ? static_cast<Number>(1.0) :
                                                              static_cast<Number>(0.0));
 
@@ -875,8 +875,6 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                               local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
     if(mass_transfer_NR) {
       if(alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
-         -grad_alpha_l_loc[0]*local_conserved_variables(RHO_U_INDEX)
-         -grad_alpha_l_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0) &&
          alpha_d_loc < alpha_d_max &&
          alpha_l_loc*fac_Ru <= static_cast<Number>(0.5)*mom_dot_vel) {
         ;
@@ -942,7 +940,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         /*--- No specific condition to impose for the positivity of alpha_d since alpha_d = alpha_l*m_d/m_l and
               m_d is increasing, m_l has already been imposed positive and alpha_l is going to be set with proper bounds later.
               On the other hand, there is no a priori superior limit, apart from the alpha_d_max which deactivates the mass transfer.
-              Hence, in the first iteration, one can potentially reach alpha_d > alpha_d_max (likely unphyisical...) ---*/
+              Hence, in the first iteration, one can potentially reach alpha_d > alpha_d_max (likely unphyisical, but not impossible...) ---*/
       }
 
       // Bound preserving condition for large-scale volume fraction
@@ -1162,8 +1160,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
 
                               // Compue H_lig
                               if(alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
-                                 -grad_alpha_l_loc[0]*local_conserved_variables(RHO_U_INDEX)
-                                 -grad_alpha_l_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0)) {
+                                 alpha_d_loc < alpha_d_max) {
                                 local_H_lig = std::max(H[cell], local_H_lig);
                               }
 
