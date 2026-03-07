@@ -50,12 +50,13 @@ using namespace EquationData;
 template<std::size_t dim>
 class TwoScaleCapillarity {
 public:
-  using Config = samurai::MRConfig<dim, 2, 1, 0>;
-  using Field  = samurai::VectorField<samurai::MRMesh<Config>,
-                                      double,
-                                      EquationData::NVARS,
-                                      false>;
-  using Number = samurai::Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
+  using Config    = samurai::MRConfig<dim, 2, 1, 0>;
+  using mesh_type = samurai::MRMesh<Config>;
+  using Field     = samurai::VectorField<mesh_type,
+                                         double,
+                                         EquationData::NVARS,
+                                         false>;
+  using Number    = samurai::Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
 
   TwoScaleCapillarity() = default; /*--- Default constructor. This will do nothing
                                          and basically will never be used ---*/
@@ -76,10 +77,10 @@ private:
   /*--- Now we declare some relevant variables ---*/
   const samurai::Box<double, dim> box;
 
-  samurai::MRMesh<Config> mesh; /*--- Variable to store the mesh ---*/
+  mesh_type mesh; /*--- Variable to store the mesh ---*/
 
-  using Field_Scalar = samurai::ScalarField<decltype(mesh), Number>;
-  using Field_Vect   = samurai::VectorField<decltype(mesh), Number, dim, false>;
+  using Field_Scalar = samurai::ScalarField<mesh_type, Number>;
+  using Field_Vect   = samurai::VectorField<mesh_type, Number, dim, false>;
 
   const Number t0; /*--- Initial time of the simulation ---*/
   const Number Tf; /*--- Final time of the simulation ---*/
@@ -129,8 +130,8 @@ private:
              normal,
              grad_alpha1;
 
-  samurai::ScalarField<decltype(mesh), std::size_t> to_be_relaxed;
-  samurai::ScalarField<decltype(mesh), std::size_t> Newton_iterations;
+  samurai::ScalarField<mesh_type, std::size_t> to_be_relaxed;
+  samurai::ScalarField<mesh_type, std::size_t> Newton_iterations;
 
   using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1)>());
   gradient_type gradient;
@@ -208,12 +209,17 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   gradient(samurai::make_gradient_order2<decltype(alpha1)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>())
   {
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if(rank == 0) {
+    #ifdef SAMURAI_WITH_MPI
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      if(rank == 0) {
+        std::cout << "Initializing variables " << std::endl;
+        std::cout << std::endl;
+      }
+    #else
       std::cout << "Initializing variables " << std::endl;
       std::cout << std::endl;
-    }
+    #endif
 
     /*--- Attach the fields to the mesh ---*/
     create_fields();
@@ -462,11 +468,15 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                             }
                         );
 
-  const double local_res_d = static_cast<double>(local_res);
-  double global_res;
-  MPI_Allreduce(&local_res_d, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+  #ifdef SAMURAI_WITH_MPI
+    const double local_res_d = static_cast<double>(local_res);
+    double global_res;
+    MPI_Allreduce(&local_res_d, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-  return static_cast<Number>(global_res);
+    return static_cast<Number>(global_res);
+  #else
+    return local_res;
+  #endif
 }
 
 // Auxiliary routine to check if negative values arise
@@ -585,8 +595,12 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
                               }
                           );
 
-    mpi::communicator world;
-    boost::mpi::all_reduce(world, local_relaxation_applied, global_relaxation_applied, std::logical_or<bool>());
+    #ifdef SAMURAI_WITH_MPI
+      mpi::communicator world;
+      boost::mpi::all_reduce(world, local_relaxation_applied, global_relaxation_applied, std::logical_or<bool>());
+    #else
+      global_relaxation_applied = local_relaxation_applied;
+    #endif
 
     // Newton cycle diverged
     if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
@@ -750,16 +764,22 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
 
   /*--- Save mesh size (so as to compute time step) ---*/
   const auto dx = static_cast<Number>(mesh.cell_length(mesh.max_level()));
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  using mesh_id_t = typename decltype(mesh)::mesh_id_t;
-  const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
+  using mesh_id_t = typename mesh_type::mesh_id_t;
   unsigned n_elements;
-  MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
-  if(rank == 0) {
-    std::cout << "Number of elements = " <<  n_elements << std::endl;
+  #ifdef SAMURAI_WITH_MPI
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    const auto n_elements_per_subdomain = mesh[mesh_id_t::cells].nb_cells();
+    MPI_Allreduce(&n_elements_per_subdomain, &n_elements, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
+    if(rank == 0) {
+      std::cout << "Number of initial elements = " <<  n_elements << std::endl;
+      std::cout << std::endl;
+    }
+  #else
+    n_elements = mesh[mesh_id_t::cells].nb_cells();
+    std::cout << "Number of initial elements = " <<  n_elements << std::endl;
     std::cout << std::endl;
-  }
+  #endif
 
   /*--- Declare operators for MR ---*/
   /*auto prediction_fn = [&](auto& new_field, const auto& old_field) {
@@ -798,10 +818,14 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     const auto dt = std::min(Tf - t, cfl*dx/get_max_lambda());
     t += dt;
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if(rank == 0) {
+    #ifdef SAMURAI_WITH_MPI
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      if(rank == 0) {
+        std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
+      }
+    #else
       std::cout << fmt::format("Iteration {}: t = {}, dt = {}", ++nt, t, dt) << std::endl;
-    }
+    #endif
 
     // Save current state in case of order 2
     #ifdef ORDER_2
