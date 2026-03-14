@@ -38,12 +38,12 @@ namespace EquationData {
   static constexpr std::size_t NVARS = 5 + dim;
 
   /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
-  static constexpr std::size_t ALPHA_l_INDEX = RHO_ALPHA_l_INDEX;
-  static constexpr std::size_t U_INDEX       = RHO_U_INDEX;
-  static constexpr std::size_t Z_INDEX       = RHO_Z_INDEX;
-  static constexpr std::size_t Pl_INDEX      = Ml_INDEX;
-  static constexpr std::size_t Pg_INDEX      = Mg_INDEX;
-  static constexpr std::size_t ALPHA_d_INDEX = Md_INDEX;
+  static constexpr std::size_t ALPHA_l_INDEX  = RHO_ALPHA_l_INDEX;
+  static constexpr std::size_t U_INDEX        = RHO_U_INDEX;
+  static constexpr std::size_t Z_INDEX        = RHO_Z_INDEX;
+  static constexpr std::size_t Pl_INDEX       = Ml_INDEX;
+  static constexpr std::size_t Pg_INDEX       = Mg_INDEX;
+  static constexpr std::size_t ALPHA_2d_INDEX = Md_INDEX;
 }
 
 namespace samurai {
@@ -71,7 +71,6 @@ namespace samurai {
     Flux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
          const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
          const Number sigma_,
-         const Number mod_grad_alpha_l_min_,
          const Number lambda_ = static_cast<Number>(0.9),
          const Number atol_Newton_ = static_cast<Number>(1e-14),
          const Number rtol_Newton_ = static_cast<Number>(1e-12),
@@ -82,8 +81,6 @@ namespace samurai {
     const LinearizedBarotropicEOS<Number>& EOS_phase_gas;
 
     const Number sigma; /*--- Surface tension parameter ---*/
-
-    const Number mod_grad_alpha_l_min; /*--- Tolerance to compute the unit normal ---*/
 
     const Number      lambda;           /*--- Parameter for bound preserving strategy ---*/
     const Number      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
@@ -131,13 +128,11 @@ namespace samurai {
   Flux<Field>::Flux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
                     const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
                     const Number sigma_,
-                    const Number mod_grad_alpha_l_min_,
                     const Number lambda_,
                     const Number atol_Newton_,
                     const Number rtol_Newton_,
                     const std::size_t max_Newton_iters_):
-    EOS_phase_liq(EOS_phase_liq_), EOS_phase_gas(EOS_phase_gas_),
-    sigma(sigma_), mod_grad_alpha_l_min(mod_grad_alpha_l_min_),
+    EOS_phase_liq(EOS_phase_liq_), EOS_phase_gas(EOS_phase_gas_), sigma(sigma_),
     lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
     max_Newton_iters(max_Newton_iters_) {}
 
@@ -233,19 +228,17 @@ namespace samurai {
     }
     const auto mod_grad_alpha_l = std::sqrt(mod2_grad_alpha_l);
 
-    if(mod_grad_alpha_l > mod_grad_alpha_l_min) {
-      const auto n  = grad_alpha_l/mod_grad_alpha_l;
-      const auto nx = n(0);
-      const auto ny = n(1);
+    const auto n  = grad_alpha_l/(mod_grad_alpha_l + static_cast<Number>(1e-10));
+    const auto nx = n(0);
+    const auto ny = n(1);
 
-      if(curr_d == 0) {
-        res(RHO_U_INDEX) += sigma*(nx*nx - static_cast<Number>(1.0))*mod_grad_alpha_l;
-        res(RHO_U_INDEX + 1) += sigma*nx*ny*mod_grad_alpha_l;
-      }
-      else if(curr_d == 1) {
-        res(RHO_U_INDEX) += sigma*nx*ny*mod_grad_alpha_l;
-        res(RHO_U_INDEX + 1) += sigma*(ny*ny - static_cast<Number>(1.0))*mod_grad_alpha_l;
-      }
+    if(curr_d == 0) {
+      res(RHO_U_INDEX) += sigma*(nx*nx - static_cast<Number>(1.0))*mod_grad_alpha_l;
+      res(RHO_U_INDEX + 1) += sigma*nx*ny*mod_grad_alpha_l;
+    }
+    else if(curr_d == 1) {
+      res(RHO_U_INDEX) += sigma*nx*ny*mod_grad_alpha_l;
+      res(RHO_U_INDEX + 1) += sigma*(ny*ny - static_cast<Number>(1.0))*mod_grad_alpha_l;
     }
 
     return res;
@@ -263,12 +256,12 @@ namespace samurai {
     const auto m_d = cons(Md_INDEX);
 
     /*--- Compute primitive variables ---*/
-    const auto rho      = m_l + m_g + m_d;
-    const auto inv_rho  = static_cast<Number>(1.0)/rho;
-    const auto alpha_l  = cons(RHO_ALPHA_l_INDEX)*inv_rho;
-    prim(ALPHA_l_INDEX) = alpha_l;
-    const auto alpha_d  = alpha_l*m_d/m_l;
-    prim(ALPHA_d_INDEX) = alpha_d;
+    const auto rho       = m_l + m_g + m_d;
+    const auto inv_rho   = static_cast<Number>(1.0)/rho;
+    const auto alpha_l   = cons(RHO_ALPHA_l_INDEX)*inv_rho;
+    prim(ALPHA_l_INDEX)  = alpha_l;
+    const auto alpha_d   = alpha_l*m_d/m_l;
+    prim(ALPHA_2d_INDEX) = alpha_d/(static_cast<Number>(1.0) - alpha_l);
 
     const auto rho_liq  = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(Pl_INDEX)      = EOS_phase_liq.pres_value(rho_liq);
@@ -291,7 +284,7 @@ namespace samurai {
 
     /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
     const auto alpha_l = prim(ALPHA_l_INDEX);
-    const auto alpha_d = prim(ALPHA_d_INDEX);
+    const auto alpha_d = prim(ALPHA_2d_INDEX)*(static_cast<Number>(1.0) - alpha_l);
 
     /*--- Compute conserved variables ---*/
     const auto rho_liq      = EOS_phase_liq.rho_value(prim(Pl_INDEX));

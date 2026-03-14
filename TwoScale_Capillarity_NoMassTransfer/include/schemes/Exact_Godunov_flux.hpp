@@ -26,7 +26,6 @@ namespace samurai {
     GodunovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
                 const LinearizedBarotropicEOS<Number>& EOS_phase2_,
                 const Number sigma_,
-                const Number mod_grad_alpha1_min_,
                 const Number lambda_,
                 const Number atol_Newton_,
                 const Number rtol_Newton_,
@@ -65,15 +64,13 @@ namespace samurai {
   GodunovFlux<Field>::GodunovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
                                   const LinearizedBarotropicEOS<Number>& EOS_phase2_,
                                   const Number sigma_,
-                                  const Number mod_grad_alpha1_min_,
                                   const Number lambda_,
                                   const Number atol_Newton_,
                                   const Number rtol_Newton_,
                                   const std::size_t max_Newton_iters_,
                                   const Number atol_Newton_p_star_,
                                   const Number rtol_Newton_p_star_):
-    Flux<Field>(EOS_phase1_, EOS_phase2_,
-                sigma_, mod_grad_alpha1_min_,
+    Flux<Field>(EOS_phase1_, EOS_phase2_, sigma_,
                 lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_),
     atol_Newton_p_star(atol_Newton_p_star_), rtol_Newton_p_star(rtol_Newton_p_star_) {}
 

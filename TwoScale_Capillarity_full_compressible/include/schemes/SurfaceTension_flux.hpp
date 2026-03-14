@@ -24,7 +24,6 @@ namespace samurai {
     SurfaceTensionFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
                        const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
                        const Number sigma_,
-                       const Number mod_grad_alpha_l_min_,
                        const Number lambda_,
                        const Number atol_Newton_,
                        const Number rtol_Newton_,
@@ -46,13 +45,11 @@ namespace samurai {
   SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
                                                 const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
                                                 const Number sigma_,
-                                                const Number mod_grad_alpha_l_min_,
                                                 const Number lambda_,
                                                 const Number atol_Newton_,
                                                 const Number rtol_Newton_,
                                                 const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase_liq_, EOS_phase_gas_,
-                sigma_, mod_grad_alpha_l_min_,
+    Flux<Field>(EOS_phase_liq_, EOS_phase_gas_, sigma_,
                 lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
   // Implementation of the surface tension contribution

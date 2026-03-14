@@ -70,7 +70,6 @@ namespace samurai {
     Flux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
          const LinearizedBarotropicEOS<Number>& EOS_phase2_,
          const Number sigma_,
-         const Number mod_grad_alpha1_bar_min_,
          const Number lambda_ = static_cast<Number>(0.9),
          const Number atol_Newton_ = static_cast<Number>(1e-14),
          const Number rtol_Newton_ = static_cast<Number>(1e-12),
@@ -81,8 +80,6 @@ namespace samurai {
     const LinearizedBarotropicEOS<Number>& EOS_phase2;
 
     const Number sigma; /*--- Surface tension parameter ---*/
-
-    const Number mod_grad_alpha1_bar_min; /*--- Tolerance to compute the unit normal ---*/
 
     const Number      lambda;           /*--- Parameter for bound preserving strategy ---*/
     const Number      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
@@ -130,13 +127,11 @@ namespace samurai {
   Flux<Field>::Flux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
                     const LinearizedBarotropicEOS<Number>& EOS_phase2_,
                     const Number sigma_,
-                    const Number mod_grad_alpha1_bar_min_,
                     const Number lambda_,
                     const Number atol_Newton_,
                     const Number rtol_Newton_,
                     const std::size_t max_Newton_iters_):
-    EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_),
-    sigma(sigma_), mod_grad_alpha1_bar_min(mod_grad_alpha1_bar_min_),
+    EOS_phase1(EOS_phase1_), EOS_phase2(EOS_phase2_), sigma(sigma_),
     lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
     max_Newton_iters(max_Newton_iters_) {}
 
@@ -230,19 +225,17 @@ namespace samurai {
     const auto mod_grad_alpha1_bar = std::sqrt(mod2_grad_alpha1_bar);
     //const auto mod_grad_alpha1_bar = std::sqrt(xt::sum(grad_alpha1_bar*grad_alpha1_bar)());
 
-    if(mod_grad_alpha1_bar > mod_grad_alpha1_bar_min) {
-      const auto n  = grad_alpha1_bar/mod_grad_alpha1_bar;
-      const auto nx = n(0);
-      const auto ny = n(1);
+    const auto n  = grad_alpha1_bar/(mod_grad_alpha1_bar + static_cast<Number>(1e-10));
+    const auto nx = n(0);
+    const auto ny = n(1);
 
-      if(curr_d == 0) {
-        res(RHO_U_INDEX) += sigma*(nx*nx - static_cast<Number>(1.0))*mod_grad_alpha1_bar;
-        res(RHO_U_INDEX + 1) += sigma*nx*ny*mod_grad_alpha1_bar;
-      }
-      else if(curr_d == 1) {
-        res(RHO_U_INDEX) += sigma*nx*ny*mod_grad_alpha1_bar;
-        res(RHO_U_INDEX + 1) += sigma*(ny*ny - static_cast<Number>(1.0))*mod_grad_alpha1_bar;
-      }
+    if(curr_d == 0) {
+      res(RHO_U_INDEX) += sigma*(nx*nx - static_cast<Number>(1.0))*mod_grad_alpha1_bar;
+      res(RHO_U_INDEX + 1) += sigma*nx*ny*mod_grad_alpha1_bar;
+    }
+    else if(curr_d == 1) {
+      res(RHO_U_INDEX) += sigma*nx*ny*mod_grad_alpha1_bar;
+      res(RHO_U_INDEX + 1) += sigma*(ny*ny - static_cast<Number>(1.0))*mod_grad_alpha1_bar;
     }
 
     return res;
@@ -364,7 +357,7 @@ namespace samurai {
 
           if(alpha1_bar + dalpha1_bar < static_cast<Number>(0.0) ||
              alpha1_bar + dalpha1_bar > static_cast<Number>(1.0)) {
-            // I should never get here. Added only for the sake of safety!!   
+            // I should never get here. Added only for the sake of safety!!
             throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step of reconstruction");
           }
           else {

@@ -192,17 +192,17 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma,
                  lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma,
                  lambda, atol_Newton, rtol_Newton, max_Newton_iters,
                  sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star),
   #elifdef HLLC_FLUX
-    HLLC_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
+    HLLC_flux(EOS_phase1, EOS_phase2, sigma,
               lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   #endif
-  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma, mod_grad_alpha1_min,
+  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma,
                       sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
                       max_Newton_iters),
   path(sim_param.save_dir),

@@ -233,22 +233,18 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2,
-                 sigma, mod_grad_alpha1_bar_min,
+    Rusanov_flux(EOS_phase1, EOS_phase2, sigma,
                  lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2,
-                 sigma, mod_grad_alpha1_bar_min,
+    Godunov_flux(EOS_phase1, EOS_phase2, sigma,
                  lambda, atol_Newton, rtol_Newton, max_Newton_iters,
                  sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star,
                  sim_param.tol_Newton_alpha1_d),
   #elifdef HLLC_FLUX
-    HLLC_flux(EOS_phase1, EOS_phase2,
-              sigma, mod_grad_alpha1_bar_min,
+    HLLC_flux(EOS_phase1, EOS_phase2, sigma,
               lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   #endif
-  SurfaceTension_flux(EOS_phase1, EOS_phase2,
-                      sigma, mod_grad_alpha1_bar_min,
+  SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma,
                       lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   path(sim_param.save_dir),
   gradient(samurai::make_gradient_order2<decltype(alpha1_bar)>()),
@@ -978,10 +974,10 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       dalpha1_bar_loc = -F/dF_dalpha1_bar;
 
       /*if(dalpha1_bar_loc > static_cast<Number>(0.0)) {
-        dalpha1_bar_loc = std::min(-F/dF_dalpha1_bar, lambda*alpha2_bar_loc);
+        dalpha1_bar_loc = std::min(dalpha1_bar_loc, lambda*alpha2_bar_loc);
       }
       else if(dalpha1_bar_loc < static_cast<Number>(0.0)) {
-        dalpha1_bar_loc = std::max(-F/dF_dalpha1_bar, -lambda*alpha1_bar_loc);
+        dalpha1_bar_loc = std::max(dalpha1_bar_loc, -lambda*alpha1_bar_loc);
       }*/
     }
     else {

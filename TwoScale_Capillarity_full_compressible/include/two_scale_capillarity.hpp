@@ -244,16 +244,13 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   EOS_phase_liq(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase_gas(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase_liq, EOS_phase_gas,
-                 sigma, mod_grad_alpha_l_min,
+    Rusanov_flux(EOS_phase_liq, EOS_phase_gas, sigma,
                  lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   #elifdef HLLC_FLUX
-    HLLC_flux(EOS_phase_liq, EOS_phase_gas,
-              sigma, mod_grad_alpha_l_min,
+    HLLC_flux(EOS_phase_liq, EOS_phase_gas, sigma,
               lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   #endif
-  SurfaceTension_flux(EOS_phase_liq, EOS_phase_gas,
-                      sigma, mod_grad_alpha_l_min,
+  SurfaceTension_flux(EOS_phase_liq, EOS_phase_gas, sigma,
                       lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   path(sim_param.save_dir),
   gradient(samurai::make_gradient_order2<decltype(alpha_l)>()),
@@ -1026,13 +1023,6 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         // If we are in this branch we do not have mass transfer
         // and we do not have other restrictions on the bounds of large scale volume fraction
         dalpha_l_loc = -F/dF_dalpha_l;
-
-        if(dalpha_l_loc > static_cast<Number>(0.0)) {
-          dalpha_l_loc = std::min(-F/dF_dalpha_l, lambda*(static_cast<Number>(1.0) - alpha_l_loc));
-        }
-        else if(dalpha_l_loc < static_cast<Number>(0.0)) {
-          dalpha_l_loc = std::max(-F/dF_dalpha_l, -lambda*alpha_l_loc);
-        }
       }
       else {
         const auto dm_l = dtau_ov_epsilon*R_ml;
