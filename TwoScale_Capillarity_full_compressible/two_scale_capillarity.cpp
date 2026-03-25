@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
 
   /*--- Set and declare simulation parameters ---*/
   using Number = TwoScaleCapillarity<EquationData::dim>::Number;
-  Simulation_Paramaters<Number> sim_param;
+  Simulation_Parameters<Number> sim_param;
 
   // Physical parameters
   sim_param.xL = input.value("xL", static_cast<double>(0.0));
@@ -86,13 +86,13 @@ int main(int argc, char* argv[]) {
 
   app.add_option("--sigma", sim_param.sigma, "Surface tension coefficient")->capture_default_str()->group("Physical parameters");
 
-  app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Physical paramaters");
+  app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Physical parameters");
   app.add_option("--mass_transfer", sim_param.mass_transfer,
-                 "Choose whether to perform or not the mass transfer")->capture_default_str()->group("Physical paramaters");
+                 "Choose whether to perform or not the mass transfer")->capture_default_str()->group("Physical parameters");
   app.add_option("--kappa", sim_param.kappa,
-                 "Small-scale disperse phase raidus with rispect to maximum curvature")->capture_default_str()->group("Physical paramaters");
+                 "Small-scale disperse phase raidus with rispect to maximum curvature")->capture_default_str()->group("Physical parameters");
   app.add_option("--Hmax", sim_param.Hmax,
-                 "Maximum curvature before activating atomization")->capture_default_str()->group("Physical paramaters");
+                 "Maximum curvature before activating atomization")->capture_default_str()->group("Physical parameters");
   app.add_option("--alpha_d_max", sim_param.alpha_d_max,
                  "Maximum admitted small-scale volume fraction")->capture_default_str()->group("Physical parameters");
   app.add_option("--alpha_l_min", sim_param.alpha_l_min,

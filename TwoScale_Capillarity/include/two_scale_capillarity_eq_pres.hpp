@@ -62,7 +62,7 @@ public:
 
   TwoScaleCapillarity(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                       const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                      const Simulation_Paramaters<Number>& sim_param,
+                      const Simulation_Parameters<Number>& sim_param,
                       const EOS_Parameters<Number>& eos_param); /*--- Class constructor with the arguments related
                                                                       to the grid, to the physics, and to the relaxation. ---*/
 
@@ -218,7 +218,7 @@ private:
 template<std::size_t dim>
 TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt::xshape<dim>>& min_corner,
                                               const xt::xtensor_fixed<double, xt::xshape<dim>>& max_corner,
-                                              const Simulation_Paramaters<Number>& sim_param,
+                                              const Simulation_Parameters<Number>& sim_param,
                                               const EOS_Parameters<Number>& eos_param):
   box(min_corner, max_corner),
   t0(sim_param.t0), Tf(sim_param.Tf), sigma(sim_param.sigma),

@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
 
   /*--- Set and declare simulation parameters ---*/
   using Number = TwoScaleCapillarity<EquationData::dim>::Number;
-  Simulation_Paramaters<Number> sim_param;
+  Simulation_Parameters<Number> sim_param;
 
   // Physical parameters
   sim_param.xL = input.value("xL", static_cast<double>(0.0));
@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
 
   app.add_option("--sigma", sim_param.sigma, "Surface tension coefficient")->capture_default_str()->group("Physical parameters");
 
-  app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Physical paramaters");
+  app.add_option("--apply_relaxation", sim_param.apply_relaxation, "Apply or not relaxation")->capture_default_str()->group("Physical parameters");
 
   app.add_option("--x0", sim_param.x0, "Liquid column x-center")->capture_default_str()->group("Physical parameters");
   app.add_option("--y0", sim_param.y0, "Liquid column y-center")->capture_default_str()->group("Physical parameters");

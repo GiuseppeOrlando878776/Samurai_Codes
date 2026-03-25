@@ -9,7 +9,7 @@
 // Declare a struct with the simulation parameters
 //
 template<typename T = double>
-struct Simulation_Paramaters {
+struct Simulation_Parameters {
   /*--- Physical parameters ---*/
   double xL;
   double xR;
