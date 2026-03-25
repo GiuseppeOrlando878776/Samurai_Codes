@@ -961,7 +961,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     if(D > static_cast<Number>(0.0) &&
        (a < static_cast<Number>(0.0) ||
        (a > static_cast<Number>(0.0) && b < static_cast<Number>(0.0)))) {
-      dtau_ov_epsilon_tmp = 0.5*(-b - std::sqrt(D))/a;
+      dtau_ov_epsilon_tmp = static_cast<Number>(0.5)*(-b - std::sqrt(D))/a;
     }
     if(a == static_cast<Number>(0.0) &&
        b < static_cast<Number>(0.0)) {
@@ -1134,7 +1134,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                                                     /*--- TODO: Add a check in case of zero volume fraction ---*/
                               const auto p2_loc    = EOS_phase2.pres_value(rho2_loc);
                               p2[cell]             = p2_loc;
-                              const auto p_bar_loc = alpha1_bar[cell]*p1_loc
+                              const auto p_bar_loc = alpha1_bar_loc*p1_loc
                                                    + alpha2_bar_loc*p2_loc;
                               p_bar[cell]          = p_bar_loc;
                               const auto H_lim_loc = std::min(H_bar_loc, Hmax);
@@ -1246,7 +1246,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
   #ifdef SAMURAI_WITH_MPI
     MPI_Allreduce(&local_alpha1_d_int_d, &global_alpha1_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   #else
-    global_alpha1_d_int = local_alpha_d_int_d;
+    global_alpha1_d_int = local_alpha1_d_int_d;
   #endif
 
   double local_grad_alpha1_d_int_d = static_cast<double>(local_grad_alpha1_d_int);
