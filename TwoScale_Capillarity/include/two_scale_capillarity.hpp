@@ -376,10 +376,10 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                          [&](const auto& cell)
                             {
                               // Set small-scale variables
-                              conserved_variables[cell][ALPHA1_D_INDEX] = static_cast<Number>(0.0);
-                              alpha1_d[cell]                            = conserved_variables[cell][ALPHA1_D_INDEX];
-                              conserved_variables[cell][SIGMA_D_INDEX]  = static_cast<Number>(0.0);
-                              conserved_variables[cell][M1_D_INDEX]     = conserved_variables[cell][ALPHA1_D_INDEX]*EOS_phase1.get_rho0();
+                              conserved_variables[cell](ALPHA1_D_INDEX) = static_cast<Number>(0.0);
+                              alpha1_d[cell]                            = conserved_variables[cell](ALPHA1_D_INDEX);
+                              conserved_variables[cell](SIGMA_D_INDEX)  = static_cast<Number>(0.0);
+                              conserved_variables[cell](M1_D_INDEX)     = conserved_variables[cell](ALPHA1_D_INDEX)*EOS_phase1.get_rho0();
 
                               // Recompute geometric locations to set partial masses
                               const auto center = cell.center();
@@ -403,8 +403,8 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               const auto rho1 = EOS_phase1.rho_value(p1[cell]);
 
                               alpha1[cell] = alpha1_bar[cell]*
-                                             (static_cast<Number>(1.0) - conserved_variables[cell][ALPHA1_D_INDEX]);
-                              conserved_variables[cell][M1_INDEX] = alpha1[cell]*rho1;
+                                             (static_cast<Number>(1.0) - conserved_variables[cell](ALPHA1_D_INDEX));
+                              conserved_variables[cell](M1_INDEX) = alpha1[cell]*rho1;
 
                               // Set mass phase 2
                               p2[cell] = EOS_phase2.get_p0();
@@ -412,28 +412,28 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
 
                               const auto alpha2 = static_cast<Number>(1.0)
                                                 - alpha1[cell]
-                                                - conserved_variables[cell][ALPHA1_D_INDEX];
-                              conserved_variables[cell][M2_INDEX] = alpha2*rho2;
+                                                - conserved_variables[cell](ALPHA1_D_INDEX);
+                              conserved_variables[cell](M2_INDEX) = alpha2*rho2;
 
                               // Save mixture pressure for post-processing
                               p_bar[cell] = alpha1_bar[cell]*p1[cell]
                                           + (static_cast<Number>(1.0) - alpha1_bar[cell])*p2[cell];
 
                               // Set conserved variable associated to large-scale volume fraction
-                              const auto rho = conserved_variables[cell][M1_INDEX]
-                                             + conserved_variables[cell][M2_INDEX]
-                                             + conserved_variables[cell][M1_D_INDEX];
+                              const auto rho = conserved_variables[cell](M1_INDEX)
+                                             + conserved_variables[cell](M2_INDEX)
+                                             + conserved_variables[cell](M1_D_INDEX);
 
-                              conserved_variables[cell][RHO_ALPHA1_BAR_INDEX] = rho*alpha1_bar[cell];
+                              conserved_variables[cell](RHO_ALPHA1_BAR_INDEX) = rho*alpha1_bar[cell];
 
                               // Set momentum
-                              conserved_variables[cell][RHO_U_INDEX]     = conserved_variables[cell][M1_INDEX]*U1
-                                                                         + conserved_variables[cell][M2_INDEX]*U0;
-                              conserved_variables[cell][RHO_U_INDEX + 1] = rho*V0;
+                              conserved_variables[cell](RHO_U_INDEX)     = conserved_variables[cell](M1_INDEX)*U1
+                                                                         + conserved_variables[cell](M2_INDEX)*U0;
+                              conserved_variables[cell](RHO_U_INDEX + 1) = rho*V0;
 
                               // Save velocity for post-processing
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]/rho;
+                                vel[cell][d] = conserved_variables[cell](RHO_U_INDEX + d)/rho;
                               }
                             }
                         );
@@ -560,16 +560,18 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                          [&](const auto& cell)
                             {
                               /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
-                              const auto m1_loc       = conserved_variables[cell][M1_INDEX];
-                              const auto m2_loc       = conserved_variables[cell][M2_INDEX];
-                              const auto m1_d_loc     = conserved_variables[cell][M1_D_INDEX];
-                              const auto alpha1_d_loc = conserved_variables[cell][ALPHA1_D_INDEX];
+                              const auto& local_conserved_variables = conserved_variables[cell];
+
+                              const auto m1_loc       = local_conserved_variables(M1_INDEX);
+                              const auto m2_loc       = local_conserved_variables(M2_INDEX);
+                              const auto m1_d_loc     = local_conserved_variables(M1_D_INDEX);
+                              const auto alpha1_d_loc = local_conserved_variables(ALPHA1_D_INDEX);
 
                               /*--- Compute the velocity along all the directions ---*/
                               const auto rho_loc     = m1_loc + m2_loc + m1_d_loc;
                               const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel[cell][d] = conserved_variables[cell][RHO_U_INDEX + d]*inv_rho_loc;
+                                vel[cell][d] = local_conserved_variables(RHO_U_INDEX + d)*inv_rho_loc;
                               }
 
                               /*--- Compute frozen speed of sound ---*/
@@ -629,6 +631,9 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
+                              // Pre-fetch local state
+                              const auto& local_conserved_variables = conserved_variables[cell];
+
                               // Sanity check for alpha1_bar
                               const auto alpha1_bar_loc = alpha1_bar[cell];
                               if(alpha1_bar_loc < static_cast<Number>(0.0)) {
@@ -651,7 +656,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
                               }
 
                               // Sanity check for m1
-                              const auto m1_loc = conserved_variables[cell][M1_INDEX];
+                              const auto m1_loc = local_conserved_variables(M1_INDEX);
                               if(m1_loc < static_cast<Number>(0.0)) {
                                 std::cerr << cell << std::endl;
                                 std::cerr << "Negative large-scale mass of phase 1 " + op << std::endl;
@@ -666,7 +671,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
                               }
 
                               // Sanity check for m2
-                              const auto m2_loc = conserved_variables[cell][M2_INDEX];
+                              const auto m2_loc = local_conserved_variables(M2_INDEX);
                               if(m2_loc < static_cast<Number>(0.0)) {
                                 std::cerr << cell << std::endl;
                                 std::cerr << "Negative mass of phase 2 " + op << std::endl;
@@ -681,7 +686,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
                               }
 
                               // Sanity check for m1_d
-                              const auto m1_d_loc = conserved_variables[cell][M1_D_INDEX];
+                              const auto m1_d_loc = local_conserved_variables(M1_D_INDEX);
                               if(m1_d_loc < static_cast<Number>(-1e-15)) {
                                 std::cerr << cell << std::endl;
                                 std::cerr << "Negative small-scale mass of phase 1 " + op << std::endl;
@@ -696,7 +701,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
                               }
 
                               // Sanity check for alpha1_d
-                              const auto alpha1_d_loc = conserved_variables[cell][ALPHA1_D_INDEX];
+                              const auto alpha1_d_loc = local_conserved_variables(ALPHA1_D_INDEX);
                               if(alpha1_d_loc > static_cast<Number>(1.0)) {
                                 std::cerr << cell << std::endl;
                                 std::cerr << "Exceeding value of small-scale volume fraction " + op << std::endl;
@@ -717,7 +722,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
                               }
 
                               // Sanity check for Sigma_d
-                              const auto Sigma_d_loc = conserved_variables[cell][SIGMA_D_INDEX];
+                              const auto Sigma_d_loc = local_conserved_variables(SIGMA_D_INDEX);
                               if(Sigma_d_loc < static_cast<Number>(-1e-15)) {
                                 std::cerr << cell << std::endl;
                                 std::cerr << "Negative small-scale interfacial area " + op << std::endl;
@@ -850,17 +855,10 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     auto alpha2_bar_loc  = static_cast<Number>(1.0) - alpha1_bar_loc;
     const auto p_bar_loc = alpha1_bar_loc*p1_loc
                          + alpha2_bar_loc*p2_loc;
-    Number p2_minus_p1_times_theta;
-    try {
-      p2_minus_p1_times_theta = rho1_loc/(static_cast<Number>(1.0) - alpha1_bar_loc)*
-                                (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
-                                 p_bar_loc*inv_rho1d_loc - p1_loc/rho1_loc) -
-                                (p2_loc - p1_loc);
-    }
-    catch(const std::exception& e) {
-      std::cerr << e.what() << std::endl;
-      throw std::runtime_error("Error when computing the internal energy");
-    }
+    const Number p2_minus_p1_times_theta = rho1_loc/(static_cast<Number>(1.0) - alpha1_bar_loc)*
+                                           (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
+                                           p_bar_loc*inv_rho1d_loc - p1_loc/rho1_loc) -
+                                           (p2_loc - p1_loc);
     Number H_lim = std::min(H_bar_loc, Hmax);
     const auto fac_Ru = sigma*(static_cast<Number>(3.0)*H_lim/(kappa*rho1d_loc))*
                               (rho1_loc/alpha2_bar_loc)
@@ -889,8 +887,8 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                  - sigma*H_lim;
 
     /*--- Perform the relaxation only where really needed ---*/
-    if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
-       std::abs(dalpha1_bar_loc) > atol_Newton) {
+    if((std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
+        std::abs(dalpha1_bar_loc) > atol_Newton) || dH > rtol_Newton*std::abs(Hmax)) {
       to_be_relaxed_loc = 1;
       Newton_iterations_loc++;
       local_relaxation_applied = true;
@@ -1098,7 +1096,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                          [&](const auto& cell)
                             {
                               // Save liquidi large- and small-scale variables
-                              const auto alpha1_d_loc = conserved_variables[cell][ALPHA1_D_INDEX];
+                              const auto alpha1_d_loc = conserved_variables[cell](ALPHA1_D_INDEX);
                               alpha1[cell]            = alpha1_bar[cell]*(static_cast<Number>(1.0) - alpha1_d_loc);
                               alpha1_d[cell]          = alpha1_d_loc;
                             }
@@ -1119,10 +1117,12 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                          [&](const auto& cell)
                             {
                               // Pre-fetch some variables used multiple times in order to exploit possible vectorization
-                              const auto m1_loc         = conserved_variables[cell][M1_INDEX];
-                              const auto m2_loc         = conserved_variables[cell][M2_INDEX];
-                              const auto m1_d_loc       = conserved_variables[cell][M1_D_INDEX];
-                              const auto alpha1_d_loc   = conserved_variables[cell][ALPHA1_D_INDEX];
+                              const auto& local_conserved_variables = conserved_variables[cell];
+
+                              const auto m1_loc         = local_conserved_variables(M1_INDEX);
+                              const auto m2_loc         = local_conserved_variables(M2_INDEX);
+                              const auto m1_d_loc       = local_conserved_variables(M1_D_INDEX);
+                              const auto alpha1_d_loc   = local_conserved_variables(ALPHA1_D_INDEX);
                               const auto alpha1_loc     = alpha1[cell];
                               const auto alpha1_bar_loc = alpha1_bar[cell];
                               const auto alpha2_bar_loc = static_cast<Number>(1.0) - alpha1_bar_loc;
@@ -1160,8 +1160,8 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                                                 + p2_minus_p1_times_theta;
                               if(fac_Ru > static_cast<Number>(0.0) &&
                                  alpha1_bar_loc > alpha1_bar_min && alpha1_bar_loc < alpha1_bar_max &&
-                                 -grad_alpha1_bar[cell][0]*conserved_variables[cell][RHO_U_INDEX]
-                                 -grad_alpha1_bar[cell][1]*conserved_variables[cell][RHO_U_INDEX + 1] > static_cast<Number>(0.0) &&
+                                 -grad_alpha1_bar[cell][0]*local_conserved_variables(RHO_U_INDEX)
+                                 -grad_alpha1_bar[cell][1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0) &&
                                 alpha1_d_loc < alpha1d_max) {
                                 local_H_lig = std::max(H_bar_loc, local_H_lig);
                               }
@@ -1189,7 +1189,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               local_m1_d_int += m1_d_loc*cell_volume;
                               local_alpha1_bar_int += alpha1_bar_loc*cell_volume;
                               local_grad_alpha1_bar_int += std::sqrt(mod2_grad_alpha1_bar_loc)*cell_volume;
-                              local_Sigma_d_int += conserved_variables[cell][SIGMA_D_INDEX]*cell_volume;
+                              local_Sigma_d_int += local_conserved_variables(SIGMA_D_INDEX)*cell_volume;
                               local_grad_alpha1_d_int += std::sqrt(mod2_grad_alpha1_d_loc)*cell_volume;
                               local_alpha1_d_int += alpha1_d_loc*cell_volume;
                               local_grad_alpha1_int += std::sqrt(mod2_grad_alpha1_loc)*cell_volume;
@@ -1443,10 +1443,12 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                               {
-                                alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                   (conserved_variables[cell][M1_INDEX] +
-                                                    conserved_variables[cell][M2_INDEX] +
-                                                    conserved_variables[cell][M1_D_INDEX]);
+                                const auto& local_conserved_variables = conserved_variables[cell];
+
+                                alpha1_bar[cell] = local_conserved_variables(RHO_ALPHA1_BAR_INDEX)/
+                                                   (local_conserved_variables(M1_INDEX) +
+                                                    local_conserved_variables(M2_INDEX) +
+                                                    local_conserved_variables(M1_D_INDEX));
                               }
                           );
     #ifdef VERBOSE
@@ -1504,10 +1506,12 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     samurai::for_each_cell(mesh,
                            [&](const auto& cell)
                               {
-                                alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                   (conserved_variables[cell][M1_INDEX] +
-                                                    conserved_variables[cell][M2_INDEX] +
-                                                    conserved_variables[cell][M1_D_INDEX]);
+                                const auto& local_conserved_variables = conserved_variables[cell];
+
+                                alpha1_bar[cell] = local_conserved_variables(RHO_ALPHA1_BAR_INDEX)/
+                                                   (local_conserved_variables(M1_INDEX) +
+                                                    local_conserved_variables(M2_INDEX) +
+                                                    local_conserved_variables(M1_D_INDEX));
                               }
                           );
     #ifdef VERBOSE
@@ -1535,9 +1539,6 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       to_be_relaxed.resize();
       Newton_iterations.resize();
       apply_relaxation();
-      #ifdef RELAX_RECONSTRUCTION
-        update_geometry();
-      #endif
     }
 
     /*--- Consider the second stage for the second order ---*/
@@ -1562,10 +1563,12 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                                 {
-                                  alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                     (conserved_variables[cell][M1_INDEX] +
-                                                      conserved_variables[cell][M2_INDEX] +
-                                                      conserved_variables[cell][M1_D_INDEX]);
+                                  const auto& local_conserved_variables = conserved_variables[cell];
+
+                                  alpha1_bar[cell] = local_conserved_variables(RHO_ALPHA1_BAR_INDEX)/
+                                                     (local_conserved_variables(M1_INDEX) +
+                                                      local_conserved_variables(M2_INDEX) +
+                                                      local_conserved_variables(M1_D_INDEX));
                                 }
                             );
       #ifdef VERBOSE
@@ -1579,46 +1582,64 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                               - dt*numerical_flux_st(conserved_variables);
       samurai::swap(conserved_variables, conserved_variables_tmp);
 
-      // Apply relaxation
-      if(apply_relax) {
-        // Apply relaxation if desired, which will modify alpha1_bar and, consequently, for what
-        // concerns next time step, rho_alpha1_bar (as well as grad_alpha1_bar).
-        apply_relaxation();
-      }
-
-      // Complete evaluation
+      // Complete evaluation before applying relaxation
       conserved_variables_np1.resize();
       conserved_variables_np1 = static_cast<Number>(0.5)*
                                 (conserved_variables_old + conserved_variables);
       samurai::swap(conserved_variables, conserved_variables_np1);
 
-      // Recompute volume fraction gradient and curvature for the next time step
-      #ifdef RELAX_RECONSTRUCTION
+      // Apply relaxation
+      if(apply_relax) {
         samurai::for_each_cell(mesh,
                                [&](const auto& cell)
                                   {
-                                    alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                       (conserved_variables[cell][M1_INDEX] +
-                                                        conserved_variables[cell][M2_INDEX] +
-                                                        conserved_variables[cell][M1_D_INDEX]);
+                                    const auto& local_conserved_variables = conserved_variables[cell];
+
+                                    alpha1_bar[cell] = local_conserved_variables(RHO_ALPHA1_BAR_INDEX)/
+                                                       (local_conserved_variables(M1_INDEX) +
+                                                        local_conserved_variables(M2_INDEX) +
+                                                        local_conserved_variables(M1_D_INDEX));
                                   }
                               );
         update_geometry();
-      #endif
+        // Apply relaxation if desired, which will modify alpha1_bar and, consequently, for what
+        // concerns next time step, rho_alpha1_bar (as well as grad_alpha1_bar).
+        apply_relaxation();
+      }
+      else {
+        #ifdef RELAX_RECONSTRUCTION
+          samurai::for_each_cell(mesh,
+                                 [&](const auto& cell)
+                                    {
+                                      const auto& local_conserved_variables = conserved_variables[cell];
+
+                                      alpha1_bar[cell] = local_conserved_variables(RHO_ALPHA1_BAR_INDEX)/
+                                                         (local_conserved_variables(M1_INDEX) +
+                                                          local_conserved_variables(M2_INDEX) +
+                                                          local_conserved_variables(M1_D_INDEX));
+                                    }
+                                );
+          update_geometry();
+        #endif
+      }
     #endif
 
     /*--- Postprocess data ---*/
     #ifndef RELAX_RECONSTRUCTION
-      samurai::for_each_cell(mesh,
-                             [&](const auto& cell)
-                                {
-                                  alpha1_bar[cell] = conserved_variables[cell][RHO_ALPHA1_BAR_INDEX]/
-                                                     (conserved_variables[cell][M1_INDEX] +
-                                                      conserved_variables[cell][M2_INDEX] +
-                                                      conserved_variables[cell][M1_D_INDEX]);
-                                }
-                            );
-      update_geometry();
+      if(!apply_relax) {
+        samurai::for_each_cell(mesh,
+                               [&](const auto& cell)
+                                  {
+                                    const auto& local_conserved_variables = conserved_variables[cell];
+
+                                    alpha1_bar[cell] = local_conserved_variables(RHO_ALPHA1_BAR_INDEX)/
+                                                       (local_conserved_variables(M1_INDEX) +
+                                                        local_conserved_variables(M2_INDEX) +
+                                                        local_conserved_variables(M1_D_INDEX));
+                                  }
+                              );
+        update_geometry();
+      }
     #endif
     execute_postprocess(t);
 
@@ -1636,14 +1657,14 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
                                 {
-                                  const auto alpha1_d_loc = conserved_variables[cell][ALPHA1_D_INDEX];
+                                  const auto alpha1_d_loc = conserved_variables[cell](ALPHA1_D_INDEX);
 
                                   #ifdef ORDER_2
-                                    Dt_alpha1_d[cell] = (alpha1_d_loc - conserved_variables_old[cell][ALPHA1_D_INDEX])/dt
+                                    Dt_alpha1_d[cell] = (alpha1_d_loc - conserved_variables_old[cell](ALPHA1_D_INDEX))/dt
                                                       + vel[cell][0]*grad_alpha1_d[cell][0]
                                                       + vel[cell][1]*grad_alpha1_d[cell][1];
                                   #else
-                                    Dt_alpha1_d[cell] = (alpha1_d_loc - conserved_variables_np1[cell][ALPHA1_D_INDEX])/dt
+                                    Dt_alpha1_d[cell] = (alpha1_d_loc - conserved_variables_np1[cell](ALPHA1_D_INDEX))/dt
                                                       + vel[cell][0]*grad_alpha1_d[cell][0]
                                                       + vel[cell][1]*grad_alpha1_d[cell][1];
                                   #endif
