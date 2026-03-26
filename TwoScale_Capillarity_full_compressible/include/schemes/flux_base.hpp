@@ -364,6 +364,7 @@ namespace samurai {
 
           // Compute the large-scale volume fraction update
           dalpha_l = -F/dF_dalpha_l;
+
           if(dalpha_l > static_cast<Number>(0.0)) {
             dalpha_l = std::min(dalpha_l, lambda*(static_cast<Number>(1.0) - alpha_l));
           }

@@ -191,7 +191,7 @@ namespace samurai {
     const auto alpha1_bar = q(RHO_ALPHA1_BAR_INDEX)*inv_rho;
     const auto alpha1_d   = q(ALPHA1_D_INDEX);
     const auto alpha1     = alpha1_bar*(static_cast<Number>(1.0) - alpha1_d);
-    const auto rho1       = q(M1_INDEX)/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho1       = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p1         = EOS_phase1.pres_value(rho1);
 
     const auto alpha2     = static_cast<Number>(1.0) - alpha1 - alpha1_d;
@@ -352,6 +352,7 @@ namespace samurai {
 
         // Compute the large-scale volume fraction update
         dalpha1_bar = -F/dF_dalpha1_bar;
+        
         if(dalpha1_bar > static_cast<Number>(0.0)) {
           dalpha1_bar = std::min(dalpha1_bar, lambda*alpha2_bar);
         }
