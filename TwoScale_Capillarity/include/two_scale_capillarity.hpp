@@ -1095,7 +1095,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
-                              // Save liquidi large- and small-scale variables
+                              // Save liquid large- and small-scale variables
                               const auto alpha1_d_loc = conserved_variables[cell](ALPHA1_D_INDEX);
                               alpha1[cell]            = alpha1_bar[cell]*(static_cast<Number>(1.0) - alpha1_d_loc);
                               alpha1_d[cell]          = alpha1_d_loc;
