@@ -855,10 +855,10 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     auto alpha2_bar_loc  = static_cast<Number>(1.0) - alpha1_bar_loc;
     const auto p_bar_loc = alpha1_bar_loc*p1_loc
                          + alpha2_bar_loc*p2_loc;
-    const Number p2_minus_p1_times_theta = rho1_loc/(static_cast<Number>(1.0) - alpha1_bar_loc)*
-                                           (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
-                                           p_bar_loc*inv_rho1d_loc - p1_loc/rho1_loc) -
-                                           (p2_loc - p1_loc);
+    const auto p2_minus_p1_times_theta = rho1_loc/alpha2_bar_loc*
+                                         (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
+                                          p_bar_loc*inv_rho1d_loc - p1_loc/rho1_loc) -
+                                         (p2_loc - p1_loc);
     Number H_lim = std::min(H_bar_loc, Hmax);
     const auto fac_Ru = sigma*(static_cast<Number>(3.0)*H_lim/(kappa*rho1d_loc))*
                               (rho1_loc/alpha2_bar_loc)
@@ -887,8 +887,8 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                  - sigma*H_lim;
 
     /*--- Perform the relaxation only where really needed ---*/
-    if((std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
-        std::abs(dalpha1_bar_loc) > atol_Newton) || dH > rtol_Newton*std::abs(Hmax)) {
+    if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
+       std::abs(dalpha1_bar_loc) > atol_Newton) {
       to_be_relaxed_loc = 1;
       Newton_iterations_loc++;
       local_relaxation_applied = true;
@@ -1143,17 +1143,10 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                                                    + alpha2_bar_loc*p2_loc;
                               p_bar[cell]          = p_bar_loc;
                               const auto H_lim_loc = std::min(H_bar_loc, Hmax);
-                              Number p2_minus_p1_times_theta;
-                              try {
-                                p2_minus_p1_times_theta = rho1_loc/alpha2_bar_loc*
-                                                          (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
-                                                           p_bar_loc/rho1d_loc - p1_loc/rho1_loc) -
-                                                          (p2_loc - p1_loc);
-                              }
-                              catch(const std::exception& e) {
-                                std::cerr << e.what() << std::endl;
-                                exit(1);
-                              }
+                              const auto p2_minus_p1_times_theta = rho1_loc/alpha2_bar_loc*
+                                                                   (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
+                                                                    p_bar_loc/rho1d_loc - p1_loc/rho1_loc) -
+                                                                   (p2_loc - p1_loc);
                               const auto fac_Ru = sigma*(static_cast<Number>(3.0)*H_lim_loc/(kappa*rho1d_loc))*
                                                         (rho1_loc/alpha2_bar_loc)
                                                 - sigma*H_lim_loc/(static_cast<Number>(1.0) - alpha1_d_loc)

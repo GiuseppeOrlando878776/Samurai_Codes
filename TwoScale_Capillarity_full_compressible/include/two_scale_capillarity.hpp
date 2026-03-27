@@ -912,7 +912,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
 
     // Perform the relaxation only where really needed
     if((std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase_liq.get_p0(), sigma*std::abs(H_lim)) &&
-        std::abs(dalpha_l_loc) > atol_Newton) || dH > rtol_Newton*std::abs(Hmax)) {
+        std::abs(dalpha_l_loc) > atol_Newton) || dH > rtol_Newton*Hmax) {
       to_be_relaxed_loc = 1;
       Newton_iterations_loc++;
       local_relaxation_applied = true;
@@ -1764,8 +1764,9 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                                 }
                             );
       samurai::update_ghost_mr(vel, normal_bar);
-      div_vel = divergence(vel);
-      H_bar   = -divergence(normal_bar);
+      div_vel.fill(static_cast<Number>(0.0));
+      divergence.apply(div_vel, vel);
+      H_bar = -divergence(normal_bar);
 
       // Perform the saving
       const std::string suffix = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(++nsave) : "";
