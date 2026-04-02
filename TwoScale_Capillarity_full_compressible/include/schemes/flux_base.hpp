@@ -298,7 +298,7 @@ namespace samurai {
     cons(Mg_INDEX)          = m_g;
 
     const auto rho          = m_l + m_g + m_d;
-    cons(RHO_ALPHA_l_INDEX) = rho*prim(ALPHA_l_INDEX);
+    cons(RHO_ALPHA_l_INDEX) = rho*alpha_l;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
     }
