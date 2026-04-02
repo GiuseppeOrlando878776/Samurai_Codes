@@ -517,8 +517,7 @@ void TwoScaleCapillarity<dim>::update_geometry() {
                             }
                         );
   samurai::update_ghost_mr(normal);
-  H_bar.fill(static_cast<Number>(0.0));
-  H_bar = -divergence(H_bar);
+  H_bar = -divergence(normal);
 }
 
 // Compute the estimate of the maximum eigenvalue for CFL condition
