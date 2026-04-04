@@ -573,7 +573,7 @@ void TwoScaleCapillarity<dim>::update_geometry() {
                               const auto mod_grad_alpha_l_loc = std::sqrt(mod2_grad_alpha_l_loc);
 
                               if(mod_grad_alpha_l_loc > mod_grad_alpha_l_min) {
-                                normal[cell] = grad_alpha_l[cell]/mod_grad_alpha_l_loc;
+                                normal[cell] = grad_alpha_l_loc/mod_grad_alpha_l_loc;
                               }
                               else {
                                 for(std::size_t d = 0; d < dim; ++d) {
