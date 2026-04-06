@@ -506,14 +506,15 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
-                              auto mod2_grad_alpha_l_bar_loc = static_cast<Number>(0.0);
+                              const auto& grad_alpha_l_bar_loc = grad_alpha_l_bar[cell];
+                              auto mod2_grad_alpha_l_bar_loc   = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
-                                mod2_grad_alpha_l_bar_loc += grad_alpha_l_bar[cell][d]*grad_alpha_l_bar[cell][d];
+                                mod2_grad_alpha_l_bar_loc += grad_alpha_l_bar_loc[d]*grad_alpha_l_bar_loc[d];
                               }
                               const auto mod_grad_alpha_l_bar_loc = std::sqrt(mod2_grad_alpha_l_bar_loc);
 
                               if(mod_grad_alpha_l_bar_loc > mod_grad_alpha_l_min) {
-                                normal_bar[cell] = grad_alpha_l_bar[cell]/mod_grad_alpha_l_bar_loc;
+                                normal_bar[cell] = grad_alpha_l_bar_loc/mod_grad_alpha_l_bar_loc;
                               }
                               else {
                                 for(std::size_t d = 0; d < dim; ++d) {
