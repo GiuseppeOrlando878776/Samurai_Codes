@@ -79,7 +79,7 @@ namespace samurai {
            static constexpr int d = decltype(integral_constant_d)::value;
 
            // Compute now the "discrete" flux function
-           SurfaceTension_f[d].cons_flux_function = [&](samurai::FluxValue<cfg>& flux,
+           SurfaceTension_f[d].cons_flux_function = [&](FluxValue<cfg>& flux,
                                                         const StencilData<cfg>& data,
                                                         const StencilValues<cfg> /*field*/)
                                                         {
