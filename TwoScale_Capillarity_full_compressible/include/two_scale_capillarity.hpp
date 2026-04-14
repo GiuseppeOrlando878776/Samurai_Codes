@@ -905,10 +905,10 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     const auto delta_p = p_liq_loc - p_g_loc;
     const auto F_LS    = alpha_l_loc*(delta_p - sigma*H_lim);
     const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
-                         local_conserved_variables(RHO_Z_INDEX)*std::pow(m_l_loc, static_cast<Number>(-2.0/3.0));
+                         local_conserved_variables(RHO_Z_INDEX)/std::cbrt(m_l_loc*m_l_loc);
                          /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto F_SS    = alpha_d_loc*delta_p
-                       - std::pow(alpha_l_loc, static_cast<Number>(2.0/3.0))*aux_SS;
+                       - std::cbrt(alpha_l_loc*alpha_l_loc)*aux_SS;
     const auto F       = F_LS + F_SS;
 
     // Perform the relaxation only where really needed
@@ -943,7 +943,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         }
 
         // Bound preserving for the velocity
-        auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(alpha_l_loc*sigma*dH*fac_Ru); /*--- TODO: Add a check in case of zero volume fraction ---*/
+        auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(sigma*alpha_l_loc*dH*fac_Ru); /*--- TODO: Add a check in case of zero volume fraction ---*/
         dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
         if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
           throw std::runtime_error("Negative time step found after relaxation of velocity");
@@ -1050,6 +1050,20 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         local_conserved_variables(RHO_Z_INDEX) += std::cbrt(rho_liq_loc*rho_liq_loc)*R_Sigma_D;
       }
 
+      if(dH > static_cast<Number>(0.0)) {
+        auto drho_fac_Ru = static_cast<Number>(0.0);
+        const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
+                               + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
+        if(mom_squared > static_cast<Number>(0.0)) {
+          drho_fac_Ru = dtau_ov_epsilon*
+                        sigma*alpha_l_loc*dH*fac_Ru*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
+        }
+
+        for(std::size_t d = 0; d < Field::dim; ++d) {
+          local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
+        }
+      }
+
       if(alpha_l_loc + dalpha_l_loc < static_cast<Number>(0.0) ||
          alpha_l_loc + dalpha_l_loc > static_cast<Number>(1.0)) {
         // I should never get here. Added only for the sake of safety!!
@@ -1057,20 +1071,6 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       }
       else {
         alpha_l_loc += dalpha_l_loc;
-      }
-
-      if(dH > static_cast<Number>(0.0)) {
-        auto drho_fac_Ru = static_cast<Number>(0.0);
-        const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
-                               + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
-        if(mom_squared > static_cast<Number>(0.0)) {
-          drho_fac_Ru = dtau_ov_epsilon*
-                        sigma*dH*fac_Ru*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
-        }
-
-        for(std::size_t d = 0; d < Field::dim; ++d) {
-          local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
-        }
       }
     }
 

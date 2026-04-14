@@ -339,9 +339,9 @@ namespace samurai {
         const auto delta_p = p_liq - p_g;
         const auto F_LS    = alpha_l*(delta_p - sigma*H);
         const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
-                             conserved_variables(RHO_Z_INDEX)*std::pow(m_l, static_cast<Number>(-2.0/3.0));
+                             conserved_variables(RHO_Z_INDEX)/std::cbrt(m_l*m_l);
                              /*--- TODO: Add a check in case of zero volume fraction ---*/
-        const auto F_SS    = alpha_d*delta_p - std::pow(alpha_l, static_cast<Number>(2.0/3.0))*aux_SS;
+        const auto F_SS    = alpha_d*delta_p - std::cbrt(alpha_l*alpha_l)*aux_SS;
         const auto F       = F_LS + F_SS;
 
         /*--- Perform the relaxation only where really needed ---*/
