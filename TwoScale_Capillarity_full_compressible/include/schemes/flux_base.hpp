@@ -339,9 +339,9 @@ namespace samurai {
         const auto delta_p = p_liq - p_g;
         const auto F_LS    = alpha_l*(delta_p - sigma*H);
         const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
-                             conserved_variables(RHO_Z_INDEX)/std::cbrt(m_l*m_l);
+                             conserved_variables(RHO_Z_INDEX)/std::cbrt(m_l*m_l*alpha_l);
                              /*--- TODO: Add a check in case of zero volume fraction ---*/
-        const auto F_SS    = alpha_d*delta_p - std::cbrt(alpha_l*alpha_l)*aux_SS;
+        const auto F_SS    = alpha_d*delta_p - alpha_l*aux_SS;
         const auto F       = F_LS + F_SS;
 
         /*--- Perform the relaxation only where really needed ---*/
@@ -356,9 +356,9 @@ namespace samurai {
                                          EOS_phase_gas.c_value(rho_g)*EOS_phase_gas.c_value(rho_g)*
                                          (m_l + m_d)/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto dF_LS_dalpha_l    = (delta_p - sigma*H) + alpha_l*ddelta_p_dalpha_l;
-          const auto dF_SS_dalpha_l    = (m_d/m_l)*delta_p
+          const auto dF_SS_dalpha_l    = F_SS/alpha_l
                                        + alpha_d*ddelta_p_dalpha_l
-                                       - static_cast<Number>(2.0/3.0)*aux_SS/std::cbrt(alpha_l);
+                                       + static_cast<Number>(1.0/3.0)*aux_SS;
                                        /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 

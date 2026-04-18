@@ -905,10 +905,9 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     const auto delta_p = p_liq_loc - p_g_loc;
     const auto F_LS    = alpha_l_loc*(delta_p - sigma*H_lim);
     const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
-                         local_conserved_variables(RHO_Z_INDEX)/std::cbrt(m_l_loc*m_l_loc);
+                         local_conserved_variables(RHO_Z_INDEX)/std::cbrt(m_l_loc*m_l_loc*alpha_l_loc);
                          /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto F_SS    = alpha_d_loc*delta_p
-                       - std::cbrt(alpha_l_loc*alpha_l_loc)*aux_SS;
+    const auto F_SS    = alpha_d_loc*delta_p - alpha_l_loc*aux_SS;
     const auto F       = F_LS + F_SS;
 
     // Perform the relaxation only where really needed
@@ -925,9 +924,9 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                                      EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
                                      (m_l_loc + m_d_loc)/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dalpha_l    = (delta_p - sigma*H_lim) + alpha_l_loc*ddelta_p_dalpha_l;
-      const auto dF_SS_dalpha_l    = (m_d_loc/m_l_loc)*delta_p
+      const auto dF_SS_dalpha_l    = F_SS/alpha_l_loc
                                    + alpha_d_loc*ddelta_p_dalpha_l
-                                   - static_cast<Number>(2.0/3.0)*aux_SS/std::cbrt(alpha_l_loc);
+                                   + static_cast<Number>(1.0/3.0)*aux_SS;
                                    /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 
@@ -956,7 +955,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       }
 
       // Bound preserving condition for large-scale volume fraction
-      const auto dF_drhoz     = static_cast<Number>(-2.0/3.0)*sigma*std::cbrt(rho_liq_loc);
+      const auto dF_drhoz     = static_cast<Number>(-2.0/3.0)*sigma/std::cbrt(rho_liq_loc*rho_liq_loc);
 
       const auto ddelta_p_dmd = -m_g_loc/(alpha_g_loc*alpha_g_loc)*
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*inv_rho_liq_loc;
@@ -970,8 +969,8 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
                                 (alpha_l_loc*m_d_loc)/(m_l_loc*m_l_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dml    = alpha_l_loc*ddelta_p_dml;
-      const auto dF_SS_dml    = (m_d_loc*ddelta_p_dml +
-                                 static_cast<Number>(2.0/3.0)*aux_SS/std::cbrt(alpha_l_loc))*inv_rho_liq_loc
+      const auto dF_SS_dml    = (m_d_loc*ddelta_p_dml -
+                                 static_cast<Number>(1.0/3.0)*aux_SS)*inv_rho_liq_loc
                               - F_SS/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_dml       = dF_LS_dml + dF_SS_dml;
 
