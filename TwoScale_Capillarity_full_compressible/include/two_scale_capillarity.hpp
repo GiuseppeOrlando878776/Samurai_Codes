@@ -867,14 +867,18 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     const auto m_g_loc = local_conserved_variables(Mg_INDEX);
     const auto m_d_loc = local_conserved_variables(Md_INDEX);
 
+    const auto inv_m_l_loc     = static_cast<Number>(1.0)/m_l_loc;
+    const auto inv_alpha_l_loc = static_cast<Number>(1.0)/alpha_l_loc;
+
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-    const auto alpha_d_loc     = alpha_l_loc*m_d_loc/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_d_loc     = alpha_l_loc*m_d_loc*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_g_loc     = static_cast<Number>(1.0) - alpha_l_loc - alpha_d_loc;
+    const auto inv_alpha_g_loc = static_cast<Number>(1.0)/alpha_g_loc;
 
     const auto rho_liq_loc     = (m_l_loc + m_d_loc)/(alpha_l_loc + alpha_d_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto inv_rho_liq_loc = static_cast<Number>(1.0)/rho_liq_loc;
     const auto p_liq_loc       = EOS_phase_liq.pres_value(rho_liq_loc);
-    const auto rho_g_loc       = m_g_loc/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g_loc       = m_g_loc*inv_alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p_g_loc         = EOS_phase_gas.pres_value(rho_g_loc);
 
     /*--- Prepare for mass transfer if desired ---*/
@@ -906,7 +910,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     const auto delta_p = p_liq_loc - p_g_loc;
     const auto F_LS    = alpha_l_loc*(delta_p - sigma*H_lim);
     const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
-                         local_conserved_variables(RHO_Z_INDEX)/std::cbrt(m_l_loc*m_l_loc*alpha_l_loc);
+                         local_conserved_variables(RHO_Z_INDEX)*std::cbrt(inv_m_l_loc*inv_m_l_loc*inv_alpha_l_loc);
                          /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto F_SS    = alpha_d_loc*delta_p - alpha_l_loc*aux_SS;
     const auto F       = F_LS + F_SS;
@@ -919,13 +923,13 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       local_relaxation_applied = true;
 
       // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-      const auto ddelta_p_dalpha_l = -m_l_loc/(alpha_l_loc*alpha_l_loc)*
+      const auto ddelta_p_dalpha_l = -m_l_loc*inv_alpha_l_loc*inv_alpha_l_loc*
                                      EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)
-                                     -m_g_loc/(alpha_g_loc*alpha_g_loc)*
+                                     -m_g_loc*inv_alpha_g_loc*inv_alpha_g_loc*
                                      EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                     (m_l_loc + m_d_loc)/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                     (m_l_loc + m_d_loc)*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dalpha_l    = (delta_p - sigma*H_lim) + alpha_l_loc*ddelta_p_dalpha_l;
-      const auto dF_SS_dalpha_l    = (m_d_loc/m_l_loc)*delta_p
+      const auto dF_SS_dalpha_l    = (m_d_loc*inv_m_l_loc)*delta_p
                                    + alpha_d_loc*ddelta_p_dalpha_l
                                    - static_cast<Number>(2.0/3.0)*aux_SS;
                                    /*--- TODO: Add a check in case of zero volume fraction ---*/
@@ -958,21 +962,21 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       // Bound preserving condition for large-scale volume fraction
       const auto dF_drhoz     = static_cast<Number>(-2.0/3.0)*sigma/std::cbrt(rho_liq_loc*rho_liq_loc);
 
-      const auto ddelta_p_dmd = -m_g_loc/(alpha_g_loc*alpha_g_loc)*
+      const auto ddelta_p_dmd = -m_g_loc*inv_alpha_g_loc*inv_alpha_g_loc*
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*inv_rho_liq_loc;
                                 /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dmd    = alpha_l_loc*ddelta_p_dmd;
       const auto dF_SS_dmd    = (delta_p + m_d_loc*ddelta_p_dmd)*inv_rho_liq_loc;
       const auto dF_dmd       = dF_LS_dmd + dF_SS_dmd;
 
-      const auto ddelta_p_dml = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)/alpha_l_loc
-                              + m_g_loc/(alpha_g_loc*alpha_g_loc)*
+      const auto ddelta_p_dml = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)*inv_alpha_l_loc
+                              + m_g_loc*inv_alpha_g_loc*inv_alpha_g_loc*
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                alpha_d_loc/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                alpha_d_loc*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dml    = alpha_l_loc*ddelta_p_dml;
       const auto dF_SS_dml    = (m_d_loc*ddelta_p_dml -
                                  static_cast<Number>(1.0/3.0)*aux_SS)*inv_rho_liq_loc
-                              - F_SS/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              - F_SS*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_dml       = dF_LS_dml + dF_SS_dml;
 
       const auto R            = dF_dml

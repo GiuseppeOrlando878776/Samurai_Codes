@@ -191,6 +191,7 @@ namespace samurai {
     const auto rho_liq = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
     /*--- Relation alpha_l/Y_l = (alpha_l + alpha_d)/(Y_l + Y_d) holds!!! ---*/
     const auto p_liq   = EOS_phase_liq.pres_value(rho_liq);
+
     const auto rho_g   = m_g/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p_g     = EOS_phase_gas.pres_value(rho_g);
 
@@ -258,19 +259,24 @@ namespace samurai {
     /*--- Compute primitive variables ---*/
     const auto rho       = m_l + m_g + m_d;
     const auto inv_rho   = static_cast<Number>(1.0)/rho;
+
     const auto alpha_l   = cons(RHO_ALPHA_l_INDEX)*inv_rho;
     prim(ALPHA_l_INDEX)  = alpha_l;
+
     const auto alpha_d   = alpha_l*m_d/m_l;
     prim(ALPHA_2d_INDEX) = alpha_d/(static_cast<Number>(1.0) - alpha_l);
 
     const auto rho_liq  = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(Pl_INDEX)      = EOS_phase_liq.pres_value(rho_liq);
+
     const auto rho_g    = m_g/(static_cast<Number>(1.0) - alpha_l - alpha_d);
                           /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(Pg_INDEX)      = EOS_phase_gas.pres_value(rho_g);
+
     for(std::size_t d = 0; d < Field::dim; ++d) {
       prim(U_INDEX + d) = cons(RHO_U_INDEX + d)*inv_rho;
     }
+
     prim(Z_INDEX) = cons(RHO_Z_INDEX)*inv_rho;
 
     return prim;
@@ -287,21 +293,25 @@ namespace samurai {
     const auto alpha_d = prim(ALPHA_2d_INDEX)*(static_cast<Number>(1.0) - alpha_l);
 
     /*--- Compute conserved variables ---*/
-    const auto rho_liq      = EOS_phase_liq.rho_value(prim(Pl_INDEX));
-    const auto m_l          = alpha_l*rho_liq;
-    cons(Ml_INDEX)          = m_l;
-    const auto m_d          = alpha_d*rho_liq;
-    cons(Md_INDEX)          = m_d;
+    const auto rho_liq = EOS_phase_liq.rho_value(prim(Pl_INDEX));
 
-    const auto rho_g        = EOS_phase_gas.rho_value(prim(Pg_INDEX));
-    const auto m_g          = (static_cast<Number>(1.0) - alpha_l - alpha_d)*rho_g;
-    cons(Mg_INDEX)          = m_g;
+    const auto m_l = alpha_l*rho_liq;
+    cons(Ml_INDEX) = m_l;
+
+    const auto m_d = alpha_d*rho_liq;
+    cons(Md_INDEX) = m_d;
+
+    const auto rho_g = EOS_phase_gas.rho_value(prim(Pg_INDEX));
+    const auto m_g   = (static_cast<Number>(1.0) - alpha_l - alpha_d)*rho_g;
+    cons(Mg_INDEX)   = m_g;
 
     const auto rho          = m_l + m_g + m_d;
     cons(RHO_ALPHA_l_INDEX) = rho*alpha_l;
+
     for(std::size_t d = 0; d < Field::dim; ++d) {
       cons(RHO_U_INDEX + d) = rho*prim(U_INDEX + d);
     }
+
     cons(RHO_Z_INDEX) = rho*prim(Z_INDEX);
 
     return cons;
@@ -325,21 +335,25 @@ namespace samurai {
         const auto m_g = conserved_variables(Mg_INDEX);
         const auto m_d = conserved_variables(Md_INDEX);
 
+        const auto inv_m_l     = static_cast<Number>(1.0)/m_l;
+        const auto inv_alpha_l = static_cast<Number>(1.0)/alpha_l;
+
         /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
-        const auto alpha_d = alpha_l*m_d/m_l;
-        const auto alpha_g = static_cast<Number>(1.0) - alpha_l - alpha_d;
+        const auto alpha_d     = alpha_l*m_d*inv_m_l;
+        const auto alpha_g     = static_cast<Number>(1.0) - alpha_l - alpha_d;
+        const auto inv_alpha_g = static_cast<Number>(1.0)/alpha_g;
 
         const auto rho_liq = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
         const auto p_liq   = EOS_phase_liq.pres_value(rho_liq);
 
-        const auto rho_g   = m_g/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
+        const auto rho_g   = m_g*inv_alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
         const auto p_g     = EOS_phase_gas.pres_value(rho_g);
 
         /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
         const auto delta_p = p_liq - p_g;
         const auto F_LS    = alpha_l*(delta_p - sigma*H);
         const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
-                             conserved_variables(RHO_Z_INDEX)/std::cbrt(m_l*m_l*alpha_l);
+                             conserved_variables(RHO_Z_INDEX)*std::cbrt(inv_m_l*inv_m_l*inv_alpha_l);
                              /*--- TODO: Add a check in case of zero volume fraction ---*/
         const auto F_SS    = alpha_d*delta_p - alpha_l*aux_SS;
         const auto F       = F_LS + F_SS;
@@ -350,13 +364,13 @@ namespace samurai {
           relaxation_applied = true;
 
           // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-          const auto ddelta_p_dalpha_l = -m_l/(alpha_l*alpha_l)*
+          const auto ddelta_p_dalpha_l = -m_l*inv_alpha_l*inv_alpha_l*
                                          EOS_phase_liq.c_value(rho_liq)*EOS_phase_liq.c_value(rho_liq)
-                                         -m_g/(alpha_g*alpha_g)*
+                                         -m_g*inv_alpha_g*inv_alpha_g*
                                          EOS_phase_gas.c_value(rho_g)*EOS_phase_gas.c_value(rho_g)*
-                                         (m_l + m_d)/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                         (m_l + m_d)*inv_m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto dF_LS_dalpha_l    = (delta_p - sigma*H) + alpha_l*ddelta_p_dalpha_l;
-          const auto dF_SS_dalpha_l    = (m_d/m_l)*delta_p
+          const auto dF_SS_dalpha_l    = (m_d*inv_m_l)*delta_p
                                        + alpha_d*ddelta_p_dalpha_l
                                        - static_cast<Number>(2.0/3.0)*aux_SS;
                                        /*--- TODO: Add a check in case of zero volume fraction ---*/
