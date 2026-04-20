@@ -356,9 +356,9 @@ namespace samurai {
                                          EOS_phase_gas.c_value(rho_g)*EOS_phase_gas.c_value(rho_g)*
                                          (m_l + m_d)/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto dF_LS_dalpha_l    = (delta_p - sigma*H) + alpha_l*ddelta_p_dalpha_l;
-          const auto dF_SS_dalpha_l    = F_SS/alpha_l
+          const auto dF_SS_dalpha_l    = (m_d/m_l)*delta_p
                                        + alpha_d*ddelta_p_dalpha_l
-                                       + static_cast<Number>(1.0/3.0)*aux_SS;
+                                       - static_cast<Number>(2.0/3.0)*aux_SS;
                                        /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 

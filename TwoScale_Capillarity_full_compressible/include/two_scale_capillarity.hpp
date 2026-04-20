@@ -883,8 +883,9 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
     // Compute region where performing inter-scale transfer
     auto H_lim             = std::min(H_loc, Hmax);
     const auto fac_Ru      = sigma*Hmax*(static_cast<Number>(3.0)/kappa - static_cast<Number>(1.0));
-    const auto mom_dot_vel = (local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX) +
-                              local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
+    const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
+                           + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
+    const auto mom_dot_vel = mom_squared/rho_loc;
     if(mass_transfer_NR) {
       if(alpha_l_loc > alpha_l_min && alpha_l_loc < alpha_l_max &&
          alpha_d_loc < alpha_d_max &&
@@ -924,9 +925,9 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                                      EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
                                      (m_l_loc + m_d_loc)/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dalpha_l    = (delta_p - sigma*H_lim) + alpha_l_loc*ddelta_p_dalpha_l;
-      const auto dF_SS_dalpha_l    = F_SS/alpha_l_loc
+      const auto dF_SS_dalpha_l    = (m_d_loc/m_l_loc)*delta_p
                                    + alpha_d_loc*ddelta_p_dalpha_l
-                                   + static_cast<Number>(1.0/3.0)*aux_SS;
+                                   - static_cast<Number>(2.0/3.0)*aux_SS;
                                    /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 
@@ -967,7 +968,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       const auto ddelta_p_dml = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)/alpha_l_loc
                               + m_g_loc/(alpha_g_loc*alpha_g_loc)*
                                 EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                (alpha_l_loc*m_d_loc)/(m_l_loc*m_l_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                alpha_d_loc/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dml    = alpha_l_loc*ddelta_p_dml;
       const auto dF_SS_dml    = (m_d_loc*ddelta_p_dml -
                                  static_cast<Number>(1.0/3.0)*aux_SS)*inv_rho_liq_loc
@@ -981,8 +982,8 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
                                         since S_avg/m_avg = 3Hmax/(kappa*rho_liq) and rho*z/Sigma = rho_liq^(2/3)*/
 
       // Upper bound
-      const auto R_ml          = -m_l_loc*sigma*dH;
-      const auto a             = R_ml*R;
+      const auto r_ml          = -m_l_loc*sigma*dH;
+      const auto a             = r_ml*R;
       auto b                   = F + lambda*(static_cast<Number>(1.0) - alpha_l_loc)*dF_dalpha_l;
       auto D                   = b*b
                                - static_cast<Number>(4.0)*a*(-lambda*(static_cast<Number>(1.0) - alpha_l_loc));
@@ -1025,7 +1026,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
         dalpha_l_loc = -F/dF_dalpha_l;
       }
       else {
-        const auto dm_l = dtau_ov_epsilon*R_ml;
+        const auto dm_l = dtau_ov_epsilon*r_ml;
 
         dalpha_l_loc = dtau_ov_epsilon/(static_cast<Number>(1.0) - dtau_ov_epsilon*dF_dalpha_l)*
                        (F + dm_l*R);
@@ -1043,23 +1044,15 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
           if(local_conserved_variables(Md_INDEX) < static_cast<Number>(0.0)) {
             throw std::runtime_error("Negative mass of small-scale phase 1 inside Newton step");
           }
-        }
 
-        const auto R_Sigma_D = -dm_l*(static_cast<Number>(3.0)*Hmax/(kappa*rho_liq_loc));
-        local_conserved_variables(RHO_Z_INDEX) += std::cbrt(rho_liq_loc*rho_liq_loc)*R_Sigma_D;
-      }
+          const auto R_Sigma_D = -dm_l*(static_cast<Number>(3.0)*Hmax/(kappa*rho_liq_loc));
+          local_conserved_variables(RHO_Z_INDEX) += std::cbrt(rho_liq_loc*rho_liq_loc)*R_Sigma_D;
 
-      if(dH > static_cast<Number>(0.0)) {
-        auto drho_fac_Ru = static_cast<Number>(0.0);
-        const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
-                               + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
-        if(mom_squared > static_cast<Number>(0.0)) {
-          drho_fac_Ru = dtau_ov_epsilon*
-                        sigma*alpha_l_loc*dH*fac_Ru*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
-        }
-
-        for(std::size_t d = 0; d < Field::dim; ++d) {
-          local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
+          const auto drho_fac_Ru = dtau_ov_epsilon*
+                                   (sigma*alpha_l_loc*dH*fac_Ru)*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
+          for(std::size_t d = 0; d < Field::dim; ++d) {
+            local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
+          }
         }
       }
 
