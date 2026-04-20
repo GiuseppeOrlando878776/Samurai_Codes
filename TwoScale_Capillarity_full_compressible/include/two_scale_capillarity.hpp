@@ -452,7 +452,8 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               conserved_variables[cell](Mg_INDEX) = alpha_g_loc*rho_g_loc;
 
                               // Save mixture pressure for post-processing
-                              p[cell] = (alpha_l[cell] + alpha_d[cell])*p_liq[cell]
+                              const auto alpha_liq_loc = alpha_l[cell] + alpha_d[cell];
+                              p[cell] = alpha_liq_loc*p_liq[cell]
                                       + alpha_g_loc*p_g[cell]
                                       - static_cast<Number>(2.0/3.0)*sigma*Sigma_d[cell];
 
@@ -479,13 +480,12 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               alpha_l_bar[cell] = alpha_l[cell]/(static_cast<Number>(1.0) - alpha_d[cell]);
 
                               // Save Mach number for post-processing
-                              const auto Y_g_loc = conserved_variables[cell](Mg_INDEX)/rho_loc;
-                              const auto cf_loc  = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*
-                                                             EOS_phase_liq.c_value(rho_liq_loc)*
-                                                             EOS_phase_liq.c_value(rho_liq_loc) +
-                                                             Y_g_loc*
-                                                             EOS_phase_gas.c_value(rho_g_loc)*
-                                                             EOS_phase_gas.c_value(rho_g_loc));
+                              const auto Y_g_loc   = conserved_variables[cell](Mg_INDEX)/rho_loc;
+                              const auto c_liq_loc = EOS_phase_liq.c_value(rho_liq_loc);
+                              const auto c_g_loc   = EOS_phase_gas.c_value(rho_g_loc);
+                              const auto cf_loc    = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*c_liq_loc*c_liq_loc +
+                                                               Y_g_loc*c_g_loc*c_g_loc -
+                                                               static_cast<Number>(2.0/9.0)*sigma*Sigma_d[cell]/rho_loc);
                               Mach[cell]          = std::sqrt(norm2_vel_loc)/cf_loc;
                             }
                         );
@@ -616,29 +616,26 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                               const auto alpha_l_loc = alpha_l[cell];
 
                               /*--- Compute the velocity along all the directions ---*/
-                              const auto rho_loc     = m_l_loc + m_g_loc + m_d_loc;
+                              const auto m_liq_loc   = m_l_loc + m_d_loc;
+                              const auto rho_loc     = m_liq_loc + m_g_loc;
                               const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
                                 vel[cell][d] = local_conserved_variables(RHO_U_INDEX + d)*inv_rho_loc;
                               }
 
                               /*--- Compute frozen speed of sound ---*/
-                              const auto alpha_d_loc = alpha_l_loc*m_d_loc/m_l_loc;
-                              /*--- TODO: Add a check in case of zero volume fraction ---*/
-                              const auto rho_liq_loc = (m_l_loc + m_d_loc)/(alpha_l_loc + alpha_d_loc);
-                              /*--- TODO: Add a check in case of zero volume fraction ---*/
-                              const auto alpha_g_loc = static_cast<Number>(1.0) - alpha_l_loc - alpha_d_loc;
-                              const auto rho_g_loc   = m_g_loc/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                              const auto Y_g_loc     = m_g_loc*inv_rho_loc;
-                              const auto Sigma_d_loc = local_conserved_variables(RHO_Z_INDEX)/
-                                                       std::cbrt(rho_liq_loc*rho_liq_loc);
-                              const auto c_loc       = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*
-                                                                 EOS_phase_liq.c_value(rho_liq_loc)*
-                                                                 EOS_phase_liq.c_value(rho_liq_loc) +
-                                                                 Y_g_loc*
-                                                                 EOS_phase_gas.c_value(rho_g_loc)*
-                                                                 EOS_phase_gas.c_value(rho_g_loc) -
-                                                                 static_cast<Number>(2.0/9.0)*sigma*Sigma_d_loc*inv_rho_loc);
+                              const auto alpha_d_loc   = alpha_l_loc*m_d_loc/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto alpha_liq_loc = alpha_l_loc + alpha_d_loc;
+                              const auto rho_liq_loc   = m_liq_loc/alpha_liq_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto alpha_g_loc   = static_cast<Number>(1.0) - alpha_liq_loc;
+                              const auto rho_g_loc     = m_g_loc/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto Y_g_loc       = m_g_loc*inv_rho_loc;
+                              const auto Sigma_d_loc   = local_conserved_variables(RHO_Z_INDEX)/std::cbrt(rho_liq_loc*rho_liq_loc);
+                              const auto c_liq_loc     = EOS_phase_liq.c_value(rho_liq_loc);
+                              const auto c_g_loc       = EOS_phase_gas.c_value(rho_g_loc);
+                              const auto cf_loc        = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*c_liq_loc*c_liq_loc +
+                                                                   Y_g_loc*c_g_loc*c_g_loc -
+                                                                   static_cast<Number>(2.0/9.0)*sigma*Sigma_d_loc*inv_rho_loc);
 
                               // Add term due to surface tension
                               const auto& grad_alpha_l_loc = grad_alpha_l[cell];
@@ -648,13 +645,13 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                               }
                               const auto mod_grad_alpha_l_loc = std::sqrt(mod2_grad_alpha_l_loc);
 
-                              const auto r = sigma*mod_grad_alpha_l_loc/(rho_loc*c_loc*c_loc);
+                              const auto r = sigma*mod_grad_alpha_l_loc/(rho_loc*cf_loc*cf_loc);
 
                               /*--- Update eigenvalue estimate ---*/
                               const auto& vel_loc = vel[cell];
                               for(std::size_t d = 0; d < dim; ++d) {
                                 local_res = std::max(local_res,
-                                                     std::abs(vel_loc[d]) + c_loc*std::sqrt(static_cast<Number>(1.0) + r));
+                                                     std::abs(vel_loc[d]) + cf_loc*std::sqrt(static_cast<Number>(1.0) + r));
                               }
                             }
                         );
@@ -872,17 +869,19 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
 
     /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
     const auto alpha_d_loc     = alpha_l_loc*m_d_loc*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha_g_loc     = static_cast<Number>(1.0) - alpha_l_loc - alpha_d_loc;
+    const auto alpha_liq_loc   = alpha_l_loc + alpha_d_loc;
+    const auto alpha_g_loc     = static_cast<Number>(1.0) - alpha_liq_loc;
     const auto inv_alpha_g_loc = static_cast<Number>(1.0)/alpha_g_loc;
 
-    const auto rho_liq_loc     = (m_l_loc + m_d_loc)/(alpha_l_loc + alpha_d_loc); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto m_liq_loc       = m_l_loc + m_d_loc;
+    const auto rho_liq_loc     = m_liq_loc/alpha_liq_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto inv_rho_liq_loc = static_cast<Number>(1.0)/rho_liq_loc;
     const auto p_liq_loc       = EOS_phase_liq.pres_value(rho_liq_loc);
     const auto rho_g_loc       = m_g_loc*inv_alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p_g_loc         = EOS_phase_gas.pres_value(rho_g_loc);
 
     /*--- Prepare for mass transfer if desired ---*/
-    const auto rho_loc = m_l_loc + m_g_loc + m_d_loc;
+    const auto rho_loc = m_liq_loc + m_g_loc;
 
     // Compute region where performing inter-scale transfer
     auto H_lim             = std::min(H_loc, Hmax);
@@ -923,11 +922,15 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       local_relaxation_applied = true;
 
       // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
+      const auto c_liq_loc = EOS_phase_liq.c_value(rho_liq_loc);
+
+      const auto c_g_loc = EOS_phase_gas.c_value(rho_g_loc);
+
       const auto ddelta_p_dalpha_l = -m_l_loc*inv_alpha_l_loc*inv_alpha_l_loc*
-                                     EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)
+                                     c_liq_loc*c_liq_loc
                                      -m_g_loc*inv_alpha_g_loc*inv_alpha_g_loc*
-                                     EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                     (m_l_loc + m_d_loc)*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                     c_g_loc*c_g_loc*
+                                     m_liq_loc*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dalpha_l    = (delta_p - sigma*H_lim) + alpha_l_loc*ddelta_p_dalpha_l;
       const auto dF_SS_dalpha_l    = (m_d_loc*inv_m_l_loc)*delta_p
                                    + alpha_d_loc*ddelta_p_dalpha_l
@@ -963,16 +966,15 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conser
       const auto dF_drhoz     = static_cast<Number>(-2.0/3.0)*sigma/std::cbrt(rho_liq_loc*rho_liq_loc);
 
       const auto ddelta_p_dmd = -m_g_loc*inv_alpha_g_loc*inv_alpha_g_loc*
-                                EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*inv_rho_liq_loc;
+                                c_g_loc*c_g_loc*inv_rho_liq_loc;
                                 /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dmd    = alpha_l_loc*ddelta_p_dmd;
       const auto dF_SS_dmd    = (delta_p + m_d_loc*ddelta_p_dmd)*inv_rho_liq_loc;
       const auto dF_dmd       = dF_LS_dmd + dF_SS_dmd;
 
-      const auto ddelta_p_dml = EOS_phase_liq.c_value(rho_liq_loc)*EOS_phase_liq.c_value(rho_liq_loc)*inv_alpha_l_loc
+      const auto ddelta_p_dml = c_liq_loc*c_liq_loc*inv_alpha_l_loc
                               + m_g_loc*inv_alpha_g_loc*inv_alpha_g_loc*
-                                EOS_phase_gas.c_value(rho_g_loc)*EOS_phase_gas.c_value(rho_g_loc)*
-                                alpha_d_loc*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                c_g_loc*c_g_loc*alpha_d_loc*inv_m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
       const auto dF_LS_dml    = alpha_l_loc*ddelta_p_dml;
       const auto dF_SS_dml    = (m_d_loc*ddelta_p_dml -
                                  static_cast<Number>(1.0/3.0)*aux_SS)*inv_rho_liq_loc
@@ -1166,21 +1168,21 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               }
 
                               // Compute pressures
-                              const auto rho_liq_loc = (m_l_loc + m_d_loc)/(alpha_l_loc + alpha_d_loc);
-                                                       /*--- TODO: Add a check in case of zero volume fraction ---*/
-                              const auto p_liq_loc   = EOS_phase_liq.pres_value(rho_liq_loc);
-                              p_liq[cell]            = p_liq_loc;
+                              const auto m_liq_loc     = m_l_loc + m_d_loc;
+                              const auto alpha_liq_loc = alpha_l_loc + alpha_d_loc;
+                              const auto rho_liq_loc   = m_liq_loc/alpha_liq_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto p_liq_loc     = EOS_phase_liq.pres_value(rho_liq_loc);
+                              p_liq[cell]              = p_liq_loc;
 
-                              const auto alpha_g_loc = static_cast<Number>(1.0) - alpha_l_loc - alpha_d_loc;
+                              const auto alpha_g_loc = static_cast<Number>(1.0) - alpha_liq_loc;
                               const auto rho_g_loc   = m_g_loc/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
                               const auto p_g_loc     = EOS_phase_gas.pres_value(rho_g_loc);
                               p_g[cell]              = p_g_loc;
 
-                              const auto Sigma_d_loc = local_conserved_variables(RHO_Z_INDEX)/
-                                                       std::cbrt(rho_liq_loc*rho_liq_loc);
+                              const auto Sigma_d_loc = local_conserved_variables(RHO_Z_INDEX)/std::cbrt(rho_liq_loc*rho_liq_loc);
                               Sigma_d[cell]          = Sigma_d_loc;
 
-                              p[cell] = (alpha_l_loc + alpha_d_loc)*p_liq_loc
+                              p[cell] = alpha_liq_loc*p_liq_loc
                                       + alpha_g_loc*p_g_loc
                                       - static_cast<Number>(2.0/3.0)*sigma*Sigma_d_loc;
 
@@ -1202,13 +1204,13 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               const auto mod_grad_alpha_l_bar_loc = std::sqrt(mod2_grad_alpha_l_bar_loc);
 
                               // Compute the total energy (Hamiltonian)
-                              const auto rho_loc  = m_l_loc + m_g_loc + m_d_loc;
+                              const auto rho_loc  = m_liq_loc + m_g_loc;
                               const auto& vel_loc = vel[cell];
                               auto norm2_vel_loc  = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 norm2_vel_loc += vel_loc[d]*vel_loc[d];
                               }
-                              const auto e_liq_loc = (m_l_loc + m_d_loc)*EOS_phase_liq.e_value(rho_liq_loc);
+                              const auto e_liq_loc = m_liq_loc*EOS_phase_liq.e_value(rho_liq_loc);
                               const auto e_g_loc   = m_g_loc*EOS_phase_gas.e_value(rho_g_loc);
 
                               const auto Etot_loc = static_cast<Number>(0.5)*rho_loc*norm2_vel_loc
@@ -1746,18 +1748,21 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                                   for(std::size_t d = 0; d < dim; ++d) {
                                     norm2_vel_loc += vel_loc[d]*vel_loc[d];
                                   }
-                                  const auto rho_liq_loc = (m_l_loc + m_d_loc)/(alpha_l_loc + alpha_d_loc);
+                                  const auto m_liq_loc     = m_l_loc + m_d_loc;
+                                  const auto alpha_liq_loc = alpha_l_loc + alpha_d_loc;
+                                  const auto rho_liq_loc   = m_liq_loc/alpha_liq_loc;
                                                            /*--- TODO: Add a check in case of zero volume fraction ---*/
-                                  const auto alpha_g_loc = static_cast<Number>(1.0) - alpha_l_loc - alpha_d_loc;
-                                  const auto rho_g_loc   = m_g_loc/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                                  const auto Y_g_loc     = m_g_loc/(m_l_loc + m_g_loc + m_d_loc);
-                                  const auto cf_loc      = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*
-                                                                     EOS_phase_liq.c_value(rho_liq_loc)*
-                                                                     EOS_phase_liq.c_value(rho_liq_loc) +
-                                                                     Y_g_loc*
-                                                                     EOS_phase_gas.c_value(rho_g_loc)*
-                                                                     EOS_phase_gas.c_value(rho_g_loc));
-                                  Mach[cell]             = std::sqrt(norm2_vel_loc)/cf_loc;
+                                  const auto alpha_g_loc   = static_cast<Number>(1.0) - alpha_liq_loc;
+                                  const auto rho_g_loc     = m_g_loc/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                  const auto rho_loc       = m_liq_loc + m_g_loc;
+                                  const auto inv_rho_loc   = static_cast<Number>(1.0)/rho_loc;
+                                  const auto Y_g_loc       = m_g_loc*inv_rho_loc;
+                                  const auto c_liq_loc     = EOS_phase_liq.c_value(rho_liq_loc);
+                                  const auto c_g_loc       = EOS_phase_gas.c_value(rho_g_loc);
+                                  const auto cf_loc        = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*c_liq_loc*c_liq_loc +
+                                                                       Y_g_loc*c_g_loc*c_g_loc -
+                                                                       static_cast<Number>(2.0/9.0)*sigma*Sigma_d[cell]*inv_rho_loc);
+                                  Mach[cell]               = std::sqrt(norm2_vel_loc)/cf_loc;
                                 }
                             );
       samurai::update_ghost_mr(vel, normal_bar);

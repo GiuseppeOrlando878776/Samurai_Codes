@@ -160,54 +160,54 @@ namespace samurai {
     #endif
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
-    const auto rho_L     = m_l_L + m_g_L + m_d_L;
+    const auto m_liq_L   = m_l_L + m_d_L;
+    const auto rho_L     = m_liq_L + m_g_L;
     const auto inv_rho_L = static_cast<Number>(1.0)/rho_L;
     const auto vel_d_L   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
-    const auto alpha_l_L = qL(RHO_ALPHA_l_INDEX)*inv_rho_L;
-    const auto alpha_d_L = alpha_l_L*m_d_L/m_l_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha_g_L = static_cast<Number>(1.0) - alpha_l_L - alpha_d_L;
+    const auto alpha_l_L   = qL(RHO_ALPHA_l_INDEX)*inv_rho_L;
+    const auto alpha_d_L   = alpha_l_L*m_d_L/m_l_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_liq_L = alpha_l_L + alpha_d_L;
+    const auto alpha_g_L   = static_cast<Number>(1.0) - alpha_liq_L;
 
     const auto Y_g_L     = m_g_L*inv_rho_L;
-    const auto rho_liq_L = (m_l_L + m_d_L)/(alpha_l_L + alpha_d_L); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq_L = m_liq_L/alpha_liq_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g_L   = m_g_L/alpha_g_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto Sigma_d_L = rho_z_L/std::cbrt(rho_liq_L*rho_liq_L);
-    const auto c_L       = std::sqrt((static_cast<Number>(1.0) - Y_g_L)*
-                                     this->EOS_phase_liq.c_value(rho_liq_L)*
-                                     this->EOS_phase_liq.c_value(rho_liq_L) +
-                                     Y_g_L*
-                                     this->EOS_phase_gas.c_value(rho_g_L)*
-                                     this->EOS_phase_gas.c_value(rho_g_L) -
+    const auto c_liq_L   = this->EOS_phase_liq.c_value(rho_liq_L);
+    const auto c_g_L     = this->EOS_phase_gas.c_value(rho_g_L);
+    const auto cf_L      = std::sqrt((static_cast<Number>(1.0) - Y_g_L)*c_liq_L*c_liq_L +
+                                     Y_g_L*c_g_L*c_g_L -
                                      static_cast<Number>(2.0/9.0)*this->sigma*Sigma_d_L*inv_rho_L);
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
-    const auto rho_R     = m_l_R + m_g_R + m_d_R;
+    const auto m_liq_R   = m_l_R + m_d_R;
+    const auto rho_R     = m_liq_R + m_g_R;
     const auto inv_rho_R = static_cast<Number>(1.0)/rho_R;
     const auto vel_d_R   = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
-    const auto alpha_l_R = rho_alpha_l_R*inv_rho_R;
-    const auto alpha_d_R = alpha_l_R*m_d_R/m_l_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha_g_R = static_cast<Number>(1.0) - alpha_l_R - alpha_d_R;
+    const auto alpha_l_R   = rho_alpha_l_R*inv_rho_R;
+    const auto alpha_d_R   = alpha_l_R*m_d_R/m_l_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_liq_R = alpha_l_R + alpha_d_R;
+    const auto alpha_g_R   = static_cast<Number>(1.0) - alpha_liq_R;
 
     const auto Y_g_R     = m_g_R*inv_rho_R;
-    const auto rho_liq_R = (m_l_R + m_d_R)/(alpha_l_R + alpha_d_R); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq_R = m_liq_R/alpha_liq_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto rho_g_R   = m_g_R/alpha_g_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto Sigma_d_R = rho_z_R/std::cbrt(rho_liq_R*rho_liq_R);
-    const auto c_R       = std::sqrt((static_cast<Number>(1.0) - Y_g_R)*
-                                     this->EOS_phase_liq.c_value(rho_liq_R)*
-                                     this->EOS_phase_liq.c_value(rho_liq_R) +
-                                     Y_g_R*
-                                     this->EOS_phase_gas.c_value(rho_g_R)*
-                                     this->EOS_phase_gas.c_value(rho_g_R) -
+    const auto c_liq_R   = this->EOS_phase_liq.c_value(rho_liq_R);
+    const auto c_g_R     = this->EOS_phase_gas.c_value(rho_g_R);
+    const auto cf_R      = std::sqrt((static_cast<Number>(1.0) - Y_g_R)*c_liq_R*c_liq_R +
+                                     Y_g_R*c_g_R*c_g_R -
                                      static_cast<Number>(2.0/9.0)*this->sigma*Sigma_d_R*inv_rho_R);
 
     /*--- Compute speeds of wave propagation ---*/
-    const auto s_L    = std::min(vel_d_L - c_L, vel_d_R - c_R);
-    const auto s_R    = std::max(vel_d_L + c_L, vel_d_R + c_R);
-    const auto p_L    = (alpha_l_L + alpha_d_L)*this->EOS_phase_liq.pres_value(rho_liq_L)
+    const auto s_L    = std::min(vel_d_L - cf_L, vel_d_R - cf_R);
+    const auto s_R    = std::max(vel_d_L + cf_L, vel_d_R + cf_R);
+    const auto p_L    = alpha_liq_L*this->EOS_phase_liq.pres_value(rho_liq_L)
                       + alpha_g_L*this->EOS_phase_gas.pres_value(rho_g_L)
                       - static_cast<Number>(2.0/3.0)*this->sigma*Sigma_d_L;
-    const auto p_R    = (alpha_l_R + alpha_d_R)*this->EOS_phase_liq.pres_value(rho_liq_R)
+    const auto p_R    = alpha_liq_R*this->EOS_phase_liq.pres_value(rho_liq_R)
                       + alpha_g_R*this->EOS_phase_gas.pres_value(rho_g_R)
                       - static_cast<Number>(2.0/3.0)*this->sigma*Sigma_d_R;
     const auto s_star = (p_R - p_L + rho_L*vel_d_L*(s_L - vel_d_L) - rho_R*vel_d_R*(s_R - vel_d_R))/

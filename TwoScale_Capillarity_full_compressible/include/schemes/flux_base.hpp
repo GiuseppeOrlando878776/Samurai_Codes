@@ -169,7 +169,8 @@ namespace samurai {
     const auto m_d = q(Md_INDEX);
 
     /*--- Compute the current velocity ---*/
-    const auto rho     = m_l + m_g + m_d;
+    const auto m_liq   = m_l + m_d;
+    const auto rho     = m_liq + m_g;
     const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
@@ -184,11 +185,12 @@ namespace samurai {
     }
 
     /*--- Compute and add the contribution due to the pressure ---*/
-    const auto alpha_l = q(RHO_ALPHA_l_INDEX)*inv_rho;
-    const auto alpha_d = alpha_l*m_d/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha_g = static_cast<Number>(1.0) - alpha_l - alpha_d;
+    const auto alpha_l   = q(RHO_ALPHA_l_INDEX)*inv_rho;
+    const auto alpha_d   = alpha_l*m_d/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_liq = alpha_l + alpha_d;
+    const auto alpha_g   = static_cast<Number>(1.0) - alpha_liq;
 
-    const auto rho_liq = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
     /*--- Relation alpha_l/Y_l = (alpha_l + alpha_d)/(Y_l + Y_d) holds!!! ---*/
     const auto p_liq   = EOS_phase_liq.pres_value(rho_liq);
 
@@ -197,7 +199,7 @@ namespace samurai {
 
     const auto Sigma_d = q(RHO_Z_INDEX)/std::cbrt(rho_liq*rho_liq);
 
-    const auto p       = (alpha_l + alpha_d)*p_liq
+    const auto p       = alpha_liq*p_liq
                        + alpha_g*p_g
                        - static_cast<Number>(2.0/3.0)*sigma*Sigma_d;
 
@@ -257,7 +259,8 @@ namespace samurai {
     const auto m_d = cons(Md_INDEX);
 
     /*--- Compute primitive variables ---*/
-    const auto rho       = m_l + m_g + m_d;
+    const auto m_liq     = m_l + m_d;
+    const auto rho       = m_liq + m_g;
     const auto inv_rho   = static_cast<Number>(1.0)/rho;
 
     const auto alpha_l   = cons(RHO_ALPHA_l_INDEX)*inv_rho;
@@ -266,10 +269,11 @@ namespace samurai {
     const auto alpha_d   = alpha_l*m_d/m_l;
     prim(ALPHA_2d_INDEX) = alpha_d/(static_cast<Number>(1.0) - alpha_l);
 
-    const auto rho_liq  = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
-    prim(Pl_INDEX)      = EOS_phase_liq.pres_value(rho_liq);
+    const auto alpha_liq = alpha_l + alpha_d;
+    const auto rho_liq   = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    prim(Pl_INDEX)       = EOS_phase_liq.pres_value(rho_liq);
 
-    const auto rho_g    = m_g/(static_cast<Number>(1.0) - alpha_l - alpha_d);
+    const auto rho_g    = m_g/(static_cast<Number>(1.0) - alpha_liq);
                           /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(Pg_INDEX)      = EOS_phase_gas.pres_value(rho_g);
 
@@ -340,10 +344,12 @@ namespace samurai {
 
         /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
         const auto alpha_d     = alpha_l*m_d*inv_m_l;
-        const auto alpha_g     = static_cast<Number>(1.0) - alpha_l - alpha_d;
+        const auto alpha_liq   = alpha_l + alpha_d;
+        const auto alpha_g     = static_cast<Number>(1.0) - alpha_liq;
         const auto inv_alpha_g = static_cast<Number>(1.0)/alpha_g;
 
-        const auto rho_liq = (m_l + m_d)/(alpha_l + alpha_d); /*--- TODO: Add a check in case of zero volume fraction ---*/
+        const auto m_liq   = m_l + m_d;
+        const auto rho_liq = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
         const auto p_liq   = EOS_phase_liq.pres_value(rho_liq);
 
         const auto rho_g   = m_g*inv_alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
@@ -364,11 +370,15 @@ namespace samurai {
           relaxation_applied = true;
 
           // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
+          const auto c_liq = EOS_phase_liq.c_value(rho_liq);
+
+          const auto c_g = EOS_phase_gas.c_value(rho_g);
+
           const auto ddelta_p_dalpha_l = -m_l*inv_alpha_l*inv_alpha_l*
-                                         EOS_phase_liq.c_value(rho_liq)*EOS_phase_liq.c_value(rho_liq)
+                                         c_liq*c_liq
                                          -m_g*inv_alpha_g*inv_alpha_g*
-                                         EOS_phase_gas.c_value(rho_g)*EOS_phase_gas.c_value(rho_g)*
-                                         (m_l + m_d)*inv_m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                         c_g*c_g*
+                                         m_liq*inv_m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
           const auto dF_LS_dalpha_l    = (delta_p - sigma*H) + alpha_l*ddelta_p_dalpha_l;
           const auto dF_SS_dalpha_l    = (m_d*inv_m_l)*delta_p
                                        + alpha_d*ddelta_p_dalpha_l
@@ -399,7 +409,7 @@ namespace samurai {
         /*--- Update the vector of conserved variables
               (probably not the optimal choice since I need this update only at the end of the Newton loop,
                but the most coherent one thinking about the transfer of mass) ---*/
-        conserved_variables(RHO_ALPHA_l_INDEX) = (m_l + m_g + m_d)*alpha_l;
+        conserved_variables(RHO_ALPHA_l_INDEX) = (m_liq + m_g)*alpha_l;
       }
     }
 
