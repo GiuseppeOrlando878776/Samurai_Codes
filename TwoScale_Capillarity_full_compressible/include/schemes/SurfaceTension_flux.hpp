@@ -55,7 +55,7 @@ namespace samurai {
   // Implementation of the surface tension contribution
   //
   template<class Field, class Field_Vect>
-  FluxValue<typename Flux<Field>::template cfg_st<Field_Vect>>
+  FluxValue<typename SurfaceTensionFlux<Field, Field_Vect>::cfg_st>
   SurfaceTensionFlux<Field, Field_Vect>::compute_discrete_flux(const auto& grad_alpha_l_L,
                                                                const auto& grad_alpha_l_R,
                                                                const std::size_t curr_d) {
