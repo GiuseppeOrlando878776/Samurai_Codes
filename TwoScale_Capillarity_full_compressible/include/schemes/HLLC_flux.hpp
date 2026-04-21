@@ -71,12 +71,12 @@ namespace samurai {
                                         const Number S_star,
                                         const std::size_t curr_d) const {
     /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
-    const auto ml = q(Ml_INDEX);
-    const auto mg = q(Mg_INDEX);
-    const auto md = q(Md_INDEX);
+    const auto m_l = q(Ml_INDEX);
+    const auto m_g = q(Mg_INDEX);
+    const auto m_d = q(Md_INDEX);
 
     /*--- Save velocity current direction ---*/
-    const auto rho     = ml + mg + md;
+    const auto rho     = m_l + m_g + m_d;
     const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
@@ -85,13 +85,13 @@ namespace samurai {
 
     const auto u_star = (S - vel_d)/(S - S_star);
 
-    const auto ml_star           = ml*u_star;
-    q_star(Ml_INDEX)             = ml_star;
-    const auto mg_star           = mg*u_star;
-    q_star(Mg_INDEX)             = mg_star;
-    const auto md_star           = md*u_star;
-    q_star(Md_INDEX)             = md_star;
-    const auto rho_star          = ml_star + mg_star + md_star;
+    const auto m_l_star          = m_l*u_star;
+    q_star(Ml_INDEX)             = m_l_star;
+    const auto m_g_star          = m_g*u_star;
+    q_star(Mg_INDEX)             = m_g_star;
+    const auto m_d_star          = m_d*u_star;
+    q_star(Md_INDEX)             = m_d_star;
+    const auto rho_star          = m_l_star + m_g_star + m_d_star;
     q_star(RHO_ALPHA_l_INDEX)    = rho_star*(q(RHO_ALPHA_l_INDEX)*inv_rho);
     q_star(RHO_Z_INDEX)          = rho_star*(q(RHO_Z_INDEX)*inv_rho);
     q_star(RHO_U_INDEX + curr_d) = rho_star*S_star;
