@@ -29,13 +29,12 @@ namespace samurai {
                        const Number rtol_Newton_,
                        const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
-    template<typename Gradient>
-    auto make_two_scale_capillarity(const Gradient& grad_alpha_l); /*--- Compute the flux over all the directions ---*/
+    template<class Field_Vect>
+    auto make_two_scale_capillarity(const Field_Vect& grad_alpha_l); /*--- Compute the flux over all the directions ---*/
 
   private:
-    template<typename Gradient>
-    FluxValue<cfg> compute_discrete_flux(const Gradient& grad_alpha_l_L,
-                                         const Gradient& grad_alpha_l_R,
+    FluxValue<cfg> compute_discrete_flux(const auto& grad_alpha_l_L,
+                                         const auto& grad_alpha_l_R,
                                          const std::size_t curr_d); /*--- Surface tension contribution along direction curr_d ---*/
   };
 
@@ -55,10 +54,9 @@ namespace samurai {
   // Implementation of the surface tension contribution
   //
   template<class Field>
-  template<typename Gradient>
   FluxValue<typename SurfaceTensionFlux<Field>::cfg>
-  SurfaceTensionFlux<Field>::compute_discrete_flux(const Gradient& grad_alpha_l_L,
-                                                   const Gradient& grad_alpha_l_R,
+  SurfaceTensionFlux<Field>::compute_discrete_flux(const auto& grad_alpha_l_L,
+                                                   const auto& grad_alpha_l_R,
                                                    const std::size_t curr_d) {
     return static_cast<Number>(0.5)*
            (this->evaluate_surface_tension_operator(grad_alpha_l_L, curr_d) +
@@ -68,8 +66,8 @@ namespace samurai {
   // Implement the contribution of the discrete flux for all the directions.
   //
   template<class Field>
-  template<typename Gradient>
-  auto SurfaceTensionFlux<Field>::make_two_scale_capillarity(const Gradient& grad_alpha_l) {
+  template<class Field_Vect>
+  auto SurfaceTensionFlux<Field>::make_two_scale_capillarity(const Field_Vect& grad_alpha_l) {
     FluxDefinition<cfg> SurfaceTension_f;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/

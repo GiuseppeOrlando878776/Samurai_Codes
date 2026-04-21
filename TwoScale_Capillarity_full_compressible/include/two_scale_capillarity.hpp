@@ -205,15 +205,14 @@ private:
 
   void apply_relaxation(); /*--- Apply the relaxation ---*/
 
-  template<typename State, typename Gradient>
-  void perform_Newton_step_relaxation(State local_conserved_variables,
+  void perform_Newton_step_relaxation(auto local_conserved_variables,
                                       const Number H_loc,
                                       Number& dalpha_l_loc,
                                       Number& alpha_l_loc,
                                       std::size_t& to_be_relaxed_loc,
                                       std::size_t& Newton_iterations_loc,
                                       bool& local_relaxation_applied,
-                                      const Gradient& grad_alpha_l_loc,
+                                      const auto& grad_alpha_l_loc,
                                       const bool mass_transfer_NR);
 
   void execute_postprocess(const Number time); /*--- Execute the postprocess ---*/
@@ -846,15 +845,14 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
 // Implement a single step of the relaxation procedure (valid for a general EOS)
 //
 template<std::size_t dim>
-template<typename State, typename Gradient>
-void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(State local_conserved_variables,
+void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserved_variables,
                                                               const Number H_loc,
                                                               Number& dalpha_l_loc,
                                                               Number& alpha_l_loc,
                                                               std::size_t& to_be_relaxed_loc,
                                                               std::size_t& Newton_iterations_loc,
                                                               bool& local_relaxation_applied,
-                                                              const Gradient& grad_alpha_l_loc,
+                                                              const auto& grad_alpha_l_loc,
                                                               const bool mass_transfer_NR) {
   to_be_relaxed_loc = 0;
 

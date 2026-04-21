@@ -87,18 +87,16 @@ namespace samurai {
     const Number      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
     const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
-    template<typename Gradient>
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
                                             const std::size_t curr_d,
-                                            const Gradient& grad_alpha_l); /*--- Evaluate the 'continuous' flux for the state q
-                                                                                 along direction curr_d ---*/
+                                            const auto& grad_alpha_l); /*--- Evaluate the 'continuous' flux for the state q
+                                                                             along direction curr_d ---*/
 
     FluxValue<cfg> evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
                                                 const std::size_t curr_d); /*--- Evaluate the hyperbolic operator for the state q
                                                                                  along direction curr_d --*/
 
-    template<typename Gradient>
-    FluxValue<cfg> evaluate_surface_tension_operator(const Gradient& grad_alpha_l,
+    FluxValue<cfg> evaluate_surface_tension_operator(const auto& grad_alpha_l,
                                                      const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q
                                                                                       along direction curr_d ---*/
 
@@ -107,8 +105,7 @@ namespace samurai {
     FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conserved variables ---*/
 
     #ifdef RELAX_RECONSTRUCTION
-      template<typename State>
-      void perform_Newton_step_relaxation(State conserved_variables,
+      void perform_Newton_step_relaxation(auto conserved_variables,
                                           const Number H,
                                           Number& dalpha_l,
                                           Number& alpha_l,
@@ -139,10 +136,9 @@ namespace samurai {
   // Evaluate the 'continuous flux'
   //
   template<class Field>
-  template<typename Gradient>
   FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
                                                                              const std::size_t curr_d,
-                                                                             const Gradient& grad_alpha_l) {
+                                                                             const auto& grad_alpha_l) {
     /*--- Initialize the resulting variable with the hyperbolic operator ---*/
     FluxValue<cfg> res = this->evaluate_hyperbolic_operator(q, curr_d);
 
@@ -188,12 +184,11 @@ namespace samurai {
     const auto alpha_l   = q(RHO_ALPHA_l_INDEX)*inv_rho;
     const auto alpha_d   = alpha_l*m_d/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_liq = alpha_l + alpha_d;
-    const auto alpha_g   = static_cast<Number>(1.0) - alpha_liq;
-
-    const auto rho_liq = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq   = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
     /*--- Relation alpha_l/Y_l = (alpha_l + alpha_d)/(Y_l + Y_d) holds!!! ---*/
-    const auto p_liq   = EOS_phase_liq.pres_value(rho_liq);
+    const auto p_liq     = EOS_phase_liq.pres_value(rho_liq);
 
+    const auto alpha_g = static_cast<Number>(1.0) - alpha_liq;
     const auto rho_g   = m_g/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto p_g     = EOS_phase_gas.pres_value(rho_g);
 
@@ -211,8 +206,7 @@ namespace samurai {
   // Evaluate the surface tension operator
   //
   template<class Field>
-  template<typename Gradient>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_surface_tension_operator(const Gradient& grad_alpha_l,
+  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_surface_tension_operator(const auto& grad_alpha_l,
                                                                                       const std::size_t curr_d) {
     /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
@@ -327,8 +321,7 @@ namespace samurai {
     // Perform a Newton step relaxation for a single vector state (i.e. a single cell) without mass transfer
     //
     template<class Field>
-    template<typename State>
-    void Flux<Field>::perform_Newton_step_relaxation(State conserved_variables,
+    void Flux<Field>::perform_Newton_step_relaxation(auto conserved_variables,
                                                      const Number H,
                                                      Number& dalpha_l,
                                                      Number& alpha_l,

@@ -32,7 +32,7 @@ namespace samurai {
                 const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     #ifdef RELAX_RECONSTRUCTION
-      template<typename Field_Scalar>
+      template<class Field_Scalar>
       auto make_two_scale_capillarity(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
     #else
       auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
@@ -168,7 +168,7 @@ namespace samurai {
   //
   template<class Field>
   #ifdef RELAX_RECONSTRUCTION
-    template<typename Field_Scalar>
+    template<class Field_Scalar>
     auto RusanovFlux<Field>::make_two_scale_capillarity(const Field_Scalar& H)
   #else
     auto RusanovFlux<Field>::make_two_scale_capillarity()
