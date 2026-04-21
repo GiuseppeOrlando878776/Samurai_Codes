@@ -66,6 +66,9 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, stencil_size, Field, Field>;
 
+    template<class Field_Vect>
+    using cfg_st = FluxConfig<SchemeType::NonLinear, stencil_size, Field, Field_Vect>;
+
     using Number = typename Field::value_type; /*--- Shortcut for the arithmetic type ---*/
 
     Flux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
@@ -96,9 +99,10 @@ namespace samurai {
                                                 const std::size_t curr_d); /*--- Evaluate the hyperbolic operator for the state q
                                                                                  along direction curr_d --*/
 
-    FluxValue<cfg> evaluate_surface_tension_operator(const auto& grad_alpha_l,
-                                                     const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q
-                                                                                      along direction curr_d ---*/
+    template<class Field_Vect>
+    FluxValue<cfg_st<Field_Vect>> evaluate_surface_tension_operator(const auto& grad_alpha_l,
+                                                                    const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q
+                                                                                                     along direction curr_d ---*/
 
     FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
 
@@ -136,9 +140,10 @@ namespace samurai {
   // Evaluate the 'continuous flux'
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
-                                                                             const std::size_t curr_d,
-                                                                             const auto& grad_alpha_l) {
+  FluxValue<typename Flux<Field>::cfg>
+  Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
+                                        const std::size_t curr_d,
+                                        const auto& grad_alpha_l) {
     /*--- Initialize the resulting variable with the hyperbolic operator ---*/
     FluxValue<cfg> res = this->evaluate_hyperbolic_operator(q, curr_d);
 
@@ -151,8 +156,9 @@ namespace samurai {
   // Evaluate the hyperbolic part of the 'continuous' flux
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
-                                                                                 const std::size_t curr_d) {
+  FluxValue<typename Flux<Field>::cfg>
+  Flux<Field>::evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
+                                            const std::size_t curr_d) {
     /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
 
@@ -206,13 +212,15 @@ namespace samurai {
   // Evaluate the surface tension operator
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_surface_tension_operator(const auto& grad_alpha_l,
-                                                                                      const std::size_t curr_d) {
+  template<class Field_Vect>
+  FluxValue<typename Flux<Field>::template cfg_st<Field_Vect>>
+  Flux<Field>::evaluate_surface_tension_operator(const auto& grad_alpha_l,
+                                                 const std::size_t curr_d) {
     /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
 
     /*--- Initialize the resulting variable ---*/
-    FluxValue<cfg> res;
+    FluxValue<cfg_st<Field_Vect>> res;
 
     // Set to zero all the contributions
     res.fill(static_cast<Number>(0.0));
@@ -244,7 +252,8 @@ namespace samurai {
   // Conversion from conserved to primitive variables
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
+  FluxValue<typename Flux<Field>::cfg>
+  Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
     FluxValue<cfg> prim;
 
     /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
@@ -283,7 +292,8 @@ namespace samurai {
   // Conversion from primitive to conserved variables
   //
   template<class Field>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
+  FluxValue<typename Flux<Field>::cfg>
+  Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
     FluxValue<cfg> cons;
 
     /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/

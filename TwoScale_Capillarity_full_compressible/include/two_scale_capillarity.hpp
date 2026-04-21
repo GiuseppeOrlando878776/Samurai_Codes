@@ -115,7 +115,7 @@ private:
   #elifdef HLLC_FLUX
     samurai::HLLCFlux<Field> HLLC_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
   #endif
-  samurai::SurfaceTensionFlux<Field> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
+  samurai::SurfaceTensionFlux<Field, Field_Vect> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
 
   fs::path    path;     /*--- Auxiliary variable to store the output directory ---*/
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
@@ -1438,7 +1438,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       auto numerical_flux_hyp = HLLC_flux.make_two_scale_capillarity();
     #endif
   #endif
-  auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity(grad_alpha_l);
+  auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity();
 
   /*--- Save the initial condition ---*/
   const std::string suffix_init = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(0) : "";
@@ -1580,14 +1580,13 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     update_geometry();
 
     // Capillarity contribution
-    samurai::update_ghost_mr(grad_alpha_l);
     #ifdef ORDER_2
       conserved_variables_tmp = conserved_variables
-                              - dt*numerical_flux_st(conserved_variables);
+                              - dt*numerical_flux_st(grad_alpha_l);
       samurai::swap(conserved_variables, conserved_variables_tmp);
     #else
       conserved_variables_np1 = conserved_variables
-                              - dt*numerical_flux_st(conserved_variables);
+                              - dt*numerical_flux_st(grad_alpha_l);
       samurai::swap(conserved_variables, conserved_variables_np1);
     #endif
 
@@ -1639,7 +1638,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       // Capillarity contribution
       samurai::update_ghost_mr(grad_alpha_l);
       conserved_variables_tmp = conserved_variables
-                              - dt*numerical_flux_st(conserved_variables);
+                              - dt*numerical_flux_st(grad_alpha_l);
       samurai::swap(conserved_variables, conserved_variables_tmp);
 
       // Complete evaluation before applying relaxation

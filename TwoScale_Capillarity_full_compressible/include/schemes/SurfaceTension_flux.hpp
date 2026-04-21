@@ -14,12 +14,14 @@ namespace samurai {
   /**
     * Implementation of the surface tensino contribution
     */
-  template<class Field>
+  template<class Field, class Field_Vect>
   class SurfaceTensionFlux: public Flux<Field> {
   public:
+    static_assert(Field_Vect::n_comp == Field::dim, "The spatial dimensions between Field_Vect and Field do not match");
+
     using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
-                                              for the flux (nonlinear in this case) ---*/
+    using cfg_st = Flux<Field>::template cfg_st<Field_Vect>; /*--- Shortcut to specify the type of configuration
+                                                                   for the flux (nonlinear in this case with input_size different than output_size) ---*/
 
     SurfaceTensionFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
                        const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
@@ -29,46 +31,44 @@ namespace samurai {
                        const Number rtol_Newton_,
                        const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
-    template<class Field_Vect>
-    auto make_two_scale_capillarity(const Field_Vect& grad_alpha_l); /*--- Compute the flux over all the directions ---*/
+    auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
 
   private:
-    FluxValue<cfg> compute_discrete_flux(const auto& grad_alpha_l_L,
-                                         const auto& grad_alpha_l_R,
-                                         const std::size_t curr_d); /*--- Surface tension contribution along direction curr_d ---*/
+    FluxValue<cfg_st> compute_discrete_flux(const auto& grad_alpha_l_L,
+                                            const auto& grad_alpha_l_R,
+                                            const std::size_t curr_d); /*--- Surface tension contribution along direction curr_d ---*/
   };
 
   // Constructor derived from the base class
   //
-  template<class Field>
-  SurfaceTensionFlux<Field>::SurfaceTensionFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
-                                                const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
-                                                const Number sigma_,
-                                                const Number lambda_,
-                                                const Number atol_Newton_,
-                                                const Number rtol_Newton_,
-                                                const std::size_t max_Newton_iters_):
+  template<class Field, class Field_Vect>
+  SurfaceTensionFlux<Field, Field_Vect>::SurfaceTensionFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
+                                                            const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
+                                                            const Number sigma_,
+                                                            const Number lambda_,
+                                                            const Number atol_Newton_,
+                                                            const Number rtol_Newton_,
+                                                            const std::size_t max_Newton_iters_):
     Flux<Field>(EOS_phase_liq_, EOS_phase_gas_, sigma_,
                 lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
   // Implementation of the surface tension contribution
   //
-  template<class Field>
-  FluxValue<typename SurfaceTensionFlux<Field>::cfg>
-  SurfaceTensionFlux<Field>::compute_discrete_flux(const auto& grad_alpha_l_L,
-                                                   const auto& grad_alpha_l_R,
-                                                   const std::size_t curr_d) {
+  template<class Field, class Field_Vect>
+  FluxValue<typename Flux<Field>::template cfg_st<Field_Vect>>
+  SurfaceTensionFlux<Field, Field_Vect>::compute_discrete_flux(const auto& grad_alpha_l_L,
+                                                               const auto& grad_alpha_l_R,
+                                                               const std::size_t curr_d) {
     return static_cast<Number>(0.5)*
-           (this->evaluate_surface_tension_operator(grad_alpha_l_L, curr_d) +
-            this->evaluate_surface_tension_operator(grad_alpha_l_R, curr_d));
+           (this->template evaluate_surface_tension_operator<Field_Vect>(grad_alpha_l_L, curr_d) +
+            this->template evaluate_surface_tension_operator<Field_Vect>(grad_alpha_l_R, curr_d));
   }
 
   // Implement the contribution of the discrete flux for all the directions.
   //
-  template<class Field>
-  template<class Field_Vect>
-  auto SurfaceTensionFlux<Field>::make_two_scale_capillarity(const Field_Vect& grad_alpha_l) {
-    FluxDefinition<cfg> SurfaceTension_f;
+  template<class Field, class Field_Vect>
+  auto SurfaceTensionFlux<Field, Field_Vect>::make_two_scale_capillarity() {
+    FluxDefinition<cfg_st> SurfaceTension_f;
 
     /*--- Perform the loop over each dimension to compute the flux contribution ---*/
     static_for<0, Field::dim>::apply(
@@ -77,18 +77,18 @@ namespace samurai {
            static constexpr int d = decltype(integral_constant_d)::value;
 
            // Compute now the "discrete" flux function
-           SurfaceTension_f[d].cons_flux_function = [&](FluxValue<cfg>& flux,
-                                                        const StencilData<cfg>& data,
-                                                        const StencilValues<cfg> /*field*/)
+           SurfaceTension_f[d].cons_flux_function = [&](FluxValue<cfg_st>& flux,
+                                                        const StencilData<cfg_st>& /*data*/,
+                                                        const StencilValues<cfg_st> field)
                                                         {
                                                           // Compute the numerical flux
                                                           #ifdef ORDER_2
-                                                            flux = compute_discrete_flux(grad_alpha_l[data.cells[1]],
-                                                                                         grad_alpha_l[data.cells[2]],
+                                                            flux = compute_discrete_flux(field[1],
+                                                                                         field[2],
                                                                                          d);
                                                           #else
-                                                            flux = compute_discrete_flux(grad_alpha_l[data.cells[0]],
-                                                                                         grad_alpha_l[data.cells[1]],
+                                                            flux = compute_discrete_flux(field[0],
+                                                                                         field[1],
                                                                                          d);
                                                           #endif
                                                         };
