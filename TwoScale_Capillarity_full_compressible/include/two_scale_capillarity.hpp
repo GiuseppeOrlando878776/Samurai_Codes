@@ -486,7 +486,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               const auto cf_loc    = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*c_liq_loc*c_liq_loc +
                                                                Y_g_loc*c_g_loc*c_g_loc -
                                                                static_cast<Number>(2.0/9.0)*sigma*Sigma_d[cell]/rho_loc);
-                              Mach[cell]          = std::sqrt(norm2_vel_loc)/cf_loc;
+                              Mach[cell]           = std::sqrt(norm2_vel_loc)/cf_loc;
                             }
                         );
 
