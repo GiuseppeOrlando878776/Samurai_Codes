@@ -1054,7 +1054,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
 
           const auto drho_fac_Ru = dtau_ov_epsilon*
                                    (sigma*alpha_l_loc*dH*fac_Ru)*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
-          for(std::size_t d = 0; d < Field::dim; ++d) {
+          for(std::size_t d = 0; d < dim; ++d) {
             local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
           }
         }
