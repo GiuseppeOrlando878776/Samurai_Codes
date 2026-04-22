@@ -601,7 +601,7 @@ typename TwoScaleCapillarity<dim>::Number
 TwoScaleCapillarity<dim>::get_max_lambda() {
   auto local_res = static_cast<Number>(0.0);
 
-  vel.resize();
+  std::array<Number, dim> vel_loc;
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -620,7 +620,7 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                               const auto rho_loc     = m_liq_loc + m_g_loc;
                               const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
                               for(std::size_t d = 0; d < dim; ++d) {
-                                vel[cell][d] = local_conserved_variables(RHO_U_INDEX + d)*inv_rho_loc;
+                                vel_loc[d] = local_conserved_variables(RHO_U_INDEX + d)*inv_rho_loc;
                               }
 
                               /*--- Compute frozen speed of sound ---*/
@@ -648,7 +648,6 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                               const auto r = sigma*mod_grad_alpha_l_loc/(rho_loc*cf_loc*cf_loc);
 
                               /*--- Update eigenvalue estimate ---*/
-                              const auto& vel_loc = vel[cell];
                               for(std::size_t d = 0; d < dim; ++d) {
                                 local_res = std::max(local_res,
                                                      std::abs(vel_loc[d]) + cf_loc*std::sqrt(static_cast<Number>(1.0) + r));
@@ -1142,6 +1141,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
   p_liq.resize();
   p_g.resize();
   p.resize();
+  vel.resize();
   Mach.resize();
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -1203,11 +1203,13 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               const auto mod_grad_alpha_l_bar_loc = std::sqrt(mod2_grad_alpha_l_bar_loc);
 
                               // Compute the total energy (Hamiltonian)
-                              const auto rho_loc  = m_liq_loc + m_g_loc;
-                              const auto& vel_loc = vel[cell];
+                              const auto rho_loc     = m_liq_loc + m_g_loc;
+                              const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
                               auto norm2_vel_loc  = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
-                                norm2_vel_loc += vel_loc[d]*vel_loc[d];
+                                const auto vel_d_loc = local_conserved_variables(RHO_U_INDEX + d)*inv_rho_loc;
+                                vel[cell][d] = vel_d_loc;
+                                norm2_vel_loc += vel_d_loc*vel_d_loc;
                               }
                               const auto e_liq_loc = m_liq_loc*EOS_phase_liq.e_value(rho_liq_loc);
                               const auto e_g_loc   = m_g_loc*EOS_phase_gas.e_value(rho_g_loc);
