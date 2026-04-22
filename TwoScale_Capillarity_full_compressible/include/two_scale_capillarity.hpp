@@ -417,8 +417,9 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               // Set small-scale variables
                               alpha_d[cell]                          = static_cast<Number>(0.0);
                               conserved_variables[cell](RHO_Z_INDEX) = static_cast<Number>(0.0);
-                              Sigma_d[cell]                          = static_cast<Number>(0.0);
-                              conserved_variables[cell](Md_INDEX)    = alpha_d[cell]*EOS_phase_liq.get_rho0();
+                              const auto rho_liq_ref                 = EOS_phase_liq.get_rho0();
+                              Sigma_d[cell]                          = conserved_variables[cell](RHO_Z_INDEX)/std::cbrt(rho_liq_ref*rho_liq_ref);
+                              conserved_variables[cell](Md_INDEX)    = alpha_d[cell]*rho_liq_ref;
 
                               // Recompute geometric locations to set partial masses
                               const auto center = cell.center();
@@ -426,7 +427,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               const auto y      = static_cast<Number>(center[1]);
                               const auto r      = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
 
-                              // Set mass large-scale phase 1
+                              // Set mass large-scale liquid phase
                               if(r >= R + eps_R) {
                                 p_liq[cell] = EOS_phase_liq.get_p0();
                               }
@@ -443,15 +444,15 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
 
                               conserved_variables[cell](Ml_INDEX) = alpha_l[cell]*rho_liq_loc;
 
-                              // Set mass phase 2
+                              // Set mass gas phase
                               p_g[cell]            = EOS_phase_gas.get_p0();
                               const auto rho_g_loc = EOS_phase_gas.rho_value(p_g[cell]);
 
-                              const auto alpha_g_loc = static_cast<Number>(1.0) - alpha_l[cell] - alpha_d[cell];
+                              const auto alpha_liq_loc = alpha_l[cell] + alpha_d[cell];
+                              const auto alpha_g_loc   = static_cast<Number>(1.0) - alpha_liq_loc;
                               conserved_variables[cell](Mg_INDEX) = alpha_g_loc*rho_g_loc;
 
                               // Save mixture pressure for post-processing
-                              const auto alpha_liq_loc = alpha_l[cell] + alpha_d[cell];
                               p[cell] = alpha_liq_loc*p_liq[cell]
                                       + alpha_g_loc*p_g[cell]
                                       - static_cast<Number>(2.0/3.0)*sigma*Sigma_d[cell];
@@ -944,7 +945,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
         // Bound preserving condition for m_l
         dtau_ov_epsilon = lambda/(sigma*dH);
         if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-          throw std::runtime_error("Negative time step found after relaxation of mass of large-scale phase 1");
+          throw std::runtime_error("Negative time step found after relaxation of mass of large-scale liquid phase");
         }
 
         // Bound preserving for the velocity
@@ -1041,12 +1042,12 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
         else {
           local_conserved_variables(Ml_INDEX) += dm_l;
           if(local_conserved_variables(Ml_INDEX) < static_cast<Number>(0.0)) {
-            throw std::runtime_error("Negative mass of large-scale phase 1 inside Newton step");
+            throw std::runtime_error("Negative mass of large-scale liquid phase inside Newton step");
           }
 
           local_conserved_variables(Md_INDEX) -= dm_l;
           if(local_conserved_variables(Md_INDEX) < static_cast<Number>(0.0)) {
-            throw std::runtime_error("Negative mass of small-scale phase 1 inside Newton step");
+            throw std::runtime_error("Negative mass of small-scale liquid phase inside Newton step");
           }
 
           const auto R_Sigma_D = -dm_l*(static_cast<Number>(3.0)*Hmax/(kappa*rho_liq_loc));
