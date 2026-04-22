@@ -1218,6 +1218,15 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                                                   + e_liq_loc + e_g_loc
                                                   + sigma*(mod_grad_alpha_l_loc + Sigma_d_loc);
 
+                              // Save Mach number for post-processing
+                              const auto Y_g_loc   = m_g_loc*inv_rho_loc;
+                              const auto c_liq_loc = EOS_phase_liq.c_value(rho_liq_loc);
+                              const auto c_g_loc   = EOS_phase_gas.c_value(rho_g_loc);
+                              const auto cf_loc    = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*c_liq_loc*c_liq_loc +
+                                                                Y_g_loc*c_g_loc*c_g_loc -
+                                                                static_cast<Number>(2.0/9.0)*sigma*Sigma_d_loc*inv_rho_loc);
+                              Mach[cell]           = std::sqrt(norm2_vel_loc)/cf_loc;
+
                               // Compute the integral quantities
                               auto cell_volume = static_cast<Number>(cell.length);
                               for(std::size_t d = 1; d < dim; ++d) {
@@ -1709,7 +1718,6 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
       // Resize the fields not resized yet
       normal_bar.resize();
-      Mach.resize();
       div_vel.resize();
       H_bar.resize();
       samurai::for_each_cell(mesh,
@@ -1731,38 +1739,6 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
                                       normal_bar[cell][d] = static_cast<Number>(nan(""));
                                     }
                                   }
-
-                                  // Pre-fetch some variables used multiple times in order to exploit possible vectorization
-                                  const auto& local_conserved_variables = conserved_variables[cell];
-
-                                  const auto m_l_loc = local_conserved_variables(Ml_INDEX);
-                                  const auto m_g_loc = local_conserved_variables(Mg_INDEX);
-                                  const auto m_d_loc = local_conserved_variables(Md_INDEX);
-
-                                  const auto alpha_l_loc = alpha_l[cell];
-                                  const auto alpha_d_loc = alpha_d[cell];
-
-                                  // Save Mach number for post-processing
-                                  const auto& vel_loc = vel[cell];
-                                  auto norm2_vel_loc  = static_cast<Number>(0.0);
-                                  for(std::size_t d = 0; d < dim; ++d) {
-                                    norm2_vel_loc += vel_loc[d]*vel_loc[d];
-                                  }
-                                  const auto m_liq_loc     = m_l_loc + m_d_loc;
-                                  const auto alpha_liq_loc = alpha_l_loc + alpha_d_loc;
-                                  const auto rho_liq_loc   = m_liq_loc/alpha_liq_loc;
-                                                           /*--- TODO: Add a check in case of zero volume fraction ---*/
-                                  const auto alpha_g_loc   = static_cast<Number>(1.0) - alpha_liq_loc;
-                                  const auto rho_g_loc     = m_g_loc/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
-                                  const auto rho_loc       = m_liq_loc + m_g_loc;
-                                  const auto inv_rho_loc   = static_cast<Number>(1.0)/rho_loc;
-                                  const auto Y_g_loc       = m_g_loc*inv_rho_loc;
-                                  const auto c_liq_loc     = EOS_phase_liq.c_value(rho_liq_loc);
-                                  const auto c_g_loc       = EOS_phase_gas.c_value(rho_g_loc);
-                                  const auto cf_loc        = std::sqrt((static_cast<Number>(1.0) - Y_g_loc)*c_liq_loc*c_liq_loc +
-                                                                       Y_g_loc*c_g_loc*c_g_loc -
-                                                                       static_cast<Number>(2.0/9.0)*sigma*Sigma_d[cell]*inv_rho_loc);
-                                  Mach[cell]               = std::sqrt(norm2_vel_loc)/cf_loc;
                                 }
                             );
       samurai::update_ghost_mr(vel, normal_bar);
