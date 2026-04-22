@@ -208,8 +208,8 @@ namespace samurai {
                                                      #endif
                                                    #else
                                                      // Extract the states
-                                                     const FluxValue<cfg> qL = field[0];
-                                                     const FluxValue<cfg> qR = field[1];
+                                                     const FluxValue<cfg>& qL = field[0];
+                                                     const FluxValue<cfg>& qR = field[1];
                                                    #endif
 
                                                    flux = compute_discrete_flux(qL, qR, d);
