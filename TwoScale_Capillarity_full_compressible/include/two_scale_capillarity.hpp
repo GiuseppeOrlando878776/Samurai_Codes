@@ -1205,7 +1205,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                               // Compute the total energy (Hamiltonian)
                               const auto rho_loc     = m_liq_loc + m_g_loc;
                               const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
-                              auto norm2_vel_loc  = static_cast<Number>(0.0);
+                              auto norm2_vel_loc     = static_cast<Number>(0.0);
                               for(std::size_t d = 0; d < dim; ++d) {
                                 const auto vel_d_loc = local_conserved_variables(RHO_U_INDEX + d)*inv_rho_loc;
                                 vel[cell][d] = vel_d_loc;
