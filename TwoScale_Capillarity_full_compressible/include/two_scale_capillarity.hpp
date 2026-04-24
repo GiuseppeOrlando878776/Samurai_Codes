@@ -961,7 +961,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
       }
 
       // Bound preserving condition for large-scale volume fraction
-      const auto dF_drhoz     = static_cast<Number>(-2.0/3.0)*sigma/std::cbrt(rho_liq_loc*rho_liq_loc);
+      const auto dF_drhoz     = static_cast<Number>(-2.0/3.0)*sigma*std::cbrt(inv_rho_liq_loc*inv_rho_liq_loc);
 
       const auto ddelta_p_dmd = -m_g_loc*inv_alpha_g_loc*inv_alpha_g_loc*
                                 c_g_loc*c_g_loc*inv_rho_liq_loc;
@@ -981,7 +981,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
 
       const auto R            = dF_dml
                               - dF_dmd
-                              - dF_drhoz*(static_cast<Number>(3.0)*Hmax/(kappa*std::cbrt(rho_liq_loc)));
+                              - dF_drhoz*((static_cast<Number>(3.0)*Hmax/kappa)*std::cbrt(inv_rho_liq_loc));
                                 /*NOTE: equivalent to dF_drhoz*(S_avg/m_avg)*((rho*z/Sigma))
                                         since S_avg/m_avg = 3Hmax/(kappa*rho_liq) and rho*z/Sigma = rho_liq^(2/3)*/
 
@@ -1049,7 +1049,7 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
             throw std::runtime_error("Negative mass of small-scale liquid phase inside Newton step");
           }
 
-          const auto R_Sigma_D = -dm_l*(static_cast<Number>(3.0)*Hmax/(kappa*rho_liq_loc));
+          const auto R_Sigma_D = -dm_l*((static_cast<Number>(3.0)*Hmax/kappa)*inv_rho_liq_loc);
           local_conserved_variables(RHO_Z_INDEX) += std::cbrt(rho_liq_loc*rho_liq_loc)*R_Sigma_D;
 
           const auto drho_fac_Ru = dtau_ov_epsilon*
