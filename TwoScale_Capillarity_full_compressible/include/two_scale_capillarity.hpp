@@ -1648,7 +1648,6 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       update_geometry();
 
       // Capillarity contribution
-      samurai::update_ghost_mr(grad_alpha_l);
       conserved_variables_tmp = conserved_variables
                               - dt*numerical_flux_st(grad_alpha_l);
       samurai::swap(conserved_variables, conserved_variables_tmp);
