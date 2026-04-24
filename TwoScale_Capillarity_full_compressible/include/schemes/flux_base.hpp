@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Author: Giuseppe Orlando, 2025
+// Author: Giuseppe Orlando, 2026
 //
 #pragma once
 
@@ -262,12 +262,12 @@ namespace samurai {
     const auto m_d = cons(Md_INDEX);
 
     /*--- Compute primitive variables ---*/
-    const auto m_liq     = m_l + m_d;
-    const auto rho       = m_liq + m_g;
-    const auto inv_rho   = static_cast<Number>(1.0)/rho;
+    const auto m_liq   = m_l + m_d;
+    const auto rho     = m_liq + m_g;
+    const auto inv_rho = static_cast<Number>(1.0)/rho;
 
-    const auto alpha_l   = cons(RHO_ALPHA_l_INDEX)*inv_rho;
-    prim(ALPHA_l_INDEX)  = alpha_l;
+    const auto alpha_l  = cons(RHO_ALPHA_l_INDEX)*inv_rho;
+    prim(ALPHA_l_INDEX) = alpha_l;
 
     const auto alpha_d   = alpha_l*m_d/m_l;
     prim(ALPHA_2d_INDEX) = alpha_d/(static_cast<Number>(1.0) - alpha_l);
@@ -276,9 +276,9 @@ namespace samurai {
     const auto rho_liq   = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
     prim(Pl_INDEX)       = EOS_phase_liq.pres_value(rho_liq);
 
-    const auto rho_g    = m_g/(static_cast<Number>(1.0) - alpha_liq);
-                          /*--- TODO: Add a check in case of zero volume fraction ---*/
-    prim(Pg_INDEX)      = EOS_phase_gas.pres_value(rho_g);
+    const auto rho_g = m_g/(static_cast<Number>(1.0) - alpha_liq);
+                       /*--- TODO: Add a check in case of zero volume fraction ---*/
+    prim(Pg_INDEX)   = EOS_phase_gas.pres_value(rho_g);
 
     for(std::size_t d = 0; d < Field::dim; ++d) {
       prim(U_INDEX + d) = cons(RHO_U_INDEX + d)*inv_rho;
