@@ -176,7 +176,7 @@ namespace samurai {
     const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
-    /*--- Multiply the state the velcoity along the direction of interest ---*/
+    /*--- Multiply the state the velocity along the direction of interest ---*/
     res(Ml_INDEX) *= vel_d;
     res(Mg_INDEX) *= vel_d;
     res(Md_INDEX) *= vel_d;

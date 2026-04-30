@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Author: Giuseppe Orlando, 2025
+// Author: Giuseppe Orlando, 2026
 //
 #pragma once
 
@@ -24,6 +24,43 @@ namespace Utilities {
     }
 
     return lc_string;
+  }
+
+  // Auxiliary function for sum with mpi
+  //
+  template<typename T>
+  inline T mpi_reduce_sum(const T local_val) {
+    #ifdef SAMURAI_WITH_MPI
+      double result;
+      MPI_Allreduce(&local_val, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      return static_cast<T>(result);
+    #else
+      return local_val;
+    #endif
+  }
+
+  // Auxiliary function for max with mpi
+  //
+  template<typename T>
+  inline T mpi_reduce_max(const T local_val) {
+    #ifdef SAMURAI_WITH_MPI
+      double result;
+      MPI_Allreduce(&local_val, &result, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      return static_cast<T>(result);
+    #else
+      return local_val;
+    #endif
+  }
+
+  // Auxiliary function to write
+  template<typename T>
+  inline void write_data(std::ofstream& f,
+                         const T time, const T value,
+                         const int prec = 12) {
+    f << std::fixed << std::setprecision(prec)
+      << time << '\t'
+      << value
+      << std::endl;
   }
 
   // Reconstruction for second order scheme

@@ -655,15 +655,7 @@ TwoScaleCapillarity<dim>::get_max_lambda() {
                             }
                         );
 
-  #ifdef SAMURAI_WITH_MPI
-    const double local_res_d = static_cast<double>(local_res);
-    double global_res;
-    MPI_Allreduce(&local_res_d, &global_res, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-
-    return static_cast<Number>(global_res);
-  #else
-    return local_res;
-  #endif
+  return Utilities::mpi_reduce_max(local_res);
 }
 
 // Auxiliary function to check if spurious values are present
@@ -677,6 +669,24 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
   else {
     op = "after mesh adaptation";
   }
+
+  auto check_positive_field = [&](const Number val, const auto& cell,
+                                  const std::string& name,
+                                  const Number low_tol = static_cast<Number>(0.0))
+                                  {
+                                    if(val < low_tol) {
+                                      std::cerr << cell << std::endl;
+                                      std::cerr << "Negative " + name + op << std::endl;
+                                      save("_diverged", conserved_variables, alpha_l);
+                                      exit(1);
+                                    }
+                                    else if(std::isnan(val)) {
+                                      std::cerr << cell << std::endl;
+                                      std::cerr << "NaN " + name + op << std::endl;
+                                      save("_diverged", conserved_variables, alpha_l);
+                                      exit(1);
+                                    }
+                                  };
 
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
@@ -706,64 +716,20 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
                               }
 
                               // Sanity check for m_l
-                              const auto m_l_loc = local_conserved_variables(Ml_INDEX);
-                              if(m_l_loc < static_cast<Number>(0.0)) {
-                                std::cerr << cell << std::endl;
-                                std::cerr << "Negative mass large-scale liquid " + op << std::endl;
-                                save("_diverged", conserved_variables, alpha_l);
-                                exit(1);
-                              }
-                              else if(std::isnan(m_l_loc)) {
-                                std::cerr << cell << std::endl;
-                                std::cerr << "NaN mass large-scale liquid " + op << std::endl;
-                                save("_diverged", conserved_variables, alpha_l);
-                                exit(1);
-                              }
+                              check_positive_field(local_conserved_variables(Ml_INDEX), cell,
+                                                   "mass large-scale liquid ");
 
                               // Sanity check for m_g
-                              const auto m_g_loc = local_conserved_variables(Mg_INDEX);
-                              if(m_g_loc < static_cast<Number>(0.0)) {
-                                std::cerr << cell << std::endl;
-                                std::cerr << "Negative mass gas phase " + op << std::endl;
-                                save("_diverged", conserved_variables, alpha_l);
-                                exit(1);
-                              }
-                              else if(std::isnan(m_g_loc)) {
-                                std::cerr << cell << std::endl;
-                                std::cerr << "NaN mass gas phase " + op << std::endl;
-                                save("_diverged", conserved_variables, alpha_l);
-                                exit(1);
-                              }
+                              check_positive_field(local_conserved_variables(Mg_INDEX), cell,
+                                                   "mass gas phase ");
 
                               // Sanity check for m_d
-                              const auto m_d_loc = local_conserved_variables(Md_INDEX);
-                              if(m_d_loc < static_cast<Number>(-1e-15)) {
-                                std::cerr << cell << std::endl;
-                                std::cerr << "Negative mass small-scale liquid " + op << std::endl;
-                                save("_diverged", conserved_variables, alpha_l);
-                                exit(1);
-                              }
-                              else if(std::isnan(m_d_loc)) {
-                                std::cerr << cell << std::endl;
-                                std::cerr << "NaN mass small-scale liquid " + op << std::endl;
-                                save("_diverged", conserved_variables, alpha_l);
-                                exit(1);
-                              }
+                              check_positive_field(local_conserved_variables(Md_INDEX), cell,
+                                                   "mass small-scale liquid ");
 
                               // Sanity check for z (the transported variable related to small-scale IAD)
-                              const auto rho_z_loc = local_conserved_variables(RHO_Z_INDEX);
-                              if(rho_z_loc < static_cast<Number>(-1e-15)) {
-                                std::cerr << cell << std::endl;
-                                std::cerr << "Negative interface area small-scale liquid " + op << std::endl;
-                                save("_diverged", conserved_variables, alpha_l);
-                                exit(1);
-                              }
-                              else if(std::isnan(rho_z_loc)) {
-                                std::cerr << cell << std::endl;
-                                std::cerr << "NaN interface area small-scale liquid " + op << std::endl;
-                                save("_diverged", conserved_variables, alpha_l);
-                                exit(1);
-                              }
+                              check_positive_field(local_conserved_variables(RHO_Z_INDEX), cell,
+                                                   "interface area small-scale liquid ");
                             }
                         );
 }
@@ -1247,152 +1213,19 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
                             }
                         );
 
-  /*--- Perform MPI collective operations ---*/
-  double local_H_lig_d = static_cast<double>(local_H_lig);
-  double global_H_lig;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_H_lig_d, &global_H_lig, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-  #else
-    global_H_lig = local_H_lig_d;
-  #endif
-
-  double local_m_l_int_d = static_cast<double>(local_m_l_int);
-  double global_m_l_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_m_l_int_d, &global_m_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_m_l_int = local_m_l_int_d;
-  #endif
-
-  double local_m_d_int_d = static_cast<double>(local_m_d_int);
-  double global_m_d_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_m_d_int_d, &global_m_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_m_d_int = local_m_d_int_d;
-  #endif
-
-  double local_alpha_l_int_d = static_cast<double>(local_alpha_l_int);
-  double global_alpha_l_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_alpha_l_int_d, &global_alpha_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_alpha_l_int = local_alpha_l_int_d;
-  #endif
-
-  double local_grad_alpha_l_int_d = static_cast<double>(local_grad_alpha_l_int);
-  double global_grad_alpha_l_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_grad_alpha_l_int_d, &global_grad_alpha_l_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_grad_alpha_l_int = local_grad_alpha_l_int_d;
-  #endif
-
-  double local_Sigma_d_int_d = static_cast<double>(local_Sigma_d_int);
-  double global_Sigma_d_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_Sigma_d_int_d, &global_Sigma_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_Sigma_d_int = local_Sigma_d_int_d;
-  #endif
-
-  double local_grad_alpha_d_int_d = static_cast<double>(local_grad_alpha_d_int);
-  double global_grad_alpha_d_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_grad_alpha_d_int_d, &global_grad_alpha_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_grad_alpha_d_int = local_grad_alpha_d_int_d;
-  #endif
-
-  double local_alpha_d_int_d = static_cast<double>(local_alpha_d_int);
-  double global_alpha_d_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_alpha_d_int_d, &global_alpha_d_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_alpha_d_int = local_alpha_d_int_d;
-  #endif
-
-  double local_grad_alpha_liq_int_d = static_cast<double>(local_grad_alpha_liq_int);
-  double global_grad_alpha_liq_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_grad_alpha_liq_int_d, &global_grad_alpha_liq_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_grad_alpha_liq_int = local_grad_alpha_liq_int_d;
-  #endif
-
-  double local_alpha_l_bar_int_d = static_cast<double>(local_alpha_l_bar_int);
-  double global_alpha_l_bar_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_alpha_l_bar_int_d, &global_alpha_l_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_alpha_l_bar_int = local_alpha_l_bar_int_d;
-  #endif
-
-  double local_grad_alpha_l_bar_int_d = static_cast<double>(local_grad_alpha_l_bar_int);
-  double global_grad_alpha_l_bar_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_grad_alpha_l_bar_int_d, &global_grad_alpha_l_bar_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_grad_alpha_l_bar_int = local_grad_alpha_l_bar_int_d;
-  #endif
-
-  double local_Etot_int_d = static_cast<double>(local_Etot_int);
-  double global_Etot_int;
-  #ifdef SAMURAI_WITH_MPI
-    MPI_Allreduce(&local_Etot_int_d, &global_Etot_int, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  #else
-    global_Etot_int = local_Etot_int_d;
-  #endif
-
   /*--- Save the data ---*/
-  Hlig                      << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_H_lig)
-                            << std::endl;
-  m_l_integral              << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_m_l_int)
-                            << std::endl;
-  m_d_integral              << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_m_d_int)
-                            << std::endl;
-  alpha_l_integral          << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_alpha_l_int)
-                            << std::endl;
-  grad_alpha_l_integral     << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_grad_alpha_l_int)
-                            << std::endl;
-  Sigma_d_integral          << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_Sigma_d_int)
-                            << std::endl;
-  alpha_d_integral          << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_alpha_d_int)
-                            << std::endl;
-  grad_alpha_d_integral     << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_grad_alpha_d_int)
-                            << std::endl;
-  grad_alpha_liq_integral   << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_grad_alpha_liq_int)
-                            << std::endl;
-  alpha_l_bar_integral      << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_alpha_l_bar_int)
-                            << std::endl;
-  grad_alpha_l_bar_integral << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_grad_alpha_l_bar_int)
-                            << std::endl;
-  Etot_integral             << std::fixed << std::setprecision(12)
-                            << time << '\t'
-                            << static_cast<Number>(global_Etot_int)
-                            << std::endl;
+  Utilities::write_data(Hlig, time, Utilities::mpi_reduce_max(local_H_lig));
+  Utilities::write_data(m_l_integral, time, Utilities::mpi_reduce_sum(local_m_l_int));
+  Utilities::write_data(m_d_integral, time, Utilities::mpi_reduce_sum(local_m_d_int));
+  Utilities::write_data(alpha_l_integral, time, Utilities::mpi_reduce_sum(local_alpha_l_int));
+  Utilities::write_data(grad_alpha_l_integral, time, Utilities::mpi_reduce_sum(local_grad_alpha_l_int));
+  Utilities::write_data(Sigma_d_integral, time, Utilities::mpi_reduce_sum(local_Sigma_d_int));
+  Utilities::write_data(alpha_d_integral, time, Utilities::mpi_reduce_sum(local_alpha_d_int));
+  Utilities::write_data(grad_alpha_d_integral, time, Utilities::mpi_reduce_sum(local_grad_alpha_d_int));
+  Utilities::write_data(grad_alpha_liq_integral, time, Utilities::mpi_reduce_sum(local_grad_alpha_liq_int));
+  Utilities::write_data(alpha_l_bar_integral, time, Utilities::mpi_reduce_sum(local_alpha_l_bar_int));
+  Utilities::write_data(grad_alpha_l_bar_integral, time, Utilities::mpi_reduce_sum(local_grad_alpha_l_bar_int));
+  Utilities::write_data(Etot_integral, time, Utilities::mpi_reduce_sum(local_Etot_int));
 }
 
 //////////////////////////////////////////////////////////////
@@ -1511,17 +1344,20 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     // Apply mesh adaptation
     MRadaptation(mra_config);
     alpha_l.resize();
-    samurai::for_each_cell(mesh,
-                           [&](const auto& cell)
-                              {
-                                const auto& local_conserved_variables = conserved_variables[cell];
+    auto recompute_alpha_l = [&]() {
+      samurai::for_each_cell(mesh,
+                             [&](const auto& cell)
+                                {
+                                  const auto& local_conserved_variables = conserved_variables[cell];
 
-                                alpha_l[cell] = local_conserved_variables(RHO_ALPHA_l_INDEX)/
-                                                (local_conserved_variables(Ml_INDEX) +
-                                                 local_conserved_variables(Mg_INDEX) +
-                                                 local_conserved_variables(Md_INDEX));
-                              }
-                          );
+                                  alpha_l[cell] = local_conserved_variables(RHO_ALPHA_l_INDEX)/
+                                                  (local_conserved_variables(Ml_INDEX) +
+                                                   local_conserved_variables(Mg_INDEX) +
+                                                   local_conserved_variables(Md_INDEX));
+                                }
+                            );
+    };
+    recompute_alpha_l();
     #ifdef VERBOSE
       check_data(1);
     #endif
@@ -1575,17 +1411,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     }
 
     // Update the geometry to recompute volume fraction gradient
-    samurai::for_each_cell(mesh,
-                           [&](const auto& cell)
-                              {
-                                const auto& local_conserved_variables = conserved_variables[cell];
-
-                                alpha_l[cell] = local_conserved_variables(RHO_ALPHA_l_INDEX)/
-                                                (local_conserved_variables(Ml_INDEX) +
-                                                 local_conserved_variables(Mg_INDEX) +
-                                                 local_conserved_variables(Md_INDEX));
-                              }
-                          );
+    recompute_alpha_l();
     #ifdef VERBOSE
       check_data();
     #endif
@@ -1631,17 +1457,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       }
 
       // Recompute geometrical quantities
-      samurai::for_each_cell(mesh,
-                             [&](const auto& cell)
-                                {
-                                  const auto& local_conserved_variables = conserved_variables[cell];
-
-                                  alpha_l[cell] = local_conserved_variables(RHO_ALPHA_l_INDEX)/
-                                                  (local_conserved_variables(Ml_INDEX) +
-                                                   local_conserved_variables(Mg_INDEX) +
-                                                   local_conserved_variables(Md_INDEX));
-                                }
-                            );
+      recompute_alpha_l();
       #ifdef VERBOSE
         check_data();
       #endif
@@ -1660,17 +1476,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
 
       // Apply relaxation
       if(apply_relax) {
-        samurai::for_each_cell(mesh,
-                               [&](const auto& cell)
-                                  {
-                                    const auto& local_conserved_variables = conserved_variables[cell];
-
-                                    alpha_l[cell] = local_conserved_variables(RHO_ALPHA_l_INDEX)/
-                                                    (local_conserved_variables(Ml_INDEX) +
-                                                     local_conserved_variables(Mg_INDEX) +
-                                                     local_conserved_variables(Md_INDEX));
-                                  }
-                              );
+        recompute_alpha_l();
         update_geometry();
         // Apply relaxation if desired, which will modify alpha_l and, consequently, for what
         // concerns next time step, rho_alpha_l (as well as grad_alpha_l).
@@ -1678,17 +1484,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
       }
       else {
         #ifdef RELAX_RECONSTRUCTION
-          samurai::for_each_cell(mesh,
-                                 [&](const auto& cell)
-                                    {
-                                      const auto& local_conserved_variables = conserved_variables[cell];
-
-                                      alpha_l[cell] = local_conserved_variables(RHO_ALPHA_l_INDEX)/
-                                                      (local_conserved_variables(Ml_INDEX) +
-                                                       local_conserved_variables(Mg_INDEX) +
-                                                       local_conserved_variables(Md_INDEX));
-                                    }
-                                );
+          recompute_alpha_l();
           update_geometry();
         #endif
       }
@@ -1697,17 +1493,7 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
     /*--- Postprocess data ---*/
     #ifndef RELAX_RECONSTRUCTION
       if(!apply_relax) {
-        samurai::for_each_cell(mesh,
-                               [&](const auto& cell)
-                                  {
-                                    const auto& local_conserved_variables = conserved_variables[cell];
-
-                                    alpha_l[cell] = local_conserved_variables(RHO_ALPHA_l_INDEX)/
-                                                    (local_conserved_variables(Ml_INDEX) +
-                                                     local_conserved_variables(Mg_INDEX) +
-                                                     local_conserved_variables(Md_INDEX));
-                                  }
-                              );
+        recompute_alpha_l()
         update_geometry();
       }
     #endif
