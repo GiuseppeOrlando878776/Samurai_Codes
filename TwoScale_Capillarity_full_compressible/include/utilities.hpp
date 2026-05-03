@@ -9,6 +9,17 @@
 #include <samurai/schemes/fv.hpp>
 
 namespace Utilities {
+  // Setup a filter to 'smooth' a field. NOTE: this is specific for 2D (9 = 3^dim)
+  //
+  template<class Field_Filter>
+  using cfg_filter = samurai::CellBasedSchemeConfig<samurai::SchemeType::LinearHomogeneous,
+                                                    1, 9, 4, 0, 0,
+                                                    Field_Filter,
+                                                    Field_Filter>;
+
+  template<class Field_Filter>
+  using cell_based_scheme = decltype(samurai::make_cell_based_scheme<cfg_filter<Field_Filter>>());
+
   // Auxiliary function to convert unsigned to string
   //
   template<typename T>
@@ -52,14 +63,14 @@ namespace Utilities {
     #endif
   }
 
-  // Auxiliary function to write
+  // Auxiliary function to write data (time series)
+  //
   template<typename T>
   inline void write_data(std::ofstream& f,
                          const T time, const T value,
                          const int prec = 12) {
     f << std::fixed << std::setprecision(prec)
-      << time << '\t'
-      << value
+      << time << '\t' << value
       << std::endl;
   }
 

@@ -8,7 +8,7 @@
 
 #include "flux_base.hpp"
 
-#define VERBOSE_FLUX
+#define DEBUG_FLUX
 
 namespace samurai {
   using namespace EquationData;
@@ -78,7 +78,7 @@ namespace samurai {
     const auto rho_z_R       = qR(RHO_Z_INDEX);
 
     /*--- Verify if left and right state are coherent ---*/
-    #ifdef VERBOSE_FLUX
+    #ifdef DEBUG_FLUX
       if(m_l_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass large-scale liquid left state: " + std::to_string(m_l_L)));
       }

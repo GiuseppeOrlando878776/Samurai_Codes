@@ -8,7 +8,7 @@
 
 #include "flux_base.hpp"
 
-#define VERBOSE_FLUX
+#define DEBUG_FLUX
 
 namespace samurai {
   using namespace EquationData;
@@ -125,20 +125,20 @@ namespace samurai {
     const auto rho_z_R       = qR(RHO_Z_INDEX);
 
     /*--- Verify if left and right state are coherent ---*/
-    #ifdef VERBOSE_FLUX
+    #ifdef DEBUG_FLUX
       if(m_l_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass large-scale liquid left state: " + std::to_string(m_l_L)));
       }
       if(m_g_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass gas left state: " + std::to_string(m_g_L)));
       }
-      if(m_d_L < static_cast<Number>(-1e-15)) {
+      if(m_d_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass small-scale liquid left state: " + std::to_string(m_d_L)));
       }
       if(rho_alpha_l_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid left state: " + std::to_string(rho_alpha_l_L)));
       }
-      if(rho_z_L < static_cast<Number>(-1e-15)) {
+      if(rho_z_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(rho_z_L)));
       }
 
@@ -148,13 +148,13 @@ namespace samurai {
       if(m_g_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass gas right state: " + std::to_string(m_g_R)));
       }
-      if(m_d_R < static_cast<Number>(-1e-15)) {
+      if(m_d_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass small-scale liquid right state: " + std::to_string(m_d_R)));
       }
       if(rho_alpha_l_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid right state: " + std::to_string(rho_alpha_l_R)));
       }
-      if(rho_z_R < static_cast<Number>(-1e-15)) {
+      if(rho_z_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(rho_z_R)));
       }
     #endif
@@ -216,15 +216,6 @@ namespace samurai {
     /*--- Compute intermediate states ---*/
     const auto q_star_L = compute_middle_state(qL, s_L, s_star, curr_d);
     const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
-
-    #ifdef VERBOSE_FLUX
-      if(q_star_L(Md_INDEX) < static_cast<Number>(-1e-15)) {
-        throw std::runtime_error("Negative mass small-scale left star state");
-      }
-      if(q_star_R(Md_INDEX) < static_cast<Number>(-1e-15)) {
-        throw std::runtime_error("Negative mass small-scale right star state");
-      }
-    #endif
 
     /*--- Compute the flux ---*/
     if(s_L >= static_cast<Number>(0.0)) {
