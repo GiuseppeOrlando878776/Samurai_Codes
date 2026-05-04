@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Author: Giuseppe Orlando, 2025
+// Author: Giuseppe Orlando, 2026
 //
 #pragma once
 
@@ -69,6 +69,9 @@ namespace samurai {
 
     using cfg = FluxConfig<SchemeType::NonLinear, stencil_size, Field, Field>;
 
+    template<class Field_Vect>
+    using cfg_st = FluxConfig<SchemeType::NonLinear, stencil_size, Field, Field_Vect>;
+
     using Number = typename Field::value_type; /*--- Shortcut for the arithmetic type ---*/
 
     Flux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
@@ -90,28 +93,26 @@ namespace samurai {
     const Number      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
     const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
 
-    template<typename Gradient>
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
                                             const std::size_t curr_d,
-                                            const Gradient& grad_alpha1_bar); /*--- Evaluate the 'continuous' flux for the state q
-                                                                                    along direction curr_d ---*/
+                                            const auto& grad_alpha1_bar); /*--- Evaluate the 'continuous' flux for the state q
+                                                                                along direction curr_d ---*/
 
     FluxValue<cfg> evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
                                                 const std::size_t curr_d); /*--- Evaluate the hyperbolic operator for the state q
                                                                                  along direction curr_d --*/
 
-    template<typename Gradient>
-    FluxValue<cfg> evaluate_surface_tension_operator(const Gradient& grad_alpha1_bar,
-                                                     const std::size_t curr_d); /*--- Evaluate the surface tension operator
-                                                                                      for the state q along direction curr_d ---*/
+    template<class Field_Vect>
+    FluxValue<cfg_st<Field_Vect>> evaluate_surface_tension_operator(const auto& grad_alpha_l,
+                                                                    const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q
+                                                                                                     along direction curr_d ---*/
 
     FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
 
     FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conserved variables ---*/
 
     #ifdef RELAX_RECONSTRUCTION
-      template<typename State>
-      void perform_Newton_step_relaxation(State conserved_variables,
+      void perform_Newton_step_relaxation(auto conserved_variables,
                                           const Number H_bar,
                                           Number& dalpha1_bar,
                                           Number& alpha1_bar,
@@ -142,10 +143,10 @@ namespace samurai {
   // Evaluate the 'continuous flux'
   //
   template<class Field>
-  template<typename Gradient>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
-                                                                             const std::size_t curr_d,
-                                                                             const Gradient& grad_alpha1_bar) {
+  FluxValue<typename Flux<Field>::cfg>
+  Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
+                                        const std::size_t curr_d,
+                                        const auto& grad_alpha1_bar) {
     /*--- Initialize the resulting variable with the hyperbolic operator ---*/
     FluxValue<cfg> res = this->evaluate_hyperbolic_operator(q, curr_d);
 
@@ -209,9 +210,10 @@ namespace samurai {
   // Evaluate the surface tension operator
   //
   template<class Field>
-  template<typename Gradient>
-  FluxValue<typename Flux<Field>::cfg> Flux<Field>::evaluate_surface_tension_operator(const Gradient& grad_alpha1_bar,
-                                                                                      const std::size_t curr_d) {
+  template<class Field_Vect>
+  FluxValue<typename Flux<Field>::template cfg_st<Field_Vect>>
+  Flux<Field>::evaluate_surface_tension_operator(const auto& grad_alpha1_bar,
+                                                 const std::size_t curr_d) {
     /*--- Sanity check in terms of dimensions ---*/
     assert(curr_d < Field::dim);
 
@@ -227,7 +229,6 @@ namespace samurai {
       mod2_grad_alpha1_bar += grad_alpha1_bar[d]*grad_alpha1_bar[d];
     }
     const auto mod_grad_alpha1_bar = std::sqrt(mod2_grad_alpha1_bar);
-    //const auto mod_grad_alpha1_bar = std::sqrt(xt::sum(grad_alpha1_bar*grad_alpha1_bar)());
 
     const auto n  = grad_alpha1_bar/(mod_grad_alpha1_bar + static_cast<Number>(1e-10));
     const auto nx = n(0);
@@ -312,8 +313,7 @@ namespace samurai {
     // Perform a Newton step relaxation for a single vector state (i.e. a single cell) without mass transfer
     //
     template<class Field>
-    template<typename State>
-    void Flux<Field>::perform_Newton_step_relaxation(State conserved_variables,
+    void Flux<Field>::perform_Newton_step_relaxation(auto conserved_variables,
                                                      const Number H_bar,
                                                      Number& dalpha1_bar,
                                                      Number& alpha1_bar,
@@ -344,15 +344,19 @@ namespace samurai {
         relaxation_applied = true;
 
         // Compute the derivative w.r.t large-scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-        const auto alpha2_bar     = static_cast<Number>(1.0) - alpha1_bar;
+        const auto c1 = EOS_phase1.c_value(rho1);
+        const auto c2 = EOS_phase2.c_value(rho2);
+
+        const auto alpha2_bar = static_cast<Number>(1.0) - alpha1_bar;
+
         const auto dF_dalpha1_bar = -m1/(alpha1_bar*alpha1_bar)*
-                                    EOS_phase1.c_value(rho1)*EOS_phase1.c_value(rho1)
+                                    c1*c1
                                     -m2/(alpha2_bar*alpha2_bar)*
-                                    EOS_phase2.c_value(rho2)*EOS_phase2.c_value(rho2);
+                                    c2*c2;
 
         // Compute the large-scale volume fraction update
         dalpha1_bar = -F/dF_dalpha1_bar;
-        
+
         if(dalpha1_bar > static_cast<Number>(0.0)) {
           dalpha1_bar = std::min(dalpha1_bar, lambda*alpha2_bar);
         }

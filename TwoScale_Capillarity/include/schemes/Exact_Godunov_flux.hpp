@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Author: Giuseppe Orlando, 2025
+// Author: Giuseppe Orlando, 2026
 //
 #pragma once
 
@@ -36,7 +36,7 @@ namespace samurai {
                 /*--- Constructor which accepts in input the equations of state of the two phases ---*/
 
     #ifdef RELAX_RECONSTRUCTION
-      template<typename Field_Scalar>
+      template<class Field_Scalar>
       auto make_two_scale_capillarity(const Field_Scalar& H_bar); /*--- Compute the flux over all the directions --*/
     #else
       auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
@@ -162,8 +162,9 @@ namespace samurai {
     const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L - alpha1_d_L;
     const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_L = m1_L*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                              + m2_L*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto c1_L           = this->EOS_phase1.c_value(rho1_L);
+    const auto c2_L           = this->EOS_phase2.c_value(rho2_L);
+    const auto rhoc_squared_L = m1_L*c1_L*c1_L + m2_L*c2_L*c2_L;
     const auto c_L            = std::sqrt(rhoc_squared_L*inv_rho_L)/
                                 (static_cast<Number>(1.0) - alpha1_d_L);
     const auto p_bar_L        = alpha1_bar_L*this->EOS_phase1.pres_value(rho1_L)
@@ -177,8 +178,9 @@ namespace samurai {
     const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R - alpha1_d_R;
     const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_R = m1_R*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                              + m2_R*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto c1_R           = this->EOS_phase1.c_value(rho1_R);
+    const auto c2_R           = this->EOS_phase2.c_value(rho2_R);
+    const auto rhoc_squared_R = m1_R*c1_R*c1_R + m2_R*c2_R*c2_R;
     const auto c_R            = std::sqrt(rhoc_squared_R*inv_rho_R)/
                                 (static_cast<Number>(1.0) - alpha1_d_R);
     const auto p_bar_R        = alpha1_bar_R*this->EOS_phase1.pres_value(rho1_R)
@@ -346,8 +348,9 @@ namespace samurai {
     const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L - alpha1_d_L;
     const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_L = m1_L*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                              + m2_L*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto c1_L           = this->EOS_phase1.c_value(rho1_L);
+    const auto c2_L           = this->EOS_phase2.c_value(rho2_L);
+    const auto rhoc_squared_L = m1_L*c1_L*c1_L + m2_L*c2_L*c2_L;
     const auto c_L            = std::sqrt(rhoc_squared_L*inv_rho_L)/
                                 (static_cast<Number>(1.0) - alpha1_d_L);
 
@@ -360,8 +363,9 @@ namespace samurai {
     const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R - alpha1_d_R;
     const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_R = m1_R*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                              + m2_R*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto c1_R           = this->EOS_phase1.c_value(rho1_R);
+    const auto c2_R           = this->EOS_phase2.c_value(rho2_R);
+    const auto rhoc_squared_R = m1_R*c1_R*c1_R + m2_R*c2_R*c2_R;
     const auto c_R            = std::sqrt(rhoc_squared_R*inv_rho_R)/
                                 (static_cast<Number>(1.0) - alpha1_d_R);
 
@@ -665,7 +669,7 @@ namespace samurai {
   //
   template<class Field>
   #ifdef RELAX_RECONSTRUCTION
-    template<typename Field_Scalar>
+    template<class Field_Scalar>
     auto GodunovFlux<Field>::make_two_scale_capillarity(const Field_Scalar& H_bar)
   #else
     auto GodunovFlux<Field>::make_two_scale_capillarity()
@@ -693,8 +697,8 @@ namespace samurai {
 
                                                      FluxValue<cfg> primL_recon,
                                                                     primR_recon;
-                                                     Utilities::perform_reconstruction<Field, cfg>(primLL, primL, primR, primRR,
-                                                                                                   primL_recon, primR_recon);
+                                                     Utilities::perform_reconstruction<Field>(primLL, primL, primR, primRR,
+                                                                                              primL_recon, primR_recon);
 
                                                      FluxValue<cfg> qL = this->prim2cons(primL_recon);
                                                      FluxValue<cfg> qR = this->prim2cons(primR_recon);
@@ -705,8 +709,8 @@ namespace samurai {
                                                      #endif
                                                   #else
                                                      // Extract the states
-                                                     const FluxValue<cfg> qL = field[0];
-                                                     const FluxValue<cfg> qR = field[1];
+                                                     const FluxValue<cfg>& qL = field[0];
+                                                     const FluxValue<cfg>& qR = field[1];
                                                   #endif
 
                                                   // Compute the numerical flux

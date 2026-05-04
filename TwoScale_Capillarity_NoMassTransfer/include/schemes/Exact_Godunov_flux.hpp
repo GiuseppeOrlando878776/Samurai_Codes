@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Author: Giuseppe Orlando, 2025
+// Author: Giuseppe Orlando, 2026
 //
 #pragma once
 
@@ -35,7 +35,7 @@ namespace samurai {
                 /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef RELAX_RECONSTRUCTION
-      template<typename Field_Scalar>
+      template<class Field_Scalar>
       auto make_flux(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
     #else
       auto make_flux(); /*--- Compute the flux over all the directions ---*/
@@ -100,8 +100,9 @@ namespace samurai {
     const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L;
     const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_L = m1_L*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                              + m2_L*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
+    const auto c1_L           = this->EOS_phase1.c_value(rho1_L);
+    const auto c2_L           = this->EOS_phase2.c_value(rho2_L);
+    const auto rhoc_squared_L = m1_L*c1_L*c1_L + m2_L*c2_L*c2_L;
     const auto c_L            = std::sqrt(rhoc_squared_L*inv_rho_L);
     const auto p_L            = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
                               + alpha2_L*this->EOS_phase2.pres_value(rho2_L);
@@ -113,8 +114,9 @@ namespace samurai {
     const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R;
     const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_R = m1_R*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                              + m2_R*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
+    const auto c1_R           = this->EOS_phase1.c_value(rho1_R);
+    const auto c2_R           = this->EOS_phase2.c_value(rho2_R);
+    const auto rhoc_squared_R = m1_R*c1_R*c1_R + m2_R*c2_R*c2_R;
     const auto c_R            = std::sqrt(rhoc_squared_R*inv_rho_R);
     const auto p_R            = alpha1_R*this->EOS_phase1.pres_value(rho1_R)
                               + alpha2_R*this->EOS_phase2.pres_value(rho2_R);
@@ -244,17 +246,10 @@ namespace samurai {
     const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L;
     const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_L = m1_L*this->EOS_phase1.c_value(rho1_L)*this->EOS_phase1.c_value(rho1_L)
-                              + m2_L*this->EOS_phase2.c_value(rho2_L)*this->EOS_phase2.c_value(rho2_L);
-    #ifdef VERBOSE_FLUX
-      if(rho_L < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative density left state: " + std::to_string(rho_L)));
-      }
-      if(rhoc_squared_L*inv_rho_L < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative square speed of sound left state: " + std::to_string(rhoc_squared_L*inv_rho_L)));
-      }
-    #endif
-    const auto c_L = std::sqrt(rhoc_squared_L*inv_rho_L);
+    const auto c1_L           = this->EOS_phase1.c_value(rho1_L);
+    const auto c2_L           = this->EOS_phase2.c_value(rho2_L);
+    const auto rhoc_squared_L = m1_L*c1_L*c1_L + m2_L*c2_L*c2_L;
+    const auto c_L            = std::sqrt(rhoc_squared_L*inv_rho_L);
 
     // Right state useful variables
     const auto rho_R          = m1_R + m2_R;
@@ -264,17 +259,10 @@ namespace samurai {
     const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R;
     const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rhoc_squared_R = m1_R*this->EOS_phase1.c_value(rho1_R)*this->EOS_phase1.c_value(rho1_R)
-                              + m2_R*this->EOS_phase2.c_value(rho2_R)*this->EOS_phase2.c_value(rho2_R);
-    #ifdef VERBOSE_FLUX
-      if(rho_R < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative density right state: " + std::to_string(rho_R)));
-      }
-      if(rhoc_squared_R*inv_rho_R < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative square speed of sound right state: " + std::to_string(rhoc_squared_R*inv_rho_R)));
-      }
-    #endif
-    const auto c_R = std::sqrt(rhoc_squared_R*inv_rho_R);
+    const auto c1_R           = this->EOS_phase1.c_value(rho1_R);
+    const auto c2_R           = this->EOS_phase2.c_value(rho2_R);
+    const auto rhoc_squared_R = m1_R*c1_R*c1_R + m2_R*c2_R*c2_R;
+    const auto c_R            = std::sqrt(rhoc_squared_R*inv_rho_R);
 
     // Compute p*
     const auto p_L = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
@@ -465,7 +453,7 @@ namespace samurai {
   //
   template<class Field>
   #ifdef RELAX_RECONSTRUCTION
-    template<typename Field_Scalar>
+    template<class Field_Scalar>
     auto GodunovFlux<Field>::make_flux(const Field_Scalar& H)
   #else
     auto GodunovFlux<Field>::make_flux()
@@ -505,8 +493,8 @@ namespace samurai {
                                                      #endif
                                                   #else
                                                     // Extract the states
-                                                    const FluxValue<cfg> qL = field[0];
-                                                    const FluxValue<cfg> qR = field[1];
+                                                    const FluxValue<cfg>& qL = field[0];
+                                                    const FluxValue<cfg>& qR = field[1];
                                                   #endif
 
                                                   flux = compute_discrete_flux(qL, qR, d);
