@@ -165,7 +165,7 @@ namespace samurai {
     const auto inv_rho_L = static_cast<Number>(1.0)/rho_L;
     const auto vel_d_L   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
-    const auto alpha_l_L   = qL(RHO_ALPHA_l_INDEX)*inv_rho_L;
+    const auto alpha_l_L   = rho_alpha_l_L*inv_rho_L;
     const auto alpha_d_L   = alpha_l_L*m_d_L/m_l_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
     const auto alpha_liq_L = alpha_l_L + alpha_d_L;
     const auto alpha_g_L   = static_cast<Number>(1.0) - alpha_liq_L;

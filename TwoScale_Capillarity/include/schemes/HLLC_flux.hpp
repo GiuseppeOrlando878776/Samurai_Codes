@@ -8,7 +8,7 @@
 
 #include "flux_base.hpp"
 
-#define VERBOSE_FLUX
+#define DEBUG_FLUX
 
 namespace samurai {
   using namespace EquationData;
@@ -128,23 +128,23 @@ namespace samurai {
     const auto Sigma_d_R        = qR(SIGMA_D_INDEX);
 
     /*--- Verify if left and right state are coherent ---*/
-    #ifdef VERBOSE_FLUX
+    #ifdef DEBUG_FLUX
       if(m1_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass large-scale phase 1 left state: " + std::to_string(m1_L)));
       }
       if(m2_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(m2_L)));
       }
-      if(m1_d_L < static_cast<Number>(-1e-15)) {
+      if(m1_d_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass small-scale phase 1 left state: " + std::to_string(m1_d_L)));
       }
       if(rho_alpha1_bar_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative large-scale volume fraction phase 1 left state: " + std::to_string(rho_alpha1_bar_L)));
       }
-      if(alpha1_d_L < static_cast<Number>(-1e-15)) {
+      if(alpha1_d_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 left state: " + std::to_string(alpha1_d_L)));
       }
-      if(Sigma_d_L < static_cast<Number>(-1e-15)) {
+      if(Sigma_d_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative small-scale IAD left state: " + std::to_string(Sigma_d_L)));
       }
 
@@ -154,16 +154,16 @@ namespace samurai {
       if(m2_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(m2_R)));
       }
-      if(m1_d_R < static_cast<Number>(-1e-15)) {
+      if(m1_d_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass small-scale phase 1 right state: " + std::to_string(m1_d_R)));
       }
       if(rho_alpha1_bar_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative large-scale volume fraction phase 1 right state: " + std::to_string(rho_alpha1_bar_R)));
       }
-      if(alpha1_d_R < static_cast<Number>(-1e-15)) {
+      if(alpha1_d_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative small-scale volume fraction phase 1 right state: " + std::to_string(alpha1_d_R)));
       }
-      if(Sigma_d_R < static_cast<Number>(-1e-15)) {
+      if(Sigma_d_R < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative small-scale IAD right state: " + std::to_string(Sigma_d_R)));
       }
     #endif

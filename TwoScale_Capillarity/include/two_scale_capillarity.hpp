@@ -741,6 +741,7 @@ void TwoScaleCapillarity<dim>::recompute_alpha1_bar() {
 //////////////////////////////////////////////////////////////
 
 // Perform the finite volume stage (hyperbolic + capillarity subsystems)
+//
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::perform_fv_stage(auto& numerical_flux_hyp,
                                                 auto& numerical_flux_st) {

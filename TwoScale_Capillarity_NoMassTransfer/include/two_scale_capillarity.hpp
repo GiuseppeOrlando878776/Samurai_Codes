@@ -235,6 +235,7 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
     /*--- Initialize the fields ---*/
     if(sim_param.restart_file.empty()) {
       mesh = {box, sim_param.min_level, sim_param.max_level, {{false, true}}};
+
       init_variables(sim_param.x0, sim_param.y0,
                      sim_param.U0, sim_param.U1,
                      sim_param.V0,
@@ -587,6 +588,7 @@ void TwoScaleCapillarity<dim>::recompute_alpha1() {
 //////////////////////////////////////////////////////////////
 
 // Perform the finite volume stage (hyperbolic + capillarity subsystems)
+//
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::perform_fv_stage(auto& numerical_flux_hyp,
                                                 auto& numerical_flux_st) {

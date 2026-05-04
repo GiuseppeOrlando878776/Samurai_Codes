@@ -8,7 +8,7 @@
 
 #include "flux_base.hpp"
 
-#define VERBOSE_FLUX
+#define DEBUG_FLUX
 
 namespace samurai {
   using namespace EquationData;
@@ -74,7 +74,7 @@ namespace samurai {
     const auto rho_alpha1_R = qR(RHO_ALPHA1_INDEX);
 
     /*--- Verify if left and right state are coherent ---*/
-    #ifdef VERBOSE_FLUX
+    #ifdef DEBUG_FLUX
       if(m1_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
       }

@@ -121,7 +121,7 @@ private:
 
   Field conserved_variables; /*--- The variable which stores the conserved variables,
                                    namely the varialbes for which we solve a PDE system ---*/
-  Field conserved_variables_tmp; /*--- Auxiliary field since we are solveing a time-dependent PDE ---*/
+  Field conserved_variables_tmp; /*--- Auxiliary field since we are solving a time-dependent PDE ---*/
 
   /*--- Now we declare a bunch of fields which depend from the state, but it is useful
         to have it so as to avoid recomputation ---*/
@@ -544,7 +544,6 @@ void TwoScaleCapillarity<dim>::apply_bcs(const Number U0,
                                         static_cast<Number>(0.0))->on(right);
 }
 
-
 //////////////////////////////////////////////////////////////
 /*---- FOCUS NOW ON THE AUXILIARY FUNCTIONS ---*/
 //////////////////////////////////////////////////////////////
@@ -759,6 +758,7 @@ void TwoScaleCapillarity<dim>::recompute_alpha_l() {
 //////////////////////////////////////////////////////////////
 
 // Perform the finite volume stage (hyperbolic + capillarity subsystems)
+//
 template<std::size_t dim>
 void TwoScaleCapillarity<dim>::perform_fv_stage(auto& numerical_flux_hyp,
                                                 auto& numerical_flux_st) {
