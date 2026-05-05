@@ -258,6 +258,8 @@ template<std::size_t dim>
 void TwoScaleCapillarity<dim>::create_fields() {
   conserved_variables = samurai::make_vector_field<Number, Field::n_comp>("conserved", mesh);
 
+  conserved_variables_tmp = samurai::make_vector_field<Number, Field::n_comp>("conserved_tmp", mesh);
+
   vel = samurai::make_vector_field<Number, dim>("vel", mesh);
 
   alpha1      = samurai::make_scalar_field<Number>("alpha1", mesh);
@@ -281,6 +283,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                                               const Number alpha_residual) {
   /*--- Resize the fields since now mesh has been created ---*/
   conserved_variables.resize();
+  conserved_variables_tmp.resize();
   vel.resize();
   alpha1.resize();
   grad_alpha1.resize();
