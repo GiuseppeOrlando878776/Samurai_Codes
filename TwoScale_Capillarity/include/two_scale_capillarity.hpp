@@ -18,25 +18,15 @@
 /*--- Add header with auxiliary structs ---*/
 #include "containers.hpp"
 
-/*--- Add header with auxiliary data structures for post-processing ---*/
-#include "postprocessing.hpp"
-
 /*--- Add user implemented boundary condition ---*/
 #include "user_bc.hpp"
 
 /*--- Include the headers with the numerical fluxes ---*/
-//#define RUSANOV_FLUX
-#define GODUNOV_FLUX
-//#define HLLC_FLUX
-
-#ifdef RUSANOV_FLUX
-  #include "Rusanov_flux.hpp"
-#elifdef GODUNOV_FLUX
-  #include "Exact_Godunov_flux.hpp"
-#elifdef HLLC_FLUX
-  #include "HLLC_flux.hpp"
-#endif
+#include "Hyperbolic_flux.hpp"
 #include "SurfaceTension_flux.hpp"
+
+/*--- Add header with auxiliary data structures for post-processing ---*/
+#include "postprocessing.hpp"
 
 /*--- Specify the use of this namespace where we just store the indices ---*/
 using namespace EquationData;
@@ -66,7 +56,8 @@ public:
                       const EOS_Parameters<Number>& eos_param); /*--- Class constructor with the arguments related
                                                                       to the grid, to the physics, and to the relaxation. ---*/
 
-  void run(const std::size_t nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
+  void run(const std::string& num_flux_hyp,
+           const std::size_t nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const std::string& suffix,
@@ -112,14 +103,8 @@ private:
                                   EOS_phase2; /*--- The two variables which take care of the
                                                     barotropic EOS to compute the speed of sound ---*/
 
-  #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
-  #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field> Godunov_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
-  #elifdef HLLC_FLUX
-    samurai::HLLCFlux<Field> HLLC_flux; /*--- Auxiliary variable to compute the flux for the hyperbolic operator ---*/
-  #endif
-  samurai::SurfaceTensionFlux<Field, Field_Vect> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
+  HyperbolicFlux<Field> Hyperbolic_flux; /*--- Auxiliary variable to compute the contribution associated with hyperbolic operator ---*/
+  samurai::SurfaceTensionFlux<Field, Field_Vect> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated with surface tension ---*/
 
   fs::path    path;     /*--- Auxiliary variable to store the output directory ---*/
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
@@ -227,18 +212,9 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
-  #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma,
-                 lambda, atol_Newton, rtol_Newton, max_Newton_iters),
-  #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma,
-                 lambda, atol_Newton, rtol_Newton, max_Newton_iters,
-                 sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star,
-                 sim_param.tol_Newton_alpha1_d),
-  #elifdef HLLC_FLUX
-    HLLC_flux(EOS_phase1, EOS_phase2, sigma,
-              lambda, atol_Newton, rtol_Newton, max_Newton_iters),
-  #endif
+  Hyperbolic_flux(create_hyperbolic_flux<Field>(sim_param.num_flux_hyp,
+                                                EOS_phase1, EOS_phase2, sigma,
+                                                lambda, atol_Newton, rtol_Newton, max_Newton_iters)),
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma,
                       lambda, atol_Newton, rtol_Newton, max_Newton_iters),
   path(sim_param.save_dir),
@@ -346,7 +322,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
   to_be_relaxed.resize();
   Newton_iterations.resize();
 
-  /*--- Declare some constant parameters associated to the initial state ---*/
+  /*--- Declare some constant parameters associated with the initial state ---*/
   const auto eps_R = eps_over_R*R;
 
   /*--- Initialize some fields to define the liquid column with a loop over all cells ---*/
@@ -422,7 +398,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               p_bar[cell] = alpha1_bar[cell]*p1[cell]
                                           + (static_cast<Number>(1.0) - alpha1_bar[cell])*p2[cell];
 
-                              // Set conserved variable associated to large-scale volume fraction
+                              // Set conserved variable associated with large-scale volume fraction
                               const auto rho = conserved_variables[cell](M1_INDEX)
                                              + conserved_variables[cell](M2_INDEX)
                                              + conserved_variables[cell](M1_D_INDEX);
@@ -942,18 +918,22 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
       if(dH > static_cast<Number>(0.0)) {
         // Bound preserving condition for m1
         dtau_ov_epsilon = lambda*(alpha1_loc*alpha2_bar_loc)/(sigma*dH);
-        if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-          throw std::runtime_error("Negative time step found after relaxation of mass of large-scale phase 1");
-        }
+        #ifdef DEBUG
+          if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
+            throw std::runtime_error("Negative time step found after relaxation of mass of large-scale phase 1");
+          }
+        #endif
 
         // Bound preserving for the velocity
         const auto mom_dot_vel   = (local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX) +
                                     local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
         auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(dH*fac_Ru*sigma);
         dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-        if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-          throw std::runtime_error("Negative time step found after relaxation of velocity");
-        }
+        #ifdef DEBUG
+          if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
+            throw std::runtime_error("Negative time step found after relaxation of velocity");
+          }
+        #endif
 
         // Bound preserving for the small-scale volume fraction
         dtau_ov_epsilon_tmp = lambda*(alpha1d_max - alpha1_d_loc)*alpha2_bar_loc*rho1d_loc/
@@ -965,9 +945,11 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
 
           dtau_ov_epsilon     = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
         }
-        if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-          throw std::runtime_error("Negative time step found after relaxation of small-scale volume fraction");
-        }
+        #ifdef DEBUG
+          if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
+            throw std::runtime_error("Negative time step found after relaxation of small-scale volume fraction");
+          }
+        #endif
       }
 
       // Bound preserving condition for large-scale volume fraction
@@ -1008,9 +990,11 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
         dtau_ov_epsilon_tmp = -lambda*alpha1_bar_loc/b;
       }
       dtau_ov_epsilon = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-      if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-        throw std::runtime_error("Negative time step found after relaxation of large-scale volume fraction");
-      }
+      #ifdef DEBUG
+        if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
+          throw std::runtime_error("Negative time step found after relaxation of large-scale volume fraction");
+        }
+      #endif
 
       // Compute the effective variation of the variables
       if(std::isinf(dtau_ov_epsilon)) {
@@ -1030,46 +1014,46 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
                           (m1_loc/(alpha1_bar_loc*(static_cast<Number>(1.0) - alpha1_d_loc)))*
                           sigma*dH;
 
-        if(dm1 > static_cast<Number>(0.0)) {
-          throw std::runtime_error("Negative sign of mass transfer inside Newton step");
-        }
-        else {
-          local_conserved_variables(M1_INDEX) += dm1;
-          #ifdef DEBUG
-            if(local_conserved_variables(M1_INDEX) < static_cast<Number>(0.0)) {
-              throw std::runtime_error("Negative mass of large-scale phase 1 inside Newton step");
-            }
-          #endif
-
-          local_conserved_variables(M1_D_INDEX) -= dm1;
-          #ifdef DEBUG
-            if(local_conserved_variables(M1_D_INDEX) < static_cast<Number>(0.0)) {
-              throw std::runtime_error("Negative mass of small-scale phase 1 inside Newton step");
-            }
-          #endif
-
-          #ifdef DEBUG
-            if(alpha1_d_loc - dm1*inv_rho1d_loc > static_cast<Number>(1.0)) {
-              throw std::runtime_error("Exceeding value for small-scale volume fraction inside Newton step");
-            }
-          #endif
-          local_conserved_variables(ALPHA1_D_INDEX) -= dm1*inv_rho1d_loc;
-
-          local_conserved_variables(SIGMA_D_INDEX) -= dm1*static_cast<Number>(3.0)*Hmax/(kappa*rho1d_loc);
-
-          const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
-                                 + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
-          const auto drho_fac_Ru = dtau_ov_epsilon*
-                                   sigma*dH*fac_Ru*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
-
-          for(std::size_t d = 0; d < Field::dim; ++d) {
-            local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
+        #ifdef DEBUG
+          if(dm1 > static_cast<Number>(0.0)) {
+            throw std::runtime_error("Negative sign of mass transfer inside Newton step");
           }
+        #endif
+        local_conserved_variables(M1_INDEX) += dm1;
+        #ifdef DEBUG
+          if(local_conserved_variables(M1_INDEX) < static_cast<Number>(0.0)) {
+            throw std::runtime_error("Negative mass of large-scale phase 1 inside Newton step");
+          }
+        #endif
 
-          const auto num_dalpha1_bar = dtau_ov_epsilon/(static_cast<Number>(1.0) - alpha1_d_loc);
-          const auto den_dalpha1_bar = static_cast<Number>(1.0) - num_dalpha1_bar*dF_dalpha1_bar;
-          dalpha1_bar_loc            = (num_dalpha1_bar/den_dalpha1_bar)*(F - dm1*R);
+        local_conserved_variables(M1_D_INDEX) -= dm1;
+        #ifdef DEBUG
+          if(local_conserved_variables(M1_D_INDEX) < static_cast<Number>(0.0)) {
+            throw std::runtime_error("Negative mass of small-scale phase 1 inside Newton step");
+          }
+        #endif
+
+        #ifdef DEBUG
+          if(alpha1_d_loc - dm1*inv_rho1d_loc > static_cast<Number>(1.0)) {
+            throw std::runtime_error("Exceeding value for small-scale volume fraction inside Newton step");
+          }
+        #endif
+        local_conserved_variables(ALPHA1_D_INDEX) -= dm1*inv_rho1d_loc;
+
+        local_conserved_variables(SIGMA_D_INDEX) -= dm1*static_cast<Number>(3.0)*Hmax/(kappa*rho1d_loc);
+
+        const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
+                               + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
+        const auto drho_fac_Ru = dtau_ov_epsilon*
+                                 sigma*dH*fac_Ru*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
+
+        for(std::size_t d = 0; d < Field::dim; ++d) {
+          local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
         }
+
+        const auto num_dalpha1_bar = dtau_ov_epsilon/(static_cast<Number>(1.0) - alpha1_d_loc);
+        const auto den_dalpha1_bar = static_cast<Number>(1.0) - num_dalpha1_bar*dF_dalpha1_bar;
+        dalpha1_bar_loc            = (num_dalpha1_bar/den_dalpha1_bar)*(F - dm1*R);
       }
 
       #ifdef DEBUG
@@ -1227,16 +1211,11 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
+void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
+                                   const std::size_t nfiles) {
   /*--- Default output arguemnts ---*/
   filename = "liquid_column";
-  #ifdef RUSANOV_FLUX
-    filename += "_Rusanov";
-  #elifdef GODUNOV_FLUX
-    filename += "_Godunov";
-  #elifdef HLLC_FLUX
-    filename += "_HLLC";
-  #endif
+  filename += "_" + num_flux_hyp;
 
   #ifdef ORDER_2
     filename += "_order2";
@@ -1262,24 +1241,18 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
   #endif
 
   /*--- Create the flux variables ---*/
-  #ifdef RUSANOV_FLUX
-    #ifdef RELAX_RECONSTRUCTION
-      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity(H_bar);
-    #else
-      auto numerical_flux_hyp = Rusanov_flux.make_two_scale_capillarity();
-    #endif
-  #elifdef GODUNOV_FLUX
-    #ifdef RELAX_RECONSTRUCTION
-      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity(H_bar);
-    #else
-      auto numerical_flux_hyp = Godunov_flux.make_two_scale_capillarity();
-    #endif
-  #elifdef HLLC_FLUX
-    #ifdef RELAX_RECONSTRUCTION
-      auto numerical_flux_hyp = HLLC_flux.make_two_scale_capillarity(H_bar);
-    #else
-      auto numerical_flux_hyp = HLLC_flux.make_two_scale_capillarity();
-    #endif
+  #ifdef RELAX_RECONSTRUCTION
+    auto numerical_flux_hyp = std::visit([this](auto& f)
+                                               {
+                                                 return f.make_two_scale_capillarity(H_bar);
+                                               },
+                                         Hyperbolic_flux);
+  #else
+    auto numerical_flux_hyp = std::visit([](auto& f)
+                                               {
+                                                 return f.make_two_scale_capillarity();
+                                               },
+                                         Hyperbolic_flux);
   #endif
   auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity();
 

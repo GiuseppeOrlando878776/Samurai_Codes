@@ -16,7 +16,7 @@ namespace Utilities {
     std::string lc_string = std::to_string(value);
 
     if(lc_string.size() < digits) {
-      // We have to add the padding zeros in front of the number
+      /*--- We have to add the padding zeros in front of the number ---*/
       const unsigned int padding_position = (lc_string[0] == '-') ? 1 : 0;
 
       const std::string padding(digits - lc_string.size(), '0');

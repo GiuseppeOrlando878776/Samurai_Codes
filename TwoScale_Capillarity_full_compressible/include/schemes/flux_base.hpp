@@ -399,14 +399,14 @@ namespace samurai {
             dalpha_l = std::max(dalpha_l, -lambda*alpha_l);
           }
 
-          if(alpha_l + dalpha_l < static_cast<Number>(0.0) ||
-             alpha_l + dalpha_l > static_cast<Number>(1.0)) {
-            // I should never get here. Added only for the sake of safety!!
-            throw std::runtime_error("Bounds exceeding value for large-scale liquid volume fraction inside Newton step of reconstruction");
-          }
-          else {
-            alpha_l += dalpha_l;
-          }
+          #ifdef DEBUG_FLUX
+            if(alpha_l + dalpha_l < static_cast<Number>(0.0) ||
+               alpha_l + dalpha_l > static_cast<Number>(1.0)) {
+              // I should never get here. Added only for the sake of safety!!
+              throw std::runtime_error("Bounds exceeding value for large-scale liquid volume fraction inside Newton step of reconstruction");
+            }
+          #endif
+          alpha_l += dalpha_l;
         }
 
         /*--- Update the vector of conserved variables

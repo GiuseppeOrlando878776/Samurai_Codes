@@ -334,13 +334,14 @@ namespace samurai {
             dalpha1 = std::max(dalpha1, -lambda*alpha1);
           }
 
-          if(alpha1 + dalpha1 < static_cast<Number>(0.0) ||
-             alpha1 + dalpha1 > static_cast<Number>(1.0)) {
-            throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step of reconstruction");
-          }
-          else {
-            alpha1 += dalpha1;
-          }
+          #ifdef DEBUG_FLUX
+            if(alpha1 + dalpha1 < static_cast<Number>(0.0) ||
+               alpha1 + dalpha1 > static_cast<Number>(1.0)) {
+              // I should never get here. Added only for the sake of safety!!
+              throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step of reconstruction");
+            }
+          #endif
+          alpha1 += dalpha1;
         }
 
         /*--- Update the vector of conserved variables (probably not the optimal choice since I need this update only at the end of the Newton loop,

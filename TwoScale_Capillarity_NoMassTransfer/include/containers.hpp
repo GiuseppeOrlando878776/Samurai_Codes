@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Author: Giuseppe Orlando, 2025
+// Author: Giuseppe Orlando, 2026
 //
 #pragma once
 
@@ -32,6 +32,8 @@ struct Simulation_Parameters {
   T eps_over_R;
 
   /*--- Numerical parameters ---*/
+  std::string num_flux_hyp;
+
   T Courant;
 
   T alpha_residual;

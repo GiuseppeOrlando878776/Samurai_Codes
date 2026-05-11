@@ -25,17 +25,7 @@ namespace fs = std::filesystem;
 #include "user_bc.hpp"
 
 /*--- Include the headers with the numerical fluxes ---*/
-//#define RUSANOV_FLUX
-//#define GODUNOV_FLUX
-#define HLLC_FLUX
-
-#ifdef RUSANOV_FLUX
-  #include "Rusanov_flux.hpp"
-#elifdef GODUNOV_FLUX
-  #include "Exact_Godunov_flux.hpp"
-#elifdef HLLC_FLUX
- #include "HLLC_flux.hpp"
-#endif
+#include "Hyperbolic_flux.hpp"
 #include "SurfaceTension_flux.hpp"
 
 /*--- Specify the use of this namespace where we just store the indices ---*/
@@ -67,7 +57,8 @@ public:
                       const EOS_Parameters<Number>& eos_param); /*--- Class constrcutor with the arguments related
                                                                       to the grid, to the physics and to the relaxation. ---*/
 
-  void run(const std::size_t nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
+  void run(const std::string& num_flux_hyp,
+           const std::size_t nfiles = 10); /*--- Function which actually executes the temporal loop ---*/
 
   template<class... Variables>
   void save(const std::string& suffix,
@@ -106,14 +97,8 @@ private:
                                   EOS_phase2; /*--- The two variables which take care of the
                                                     barotropic EOS to compute the speed of sound ---*/
 
-  #ifdef RUSANOV_FLUX
-    samurai::RusanovFlux<Field> Rusanov_flux; /*--- Auxiliary variable to compute the flux ---*/
-  #elifdef GODUNOV_FLUX
-    samurai::GodunovFlux<Field> Godunov_flux; /*--- Auxiliary variable to compute the flux ---*/
-  #elifdef HLLC_FLUX
-    samurai::HLLCFlux<Field> HLLC_flux; /*--- Auxiliary variable to compute the flux ---*/
-  #endif
-  samurai::SurfaceTensionFlux<Field, Field_Vect> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated to surface tension ---*/
+  HyperbolicFlux<Field> Hyperbolic_flux; /*--- Auxiliary variable to compute the contribution associated with hyperbolic operator ---*/
+  samurai::SurfaceTensionFlux<Field, Field_Vect> SurfaceTension_flux; /*--- Auxiliary variable to compute the contribution associated with surface tension ---*/
 
   fs::path    path;     /*--- Auxiliary variable to store the output directory ---*/
   std::string filename; /*--- Auxiliary variable to store the name of output ---*/
@@ -199,17 +184,9 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
-  #ifdef RUSANOV_FLUX
-    Rusanov_flux(EOS_phase1, EOS_phase2, sigma,
-                 lambda, atol_Newton, rtol_Newton, max_Newton_iters),
-  #elifdef GODUNOV_FLUX
-    Godunov_flux(EOS_phase1, EOS_phase2, sigma,
-                 lambda, atol_Newton, rtol_Newton, max_Newton_iters,
-                 sim_param.atol_Newton_p_star, sim_param.rtol_Newton_p_star),
-  #elifdef HLLC_FLUX
-    HLLC_flux(EOS_phase1, EOS_phase2, sigma,
-              lambda, atol_Newton, rtol_Newton, max_Newton_iters),
-  #endif
+  Hyperbolic_flux(create_hyperbolic_flux<Field>(sim_param.num_flux_hyp,
+                                                EOS_phase1, EOS_phase2, sigma,
+                                                lambda, atol_Newton, rtol_Newton, max_Newton_iters)),
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma,
                       sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
                       max_Newton_iters),
@@ -293,7 +270,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
   to_be_relaxed.resize();
   Newton_iterations.resize();
 
-  /*--- Declare some constant parameters associated to the initial state ---*/
+  /*--- Declare some constant parameters associated with the initial state ---*/
   const auto eps_R = eps_over_R*R;
 
   /*--- Initialize some fields to define the bubble with a loop over all cells ---*/
@@ -356,7 +333,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
 
                               conserved_variables[cell](M2_INDEX) = (static_cast<Number>(1.0) - alpha1[cell])*rho2;
 
-                              // Set conserved variable associated to large-scale volume fraction
+                              // Set conserved variable associated with large-scale volume fraction
                               const auto rho = conserved_variables[cell](M1_INDEX)
                                              + conserved_variables[cell](M2_INDEX);
 
@@ -747,14 +724,14 @@ void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserv
         dalpha1_loc = std::max(dalpha1_loc, -lambda*alpha1_loc);
       }
 
-      if(alpha1_loc + dalpha1_loc < static_cast<Number>(0.0) ||
-         alpha1_loc + dalpha1_loc > static_cast<Number>(1.0)) {
-        // I should never get here. Added only for the sake of safety!!
-        throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step ");
-      }
-      else {
-        alpha1_loc += dalpha1_loc;
-      }
+      #ifdef DEBUG
+        if(alpha1_loc + dalpha1_loc < static_cast<Number>(0.0) ||
+           alpha1_loc + dalpha1_loc > static_cast<Number>(1.0)) {
+          // I should never get here. Added only for the sake of safety!!
+          throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step ");
+        }
+      #endif
+      alpha1_loc += dalpha1_loc;
     }
 
     /*--- Update the vector of conserved variables (probably not the optimal choice since I need this update only at the end of the Newton loop,
@@ -790,18 +767,12 @@ void TwoScaleCapillarity<dim>::save(const std::string& suffix,
 // Implement the function that effectively performs the temporal loop
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
+void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
+                                   const std::size_t nfiles) {
   /*--- Default output arguemnts ---*/
   path = fs::current_path();
   filename = "liquid_column_no_mass_transfer";
-  #ifdef RUSANOV_FLUX
-    filename += "_Rusanov";
-  #elifdef GODUNOV_FLUX
-    filename += "_Godunov";
-  #elifdef HLLC_FLUX
-    filename += "_HLLC";
-  #endif
-
+  filename += "_" + num_flux_hyp;
   #ifdef ORDER_2
     filename += "_order2";
     #ifdef RELAX_RECONSTRUCTION
@@ -819,24 +790,18 @@ void TwoScaleCapillarity<dim>::run(const std::size_t nfiles) {
   #endif
 
   /*--- Create the flux variables ---*/
-  #ifdef RUSANOV_FLUX
-    #ifdef RELAX_RECONSTRUCTION
-      auto numerical_flux_hyp = Rusanov_flux.make_flux(H);
-    #else
-      auto numerical_flux_hyp = Rusanov_flux.make_flux();
-    #endif
-  #elifdef GODUNOV_FLUX
-    #ifdef RELAX_RECONSTRUCTION
-      auto numerical_flux_hyp = Godunov_flux.make_flux(H);
-    #else
-      auto numerical_flux_hyp = Godunov_flux.make_flux();
-    #endif
-  #elifdef HLLC_FLUX
-    #ifdef RELAX_RECONSTRUCTION
-      auto numerical_flux_hyp = HLLC_flux.make_flux(H);
-    #else
-      auto numerical_flux_hyp = HLLC_flux.make_flux();
-    #endif
+  #ifdef RELAX_RECONSTRUCTION
+    auto numerical_flux_hyp = std::visit([this](auto& f)
+                                               {
+                                                 return f.make_flux(H);
+                                               },
+                                         Hyperbolic_flux);
+  #else
+    auto numerical_flux_hyp = std::visit([](auto& f)
+                                               {
+                                                 return f.make_flux();
+                                               },
+                                         Hyperbolic_flux);
   #endif
   auto numerical_flux_st = SurfaceTension_flux.make_flux_capillarity();
 

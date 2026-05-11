@@ -6,7 +6,7 @@
 //
 #pragma once
 
-#include "flux_base.hpp"
+#include "../flux_base.hpp"
 
 #define DEBUG_FLUX
 
@@ -138,7 +138,7 @@ namespace samurai {
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
     const auto rho_R          = m1_R + m2_R + m1_d_R;
-    const auto inv_rho_R      = static_cast<Number>(1.0)/rho_RL;
+    const auto inv_rho_R      = static_cast<Number>(1.0)/rho_R;
     const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
     const auto alpha1_bar_R   = rho_alpha1_bar_R*inv_rho_R;

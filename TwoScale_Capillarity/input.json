@@ -24,6 +24,8 @@
  "R": 0.15,
  "eps_over_R": 0.2,
 
+ "num_flux_hyp": "HLLC",
+
  "cfl": 0.4,
 
  "alpha_residual": 1e-8,

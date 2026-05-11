@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
+// Author: Giuseppe Orlando, 2026
+//
 #include <CLI/CLI.hpp>
 
 #include <nlohmann/json.hpp>
@@ -51,6 +53,8 @@ int main(int argc, char* argv[]) {
   sim_param.eps_over_R = input.value("eps_over_R", static_cast<Number>(0.2));
 
   // Numerical parameters
+  sim_param.num_flux_hyp = input.value("num_flux_hyp", "HLLC");
+
   sim_param.Courant = input.value("cfl", static_cast<Number>(0.4));
 
   sim_param.alpha_residual       = input.value("alpha_residual", static_cast<Number>(1e-8));
@@ -110,6 +114,9 @@ int main(int argc, char* argv[]) {
                  "Initial interface thickness with respect to the radius")->capture_default_str()->group("Physical parameters");
 
   // Numerical parameters
+  app.add_option("--num_flux_hyp", sim_param.num_flux_hyp,
+                 "The numerical flux for hyperbolic subsystem")->capture_default_str()->group("Numerical parameters");
+
   app.add_option("--cfl", sim_param.Courant, "The Courant number")->capture_default_str()->group("Numerical parameters");
 
   app.add_option("--apply_filter", sim_param.apply_filter, "Apply or not filtering")->capture_default_str()->group("Numerical parameters");
@@ -166,7 +173,7 @@ int main(int argc, char* argv[]) {
   auto TwoScaleCapillarity_Sim = TwoScaleCapillarity(min_corner, max_corner,
                                                      sim_param, eos_param);
 
-  TwoScaleCapillarity_Sim.run(sim_param.nfiles);
+  TwoScaleCapillarity_Sim.run(sim_param.num_flux_hyp, sim_param.nfiles);
 
   samurai::finalize();
 

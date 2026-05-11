@@ -6,7 +6,7 @@
 //
 #pragma once
 
-#include "flux_base.hpp"
+#include "../flux_base.hpp"
 
 #define DEBUG_FLUX
 
@@ -137,7 +137,7 @@ namespace samurai {
   // Implement the contribution of the discrete flux for all the directions.
   //
   template<class Field>
-  #ifdef ORDER_2
+  #ifdef RELAX_RECONSTRUCTION
     template<class Field_Scalar>
     auto RusanovFlux<Field>::make_flux(const Field_Scalar& H)
   #else

@@ -6,7 +6,7 @@
 //
 #pragma once
 
-#include "flux_base.hpp"
+#include "../flux_base.hpp"
 
 #define DEBUG_FLUX
 
@@ -23,8 +23,8 @@ namespace samurai {
     using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
                                               for the flux (nonlinear in this case) ---*/
 
-    HLLCFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
-             const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+    HLLCFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
+             const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
              const Number sigma_,
              const Number lambda_,
              const Number atol_Newton_,
@@ -33,9 +33,9 @@ namespace samurai {
 
     #ifdef RELAX_RECONSTRUCTION
       template<class Field_Scalar>
-      auto make_flux(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
+      auto make_two_scale_capillarity(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
     #else
-      auto make_flux(); /*--- Compute the flux over all the directions ---*/
+      auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
     #endif
 
   private:
@@ -52,17 +52,17 @@ namespace samurai {
   // Constructor derived from the base class
   //
   template<class Field>
-  HLLCFlux<Field>::HLLCFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
-                            const LinearizedBarotropicEOS<Number>& EOS_phase2_,
+  HLLCFlux<Field>::HLLCFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
+                            const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
                             const Number sigma_,
                             const Number lambda_,
                             const Number atol_Newton_,
                             const Number rtol_Newton_,
                             const std::size_t max_Newton_iters_):
-    Flux<Field>(EOS_phase1_, EOS_phase2_, sigma_,
+    Flux<Field>(EOS_phase_liq_, EOS_phase_gas_, sigma_,
                 lambda_, atol_Newton_, rtol_Newton_, max_Newton_iters_) {}
 
-  // Implement the auxliary routine that computes the middle state
+  // Implement the auxiliary routine that computes the middle state
   //
   template<class Field>
   FluxValue<typename HLLCFlux<Field>::cfg>
@@ -71,11 +71,12 @@ namespace samurai {
                                         const Number S_star,
                                         const std::size_t curr_d) const {
     /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
-    const auto m1 = q(M1_INDEX);
-    const auto m2 = q(M2_INDEX);
+    const auto m_l = q(Ml_INDEX);
+    const auto m_g = q(Mg_INDEX);
+    const auto m_d = q(Md_INDEX);
 
     /*--- Save velocity current direction ---*/
-    const auto rho     = m1 + m2;
+    const auto rho     = m_l + m_g + m_d;
     const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
@@ -84,12 +85,15 @@ namespace samurai {
 
     const auto u_star = (S - vel_d)/(S - S_star);
 
-    const auto m1_star           = m1*u_star;
-    q_star(M1_INDEX)             = m1_star;
-    const auto m2_star           = m2*u_star;
-    q_star(M2_INDEX)             = m2_star;
-    const auto rho_star          = m1_star + m2_star;
-    q_star(RHO_ALPHA1_INDEX)     = rho_star*(q(RHO_ALPHA1_INDEX)*inv_rho);
+    const auto m_l_star          = m_l*u_star;
+    q_star(Ml_INDEX)             = m_l_star;
+    const auto m_g_star          = m_g*u_star;
+    q_star(Mg_INDEX)             = m_g_star;
+    const auto m_d_star          = m_d*u_star;
+    q_star(Md_INDEX)             = m_d_star;
+    const auto rho_star          = m_l_star + m_g_star + m_d_star;
+    q_star(RHO_ALPHA_l_INDEX)    = rho_star*(q(RHO_ALPHA_l_INDEX)*inv_rho);
+    q_star(RHO_Z_INDEX)          = rho_star*(q(RHO_Z_INDEX)*inv_rho);
     q_star(RHO_U_INDEX + curr_d) = rho_star*S_star;
     for(std::size_t d = 0; d < Field::dim; ++d) {
       if(d != curr_d) {
@@ -108,72 +112,104 @@ namespace samurai {
                                          const FluxValue<cfg>& qR,
                                          const std::size_t curr_d) {
     /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
-    const auto m1_L         = qL(M1_INDEX);
-    const auto m2_L         = qL(M2_INDEX);
-    const auto rho_alpha1_L = qL(RHO_ALPHA1_INDEX);
+    const auto m_l_L         = qL(Ml_INDEX);
+    const auto m_g_L         = qL(Mg_INDEX);
+    const auto m_d_L         = qL(Md_INDEX);
+    const auto rho_alpha_l_L = qL(RHO_ALPHA_l_INDEX);
+    const auto rho_z_L       = qL(RHO_Z_INDEX);
 
-    const auto m1_R         = qR(M1_INDEX);
-    const auto m2_R         = qR(M2_INDEX);
-    const auto rho_alpha1_R = qR(RHO_ALPHA1_INDEX);
+    const auto m_l_R         = qR(Ml_INDEX);
+    const auto m_g_R         = qR(Mg_INDEX);
+    const auto m_d_R         = qR(Md_INDEX);
+    const auto rho_alpha_l_R = qR(RHO_ALPHA_l_INDEX);
+    const auto rho_z_R       = qR(RHO_Z_INDEX);
 
     /*--- Verify if left and right state are coherent ---*/
     #ifdef DEBUG_FLUX
-      if(m1_L < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
+      if(m_l_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass large-scale liquid left state: " + std::to_string(m_l_L)));
       }
-      if(m2_L < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass phase 2 left state: " + std::to_string(m2_L)));
+      if(m_g_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass gas left state: " + std::to_string(m_g_L)));
       }
-      if(rho_alpha1_L < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative volume fraction phase 1 left state: " + std::to_string(rho_alpha1_L)));
+      if(m_d_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass small-scale liquid left state: " + std::to_string(m_d_L)));
+      }
+      if(rho_alpha_l_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction large-scale liquid left state: " + std::to_string(rho_alpha_l_L)));
+      }
+      if(rho_z_L < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative interface area small-scale liquid left state: " + std::to_string(rho_z_L)));
       }
 
-      if(m1_R < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass phase 1 right state: " + std::to_string(m1_R)));
+      if(m_l_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass large-scale liquid right state: " + std::to_string(m_l_R)));
       }
-      if(m2_R < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative mass phase 2 right state: " + std::to_string(m2_R)));
+      if(m_g_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass gas right state: " + std::to_string(m_g_R)));
       }
-      if(rho_alpha1_R < static_cast<Number>(0.0)) {
-        throw std::runtime_error(std::string("Negative volume fraction phase 1 right state: " + std::to_string(rho_alpha1_R)));
+      if(m_d_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative mass small-scale liquid right state: " + std::to_string(m_d_R)));
+      }
+      if(rho_alpha_l_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative volume fraction large-scale liquid right state: " + std::to_string(rho_alpha_l_R)));
+      }
+      if(rho_z_R < static_cast<Number>(0.0)) {
+        throw std::runtime_error(std::string("Negative interface area small-scale liquid right state: " + std::to_string(rho_z_R)));
       }
     #endif
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
-    const auto rho_L          = m1_L + m2_L;
-    const auto inv_rho_L      = static_cast<Number>(1.0)/rho_L;
-    const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
+    const auto m_liq_L   = m_l_L + m_d_L;
+    const auto rho_L     = m_liq_L + m_g_L;
+    const auto inv_rho_L = static_cast<Number>(1.0)/rho_L;
+    const auto vel_d_L   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
-    const auto alpha1_L       = rho_alpha1_L*inv_rho_L;
-    const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L;
-    const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c1_L           = this->EOS_phase1.c_value(rho1_L);
-    const auto c2_L           = this->EOS_phase2.c_value(rho2_L);
-    const auto rhoc_squared_L = m1_L*c1_L*c1_L + m2_L*c2_L*c2_L;
-    const auto c_L            = std::sqrt(rhoc_squared_L*inv_rho_L);
+    const auto alpha_l_L   = rho_alpha_l_L*inv_rho_L;
+    const auto alpha_d_L   = alpha_l_L*m_d_L/m_l_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_liq_L = alpha_l_L + alpha_d_L;
+    const auto alpha_g_L   = static_cast<Number>(1.0) - alpha_liq_L;
+
+    const auto Y_g_L     = m_g_L*inv_rho_L;
+    const auto rho_liq_L = m_liq_L/alpha_liq_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g_L   = m_g_L/alpha_g_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto Sigma_d_L = rho_z_L/std::cbrt(rho_liq_L*rho_liq_L);
+    const auto c_liq_L   = this->EOS_phase_liq.c_value(rho_liq_L);
+    const auto c_g_L     = this->EOS_phase_gas.c_value(rho_g_L);
+    const auto cf_L      = std::sqrt((static_cast<Number>(1.0) - Y_g_L)*c_liq_L*c_liq_L +
+                                     Y_g_L*c_g_L*c_g_L -
+                                     static_cast<Number>(2.0/9.0)*this->sigma*Sigma_d_L*inv_rho_L);
 
     /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
-    const auto rho_R          = m1_R + m2_R;
-    const auto inv_rho_R      = static_cast<Number>(1.0)/rho_R;
-    const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
+    const auto m_liq_R   = m_l_R + m_d_R;
+    const auto rho_R     = m_liq_R + m_g_R;
+    const auto inv_rho_R = static_cast<Number>(1.0)/rho_R;
+    const auto vel_d_R   = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
-    const auto alpha1_R       = rho_alpha1_R*inv_rho_R;
-    const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R;
-    const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto c1_R           = this->EOS_phase1.c_value(rho1_R);
-    const auto c2_R           = this->EOS_phase2.c_value(rho2_R);
-    const auto rhoc_squared_R = m1_R*c1_R*c1_R + m2_R*c2_R*c2_R;
-    const auto c_R            = std::sqrt(rhoc_squared_R*inv_rho_R);
+    const auto alpha_l_R   = rho_alpha_l_R*inv_rho_R;
+    const auto alpha_d_R   = alpha_l_R*m_d_R/m_l_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_liq_R = alpha_l_R + alpha_d_R;
+    const auto alpha_g_R   = static_cast<Number>(1.0) - alpha_liq_R;
+
+    const auto Y_g_R     = m_g_R*inv_rho_R;
+    const auto rho_liq_R = m_liq_R/alpha_liq_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g_R   = m_g_R/alpha_g_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto Sigma_d_R = rho_z_R/std::cbrt(rho_liq_R*rho_liq_R);
+    const auto c_liq_R   = this->EOS_phase_liq.c_value(rho_liq_R);
+    const auto c_g_R     = this->EOS_phase_gas.c_value(rho_g_R);
+    const auto cf_R      = std::sqrt((static_cast<Number>(1.0) - Y_g_R)*c_liq_R*c_liq_R +
+                                     Y_g_R*c_g_R*c_g_R -
+                                     static_cast<Number>(2.0/9.0)*this->sigma*Sigma_d_R*inv_rho_R);
 
     /*--- Compute speeds of wave propagation ---*/
-    const auto s_L    = std::min(vel_d_L - c_L, vel_d_R - c_R);
-    const auto s_R    = std::max(vel_d_L + c_L, vel_d_R + c_R);
-    const auto p_L    = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
-                      + alpha2_L*this->EOS_phase2.pres_value(rho2_L);
-    const auto p_R    = alpha1_R*this->EOS_phase1.pres_value(rho1_R)
-                      + alpha2_R*this->EOS_phase2.pres_value(rho2_R);
+    const auto s_L    = std::min(vel_d_L - cf_L, vel_d_R - cf_R);
+    const auto s_R    = std::max(vel_d_L + cf_L, vel_d_R + cf_R);
+    const auto p_L    = alpha_liq_L*this->EOS_phase_liq.pres_value(rho_liq_L)
+                      + alpha_g_L*this->EOS_phase_gas.pres_value(rho_g_L)
+                      - static_cast<Number>(2.0/3.0)*this->sigma*Sigma_d_L;
+    const auto p_R    = alpha_liq_R*this->EOS_phase_liq.pres_value(rho_liq_R)
+                      + alpha_g_R*this->EOS_phase_gas.pres_value(rho_g_R)
+                      - static_cast<Number>(2.0/3.0)*this->sigma*Sigma_d_R;
     const auto s_star = (p_R - p_L + rho_L*vel_d_L*(s_L - vel_d_L) - rho_R*vel_d_R*(s_R - vel_d_R))/
                         (rho_L*(s_L - vel_d_L) - rho_R*(s_R - vel_d_R));
 
@@ -203,9 +239,9 @@ namespace samurai {
   template<class Field>
   #ifdef RELAX_RECONSTRUCTION
     template<class Field_Scalar>
-    auto HLLCFlux<Field>::make_flux(const Field_Scalar& H)
+    auto HLLCFlux<Field>::make_two_scale_capillarity(const Field_Scalar& H)
   #else
-    auto HLLCFlux<Field>::make_flux()
+    auto HLLCFlux<Field>::make_two_scale_capillarity()
   #endif
   {
     FluxDefinition<cfg> HLLC_f;
@@ -240,14 +276,14 @@ namespace samurai {
                                                     this->relax_reconstruction(qL, H[data.cells[1]]);
                                                     this->relax_reconstruction(qR, H[data.cells[2]]);
                                                   #endif
-                                               #else
+                                                #else
                                                   // Extract the states
                                                   const FluxValue<cfg>& qL = field[0];
                                                   const FluxValue<cfg>& qR = field[1];
-                                               #endif
+                                                #endif
 
-                                               flux = compute_discrete_flux(qL, qR, d);
-                                             };
+                                                flux = compute_discrete_flux(qL, qR, d);
+                                              };
         }
     );
 

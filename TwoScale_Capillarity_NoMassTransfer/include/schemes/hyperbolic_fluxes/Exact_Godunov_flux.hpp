@@ -6,7 +6,7 @@
 //
 #pragma once
 
-#include "flux_base.hpp"
+#include "../flux_base.hpp"
 
 #define DEBUG_FLUX
 
