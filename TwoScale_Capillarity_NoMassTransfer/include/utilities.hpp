@@ -8,6 +8,32 @@
 
 #include <samurai/schemes/fv.hpp>
 
+/**
+ * Useful parameters and enumerators
+ */
+namespace EquationData {
+  // Declare spatial dimension
+  static constexpr std::size_t dim = 2;
+
+  // Use auxiliary variables for the indices for the sake of generality
+  static constexpr std::size_t M1_INDEX         = 0;
+  static constexpr std::size_t M2_INDEX         = 1;
+  static constexpr std::size_t RHO_ALPHA1_INDEX = 2;
+  static constexpr std::size_t RHO_U_INDEX      = 3;
+
+  // Save also the total number of (scalar) variables
+  static constexpr std::size_t NVARS = 3 + dim;
+
+  // Use auxiliary variables for the indices also for primitive variables for the sake of generality
+  static constexpr std::size_t ALPHA1_INDEX = RHO_ALPHA1_INDEX;
+  static constexpr std::size_t P1_INDEX     = M1_INDEX;
+  static constexpr std::size_t P2_INDEX     = M2_INDEX;
+  static constexpr std::size_t U_INDEX      = RHO_U_INDEX;
+}
+
+/**
+ * Useful auxiliary functions not related to a specific class or instance
+ */
 namespace Utilities {
   // Auxiliary function to convert unsigned to string
   //
@@ -16,7 +42,7 @@ namespace Utilities {
     std::string lc_string = std::to_string(value);
 
     if(lc_string.size() < digits) {
-      /*--- We have to add the padding zeros in front of the number ---*/
+      // We have to add the padding zeros in front of the number
       const unsigned int padding_position = (lc_string[0] == '-') ? 1 : 0;
 
       const std::string padding(digits - lc_string.size(), '0');
@@ -35,13 +61,13 @@ namespace Utilities {
                               const auto& primRR,
                               auto& primL_recon,
                               auto& primR_recon) {
-    using Number = typename Field::value_type; /*--- Define the shortcut for the arithmetic type ---*/
+    using Number = typename Field::value_type; // Define the shortcut for the arithmetic type
 
-    /*--- Initialize with the original state ---*/
+    // Initialize with the original state
     primL_recon = primL;
     primR_recon = primR;
 
-    /*--- Perform the reconstruction ---*/
+    // Perform the reconstruction
     const auto beta = static_cast<Number>(1.0); // MINMOD limiter
     for(std::size_t comp = 0; comp < Field::n_comp; ++comp) {
       if(primR(comp) - primL(comp) > static_cast<Number>(0.0)) {

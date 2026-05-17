@@ -12,8 +12,8 @@
 namespace fs = std::filesystem;
 
 /**
-  * Auxiliary struct to save post-processing data
-  */
+ * Auxiliary struct to save post-processing data
+ */
 template<typename Number>
 struct IntegralQuantities {
   Number H_lig = static_cast<Number>(0.0);
@@ -29,12 +29,15 @@ struct IntegralQuantities {
 };
 
 /**
-  * Auxiliary class to perform post-processing
-  */
+ * Auxiliary class to perform post-processing
+ */
 template<typename Number>
 class PostprocessWriter {
 public:
-  /*--- Open the file in the constructor ---*/
+  /**
+   * Open the file in the constructor
+   * @param output_dir path with output directory
+   */
   explicit PostprocessWriter(const fs::path& output_dir) {
     open_stream(Hlig, output_dir / "Hlig.dat");
     open_stream(m1_integral, output_dir / "m1_integral.dat");
@@ -48,18 +51,24 @@ public:
     open_stream(grad_alpha1_tot_integral, output_dir / "grad_alpha1_tot_integral.dat");
   }
 
-  /*--- Default destructor ---*/
-  ~PostprocessWriter() = default; /*--- std::ofstream closes itself in its own destructor ---*/
+  /**
+   * Default destructor
+   */
+  ~PostprocessWriter() = default; // std::ofstream closes itself in its own destructor
 
-  /*--- Delete copy constructors ---*/
+  // Delete copy constructors
   PostprocessWriter(const PostprocessWriter&)            = delete;
   PostprocessWriter& operator=(const PostprocessWriter&) = delete;
 
-  /*--- Allow move constructors ---*/
+  // Allow move constructors
   PostprocessWriter(PostprocessWriter&&)            = default;
   PostprocessWriter& operator=(PostprocessWriter&&) = default;
 
-  /*--- Perform writing operation ---*/
+  /**
+   * Perform writing operation
+   * @param time current time instant
+   * @param q integral quantities to be written
+   */
   void write(const Number time, const IntegralQuantities<Number>& q) {
     Utilities::write_data(Hlig, time, q.H_lig);
     Utilities::write_data(m1_integral, time, q.m1_int);
@@ -74,7 +83,7 @@ public:
   }
 
 private:
-  /*--- Auxiliary output streams for post-processing ---*/
+  // Auxiliary output streams for post-processing
   std::ofstream Hlig;
   std::ofstream m1_integral;
   std::ofstream m1_d_integral;
@@ -86,7 +95,11 @@ private:
   std::ofstream grad_alpha1_integral;
   std::ofstream grad_alpha1_tot_integral;
 
-  /*--- Open stream ---*/
+  /**
+   * Open stream
+   * @param stream stream to be opened
+   * @param path specified output path
+   */
   static void open_stream(std::ofstream& stream, const fs::path& path) {
     stream.open(path);
     if(!stream.is_open()) {

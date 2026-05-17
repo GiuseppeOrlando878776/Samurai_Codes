@@ -19,10 +19,22 @@ namespace samurai {
   template<class Field>
   class GodunovFlux: public Flux<Field> {
   public:
-    using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
-                                              for the flux (nonlinear in this case) ---*/
+    using Number = Flux<Field>::Number; // Define the shortcut for the arithmetic type
+    using cfg    = Flux<Field>::cfg;    // Shortcut to specify the type of configuration
+                                        // for the flux (nonlinear in this case)
 
+    /**
+     * Class constructor
+     * @param EOS_phase_1_ phase 1 equation of state
+     * @param EOS_phase_2_ phase 2 equation of state
+     * @param sigma_ surface tension coefficient
+     * @param lambda_ bound-preserving parameter
+     * @param atol_Newton_ absolute tolerance for dual-time stepping
+     * @param rtol_Newton_ relative tolerance for dual-time stepping
+     * @param max_Newton_iters_ maximum number of iterations for dual-time stepping
+     * @param atol_Newton_p_star_ absolute tolerance Newton method to compute p_star
+     * @param rtol_Newton_p_star_ relative tolerance Newton method to compute p_star
+     */
     GodunovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
                 const LinearizedBarotropicEOS<Number>& EOS_phase2_,
                 const Number sigma_,
@@ -32,30 +44,52 @@ namespace samurai {
                 const std::size_t max_Newton_iters_,
                 const Number atol_Newton_p_star_ = static_cast<Number>(1e-10),
                 const Number rtol_Newton_p_star_ = static_cast<Number>(1e-8));
-                /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
 
     #ifdef RELAX_RECONSTRUCTION
+      /**
+       * Compute the flux over all the directions
+       * @param H curvature (so as to perform reconstruction)
+       */
       template<class Field_Scalar>
-      auto make_flux(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
+      auto make_flux(const Field_Scalar& H);
     #else
-      auto make_flux(); /*--- Compute the flux over all the directions ---*/
+      /**
+       * Compute the flux over all the directions
+       */
+      auto make_flux();
     #endif
 
   private:
-    const Number atol_Newton_p_star; /*--- Absolute tolerance of the Newton method to compute p_star ---*/
-    const Number rtol_Newton_p_star; /*--- Relative tolerance of the Newton method to compute p_star ---*/
+    const Number atol_Newton_p_star; /*!< Absolute tolerance of the Newton method to compute p_star */
+    const Number rtol_Newton_p_star; /*!< Relative tolerance of the Newton method to compute p_star */
 
+    /**
+     * Godunov flux
+     * @param qL left state
+     * @param qR right state
+     * @param curr_d current direction
+     */
     FluxValue<cfg> compute_discrete_flux(const FluxValue<cfg>& qL,
                                          const FluxValue<cfg>& qR,
-                                         const std::size_t curr_d); /*--- Godunov flux for the along direction curr_d ---*/
+                                         const std::size_t curr_d);
 
+    /**
+     * Newton method to compute p* in the exact solver
+     * @param qL left state
+     * @param qR right state
+     * @param dvel_d increment of the velocity in Newton method
+     * @param vel_d_L velocity left state
+     * @param p0_L left (maximum admissible) pressure
+     * @param p0_R right (maximum admissible) pressure
+     * @return p_star updated value of p*
+     */
     void solve_p_star(const FluxValue<cfg>& qL,
                       const FluxValue<cfg>& qR,
                       const Number dvel_d,
                       const Number vel_d_L,
                       const Number p0_L,
                       const Number p0_R,
-                      Number& p_star); /*--- Newton method to compute p* in the exact solver for the hyperbolic part ---*/
+                      Number& p_star);
   };
 
   // Constructor derived from the base class
@@ -86,20 +120,20 @@ namespace samurai {
                                         Number& p_star) {
     Number dp_star = std::numeric_limits<Number>::infinity();
 
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto m1_L = qL(M1_INDEX);
     const auto m2_L = qL(M2_INDEX);
 
     const auto m1_R = qR(M1_INDEX);
     const auto m2_R = qR(M2_INDEX);
 
-    /*--- Left state useful variables ---*/
+    // Left state useful variables
     const auto rho_L          = m1_L + m2_L;
     const auto inv_rho_L      = static_cast<Number>(1.0)/rho_L;
     const auto alpha1_L       = qL(RHO_ALPHA1_INDEX)*inv_rho_L;
-    const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho1_L         = m1_L/alpha1_L; // TODO: Add a check in case of zero volume fraction
     const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L;
-    const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L         = m2_L/alpha2_L; // TODO: Add a check in case of zero volume fraction
     const auto c1_L           = this->EOS_phase1.c_value(rho1_L);
     const auto c2_L           = this->EOS_phase2.c_value(rho2_L);
     const auto rhoc_squared_L = m1_L*c1_L*c1_L + m2_L*c2_L*c2_L;
@@ -107,13 +141,13 @@ namespace samurai {
     const auto p_L            = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
                               + alpha2_L*this->EOS_phase2.pres_value(rho2_L);
 
-    /*--- Right state useful variables ---*/
+    // Right state useful variables
     const auto rho_R          = m1_R + m2_R;
     const auto inv_rho_R      = static_cast<Number>(1.0)/rho_R;
     const auto alpha1_R       = qR(RHO_ALPHA1_INDEX)*inv_rho_R;
-    const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho1_R         = m1_R/alpha1_R; // TODO: Add a check in case of zero volume fraction
     const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R;
-    const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R         = m2_R/alpha2_R; // TODO: Add a check in case of zero volume fraction
     const auto c1_R           = this->EOS_phase1.c_value(rho1_R);
     const auto c2_R           = this->EOS_phase2.c_value(rho2_R);
     const auto rhoc_squared_R = m1_R*c1_R*c1_R + m2_R*c2_R*c2_R;
@@ -139,7 +173,7 @@ namespace samurai {
       F_p_star -= (p_star - p_R)/std::sqrt(rho_R*(p_star - p0_R));
     }
 
-    /*--- Loop of Newton method to compute p* ---*/
+    // Loop of Newton method to compute p*
     std::size_t Newton_iter = 0;
     while(Newton_iter < this->max_Newton_iters &&
           std::abs(F_p_star) > this->atol_Newton_p_star + this->rtol_Newton_p_star*std::abs(vel_d_L) &&
@@ -203,7 +237,7 @@ namespace samurai {
   GodunovFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
                                             const FluxValue<cfg>& qR,
                                             const std::size_t curr_d) {
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto m1_L         = qL(M1_INDEX);
     const auto m2_L         = qL(M2_INDEX);
     const auto rho_alpha1_L = qL(RHO_ALPHA1_INDEX);
@@ -212,7 +246,7 @@ namespace samurai {
     const auto m2_R         = qR(M2_INDEX);
     const auto rho_alpha1_R = qR(RHO_ALPHA1_INDEX);
 
-    /*--- Verify if left and right state are coherent ---*/
+    // Verify if left and right state are coherent
     #ifdef DEBUG_FLUX
       if(m1_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
@@ -235,7 +269,7 @@ namespace samurai {
       }
     #endif
 
-    /*--- Compute the intermediate state (either shock or rarefaction) ---*/
+    // Compute the intermediate state (either shock or rarefaction)
     FluxValue<cfg> q_star = qL;
 
     // Left state useful variables
@@ -243,9 +277,9 @@ namespace samurai {
     const auto inv_rho_L      = static_cast<Number>(1.0)/rho_L;
     const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
     const auto alpha1_L       = rho_alpha1_L*inv_rho_L;
-    const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho1_L         = m1_L/alpha1_L; // TODO: Add a check in case of zero volume fraction
     const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L;
-    const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L         = m2_L/alpha2_L; // TODO: Add a check in case of zero volume fraction
     const auto c1_L           = this->EOS_phase1.c_value(rho1_L);
     const auto c2_L           = this->EOS_phase2.c_value(rho2_L);
     const auto rhoc_squared_L = m1_L*c1_L*c1_L + m2_L*c2_L*c2_L;
@@ -256,9 +290,9 @@ namespace samurai {
     const auto inv_rho_R      = static_cast<Number>(1.0)/rho_R;
     const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
     const auto alpha1_R       = rho_alpha1_R*inv_rho_R;
-    const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho1_R         = m1_R/alpha1_R; // TODO: Add a check in case of zero volume fraction
     const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R;
-    const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R         = m2_R/alpha2_R; // TODO: Add a check in case of zero volume fraction
     const auto c1_R           = this->EOS_phase1.c_value(rho1_R);
     const auto c2_R           = this->EOS_phase2.c_value(rho2_R);
     const auto rhoc_squared_R = m1_R*c1_R*c1_R + m2_R*c2_R*c2_R;
@@ -445,7 +479,7 @@ namespace samurai {
       }
     }
 
-    /*--- Compute the hyperbolic contribution to the flux ---*/
+    // Compute the hyperbolic contribution to the flux
     return this->evaluate_hyperbolic_operator(q_star, curr_d);
   }
 
@@ -461,7 +495,7 @@ namespace samurai {
   {
     FluxDefinition<cfg> Godunov_f;
 
-    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
+    // Perform the loop over each dimension to compute the flux contribution
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
          {
@@ -492,9 +526,9 @@ namespace samurai {
                                                        this->relax_reconstruction(qR, H[data.cells[2]]);
                                                      #endif
                                                   #else
-                                                    // Extract the states
-                                                    const FluxValue<cfg>& qL = field[0];
-                                                    const FluxValue<cfg>& qR = field[1];
+                                                     // Extract the states
+                                                     const FluxValue<cfg>& qL = field[0];
+                                                     const FluxValue<cfg>& qR = field[1];
                                                   #endif
 
                                                   flux = compute_discrete_flux(qL, qR, d);

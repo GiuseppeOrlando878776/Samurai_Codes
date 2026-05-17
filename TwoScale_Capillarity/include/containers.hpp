@@ -6,11 +6,12 @@
 //
 #pragma once
 
-// Declare a struct with the simulation parameters
-//
+/**
+ * Declare a struct with the simulation parameters
+ */
 template<typename T = double>
 struct Simulation_Parameters {
-  /*--- Physical parameters ---*/
+  // Physical parameters
   double xL;
   double xR;
   double yL;
@@ -37,7 +38,7 @@ struct Simulation_Parameters {
   T R;
   T eps_over_R;
 
-  /*--- Numerical parameters ---*/
+  // Numerical parameters
   std::string num_flux_hyp;
 
   T Courant;
@@ -54,22 +55,23 @@ struct Simulation_Parameters {
   T rtol_Newton_p_star;
   T tol_Newton_alpha1_d;
 
-  /*--- MR parameters ---*/
+  // MR parameters
   std::size_t min_level;
   std::size_t max_level;
   double      MR_param;
   double      MR_regularity;
 
-  /*--- Output parameters ---*/
+  // Output parameters
   std::string save_dir;
   std::size_t nfiles;
 
-  /*--- Restart file ---*/
+  // Restart file
   std::string restart_file;
 };
 
-// Declare a struct with EOS parameters
-//
+/**
+ * Declare a struct with the EOS parameters
+ */
 template<typename T = double>
 struct EOS_Parameters {
   T p0_phase1;

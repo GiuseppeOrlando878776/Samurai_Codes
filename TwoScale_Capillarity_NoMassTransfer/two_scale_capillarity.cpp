@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
                  "Tolerance for zero gradient volume fraction")->capture_default_str()->group("Numerical parameters");
 
   app.add_option("--lambda", sim_param.lambda,
-                 "Parameter for bound preserving strategy")->capture_default_str()->group("Numerical parameters");
+                 "Parameter for bound-preserving strategy")->capture_default_str()->group("Numerical parameters");
   app.add_option("--atol_Newton", sim_param.atol_Newton,
                  "Absolute tolerance of Newton method for the relaxation")->capture_default_str()->group("Numerical parameters");
   app.add_option("--rtol_Newton", sim_param.rtol_Newton,

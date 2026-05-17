@@ -14,34 +14,57 @@ namespace samurai {
   using namespace EquationData;
 
   /**
-    * Implementation of a Rusanov flux
-    */
+   * Implementation of a Rusanov flux
+   */
   template<class Field>
   class RusanovFlux: public Flux<Field> {
   public:
-    using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
-                                              for the flux (nonlinear in this case) ---*/
+    using Number = Flux<Field>::Number; // Define the shortcut for the arithmetic type
+    using cfg    = Flux<Field>::cfg;    // Shortcut to specify the type of configuration
+                                        // for the flux (nonlinear in this case)
 
+    /**
+     * Class constructor
+     * @param EOS_phase_liq_ liquid equation of state
+     * @param EOS_phase_gas_ gas equation of state
+     * @param sigma_ surface tension coefficient
+     * @param lambda_ bound-preserving parameter
+     * @param atol_Newton_ absolute tolerance for dual-time stepping
+     * @param rtol_Newton_ relative tolerance for dual-time stepping
+     * @param max_Newton_iters_ maximum number of iterations for dual-time stepping
+     */
     RusanovFlux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
                 const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
                 const Number sigma_,
                 const Number lambda_,
                 const Number atol_Newton_,
                 const Number rtol_Newton_,
-                const std::size_t max_Newton_iters_); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+                const std::size_t max_Newton_iters_);
 
     #ifdef RELAX_RECONSTRUCTION
+      /**
+       * Compute the flux over all the directions
+       * @param H large-scale curvature
+       */
       template<class Field_Scalar>
-      auto make_two_scale_capillarity(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
+      auto make_two_scale_capillarity(const Field_Scalar& H);
     #else
-      auto make_two_scale_capillarity(); /*--- Compute the flux over all the directions ---*/
+      /**
+       * Compute the flux over all the directions
+       */
+      auto make_two_scale_capillarity();
     #endif
 
   private:
+    /**
+     * Rusanov flux
+     * @param qL left state
+     * @param qR right state
+     * @param curr_d current direction
+     */
     FluxValue<cfg> compute_discrete_flux(const FluxValue<cfg>& qL,
                                          const FluxValue<cfg>& qR,
-                                         const std::size_t curr_d); /*--- Rusanov flux along direction curr_d ---*/
+                                         const std::size_t curr_d);
   };
 
   // Constructor derived from the base class
@@ -64,7 +87,7 @@ namespace samurai {
   RusanovFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
                                             const FluxValue<cfg>& qR,
                                             const std::size_t curr_d) {
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto m_l_L         = qL(Ml_INDEX);
     const auto m_g_L         = qL(Mg_INDEX);
     const auto m_d_L         = qL(Md_INDEX);
@@ -77,7 +100,7 @@ namespace samurai {
     const auto rho_alpha_l_R = qR(RHO_ALPHA_l_INDEX);
     const auto rho_z_R       = qR(RHO_Z_INDEX);
 
-    /*--- Verify if left and right state are coherent ---*/
+    // Verify if left and right state are coherent
     #ifdef DEBUG_FLUX
       if(m_l_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass large-scale liquid left state: " + std::to_string(m_l_L)));
@@ -112,20 +135,20 @@ namespace samurai {
       }
     #endif
 
-    /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
+    // Compute the quantities needed for the maximum eigenvalue estimate for the left state
     const auto m_liq_L   = m_l_L + m_d_L;
     const auto rho_L     = m_liq_L + m_g_L;
     const auto inv_rho_L = static_cast<Number>(1.0)/rho_L;
     const auto vel_d_L   = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
     const auto alpha_l_L   = rho_alpha_l_L*inv_rho_L;
-    const auto alpha_d_L   = alpha_l_L*m_d_L/m_l_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_d_L   = alpha_l_L*m_d_L/m_l_L; // TODO: Add a check in case of zero volume fraction
     const auto alpha_liq_L = alpha_l_L + alpha_d_L;
     const auto alpha_g_L   = static_cast<Number>(1.0) - alpha_liq_L;
 
     const auto Y_g_L     = m_g_L*inv_rho_L;
-    const auto rho_liq_L = m_liq_L/alpha_liq_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho_g_L   = m_g_L/alpha_g_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq_L = m_liq_L/alpha_liq_L; // TODO: Add a check in case of zero volume fraction
+    const auto rho_g_L   = m_g_L/alpha_g_L; // TODO: Add a check in case of zero volume fraction
     const auto Sigma_d_L = rho_z_L/std::cbrt(rho_liq_L*rho_liq_L);
     const auto c_liq_L   = this->EOS_phase_liq.c_value(rho_liq_L);
     const auto c_g_L     = this->EOS_phase_gas.c_value(rho_g_L);
@@ -133,20 +156,20 @@ namespace samurai {
                                      Y_g_L*c_g_L*c_g_L -
                                      static_cast<Number>(2.0/9.0)*this->sigma*Sigma_d_L*inv_rho_L);
 
-    /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
+    // Compute the quantities needed for the maximum eigenvalue estimate for the right state
     const auto m_liq_R   = m_l_R + m_d_R;
     const auto rho_R     = m_liq_R + m_g_R;
     const auto inv_rho_R = static_cast<Number>(1.0)/rho_R;
     const auto vel_d_R   = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
     const auto alpha_l_R   = rho_alpha_l_R*inv_rho_R;
-    const auto alpha_d_R   = alpha_l_R*m_d_R/m_l_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_d_R   = alpha_l_R*m_d_R/m_l_R; // TODO: Add a check in case of zero volume fraction
     const auto alpha_liq_R = alpha_l_R + alpha_d_R;
     const auto alpha_g_R   = static_cast<Number>(1.0) - alpha_liq_R;
 
     const auto Y_g_R     = m_g_R*inv_rho_R;
-    const auto rho_liq_R = m_liq_R/alpha_liq_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    const auto rho_g_R   = m_g_R/alpha_g_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq_R = m_liq_R/alpha_liq_R; // TODO: Add a check in case of zero volume fraction
+    const auto rho_g_R   = m_g_R/alpha_g_R; // TODO: Add a check in case of zero volume fraction
     const auto Sigma_d_R = rho_z_R/std::cbrt(rho_liq_R*rho_liq_R);
     const auto c_liq_R   = this->EOS_phase_liq.c_value(rho_liq_R);
     const auto c_g_R     = this->EOS_phase_gas.c_value(rho_g_R);
@@ -154,7 +177,7 @@ namespace samurai {
                                      Y_g_R*c_g_R*c_g_R -
                                      static_cast<Number>(2.0/9.0)*this->sigma*Sigma_d_R*inv_rho_R);
 
-    /*--- Compute the estimate of the eigenvalue ---*/
+    // Compute the estimate of the eigenvalue
     const auto lambda = std::max(std::abs(vel_d_L) + cf_L,
                                  std::abs(vel_d_R) + cf_R);
 
@@ -176,7 +199,7 @@ namespace samurai {
   {
     FluxDefinition<cfg> Rusanov_f;
 
-    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
+    // Perform the loop over each dimension to compute the flux contribution
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
          {

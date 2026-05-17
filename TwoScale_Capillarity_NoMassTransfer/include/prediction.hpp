@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 //
 // Authors: Loïc Gouarin, 2025
-//          Giuseppe Orlando, 2025
+//          Giuseppe Orlando, 2026
 //
 #pragma once
 
@@ -15,7 +15,8 @@
 // Specify the use of this namespace where we just store the indices
 using namespace EquationData;
 
-/** This is the class for the high-order prediction for the two-scale capillarity model
+/**
+ * This is the class for the high-order prediction for the two-scale capillarity model
  */
 template<std::size_t dim, class TInterval>
 class TwoScaleCapillarity_prediction_op : public samurai::field_operator_base<dim, TInterval> {
@@ -35,7 +36,7 @@ inline void TwoScaleCapillarity_prediction_op<dim, TInterval>::operator()(samura
                                                                           const auto& src) const {
   using field_t = std::decay_t<decltype(src)>;
 
-  /*--- Compute unchanged prediction ---*/
+  // Compute unchanged prediction
   constexpr std::size_t pred_order = field_t::mesh_t::config::prediction_order;
 
   auto ii = i << 1;
@@ -46,7 +47,7 @@ inline void TwoScaleCapillarity_prediction_op<dim, TInterval>::operator()(samura
   dest(level + 1, ii)     = src(level, i) + qs_i;
   dest(level + 1, ii + 1) = src(level, i) - qs_i;
 
-  /*--- Use bound-preserving prediction ---*/
+  // Use bound-preserving prediction
   if constexpr (!field_t::is_scalar) {
     if(src.name() == "conserved") {
       // Bound-preserving prediction for the liquid mass

@@ -11,6 +11,8 @@
 #include "hyperbolic_fluxes/Rusanov_flux.hpp"
 #include "hyperbolic_fluxes/HLLC_flux.hpp"
 
+// Auxiliary type corresponding to the 'factory' of hyperbolic flux
+//
 template<class Field>
 using HyperbolicFlux = std::variant<samurai::RusanovFlux<Field>,
                                     samurai::HLLCFlux<Field>>;
@@ -28,6 +30,8 @@ HyperbolicFlux<Field> get_numerical_hyperbolic_flux(const std::string& scheme,
   throw std::runtime_error("Unknown scheme: " + scheme);
 }
 
+// Get the hyperbolic flux from name
+//
 template<class Field, typename... Args>
 static HyperbolicFlux<Field> create_hyperbolic_flux(const std::string& scheme,
                                                     Args&&... args) {

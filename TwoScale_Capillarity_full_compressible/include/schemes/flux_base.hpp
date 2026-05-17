@@ -19,43 +19,16 @@
   #define RELAX_RECONSTRUCTION
 #endif
 
-/**
- * Useful parameters and enumerators
- */
-namespace EquationData {
-  /*--- Declare spatial dimension ---*/
-  static constexpr std::size_t dim = 2;
-
-  /*--- Use auxiliary variables for the indices for the sake of generality ---*/
-  static constexpr std::size_t Ml_INDEX          = 0;
-  static constexpr std::size_t Mg_INDEX          = 1;
-  static constexpr std::size_t Md_INDEX          = 2;
-  static constexpr std::size_t RHO_Z_INDEX       = 3;
-  static constexpr std::size_t RHO_ALPHA_l_INDEX = 4;
-  static constexpr std::size_t RHO_U_INDEX       = 5;
-
-  /*--- Save also the total number of (scalar) variables ---*/
-  static constexpr std::size_t NVARS = 5 + dim;
-
-  /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
-  static constexpr std::size_t ALPHA_l_INDEX  = RHO_ALPHA_l_INDEX;
-  static constexpr std::size_t U_INDEX        = RHO_U_INDEX;
-  static constexpr std::size_t Z_INDEX        = RHO_Z_INDEX;
-  static constexpr std::size_t Pl_INDEX       = Ml_INDEX;
-  static constexpr std::size_t Pg_INDEX       = Mg_INDEX;
-  static constexpr std::size_t ALPHA_2d_INDEX = Md_INDEX;
-}
-
 namespace samurai {
   using namespace EquationData;
 
   /**
-    * Generic class to compute the flux between a left and right state
-    */
+   * Generic class to compute the flux between a left and right state
+   */
   template<class Field>
   class Flux {
   public:
-    /*--- Definitions and sanity checks ---*/
+    // Definitions and sanity checks
     static_assert(Field::dim == EquationData::dim, "The spatial dimensions between Field and the parameter list do not match");
     static_assert(Field::n_comp == EquationData::NVARS, "The number of elements in the state does not correspond to the number of equations");
     #ifdef ORDER_2
@@ -69,57 +42,102 @@ namespace samurai {
     template<class Field_Vect>
     using cfg_st = FluxConfig<SchemeType::NonLinear, stencil_size, Field, Field_Vect>;
 
-    using Number = typename Field::value_type; /*--- Shortcut for the arithmetic type ---*/
+    using Number = typename Field::value_type; // Shortcut for the arithmetic type
 
+    /**
+     * Class constructor
+     * @param EOS_phase_liq_ liquid equation of state
+     * @param EOS_phase_gas_ gas equation of state
+     * @param sigma_ surface tension coefficient
+     * @param lambda_ bound-preserving parameter
+     * @param atol_Newton_ absolute tolerance for dual-time stepping
+     * @param rtol_Newton_ relative tolerance for dual-time stepping
+     * @param max_Newton_iters_ maximum number of iterations for dual-time stepping
+     */
     Flux(const LinearizedBarotropicEOS<Number>& EOS_phase_liq_,
          const LinearizedBarotropicEOS<Number>& EOS_phase_gas_,
          const Number sigma_,
          const Number lambda_ = static_cast<Number>(0.9),
          const Number atol_Newton_ = static_cast<Number>(1e-14),
          const Number rtol_Newton_ = static_cast<Number>(1e-12),
-         const std::size_t max_Newton_iters_ = 60); /*--- Constructor which accepts in input the equations of state of the two phases ---*/
+         const std::size_t max_Newton_iters_ = 60);
 
   protected:
     const LinearizedBarotropicEOS<Number>& EOS_phase_liq;
     const LinearizedBarotropicEOS<Number>& EOS_phase_gas;
 
-    const Number sigma; /*--- Surface tension parameter ---*/
+    const Number sigma; /*!< Surface tension parameter */
 
-    const Number      lambda;           /*--- Parameter for bound preserving strategy ---*/
-    const Number      atol_Newton;      /*--- Absolute tolerance Newton method relaxation ---*/
-    const Number      rtol_Newton;      /*--- Relative tolerance Newton method relaxation ---*/
-    const std::size_t max_Newton_iters; /*--- Maximum number of Newton iterations ---*/
+    const Number      lambda;           /*!< Parameter for bound preserving strategy */
+    const Number      atol_Newton;      /*!< Absolute tolerance Newton method relaxation */
+    const Number      rtol_Newton;      /*!< Relative tolerance Newton method relaxation */
+    const std::size_t max_Newton_iters; /*!< Maximum number of Newton iterations */
 
+    /**
+     * Evaluate the 'continuous' flux
+     * @param q state
+     * @param curr_d current direction
+     * @param grad_alpha_l gradient of large-scale volume fraction (needed for capillarity)
+     */
     FluxValue<cfg> evaluate_continuous_flux(const FluxValue<cfg>& q,
                                             const std::size_t curr_d,
-                                            const auto& grad_alpha_l); /*--- Evaluate the 'continuous' flux for the state q
-                                                                             along direction curr_d ---*/
+                                            const auto& grad_alpha_l);
 
+    /**
+     * Evaluate the hyperbolic operator
+     * @param q state
+     * @param curr_d current direction
+     */
     FluxValue<cfg> evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
-                                                const std::size_t curr_d); /*--- Evaluate the hyperbolic operator for the state q
-                                                                                 along direction curr_d --*/
+                                                const std::size_t curr_d);
 
+    /**
+     * Evaluate the surface tension operator
+     * @param grad_alpha_l gradient of large-scale volume fraction
+     * @param curr_d current direction
+     */
     template<class Field_Vect>
     FluxValue<cfg_st<Field_Vect>> evaluate_surface_tension_operator(const auto& grad_alpha_l,
-                                                                    const std::size_t curr_d); /*--- Evaluate the surface tension operator for the state q
-                                                                                                     along direction curr_d ---*/
+                                                                    const std::size_t curr_d);
 
-    FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const; /*--- Conversion from conserved to primitive variables ---*/
+    /**
+     * Conversion from conserved to primitive variables
+     * @param cons conserved variables
+     * @return prim primitive variables
+     */
+    FluxValue<cfg> cons2prim(const FluxValue<cfg>& cons) const;
 
-    FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const; /*--- Conversion from primitive to conserved variables ---*/
+    /**
+     * Conversion from primitive to conserved variables
+     * @param prim primitive variables
+     * @return cons conserved variables
+     */
+    FluxValue<cfg> prim2cons(const FluxValue<cfg>& prim) const;
 
     #ifdef RELAX_RECONSTRUCTION
+      /**
+       * Perform a Newton step relaxation for a state vector
+         (it is not a real space dependent procedure, but I would need to be able
+          to do it inside the flux location for MUSCL reconstruction)
+       * @param conserved_variables state
+       * @param H large-scale curvature
+       * @param dalpha_l variation of large-scale volume fraction
+       * @param alpha_l large-scale volume fraction
+       * @param relaxation_applied flag to check whether relaxation has been applied or we converged
+       */
       void perform_Newton_step_relaxation(auto conserved_variables,
                                           const Number H,
                                           Number& dalpha_l,
                                           Number& alpha_l,
-                                          bool& relaxation_applied); /*--- Perform a Newton step relaxation for a state vector
-                                                                           (it is not a real space dependent procedure,
-                                                                            but I would need to be able to do it inside the flux location
-                                                                            for MUSCL reconstruction) ---*/
+                                          bool& relaxation_applied);
 
+      /**
+       * Relax reconstructed state
+       * @param q state
+       * @param H large-scale curvature
+       */
       void relax_reconstruction(FluxValue<cfg>& q,
-                                const Number H); /*--- Relax reconstructed state ---*/
+                                const Number H);
     #endif
   };
 
@@ -144,10 +162,10 @@ namespace samurai {
   Flux<Field>::evaluate_continuous_flux(const FluxValue<cfg>& q,
                                         const std::size_t curr_d,
                                         const auto& grad_alpha_l) {
-    /*--- Initialize the resulting variable with the hyperbolic operator ---*/
+    // Initialize the resulting variable with the hyperbolic operator
     FluxValue<cfg> res = this->evaluate_hyperbolic_operator(q, curr_d);
 
-    /*--- Add the contribution due to surface tension ---*/
+    // Add the contribution due to surface tension
     res += this->evaluate_surface_tension_operator(grad_alpha_l, curr_d);
 
     return res;
@@ -159,24 +177,24 @@ namespace samurai {
   FluxValue<typename Flux<Field>::cfg>
   Flux<Field>::evaluate_hyperbolic_operator(const FluxValue<cfg>& q,
                                             const std::size_t curr_d) {
-    /*--- Sanity check in terms of dimensions ---*/
+    // Sanity check in terms of dimensions
     assert(curr_d < Field::dim);
 
-    /*--- Initialize the resulting variable ---*/
+    // Initialize the resulting variable
     FluxValue<cfg> res = q;
 
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto m_l = q(Ml_INDEX);
     const auto m_g = q(Mg_INDEX);
     const auto m_d = q(Md_INDEX);
 
-    /*--- Compute the current velocity ---*/
+    // Compute the current velocity
     const auto m_liq   = m_l + m_d;
     const auto rho     = m_liq + m_g;
     const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
-    /*--- Multiply the state the velocity along the direction of interest ---*/
+    // Multiply the state the velocity along the direction of interest
     res(Ml_INDEX) *= vel_d;
     res(Mg_INDEX) *= vel_d;
     res(Md_INDEX) *= vel_d;
@@ -186,16 +204,16 @@ namespace samurai {
       res(RHO_U_INDEX + d) *= vel_d;
     }
 
-    /*--- Compute and add the contribution due to the pressure ---*/
+    // Compute and add the contribution due to the pressure
     const auto alpha_l   = q(RHO_ALPHA_l_INDEX)*inv_rho;
-    const auto alpha_d   = alpha_l*m_d/m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto alpha_d   = alpha_l*m_d/m_l; // TODO: Add a check in case of zero volume fraction
     const auto alpha_liq = alpha_l + alpha_d;
-    const auto rho_liq   = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
-    /*--- Relation alpha_l/Y_l = (alpha_l + alpha_d)/(Y_l + Y_d) holds!!! ---*/
+    const auto rho_liq   = m_liq/alpha_liq; // TODO: Add a check in case of zero volume fraction
+    /*NOTE: Relation alpha_l/Y_l = (alpha_l + alpha_d)/(Y_l + Y_d) holds!!! */
     const auto p_liq     = EOS_phase_liq.pres_value(rho_liq);
 
     const auto alpha_g = static_cast<Number>(1.0) - alpha_liq;
-    const auto rho_g   = m_g/alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_g   = m_g/alpha_g; // TODO: Add a check in case of zero volume fraction
     const auto p_g     = EOS_phase_gas.pres_value(rho_g);
 
     const auto Sigma_d = q(RHO_Z_INDEX)/std::cbrt(rho_liq*rho_liq);
@@ -216,16 +234,16 @@ namespace samurai {
   FluxValue<typename Flux<Field>::template cfg_st<Field_Vect>>
   Flux<Field>::evaluate_surface_tension_operator(const auto& grad_alpha_l,
                                                  const std::size_t curr_d) {
-    /*--- Sanity check in terms of dimensions ---*/
+    // Sanity check in terms of dimensions
     assert(curr_d < Field::dim);
 
-    /*--- Initialize the resulting variable ---*/
+    // Initialize the resulting variable
     FluxValue<cfg_st<Field_Vect>> res;
 
     // Set to zero all the contributions
     res.fill(static_cast<Number>(0.0));
 
-    /*--- Add the contribution due to surface tension ---*/
+    // Add the contribution due to surface tension
     //const auto mod_grad_alpha_l = std::sqrt(xt::sum(grad_alpha_l*grad_alpha_l)());
     auto mod2_grad_alpha_l = static_cast<Number>(0.0);
     for(std::size_t d = 0; d < Field::dim; ++d) {
@@ -256,12 +274,12 @@ namespace samurai {
   Flux<Field>::cons2prim(const FluxValue<cfg>& cons) const {
     FluxValue<cfg> prim;
 
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto m_l = cons(Ml_INDEX);
     const auto m_g = cons(Mg_INDEX);
     const auto m_d = cons(Md_INDEX);
 
-    /*--- Compute primitive variables ---*/
+    // Compute primitive variables
     const auto m_liq   = m_l + m_d;
     const auto rho     = m_liq + m_g;
     const auto inv_rho = static_cast<Number>(1.0)/rho;
@@ -273,11 +291,11 @@ namespace samurai {
     prim(ALPHA_2d_INDEX) = alpha_d/(static_cast<Number>(1.0) - alpha_l);
 
     const auto alpha_liq = alpha_l + alpha_d;
-    const auto rho_liq   = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho_liq   = m_liq/alpha_liq; // TODO: Add a check in case of zero volume fraction
     prim(Pl_INDEX)       = EOS_phase_liq.pres_value(rho_liq);
 
     const auto rho_g = m_g/(static_cast<Number>(1.0) - alpha_liq);
-                       /*--- TODO: Add a check in case of zero volume fraction ---*/
+                       // TODO: Add a check in case of zero volume fraction
     prim(Pg_INDEX)   = EOS_phase_gas.pres_value(rho_g);
 
     for(std::size_t d = 0; d < Field::dim; ++d) {
@@ -296,11 +314,11 @@ namespace samurai {
   Flux<Field>::prim2cons(const FluxValue<cfg>& prim) const {
     FluxValue<cfg> cons;
 
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto alpha_l = prim(ALPHA_l_INDEX);
     const auto alpha_d = prim(ALPHA_2d_INDEX)*(static_cast<Number>(1.0) - alpha_l);
 
-    /*--- Compute conserved variables ---*/
+    // Compute conserved variables
     const auto rho_liq = EOS_phase_liq.rho_value(prim(Pl_INDEX));
 
     const auto m_l = alpha_l*rho_liq;
@@ -337,7 +355,7 @@ namespace samurai {
                                                      Number& alpha_l,
                                                      bool& relaxation_applied) {
       if(!std::isnan(H)) {
-        /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+        // Pre-fetch some variables used multiple times in order to exploit possible vectorization
         const auto m_l = conserved_variables(Ml_INDEX);
         const auto m_g = conserved_variables(Mg_INDEX);
         const auto m_d = conserved_variables(Md_INDEX);
@@ -345,29 +363,29 @@ namespace samurai {
         const auto inv_m_l     = static_cast<Number>(1.0)/m_l;
         const auto inv_alpha_l = static_cast<Number>(1.0)/alpha_l;
 
-        /*--- Update auxiliary values affected by the nonlinear function for which we seek a zero ---*/
+        // Update auxiliary values affected by the nonlinear function for which we seek a zero
         const auto alpha_d     = alpha_l*m_d*inv_m_l;
         const auto alpha_liq   = alpha_l + alpha_d;
         const auto alpha_g     = static_cast<Number>(1.0) - alpha_liq;
         const auto inv_alpha_g = static_cast<Number>(1.0)/alpha_g;
 
         const auto m_liq   = m_l + m_d;
-        const auto rho_liq = m_liq/alpha_liq; /*--- TODO: Add a check in case of zero volume fraction ---*/
+        const auto rho_liq = m_liq/alpha_liq; // TODO: Add a check in case of zero volume fraction
         const auto p_liq   = EOS_phase_liq.pres_value(rho_liq);
 
-        const auto rho_g   = m_g*inv_alpha_g; /*--- TODO: Add a check in case of zero volume fraction ---*/
+        const auto rho_g   = m_g*inv_alpha_g; // TODO: Add a check in case of zero volume fraction
         const auto p_g     = EOS_phase_gas.pres_value(rho_g);
 
-        /*--- Compute the nonlinear function for which we seek the zero (basically the Laplace law) ---*/
+        // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
         const auto delta_p = p_liq - p_g;
         const auto F_LS    = alpha_l*(delta_p - sigma*H);
         const auto aux_SS  = static_cast<Number>(2.0/3.0)*sigma*
                              conserved_variables(RHO_Z_INDEX)*std::cbrt(inv_m_l*inv_m_l*inv_alpha_l);
-                             /*--- TODO: Add a check in case of zero volume fraction ---*/
+                             // TODO: Add a check in case of zero volume fraction
         const auto F_SS    = alpha_d*delta_p - alpha_l*aux_SS;
         const auto F       = F_LS + F_SS;
 
-        /*--- Perform the relaxation only where really needed ---*/
+        // Perform the relaxation only where really needed
         if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase_liq.get_p0(), sigma*std::abs(H)) &&
            std::abs(dalpha_l) > atol_Newton) {
           relaxation_applied = true;
@@ -381,12 +399,12 @@ namespace samurai {
                                          c_liq*c_liq
                                          -m_g*inv_alpha_g*inv_alpha_g*
                                          c_g*c_g*
-                                         m_liq*inv_m_l; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                         m_liq*inv_m_l; // TODO: Add a check in case of zero volume fraction
           const auto dF_LS_dalpha_l    = (delta_p - sigma*H) + alpha_l*ddelta_p_dalpha_l;
           const auto dF_SS_dalpha_l    = (m_d*inv_m_l)*delta_p
                                        + alpha_d*ddelta_p_dalpha_l
                                        - static_cast<Number>(2.0/3.0)*aux_SS;
-                                       /*--- TODO: Add a check in case of zero volume fraction ---*/
+                                       // TODO: Add a check in case of zero volume fraction
           const auto dF_dalpha_l       = dF_LS_dalpha_l + dF_SS_dalpha_l;
 
           // Compute the large-scale volume fraction update
@@ -409,9 +427,9 @@ namespace samurai {
           alpha_l += dalpha_l;
         }
 
-        /*--- Update the vector of conserved variables
-              (probably not the optimal choice since I need this update only at the end of the Newton loop,
-               but the most coherent one thinking about the transfer of mass) ---*/
+        // Update the vector of conserved variables
+        // (probably not the optimal choice since I need this update only at the end of the Newton loop,
+        //  but the most coherent one thinking about the transfer of mass)
         conserved_variables(RHO_ALPHA_l_INDEX) = (m_liq + m_g)*alpha_l;
       }
     }
@@ -421,7 +439,7 @@ namespace samurai {
     template<class Field>
     void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q,
                                            const Number H) {
-      /*--- Declare and set relevant parameters ---*/
+      // Declare and set relevant parameters
       std::size_t Newton_iter = 0;
       bool relaxation_applied = true;
 
@@ -429,7 +447,7 @@ namespace samurai {
       auto alpha_l  = q(RHO_ALPHA_l_INDEX)/
                       (q(Ml_INDEX) + q(Mg_INDEX) + q(Md_INDEX));
 
-      /*--- Apply Newton method ---*/
+      // Apply Newton method
       while(relaxation_applied == true) {
         relaxation_applied = false;
         Newton_iter++;

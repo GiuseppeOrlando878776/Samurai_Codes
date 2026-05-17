@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 //
-// Author: Giuseppe Orlando, 2025
+// Author: Giuseppe Orlando, 2026
 //
 #pragma once
 
@@ -13,8 +13,9 @@
 // Specify the use of this namespace where we just store the indices
 using namespace EquationData;
 
-// Default boundary condition
-//
+/**
+ * Default boundary condition
+ */
 template<class Field>
 struct Default: public samurai::Bc<Field> {
   INIT_BC(Default, samurai::Flux<Field>::stencil_size)
@@ -39,8 +40,16 @@ struct Default: public samurai::Bc<Field> {
   }
 };
 
-// Inlet boundary condition for the air-blasted liquid column problem
-//
+/**
+ * Inlet boundary condition for the air-blasted liquid column problem
+ * @param Q field with conserved variables (i.e. the variables for which we solve the PDE system)
+ * @param ux_D boundary horizontal component of the velocity
+ * @param uy_D boundary vertical component of the velocity
+ * @param alpha1_bar_D boundary large-scale volume fraction
+ * @param alpha_d_D boundary small-scale volume fraction
+ * @param rho1_d_D boundary density small-scale volume fraction
+ * @param Sigma_d_D boundary small-scale interfacial area density
+ */
 template<class Field>
 auto Inlet(const Field& Q,
            const typename Field::value_type ux_D,
@@ -52,21 +61,21 @@ auto Inlet(const Field& Q,
   return[&Q, ux_D, uy_D, alpha1_bar_D, alpha1_d_D, rho1_d_D, Sigma_d_D]
   (const auto& /*normal*/, const auto& cell_in, const auto& /*coord*/)
   {
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto m1       = Q[cell_in](M1_INDEX);
     const auto m2       = Q[cell_in](M2_INDEX);
     const auto m1_d     = Q[cell_in](M1_D_INDEX);
     const auto alpha1_d = Q[cell_in](ALPHA1_D_INDEX);
 
-    /*--- Compute phasic pressures form the internal state ---*/
+    // Compute phasic pressures form the internal state
     const auto alpha1_bar = Q[cell_in](RHO_ALPHA1_BAR_INDEX)/(m1 + m2 + m1_d);
     const auto alpha1     = alpha1_bar*(static_cast<typename Field::value_type>(1.0) - alpha1_d);
-    const auto rho1       = m1/alpha1; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho1       = m1/alpha1; // TODO: Add a check in case of zero volume fraction
 
     const auto alpha2     = static_cast<typename Field::value_type>(1.0) - alpha1 - alpha1_d;
-    const auto rho2       = m2/alpha2; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2       = m2/alpha2; // TODO: Add a check in case of zero volume fraction
 
-    /*--- Compute the corresponding ghost state ---*/
+    // Compute the corresponding ghost state
     xt::xtensor_fixed<typename Field::value_type, xt::xshape<Field::n_comp>> Q_ghost;
     const auto alpha1_D           = alpha1_bar_D*(static_cast<typename Field::value_type>(1.0) - alpha1_d_D);
     const auto alpha2_D           = static_cast<typename Field::value_type>(1.0) - alpha1_D - alpha1_d_D;

@@ -14,39 +14,70 @@ namespace samurai {
   using namespace EquationData;
 
   /**
-    * Implementation of a HLLC flux
-    */
+   * Implementation of a HLLC flux
+   */
   template<class Field>
   class HLLCFlux: public Flux<Field> {
   public:
-    using Number = Flux<Field>::Number; /*--- Define the shortcut for the arithmetic type ---*/
-    using cfg    = Flux<Field>::cfg;    /*--- Shortcut to specify the type of configuration
-                                              for the flux (nonlinear in this case) ---*/
+    using Number = Flux<Field>::Number; // Define the shortcut for the arithmetic type
+    using cfg    = Flux<Field>::cfg;    // Shortcut to specify the type of configuration
+                                        // for the flux (nonlinear in this case)
 
+    /**
+     * Class constructor
+     * @param EOS_phase_1_ phase 1 equation of state
+     * @param EOS_phase_2_ phase 2 equation of state
+     * @param sigma_ surface tension coefficient
+     * @param lambda_ bound-preserving parameter
+     * @param atol_Newton_ absolute tolerance for dual-time stepping
+     * @param rtol_Newton_ relative tolerance for dual-time stepping
+     * @param max_Newton_iters_ maximum number of iterations for dual-time stepping
+     */
     HLLCFlux(const LinearizedBarotropicEOS<Number>& EOS_phase1_,
              const LinearizedBarotropicEOS<Number>& EOS_phase2_,
              const Number sigma_,
              const Number lambda_,
              const Number atol_Newton_,
              const Number rtol_Newton_,
-             const std::size_t max_Newton_iters_); /*--- Constructor which accepts in inputs the equations of state of the two phases ---*/
+             const std::size_t max_Newton_iters_);
 
     #ifdef RELAX_RECONSTRUCTION
+      /**
+       * Compute the flux over all the directions
+       * @param H curvature (so as to perform reconstruction)
+       */
       template<class Field_Scalar>
-      auto make_flux(const Field_Scalar& H); /*--- Compute the flux over all the directions ---*/
+      auto make_flux(const Field_Scalar& H);
     #else
-      auto make_flux(); /*--- Compute the flux over all the directions ---*/
+      /**
+       * Compute the flux over all the directions
+       */
+      auto make_flux();
     #endif
 
   private:
+    /**
+     * Compute middle state for HLLC flux
+     * @param q current state
+     * @param S estimate of speed of wave propagation
+     * @param S_star, estimate of speed of star wave propagation
+     * @param curr_d current direction
+     * @return q_star, i.e. the middle state
+     */
     FluxValue<cfg> compute_middle_state(const FluxValue<cfg>& q,
                                         const Number S,
                                         const Number S_star,
-                                        const std::size_t curr_d) const; /*--- Compute the middle state ---*/
+                                        const std::size_t curr_d) const;
 
+    /**
+     * HLLC flux
+     * @param qL left state
+     * @param qR right state
+     * @param curr_d current direction
+     */
     FluxValue<cfg> compute_discrete_flux(const FluxValue<cfg>& qL,
                                          const FluxValue<cfg>& qR,
-                                         const std::size_t curr_d); /*--- HLLC flux for the along direction curr_d ---*/
+                                         const std::size_t curr_d);
   };
 
   // Constructor derived from the base class
@@ -70,16 +101,16 @@ namespace samurai {
                                         const Number S,
                                         const Number S_star,
                                         const std::size_t curr_d) const {
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto m1 = q(M1_INDEX);
     const auto m2 = q(M2_INDEX);
 
-    /*--- Save velocity current direction ---*/
+    // Save velocity current direction
     const auto rho     = m1 + m2;
     const auto inv_rho = static_cast<Number>(1.0)/rho;
     const auto vel_d   = q(RHO_U_INDEX + curr_d)*inv_rho;
 
-    /*--- Compute middle state ---*/
+    // Compute middle state
     FluxValue<cfg> q_star;
 
     const auto u_star = (S - vel_d)/(S - S_star);
@@ -107,7 +138,7 @@ namespace samurai {
   HLLCFlux<Field>::compute_discrete_flux(const FluxValue<cfg>& qL,
                                          const FluxValue<cfg>& qR,
                                          const std::size_t curr_d) {
-    /*--- Pre-fetch some variables used multiple times in order to exploit possible vectorization ---*/
+    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
     const auto m1_L         = qL(M1_INDEX);
     const auto m2_L         = qL(M2_INDEX);
     const auto rho_alpha1_L = qL(RHO_ALPHA1_INDEX);
@@ -116,7 +147,7 @@ namespace samurai {
     const auto m2_R         = qR(M2_INDEX);
     const auto rho_alpha1_R = qR(RHO_ALPHA1_INDEX);
 
-    /*--- Verify if left and right state are coherent ---*/
+    // Verify if left and right state are coherent
     #ifdef DEBUG_FLUX
       if(m1_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass phase 1 left state: " + std::to_string(m1_L)));
@@ -139,35 +170,35 @@ namespace samurai {
       }
     #endif
 
-    /*--- Compute the quantities needed for the maximum eigenvalue estimate for the left state ---*/
+    // Compute the quantities needed for the maximum eigenvalue estimate for the left state
     const auto rho_L          = m1_L + m2_L;
     const auto inv_rho_L      = static_cast<Number>(1.0)/rho_L;
     const auto vel_d_L        = qL(RHO_U_INDEX + curr_d)*inv_rho_L;
 
     const auto alpha1_L       = rho_alpha1_L*inv_rho_L;
-    const auto rho1_L         = m1_L/alpha1_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho1_L         = m1_L/alpha1_L; // TODO: Add a check in case of zero volume fraction
     const auto alpha2_L       = static_cast<Number>(1.0) - alpha1_L;
-    const auto rho2_L         = m2_L/alpha2_L; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_L         = m2_L/alpha2_L; // TODO: Add a check in case of zero volume fraction
     const auto c1_L           = this->EOS_phase1.c_value(rho1_L);
     const auto c2_L           = this->EOS_phase2.c_value(rho2_L);
     const auto rhoc_squared_L = m1_L*c1_L*c1_L + m2_L*c2_L*c2_L;
     const auto c_L            = std::sqrt(rhoc_squared_L*inv_rho_L);
 
-    /*--- Compute the quantities needed for the maximum eigenvalue estimate for the right state ---*/
+    // Compute the quantities needed for the maximum eigenvalue estimate for the right state
     const auto rho_R          = m1_R + m2_R;
     const auto inv_rho_R      = static_cast<Number>(1.0)/rho_R;
     const auto vel_d_R        = qR(RHO_U_INDEX + curr_d)*inv_rho_R;
 
     const auto alpha1_R       = rho_alpha1_R*inv_rho_R;
-    const auto rho1_R         = m1_R/alpha1_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho1_R         = m1_R/alpha1_R; // TODO: Add a check in case of zero volume fraction
     const auto alpha2_R       = static_cast<Number>(1.0) - alpha1_R;
-    const auto rho2_R         = m2_R/alpha2_R; /*--- TODO: Add a check in case of zero volume fraction ---*/
+    const auto rho2_R         = m2_R/alpha2_R; // TODO: Add a check in case of zero volume fraction
     const auto c1_R           = this->EOS_phase1.c_value(rho1_R);
     const auto c2_R           = this->EOS_phase2.c_value(rho2_R);
     const auto rhoc_squared_R = m1_R*c1_R*c1_R + m2_R*c2_R*c2_R;
     const auto c_R            = std::sqrt(rhoc_squared_R*inv_rho_R);
 
-    /*--- Compute speeds of wave propagation ---*/
+    // Compute speeds of wave propagation
     const auto s_L    = std::min(vel_d_L - c_L, vel_d_R - c_R);
     const auto s_R    = std::max(vel_d_L + c_L, vel_d_R + c_R);
     const auto p_L    = alpha1_L*this->EOS_phase1.pres_value(rho1_L)
@@ -177,11 +208,11 @@ namespace samurai {
     const auto s_star = (p_R - p_L + rho_L*vel_d_L*(s_L - vel_d_L) - rho_R*vel_d_R*(s_R - vel_d_R))/
                         (rho_L*(s_L - vel_d_L) - rho_R*(s_R - vel_d_R));
 
-    /*--- Compute intermediate states ---*/
+    // Compute intermediate states
     const auto q_star_L = compute_middle_state(qL, s_L, s_star, curr_d);
     const auto q_star_R = compute_middle_state(qR, s_R, s_star, curr_d);
 
-    /*--- Compute the flux ---*/
+    // Compute the flux
     if(s_L >= static_cast<Number>(0.0)) {
       return this->evaluate_hyperbolic_operator(qL, curr_d);
     }
@@ -210,7 +241,7 @@ namespace samurai {
   {
     FluxDefinition<cfg> HLLC_f;
 
-    /*--- Perform the loop over each dimension to compute the flux contribution ---*/
+    // Perform the loop over each dimension to compute the flux contribution
     static_for<0, Field::dim>::apply(
       [&](auto integral_constant_d)
          {
