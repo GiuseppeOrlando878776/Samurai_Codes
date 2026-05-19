@@ -12,10 +12,10 @@
  * Useful parameters and enumerators
  */
 namespace EquationData {
-  /*--- Declare spatial dimension ---*/
+  // Declare spatial dimension
   static constexpr std::size_t dim = 2;
 
-  /*--- Use auxiliary variables for the indices for the sake of generality ---*/
+  // Use auxiliary variables for the indices for the sake of generality
   static constexpr std::size_t Ml_INDEX          = 0;
   static constexpr std::size_t Mg_INDEX          = 1;
   static constexpr std::size_t Md_INDEX          = 2;
@@ -23,10 +23,10 @@ namespace EquationData {
   static constexpr std::size_t RHO_ALPHA_l_INDEX = 4;
   static constexpr std::size_t RHO_U_INDEX       = 5;
 
-  /*--- Save also the total number of (scalar) variables ---*/
+  // Save also the total number of (scalar) variables
   static constexpr std::size_t NVARS = 5 + dim;
 
-  /*--- Use auxiliary variables for the indices also for primitive variables for the sake of generality ---*/
+  // Use auxiliary variables for the indices also for primitive variables for the sake of generality
   static constexpr std::size_t ALPHA_l_INDEX  = RHO_ALPHA_l_INDEX;
   static constexpr std::size_t U_INDEX        = RHO_U_INDEX;
   static constexpr std::size_t Z_INDEX        = RHO_Z_INDEX;

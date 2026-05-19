@@ -24,6 +24,7 @@
 /*--- Include the headers with the numerical fluxes ---*/
 #include "Hyperbolic_flux.hpp"
 #include "SurfaceTension_flux.hpp"
+#include "Relaxation_operator.hpp"
 
 /*--- Add header with auxiliary data structures for post-processing ---*/
 #include "postprocessing.hpp"
@@ -113,9 +114,6 @@ private:
 
   const Number mod_grad_alpha1_bar_min; /*!< Minimum threshold for which not computing anymore the unit normal */
 
-  const Number      lambda;           /*!< Parameter for bound-preserving strategy */
-  const Number      atol_Newton;      /*!< Absolute tolerance Newton method relaxation */
-  const Number      rtol_Newton;      /*!< Relative tolerance Newton method relaxation */
   const std::size_t max_Newton_iters; /*!< Maximum number of Newton iterations */
 
   double MR_param;      /*!< Multiresolution parameter */
@@ -127,6 +125,7 @@ private:
 
   HyperbolicFlux<Field> Hyperbolic_flux; /*!< Auxiliary variable to compute the contribution associated with hyperbolic operator */
   samurai::SurfaceTensionFlux<Field, Field_Vect> SurfaceTension_flux; /*!< Auxiliary variable to compute the contribution associated with surface tension */
+  samurai::RelaxationOperator<Field> Relaxation_operator; /*!< Auxiliary variable to compute the contribution associated with source term (relaxation) */
 
   fs::path    path;     /*!< Auxiliary variable to store the output directory */
   std::string filename; /*!< Auxiliary variable to store the name of output */
@@ -183,7 +182,7 @@ private:
   /**
    * Auxiliary routine to initialize the fields related to the mesh
    */
-  void create_fields()
+  void create_fields();
 
   /**
    * Routine to initialize the variables (both conserved and auxiliary, this is problem dependent)
@@ -239,18 +238,9 @@ private:
 
   /**
    * Apply the relaxation
+   * @param relaxation_op numerical operator (cell-based scheme) for relaxation subsystem
    */
-  void apply_relaxation();
-
-  void perform_Newton_step_relaxation(auto local_conserved_variables,
-                                      const Number H_bar_loc,
-                                      Number& dalpha1_bar_loc,
-                                      Number& alpha1_bar_loc,
-                                      std::size_t& to_be_relaxed_loc,
-                                      std::size_t& Newton_iterations_loc,
-                                      bool& local_relaxation_applied,
-                                      const auto& grad_alpha1_bar_loc,
-                                      const bool mass_transfer_NR);
+  void apply_relaxation(auto& relaxation_op);
 
   /**
    * Execute the postprocessing
@@ -277,16 +267,21 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
   kappa(sim_param.kappa), alpha1d_max(sim_param.alpha1d_max),
   alpha1_bar_min(sim_param.alpha1_bar_min), alpha1_bar_max(sim_param.alpha1_bar_max),
   cfl(sim_param.Courant), mod_grad_alpha1_bar_min(sim_param.mod_grad_alpha1_bar_min),
-  lambda(sim_param.lambda), atol_Newton(sim_param.atol_Newton),
-  rtol_Newton(sim_param.rtol_Newton), max_Newton_iters(sim_param.max_Newton_iters),
+  max_Newton_iters(sim_param.max_Newton_iters),
   MR_param(sim_param.MR_param), MR_regularity(sim_param.MR_regularity),
   EOS_phase1(eos_param.p0_phase1, eos_param.rho0_phase1, eos_param.c0_phase1),
   EOS_phase2(eos_param.p0_phase2, eos_param.rho0_phase2, eos_param.c0_phase2),
   Hyperbolic_flux(create_hyperbolic_flux<Field>(sim_param.num_flux_hyp,
                                                 EOS_phase1, EOS_phase2, sigma,
-                                                lambda, atol_Newton, rtol_Newton, max_Newton_iters)),
+                                                sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
+                                                max_Newton_iters)),
   SurfaceTension_flux(EOS_phase1, EOS_phase2, sigma,
-                      lambda, atol_Newton, rtol_Newton, max_Newton_iters),
+                      sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
+                      max_Newton_iters),
+  Relaxation_operator(EOS_phase1, EOS_phase2, sigma,
+                      Hmax, kappa, alpha1d_max, alpha1_bar_min, alpha1_bar_max,
+                      sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
+                      max_Newton_iters),
   path(sim_param.save_dir),
   gradient(samurai::make_gradient_order2<decltype(alpha1_bar)>()),
   divergence(samurai::make_divergence_order2<decltype(normal)>())
@@ -826,58 +821,25 @@ void TwoScaleCapillarity<dim>::perform_fv_stage(auto& numerical_flux_hyp,
 // Apply the relaxation. This procedure is valid for a generic EOS
 //
 template<std::size_t dim>
-void TwoScaleCapillarity<dim>::apply_relaxation() {
+void TwoScaleCapillarity<dim>::apply_relaxation(auto& relaxation_op) {
   // Initialize the variables
-  samurai::times::timers.start("apply_relaxation");
-
-  std::size_t Newton_iter = 0;
   Newton_iterations.fill(0);
   dalpha1_bar.fill(std::numeric_limits<Number>::infinity());
-  bool global_relaxation_applied = true;
-  bool mass_transfer_NR          = mass_transfer; // In principle we might think to disable it after a certain
-                                                  // number of iterations (as in Arthur's code), not done here.
-
-  samurai::times::timers.stop("apply_relaxation");
+  Relaxation_operator.set_mass_transfer_NR(mass_transfer); // In principle we might think to disable it after a certain
+                                                           // number of iterations (as in Arthur's code), not done here.
 
   // Loop of Newton method. Conceptually, a loop over cells followed by a Newton loop
   // over each cell would (could?) be more logic, but this would lead to issues to call 'update_geometry'
-  while(global_relaxation_applied == true) {
-    samurai::times::timers.start("apply_relaxation");
+  bool global_relaxation_applied;
+  for(std::size_t Newton_iter = 1; Newton_iter <= max_Newton_iters; ++Newton_iter) {
+    Relaxation_operator.set_relaxation_applied(false);
 
-    bool local_relaxation_applied = false;
-    Newton_iter++;
-
-    // Loop over all cells.
-    samurai::for_each_cell(mesh,
-                           [&](const auto& cell)
-                           {
-                             try {
-                               perform_Newton_step_relaxation(conserved_variables[cell],
-                                                              H_bar[cell], dalpha1_bar[cell], alpha1_bar[cell],
-                                                              to_be_relaxed[cell], Newton_iterations[cell],
-                                                              local_relaxation_applied,
-                                                              grad_alpha1_bar[cell], mass_transfer_NR);
-                             }
-                             catch(const std::exception& e) {
-                               std::cerr << e.what() << std::endl;
-                               save("_diverged",
-                                    conserved_variables,
-                                    alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
-                                    to_be_relaxed, Newton_iterations);
-                               exit(1);
-                             }
-                           });
-
-    #ifdef SAMURAI_WITH_MPI
-      mpi::communicator world;
-      boost::mpi::all_reduce(world, local_relaxation_applied, global_relaxation_applied, std::logical_or<bool>());
-    #else
-      global_relaxation_applied = local_relaxation_applied;
-    #endif
-
-    // Newton cycle diverged
-    if(Newton_iter > max_Newton_iters && global_relaxation_applied == true) {
-      std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
+    try {
+      conserved_variables_tmp = relaxation_op(conserved_variables);
+      samurai::swap(conserved_variables, conserved_variables_tmp);
+    }
+    catch(const std::exception& e) {
+      std::cerr << e.what() << std::endl;
       save("_diverged",
            conserved_variables,
            alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
@@ -885,263 +847,31 @@ void TwoScaleCapillarity<dim>::apply_relaxation() {
       exit(1);
     }
 
-    samurai::times::timers.stop("apply_relaxation");
-
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
     update_geometry();
+
+    // Check if we converged: reduce in case of MPI
+    const bool local_relaxation_applied = Relaxation_operator.get_relaxation_applied();
+    #ifdef SAMURAI_WITH_MPI
+      mpi::communicator world;
+      boost::mpi::all_reduce(world, local_relaxation_applied, global_relaxation_applied, std::logical_or<bool>());
+    #else
+      global_relaxation_applied = local_relaxation_applied;
+    #endif
+    // Converged: no cell requested further relaxation
+    if(!global_relaxation_applied) {
+      break;
+    }
   }
-}
 
-// Implement a single step of the relaxation procedure (valid for a general EOS)
-//
-template<std::size_t dim>
-void TwoScaleCapillarity<dim>::perform_Newton_step_relaxation(auto local_conserved_variables,
-                                                              const Number H_bar_loc,
-                                                              Number& dalpha1_bar_loc,
-                                                              Number& alpha1_bar_loc,
-                                                              std::size_t& to_be_relaxed_loc,
-                                                              std::size_t& Newton_iterations_loc,
-                                                              bool& local_relaxation_applied,
-                                                              const auto& grad_alpha1_bar_loc,
-                                                              const bool mass_transfer_NR) {
-  to_be_relaxed_loc = 0;
-
-  if(!std::isnan(H_bar_loc)) {
-    // Pre-fetch some variables used multiple times in order to exploit possible vectorization
-    const auto m1_loc       = local_conserved_variables(M1_INDEX);
-    const auto m2_loc       = local_conserved_variables(M2_INDEX);
-    const auto m1_d_loc     = local_conserved_variables(M1_D_INDEX);
-    const auto alpha1_d_loc = local_conserved_variables(ALPHA1_D_INDEX);
-
-    // Update auxiliary values affected by the nonlinear function for which we seek a zero
-    const auto alpha1_loc = alpha1_bar_loc*(static_cast<Number>(1.0) - alpha1_d_loc);
-    const auto rho1_loc   = m1_loc/alpha1_loc; // TODO: Add a check in case of zero volume fraction
-    const auto p1_loc     = EOS_phase1.pres_value(rho1_loc);
-
-    const auto alpha2_loc = static_cast<Number>(1.0) - alpha1_loc - alpha1_d_loc;
-    const auto rho2_loc   = m2_loc/alpha2_loc; // TODO: Add a check in case of zero volume fraction
-    const auto p2_loc     = EOS_phase2.pres_value(rho2_loc);
-
-    const auto rho1d_loc     = (m1_d_loc > static_cast<Number>(0.0) &&
-                               alpha1_d_loc > static_cast<Number>(0.0)) ?
-                               m1_d_loc/alpha1_d_loc : EOS_phase1.get_rho0();
-    const auto inv_rho1d_loc = static_cast<Number>(1.0)/rho1d_loc;
-
-    // Prepare for mass transfer if desired
-    const auto rho_loc = m1_loc + m2_loc + m1_d_loc;
-
-    // Compute first ordrer integral reminder "specific enthalpy"
-    auto alpha2_bar_loc  = static_cast<Number>(1.0) - alpha1_bar_loc;
-    const auto p_bar_loc = alpha1_bar_loc*p1_loc
-                         + alpha2_bar_loc*p2_loc;
-    const auto p2_minus_p1_times_theta = rho1_loc/alpha2_bar_loc*
-                                         (EOS_phase1.e_value(rho1d_loc) - EOS_phase1.e_value(rho1_loc) +
-                                          p_bar_loc*inv_rho1d_loc - p1_loc/rho1_loc) -
-                                         (p2_loc - p1_loc);
-    Number H_lim = std::min(H_bar_loc, Hmax);
-    const auto fac_Ru = sigma*(static_cast<Number>(3.0)*H_lim/(kappa*rho1d_loc))*
-                              (rho1_loc/alpha2_bar_loc)
-                      - sigma*H_lim/(static_cast<Number>(1.0) - alpha1_d_loc)
-                      + p2_minus_p1_times_theta;
-    if(mass_transfer_NR) {
-      if(fac_Ru > static_cast<Number>(0.0) &&
-         alpha1_bar_loc > alpha1_bar_min && alpha1_bar_loc < alpha1_bar_max &&
-         -grad_alpha1_bar_loc[0]*local_conserved_variables(RHO_U_INDEX)
-         -grad_alpha1_bar_loc[1]*local_conserved_variables(RHO_U_INDEX + 1) > static_cast<Number>(0.0) &&
-         alpha1_d_loc < alpha1d_max) {
-        ;
-      }
-      else {
-        H_lim = H_bar_loc;
-      }
-    }
-    else {
-      H_lim = H_bar_loc;
-    }
-
-    const auto dH = H_bar_loc - H_lim;
-
-    // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
-    const auto F = (static_cast<Number>(1.0) - alpha1_d_loc)*(p1_loc - p2_loc)
-                 - sigma*H_lim;
-
-    // Perform the relaxation only where really needed
-    if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
-       std::abs(dalpha1_bar_loc) > atol_Newton) {
-      to_be_relaxed_loc = 1;
-      Newton_iterations_loc++;
-      local_relaxation_applied = true;
-
-      // Compute the derivative w.r.t large scale volume fraction recalling that for a barotropic EOS dp/drho = c^2
-      const auto c1_loc = EOS_phase1.c_value(rho1_loc);
-      const auto c2_loc = EOS_phase2.c_value(rho2_loc);
-
-      const auto dF_dalpha1_bar = -m1_loc/(alpha1_bar_loc*alpha1_bar_loc)*
-                                   c1_loc*c1_loc
-                                  -m2_loc/(alpha2_bar_loc*alpha2_bar_loc)*
-                                   c2_loc*c2_loc;
-
-      // Compute the pseudo time step starting as initial guess from the ideal unmodified Newton method
-      auto dtau_ov_epsilon = std::numeric_limits<Number>::infinity();
-
-      // Bound-preserving condition for m1, velocity and small-scale volume fraction
-      if(dH > static_cast<Number>(0.0)) {
-        // Bound-preserving condition for m1
-        dtau_ov_epsilon = lambda*(alpha1_loc*alpha2_bar_loc)/(sigma*dH);
-        #ifdef DEBUG
-          if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-            throw std::runtime_error("Negative time step found after relaxation of mass of large-scale phase 1");
-          }
-        #endif
-
-        // Bound preserving for the velocity
-        const auto mom_dot_vel   = (local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX) +
-                                    local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1))/rho_loc;
-        auto dtau_ov_epsilon_tmp = lambda*mom_dot_vel/(dH*fac_Ru*sigma);
-        dtau_ov_epsilon          = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-        #ifdef DEBUG
-          if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-            throw std::runtime_error("Negative time step found after relaxation of velocity");
-          }
-        #endif
-
-        // Bound preserving for the small-scale volume fraction
-        dtau_ov_epsilon_tmp = lambda*(alpha1d_max - alpha1_d_loc)*alpha2_bar_loc*rho1d_loc/
-                                     (rho1_loc*sigma*dH);
-        dtau_ov_epsilon     = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-        if(alpha1_d_loc > static_cast<Number>(0.0)) {
-          dtau_ov_epsilon_tmp = lambda*alpha1_d_loc*alpha2_bar_loc*rho1d_loc/
-                                       (rho1_loc*sigma*dH);
-
-          dtau_ov_epsilon     = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-        }
-        #ifdef DEBUG
-          if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-            throw std::runtime_error("Negative time step found after relaxation of small-scale volume fraction");
-          }
-        #endif
-      }
-
-      // Bound-preserving condition for large-scale volume fraction
-      const auto dF_dalpha1d   = p2_loc - p1_loc
-                               + EOS_phase1.c_value(rho1_loc)*EOS_phase1.c_value(rho1_loc)*rho1_loc
-                               - EOS_phase2.c_value(rho2_loc)*EOS_phase2.c_value(rho2_loc)*rho2_loc;
-      const auto dF_dm1        = EOS_phase1.c_value(rho1_loc)*EOS_phase1.c_value(rho1_loc)/alpha1_bar_loc;
-      const auto R             = dF_dalpha1d*inv_rho1d_loc - dF_dm1;
-      const auto a             = rho1_loc*sigma*dH*R/
-                                 (alpha2_bar_loc*(static_cast<Number>(1.0) - alpha1_d_loc));
-      // Upper bound
-      auto b                   = (F + lambda*alpha2_bar_loc*dF_dalpha1_bar)/
-                                 (static_cast<Number>(1.0) - alpha1_d_loc);
-      auto D                   = b*b - static_cast<Number>(4.0)*a*(-lambda*alpha2_bar_loc);
-      auto dtau_ov_epsilon_tmp = std::numeric_limits<Number>::infinity();
-      if(D > static_cast<Number>(0.0) &&
-         (a > static_cast<Number>(0.0) ||
-         (a < static_cast<Number>(0.0) && b > static_cast<Number>(0.0)))) {
-        dtau_ov_epsilon_tmp = static_cast<Number>(0.5)*(-b + std::sqrt(D))/a;
-      }
-      if(a == static_cast<Number>(0.0) &&
-         b > static_cast<Number>(0.0)) {
-        dtau_ov_epsilon_tmp = lambda*alpha2_bar_loc/b;
-      }
-      dtau_ov_epsilon = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-      // Lower bound
-      dtau_ov_epsilon_tmp = std::numeric_limits<Number>::infinity();
-      b                   = (F - lambda*alpha1_bar_loc*dF_dalpha1_bar)/
-                            (static_cast<Number>(1.0) - alpha1_d_loc);
-      D                   = b*b - static_cast<Number>(4.0)*a*(lambda*alpha1_bar_loc);
-      if(D > static_cast<Number>(0.0) &&
-         (a < static_cast<Number>(0.0) ||
-         (a > static_cast<Number>(0.0) && b < static_cast<Number>(0.0)))) {
-        dtau_ov_epsilon_tmp = static_cast<Number>(0.5)*(-b - std::sqrt(D))/a;
-      }
-      if(a == static_cast<Number>(0.0) &&
-         b < static_cast<Number>(0.0)) {
-        dtau_ov_epsilon_tmp = -lambda*alpha1_bar_loc/b;
-      }
-      dtau_ov_epsilon = std::min(dtau_ov_epsilon, dtau_ov_epsilon_tmp);
-      #ifdef DEBUG
-        if(dtau_ov_epsilon < static_cast<Number>(0.0)) {
-          throw std::runtime_error("Negative time step found after relaxation of large-scale volume fraction");
-        }
-      #endif
-
-      // Compute the effective variation of the variables
-      if(std::isinf(dtau_ov_epsilon)) {
-        // If we are in this branch we do not have mass transfer
-        // and we do not have other restrictions on the bounds of large scale volume fraction
-        dalpha1_bar_loc = -F/dF_dalpha1_bar;
-
-        /*if(dalpha1_bar_loc > static_cast<Number>(0.0)) {
-          dalpha1_bar_loc = std::min(dalpha1_bar_loc, lambda*alpha2_bar_loc);
-        }
-        else if(dalpha1_bar_loc < static_cast<Number>(0.0)) {
-          dalpha1_bar_loc = std::max(dalpha1_bar_loc, -lambda*alpha1_bar_loc);
-        }*/
-      }
-      else {
-        const auto dm1 = -dtau_ov_epsilon/alpha2_bar_loc*
-                          (m1_loc/(alpha1_bar_loc*(static_cast<Number>(1.0) - alpha1_d_loc)))*
-                          sigma*dH;
-
-        #ifdef DEBUG
-          if(dm1 > static_cast<Number>(0.0)) {
-            throw std::runtime_error("Negative sign of mass transfer inside Newton step");
-          }
-        #endif
-        local_conserved_variables(M1_INDEX) += dm1;
-        #ifdef DEBUG
-          // I should never get here. Added only for the sake of safety!!
-          if(local_conserved_variables(M1_INDEX) < static_cast<Number>(0.0)) {
-            throw std::runtime_error("Negative mass of large-scale phase 1 inside Newton step");
-          }
-        #endif
-
-        local_conserved_variables(M1_D_INDEX) -= dm1;
-        #ifdef DEBUG
-          // I should never get here. Added only for the sake of safety!!
-          if(local_conserved_variables(M1_D_INDEX) < static_cast<Number>(0.0)) {
-            throw std::runtime_error("Negative mass of small-scale phase 1 inside Newton step");
-          }
-        #endif
-
-        #ifdef DEBUG
-          if(alpha1_d_loc - dm1*inv_rho1d_loc > static_cast<Number>(1.0)) {
-            throw std::runtime_error("Exceeding value for small-scale volume fraction inside Newton step");
-          }
-        #endif
-        local_conserved_variables(ALPHA1_D_INDEX) -= dm1*inv_rho1d_loc;
-
-        local_conserved_variables(SIGMA_D_INDEX) -= dm1*static_cast<Number>(3.0)*Hmax/(kappa*rho1d_loc);
-
-        const auto mom_squared = local_conserved_variables(RHO_U_INDEX)*local_conserved_variables(RHO_U_INDEX)
-                               + local_conserved_variables(RHO_U_INDEX + 1)*local_conserved_variables(RHO_U_INDEX + 1);
-        const auto drho_fac_Ru = dtau_ov_epsilon*
-                                 sigma*dH*fac_Ru*rho_loc/mom_squared; /*--- u/u^{2} = rho*u/(rho*(u^{2})) = (rho/(rho*u)^{2})*(rho*u) ---*/
-
-        for(std::size_t d = 0; d < Field::dim; ++d) {
-          local_conserved_variables(RHO_U_INDEX + d) -= drho_fac_Ru*local_conserved_variables(RHO_U_INDEX + d);
-        }
-
-        const auto num_dalpha1_bar = dtau_ov_epsilon/(static_cast<Number>(1.0) - alpha1_d_loc);
-        const auto den_dalpha1_bar = static_cast<Number>(1.0) - num_dalpha1_bar*dF_dalpha1_bar;
-        dalpha1_bar_loc            = (num_dalpha1_bar/den_dalpha1_bar)*(F - dm1*R);
-      }
-
-      #ifdef DEBUG
-        if(alpha1_bar_loc + dalpha1_bar_loc < static_cast<Number>(0.0) ||
-           alpha1_bar_loc + dalpha1_bar_loc > static_cast<Number>(1.0)) {
-          // I should never get here. Added only for the sake of safety!!
-          throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step");
-        }
-      #endif
-      alpha1_bar_loc += dalpha1_bar_loc;
-    }
-
-    // Update "conservative counter part" of large-scale volume fraction.
-    // Do it outside because this can change either because of mass-transfer or
-    // alpha1_bar.
-    local_conserved_variables(RHO_ALPHA1_BAR_INDEX) = rho_loc*alpha1_bar_loc;
+  // Newton cycle diverged
+  if(global_relaxation_applied) {
+    std::cerr << "Netwon method not converged in the post-hyperbolic relaxation" << std::endl;
+    save("_diverged",
+         conserved_variables,
+         alpha1_bar, dalpha1_bar, grad_alpha1_bar, normal, H_bar,
+         to_be_relaxed, Newton_iterations);
+    exit(1);
   }
 }
 
@@ -1327,6 +1057,9 @@ void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
                                          Hyperbolic_flux);
   #endif
   auto numerical_flux_st = SurfaceTension_flux.make_two_scale_capillarity();
+  auto relaxation_op = Relaxation_operator.make_Newton_step_relaxation(H_bar, dalpha1_bar, alpha1_bar,
+                                                                       to_be_relaxed, Newton_iterations,
+                                                                       grad_alpha1_bar);
 
   // Save the initial condition
   const std::string suffix_init = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(0) : "";
@@ -1416,7 +1149,7 @@ void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
       to_be_relaxed.resize();
       Newton_iterations.resize();
       update_geometry(false);
-      apply_relaxation();
+      apply_relaxation(relaxation_op);
     }
 
     /*--- Consider the second stage for the second order ---*/
@@ -1435,7 +1168,7 @@ void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
         update_geometry();
         // Apply relaxation if desired, which will modify alpha1_bar and, consequently, for what
         // concerns next time step, rho_alpha1_bar (as well as grad_alpha1_bar).
-        apply_relaxation();
+        apply_relaxation(relaxation_op);
       }
       else {
         #ifdef RELAX_RECONSTRUCTION

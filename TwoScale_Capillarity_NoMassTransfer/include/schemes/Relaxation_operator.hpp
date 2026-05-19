@@ -8,7 +8,7 @@
 
 #include "flux_base.hpp"
 
-#define RELAXATION_OPERATOR
+#define DEBUG_RELAXATION
 
 namespace samurai {
   using namespace EquationData;
@@ -19,17 +19,14 @@ namespace samurai {
   template<class Field>
   class RelaxationOperator {
   public:
-    // Definitions
-    static constexpr std::size_t output_field_size = Field::n_comp;
+    using Number = typename Field::value_type; // Define the shortcut for the arithmetic type
 
-    using Number = typename Field::Number; // Define the shortcut for the arithmetic type
-
-    using cfg = samurai::LocalCellSchemeConfig<SchemeType::NonLinear, output_field_size, Field>;
+    using cfg = samurai::LocalCellSchemeConfig<SchemeType::NonLinear, Field, Field>;
 
     /**
      * Class constructor
-     * @param EOS_phase_1_ phase 1 equation of state
-     * @param EOS_phase_2_ phase 2 equation of state
+     * @param EOS_phase1_ phase 1 equation of state
+     * @param EOS_phase2_ phase 2 equation of state
      * @param sigma_ surface tension coefficient
      * @param lambda_ bound-preserving parameter
      * @param atol_Newton_ absolute tolerance for dual-time stepping
@@ -49,7 +46,7 @@ namespace samurai {
      * @param H curvature
      * @param dalpha1 variation of volume fraction
      * @param alpha1 volume fraction
-     * @param to_be_relaxed auxiliary flag to mark if a field has still to be realxed or not
+     * @param to_be_relaxed auxiliary flag to mark if a field has still to be relaxed or not
      * @param Newton_iterations number of Newton (dual-time stepping) iterations
      * @param relaxation_applied flag to check whether relaxation has been applied or we converged
      */
@@ -58,8 +55,19 @@ namespace samurai {
                                      Field_Scalar& dalpha1,
                                      Field_Scalar& alpha1,
                                      Field_Scalar_Unsigned& to_be_relaxed,
-                                     Field_Scalar_Unsigned& Newton_iterations,
-                                     bool& relaxation_applied);
+                                     Field_Scalar_Unsigned& Newton_iterations);
+
+    /**
+     * Set the value of the flag to check whether relaxation has been applied
+     * @param global_relaxation_applied flag to check whether relaxation has been applied
+     */
+    inline void set_relaxation_applied(const bool global_relaxation_applied);
+
+    /**
+     * Get the value of the flag to check whether relaxation has been applied
+     * @return global_relaxation_applied flag to check whether relaxation has been applied
+     */
+    inline bool get_relaxation_applied() const;
 
   protected:
     const LinearizedBarotropicEOS<Number>& EOS_phase1;
@@ -71,6 +79,9 @@ namespace samurai {
     const Number      atol_Newton;      /*!< Absolute tolerance Newton method relaxation */
     const Number      rtol_Newton;      /*!< Relative tolerance Newton method relaxation */
     const std::size_t max_Newton_iters; /*!< Maximum number of Newton iterations */
+
+  private:
+    bool relaxation_applied; /*!< Auxiliary flag to check whether relaxation has been applied */
   };
 
   // Constructor with all relevant parameters
@@ -87,6 +98,20 @@ namespace samurai {
     lambda(lambda_), atol_Newton(atol_Newton_), rtol_Newton(rtol_Newton_),
     max_Newton_iters(max_Newton_iters_) {}
 
+  // Set the value of the flag to check whether relaxation has been applied
+  //
+  template<class Field>
+  void RelaxationOperator<Field>::set_relaxation_applied(const bool global_relaxation_applied) {
+    relaxation_applied = global_relaxation_applied;
+  }
+
+  // Get the value of the flag to check whether relaxation has been applied
+  //
+  template<class Field>
+  bool RelaxationOperator<Field>::get_relaxation_applied() const {
+    return relaxation_applied;
+  }
+
   // Implement the contribution of the discrete relaxation operator
   //
   template<class Field>
@@ -95,13 +120,16 @@ namespace samurai {
                                                               Field_Scalar& dalpha1,
                                                               Field_Scalar& alpha1,
                                                               Field_Scalar_Unsigned& to_be_relaxed,
-                                                              Field_Scalar_Unsigned& Newton_iterations,
-                                                              bool& relaxation_applied) {
+                                                              Field_Scalar_Unsigned& Newton_iterations) {
     auto relaxation_step = samurai::make_cell_based_scheme<typename RelaxationOperator::cfg>();
     relaxation_step.set_name("Relaxation");
-    relaxation_step.set_scheme_function([&](const auto& cell, const auto& field)
+    relaxation_step.set_scheme_function([&](samurai::SchemeValue<cfg>& result, const auto& cell, const auto& field)
                                            {
-                                             samurai::SchemeValue<cfg> local_field = field[cell];
+                                             const auto local_field = field[cell];
+                                             result = field[cell];
+
+                                             to_be_relaxed[cell] = 0;
+
                                              if(!std::isnan(H[cell])) {
                                                // Pre-fetch some variables used multiple times in order to exploit possible vectorization
                                                const auto m1_loc = local_field(M1_INDEX);
@@ -152,16 +180,14 @@ namespace samurai {
                                                         throw std::runtime_error("Bounds exceeding value for large-scale volume fraction inside Newton step ");
                                                    }
                                                  #endif
-                                                 alpha1_loc += dalpha1_loc
+                                                 alpha1_loc += dalpha1_loc;
                                                  alpha1[cell] = alpha1_loc;
                                                }
 
                                                // Update the vector of conserved variables
                                                // (probably not the optimal choice since I need this update only at the end of the Newton loop)
-                                               local_field(RHO_ALPHA1_INDEX) = (m1_loc + m2_loc)*alpha1_loc;
+                                               result(RHO_ALPHA1_INDEX) = (m1_loc + m2_loc)*alpha1_loc;
                                              }
-
-                                             return local_field;
                                            });
 
     return relaxation_step;

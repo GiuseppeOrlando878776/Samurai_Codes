@@ -377,16 +377,14 @@ namespace samurai {
     void Flux<Field>::relax_reconstruction(FluxValue<cfg>& q,
                                            const Number H) {
       // Declare and set relevant parameters
-      std::size_t Newton_iter = 0;
       bool relaxation_applied = true;
 
       Number dalpha1 = std::numeric_limits<Number>::infinity();
       Number alpha1  = q(RHO_ALPHA1_INDEX)/(q(M1_INDEX) + q(M2_INDEX));
 
-      /*--- Apply Newton method ---*/
-      while(relaxation_applied == true) {
+      // Apply Newton method
+      for(std::size_t Newton_iter = 1; Newton_iter <= max_Newton_iters; ++Newton_iter) {
         relaxation_applied = false;
-        Newton_iter++;
 
         try {
           this->perform_Newton_step_relaxation(q, H, dalpha1, alpha1, relaxation_applied);
@@ -396,11 +394,16 @@ namespace samurai {
           exit(1);
         }
 
-        // Newton cycle diverged
-        if(Newton_iter > max_Newton_iters && relaxation_applied == true) {
-          std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
-          exit(1);
+        // Converged: no further relaxation requested
+        if(!relaxation_applied) {
+          break;
         }
+      }
+
+      // Newton cycle diverged
+      if(relaxation_applied) {
+        std::cerr << "Netwon method not converged in the relaxation after MUSCL" << std::endl;
+        exit(1);
       }
     }
   #endif
