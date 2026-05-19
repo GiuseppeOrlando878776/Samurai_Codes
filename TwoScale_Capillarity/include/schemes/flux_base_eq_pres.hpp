@@ -77,7 +77,7 @@ namespace samurai {
 
     const Number sigma; /*!< Surface tension parameter */
 
-    const Number      lambda;           /*!< Parameter for bound preserving strategy */
+    const Number      lambda;           /*!< Parameter for bound-preserving strategy */
     const Number      atol_Newton;      /*!< Absolute tolerance Newton method relaxation */
     const Number      rtol_Newton;      /*!< Relative tolerance Newton method relaxation */
     const std::size_t max_Newton_iters; /*!< Maximum number of Newton iterations */
