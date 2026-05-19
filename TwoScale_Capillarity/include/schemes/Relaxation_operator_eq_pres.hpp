@@ -277,10 +277,10 @@ namespace samurai {
                                              }
 
                                              // Perform the relaxation only where really needed
-                                             if(std::abs(F) > atol_Newton + rtol_Newton*((type_relaxation[cell] == PRESSURE_EQUILIBRIUM) ?
-                                                                                         EOS_phase1.get_p0() :
-                                                                                         std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim))) &&
-                                                std::abs(dalpha1_bar_loc) > atol_Newto)) {
+                                             if((std::abs(F) > atol_Newton + rtol_Newton*((type_relaxation[cell] == PRESSURE_EQUILIBRIUM) ?
+                                                                                          EOS_phase1.get_p0() :
+                                                                                          std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim))) &&
+                                                 std::abs(dalpha1_bar_loc) > atol_Newton) || dH > rtol_Newton*std::abs(Hmax)) {
                                                to_be_relaxed[cell] = 1;
                                                Newton_iterations[cell]++;
                                                relaxation_applied = true;

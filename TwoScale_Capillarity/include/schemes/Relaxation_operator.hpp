@@ -236,8 +236,8 @@ namespace samurai {
                                                             - sigma*H_lim;
 
                                                // Perform the relaxation only where really needed
-                                               if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
-                                                  std::abs(dalpha1_bar_loc) > atol_Newton) {
+                                               if((std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_lim)) &&
+                                                   std::abs(dalpha1_bar_loc) > atol_Newton) || dH > rtol_Newton*Hmax) {
                                                  to_be_relaxed[cell] = 1;
                                                  Newton_iterations[cell]++;
                                                  relaxation_applied = true;
