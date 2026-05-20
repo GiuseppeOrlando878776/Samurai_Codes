@@ -4,6 +4,8 @@
 //
 // Author: Giuseppe Orlando, 2026
 //
+#pragma once
+
 #include <samurai/algorithm/update.hpp>
 #include <samurai/mr/mesh.hpp>
 #include <samurai/box.hpp>

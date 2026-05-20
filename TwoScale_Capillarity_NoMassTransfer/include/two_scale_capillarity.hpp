@@ -4,6 +4,8 @@
 //
 // Author: Giuseppe Orlando, 2026
 //
+#pragma once
+
 #include <samurai/algorithm/update.hpp>
 #include <samurai/mr/mesh.hpp>
 #include <samurai/box.hpp>
@@ -343,7 +345,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
   samurai::for_each_cell(mesh,
                          [&](const auto& cell)
                             {
-                              // Set large-scale volume fraction
+                              // Set volume fraction
                               const auto center = cell.center();
                               const auto x      = static_cast<Number>(center[0]);
                               const auto y      = static_cast<Number>(center[1]);
@@ -375,7 +377,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
                               const auto y      = static_cast<Number>(center[1]);
                               const auto r      = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
 
-                              // Set mass large-scale phase 1
+                              // Set mass phase 1
                               Number p1;
                               if(r >= R + eps_R) {
                                 p1 = EOS_phase1.get_p0();
@@ -399,7 +401,7 @@ void TwoScaleCapillarity<dim>::init_variables(const Number x0, const Number y0,
 
                               conserved_variables[cell](M2_INDEX) = (static_cast<Number>(1.0) - alpha1[cell])*rho2;
 
-                              // Set conserved variable associated with large-scale volume fraction
+                              // Set conserved variable associated with volume fraction
                               const auto rho = conserved_variables[cell](M1_INDEX)
                                              + conserved_variables[cell](M2_INDEX);
 
