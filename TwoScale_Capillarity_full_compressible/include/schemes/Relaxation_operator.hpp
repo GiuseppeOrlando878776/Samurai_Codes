@@ -403,14 +403,10 @@ namespace samurai {
                                                    }
                                                  #endif
                                                  alpha_l_loc += dalpha_l_loc;
+                                                 alpha_l[cell]  = alpha_l_loc;
+                                                 dalpha_l[cell] = dalpha_l_loc;
+                                                 result(RHO_ALPHA_l_INDEX) = rho_loc*alpha_l_loc;
                                                }
-
-                                               // Update "conservative counter part" of large-scale volume fraction.
-                                               // Do it outside because this can change either because of mass transfer or
-                                               // of relaxation towards Laplace law.
-                                               alpha_l[cell]  = alpha_l_loc;
-                                               dalpha_l[cell] = dalpha_l_loc;
-                                               result(RHO_ALPHA_l_INDEX) = rho_loc*alpha_l_loc;
                                              }
                                            });
 
