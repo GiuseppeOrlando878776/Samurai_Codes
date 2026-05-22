@@ -130,7 +130,8 @@ namespace samurai {
 
                                              to_be_relaxed[cell] = 0;
 
-                                             if(!std::isnan(H[cell])) {
+                                             const auto H_loc = H[cell];
+                                             if(!std::isnan(H_loc)) {
                                                // Pre-fetch some variables used multiple times in order to exploit possible vectorization
                                                const auto m1_loc = local_field(M1_INDEX);
                                                const auto m2_loc = local_field(M2_INDEX);
@@ -145,10 +146,10 @@ namespace samurai {
                                                const auto p2_loc   = EOS_phase2.pres_value(rho2_loc);
 
                                                // Compute the nonlinear function for which we seek the zero (basically the Laplace law)
-                                               const auto F = p1_loc - p2_loc - sigma*H[cell];
+                                               const auto F = p1_loc - p2_loc - sigma*H_loc;
 
                                                // Perform the relaxation only where really needed
-                                               if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H[cell])) &&
+                                               if(std::abs(F) > atol_Newton + rtol_Newton*std::min(EOS_phase1.get_p0(), sigma*std::abs(H_loc)) &&
                                                   std::abs(dalpha1[cell]) > atol_Newton) {
                                                  to_be_relaxed[cell] = 1;
                                                  Newton_iterations[cell]++;
@@ -164,7 +165,7 @@ namespace samurai {
                                                                           c2_loc*c2_loc;
 
                                                  // Compute the large-scale volume fraction update
-                                                 auto dalpha1_loc = F/dF_dalpha1;
+                                                 auto dalpha1_loc = -F/dF_dalpha1;
                                                  if(dalpha1_loc > static_cast<Number>(0.0)) {
                                                    dalpha1_loc = std::min(dalpha1_loc, lambda*alpha2_loc);
                                                  }

@@ -696,7 +696,7 @@ void TwoScaleCapillarity<dim>::apply_relaxation(auto& relaxation_op) {
            conserved_variables,
            alpha1, dalpha1, grad_alpha1, normal, H,
            to_be_relaxed, Newton_iterations);
-      std::exit(1);
+      exit(1);
     }
 
     // Recompute geometric quantities (curvature potentially changed in the Newton loop)
