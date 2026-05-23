@@ -163,10 +163,10 @@ private:
   samurai::ScalarField<mesh_type, std::size_t> Newton_iterations;
   samurai::ScalarField<mesh_type, std::size_t> type_relaxation;
 
-  using gradient_type = decltype(samurai::make_gradient_order2<decltype(alpha1_bar)>());
+  using gradient_type = decltype(samurai::make_gradient_order2<Field_Scalar>());
   gradient_type gradient;
 
-  using divergence_type = decltype(samurai::make_divergence_order2<decltype(normal)>());
+  using divergence_type = decltype(samurai::make_divergence_order2<Field_Vect>());
   divergence_type divergence;
 
   std::optional<PostprocessWriter<Number>> postprocess_writer; /*!< Auxiliary output for post-processing */
@@ -287,8 +287,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
                       sim_param.lambda, sim_param.atol_Newton, sim_param.rtol_Newton,
                       max_Newton_iters),
   path(sim_param.save_dir),
-  gradient(samurai::make_gradient_order2<decltype(alpha1_bar)>()),
-  divergence(samurai::make_divergence_order2<decltype(normal)>())
+  gradient(samurai::make_gradient_order2<Field_Scalar>()),
+  divergence(samurai::make_divergence_order2<Field_Vect>())
   {
     #ifdef SAMURAI_WITH_MPI
       int rank;
