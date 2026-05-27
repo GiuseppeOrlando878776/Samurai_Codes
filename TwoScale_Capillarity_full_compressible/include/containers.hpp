@@ -72,11 +72,11 @@ struct Simulation_Parameters {
  */
 template<typename T = double>
 struct EOS_Parameters {
-  T p0_phase1;
-  T rho0_phase1;
-  T c0_phase1;
+  T p0_phase_liq;
+  T rho0_phase_liq;
+  T c0_phase_liq;
 
-  T p0_phase2;
-  T rho0_phase2;
-  T c0_phase2;
+  T p0_phase_gas;
+  T rho0_phase_gas;
+  T c0_phase_gas;
 };

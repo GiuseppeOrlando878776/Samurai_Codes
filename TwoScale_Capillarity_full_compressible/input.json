@@ -45,11 +45,11 @@
 
  "nfiles": 10,
 
- "p0_phase1": 1e5,
- "rho0_phase1": 1e3,
- "c0_phase1": 1e1,
+ "p0_phase_liq": 1e5,
+ "rho0_phase_liq": 1e3,
+ "c0_phase_liq": 1e1,
 
- "p0_phase2": 1e5,
- "rho0_phase2": 1.0,
- "c0_phase2": 1e1
+ "p0_phase_gas": 1e5,
+ "rho0_phase_gas": 1.0,
+ "c0_phase_gas": 1e1
 }

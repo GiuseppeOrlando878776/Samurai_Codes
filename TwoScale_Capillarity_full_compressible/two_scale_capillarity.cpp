@@ -150,20 +150,20 @@ int main(int argc, char* argv[]) {
   /*--- Set and declare simulation parameters related to EOS ---*/
   EOS_Parameters<Number> eos_param;
 
-  eos_param.p0_phase1   = input.value("p0_phase1", static_cast<Number>(1e5));
-  eos_param.rho0_phase1 = input.value("rho0_phase1", static_cast<Number>(1e3));
-  eos_param.c0_phase1   = input.value("c0_phase1", static_cast<Number>(1e1));
+  eos_param.p0_phase_liq   = input.value("p0_phase_liq", static_cast<Number>(1e5));
+  eos_param.rho0_phase_liq = input.value("rho0_phase_liq", static_cast<Number>(1e3));
+  eos_param.c0_phase_liq   = input.value("c0_phase_liq", static_cast<Number>(1e1));
 
-  eos_param.p0_phase2   = input.value("p0_phase2", static_cast<Number>(1e5));
-  eos_param.rho0_phase2 = input.value("rho0_phase2", static_cast<Number>(1.0));
-  eos_param.c0_phase2   = input.value("c0_phase2", static_cast<Number>(1e1));
+  eos_param.p0_phase_gas   = input.value("p0_phase_gas", static_cast<Number>(1e5));
+  eos_param.rho0_phase_gas = input.value("rho0_phase_gas", static_cast<Number>(1.0));
+  eos_param.c0_phase_gas   = input.value("c0_phase_gas", static_cast<Number>(1e1));
 
-  app.add_option("--p0_phase1", eos_param.p0_phase1, "p0_phase1")->capture_default_str()->group("EOS parameters");
-  app.add_option("--rho0_phase1", eos_param.p0_phase1, "rho0_phase1")->capture_default_str()->group("EOS parameters");
-  app.add_option("--c0_phase1", eos_param.c0_phase1, "c0_phase1")->capture_default_str()->group("EOS parameters");
-  app.add_option("--p0_phase2", eos_param.p0_phase2, "p0_phase2")->capture_default_str()->group("EOS parameters");
-  app.add_option("--rho0_phase2", eos_param.p0_phase2, "rho0_phase2")->capture_default_str()->group("EOS parameters");
-  app.add_option("--c0_phase2", eos_param.c0_phase2, "c0_phase2")->capture_default_str()->group("EOS parameters");
+  app.add_option("--p0_phase_liq", eos_param.p0_phase_liq, "p0_phase_liq")->capture_default_str()->group("EOS parameters");
+  app.add_option("--rho0_phase_liq", eos_param.rho0_phase_liq, "rho0_phase_liq")->capture_default_str()->group("EOS parameters");
+  app.add_option("--c0_phase_liq", eos_param.c0_phase_liq, "c0_phase_liq")->capture_default_str()->group("EOS parameters");
+  app.add_option("--p0_phase_gas", eos_param.p0_phase_gas, "p0_phase_gas")->capture_default_str()->group("EOS parameters");
+  app.add_option("--rho0_phase_gas", eos_param.rho0_phase_gas, "rho0_phase_gas")->capture_default_str()->group("EOS parameters");
+  app.add_option("--c0_phase_gas", eos_param.c0_phase_gas, "c0_phase_gas")->capture_default_str()->group("EOS parameters");
 
   /*--- Create the instance of the class to perform the simulation ---*/
   CLI11_PARSE(app, argc, argv);
