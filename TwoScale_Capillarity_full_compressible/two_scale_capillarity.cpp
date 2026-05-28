@@ -17,8 +17,14 @@ int main(int argc, char* argv[]) {
 
   auto& app = samurai::initialize("Finite volume example for the air-blasted liquid column configuration", argc, argv);
 
-  std::ifstream ifs("input.json"); // Read a JSON file
-  json input = json::parse(ifs);
+  json input;
+  try {
+    std::ifstream ifs("input.json"); // Read a JSON file
+    input = json::parse(ifs);
+  }
+  catch(const json::parse_error& e) {
+    throw std::runtime_error("Cannot parse parameter file 'input.json'. Please verify that the file is present");
+  }
 
   /*--- Set and declare simulation parameters ---*/
   using Number = TwoScaleCapillarity<EquationData::dim>::Number;
@@ -43,14 +49,6 @@ int main(int argc, char* argv[]) {
   sim_param.alpha_d_max      = input.value("alpha_d_max", static_cast<Number>(0.5));
   sim_param.alpha_l_min      = input.value("alpha_l_min", static_cast<Number>(0.01));
   sim_param.alpha_l_max      = input.value("alpha_l_max", static_cast<Number>(0.1));
-
-  sim_param.x0         = input.value("x0", static_cast<Number>(1.0));
-  sim_param.y0         = input.value("y0", static_cast<Number>(1.0));
-  sim_param.U0         = input.value("U0", static_cast<Number>(6.66));
-  sim_param.U1         = input.value("U1", static_cast<Number>(0.0));
-  sim_param.V0         = input.value("V0", static_cast<Number>(0.0));
-  sim_param.R          = input.value("R", static_cast<Number>(0.15));
-  sim_param.eps_over_R = input.value("eps_over_R", static_cast<Number>(0.2));
 
   // Numerical parameters
   sim_param.num_flux_hyp = input.value("num_flux_hyp", "HLLC");
@@ -103,15 +101,6 @@ int main(int argc, char* argv[]) {
                  "Maximum effective volume fraction for the mixture region")->capture_default_str()->group("Physical parameters");
   app.add_option("--alpha_l_max", sim_param.alpha_l_max,
                  "Maximum effective volume fraction for the mixture region")->capture_default_str()->group("Physical parameters");
-
-  app.add_option("--x0", sim_param.x0, "Liquid column x-center")->capture_default_str()->group("Physical parameters");
-  app.add_option("--y0", sim_param.y0, "Liquid column y-center")->capture_default_str()->group("Physical parameters");
-  app.add_option("--U0", sim_param.U0, "Parameter for initial horizontal velocity")->capture_default_str()->group("Physical parameters");
-  app.add_option("--U1", sim_param.U1, "Parameter for initial horizontal velocity")->capture_default_str()->group("Physical parameters");
-  app.add_option("--V0", sim_param.V0, "Initial vertical velocity")->capture_default_str()->group("Physical parameters");
-  app.add_option("--R", sim_param.R, "Initial radius of the liquid column")->capture_default_str()->group("Physical parameters");
-  app.add_option("--eps_over_R", sim_param.eps_over_R,
-                 "Initial interface thickness with respect to the radius")->capture_default_str()->group("Physical parameters");
 
   // Numerical parameters
   app.add_option("--num_flux_hyp", sim_param.num_flux_hyp,
@@ -166,12 +155,24 @@ int main(int argc, char* argv[]) {
   app.add_option("--c0_phase_gas", eos_param.c0_phase_gas, "c0_phase_gas")->capture_default_str()->group("EOS parameters");
 
   /*--- Create the instance of the class to perform the simulation ---*/
+  // Read name and parameter file of the test case
+  std::string tc_name       = input.value("test_case", "liquid_column");
+  std::string tc_param_file = input.value("test_case_param", "liquid_column.json");
+
+  app.add_option("--test_case", tc_name, "Test case configuration")->capture_default_str()->group("Physical parameters");
+  app.add_option("--test_case_param", tc_param_file, "Test case parameter file")->capture_default_str()->group("Physical parameters");
+
+  // Create the test case through factory
+  auto tc = make_test_case<TwoScaleCapillarity_Traits<dim>,
+                           AuxiliaryFields<TwoScaleCapillarity_Traits<dim>>>(tc_name, tc_param_file);
+
   CLI11_PARSE(app, argc, argv);
 
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> min_corner = {sim_param.xL, sim_param.yL};
   xt::xtensor_fixed<double, xt::xshape<EquationData::dim>> max_corner = {sim_param.xR, sim_param.yR};
   auto TwoScaleCapillarity_Sim = TwoScaleCapillarity(min_corner, max_corner,
-                                                     sim_param, eos_param);
+                                                     sim_param, eos_param,
+                                                     std::move(tc));
 
   TwoScaleCapillarity_Sim.run(sim_param.num_flux_hyp, sim_param.nfiles);
 

@@ -16,4 +16,4 @@ add_executable(two_scale_capillarity two_scale_capillarity.cpp)
 set_target_properties(two_scale_capillarity PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 target_link_libraries(two_scale_capillarity samurai::samurai CLI11::CLI11 nlohmann_json::nlohmann_json)
-target_include_directories(two_scale_capillarity PRIVATE include include/schemes)
+target_include_directories(two_scale_capillarity PRIVATE include include/schemes include/test_cases)
