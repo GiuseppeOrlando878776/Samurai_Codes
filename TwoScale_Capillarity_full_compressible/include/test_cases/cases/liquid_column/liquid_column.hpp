@@ -102,7 +102,7 @@ private:
   void init_variables(Context& ctx,
                       const Number sigma,
                       const Number alpha_residual,
-                      const Number mod_grad_alpha1_min);
+                      const Number mod_grad_alpha_l_min);
 
   /**
    * Attach boundary conditions to the conserved variable field.
@@ -168,7 +168,7 @@ void LiquidColumn<Traits, AuxFields>::setup(Context& ctx) {
 
   // Capture ctx by reference: the solver guarantees it outlives init_fn
   // and bc_fn. Capture 'this' by pointer: LiquidColumn outlives the solver.
-  // Capture sigma, alpha_residual, and mod_grad_alpha1_min by values: they are lightweight scalars.
+  // Capture sigma, alpha_residual, and mod_grad_alpha_l_min by values: they are lightweight scalars.
   this->init_fn = [this, &ctx, sigma, alpha_residual, mod_grad_alpha_l_min]() {
     init_variables(ctx, sigma, alpha_residual, mod_grad_alpha_l_min);
   };
