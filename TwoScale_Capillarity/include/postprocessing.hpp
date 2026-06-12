@@ -70,16 +70,16 @@ public:
    * @param q integral quantities to be written
    */
   void write(const Number time, const IntegralQuantities<Number>& q) {
-    Utilities::write_data(Hlig, time, q.H_lig);
-    Utilities::write_data(m1_integral, time, q.m1_int);
-    Utilities::write_data(m1_d_integral, time, q.m1_d_int);
-    Utilities::write_data(alpha1_bar_integral, time, q.alpha1_bar_int);
-    Utilities::write_data(grad_alpha1_bar_integral, time, q.grad_alpha1_bar_int);
-    Utilities::write_data(Sigma_d_integral, time, q.Sigma_d_int);
-    Utilities::write_data(alpha1_d_integral, time, q.alpha1_d_int);
-    Utilities::write_data(grad_alpha1_d_integral, time, q.grad_alpha1_d_int);
-    Utilities::write_data(grad_alpha1_integral, time, q.grad_alpha1_int);
-    Utilities::write_data(grad_alpha1_tot_integral, time, q.grad_alpha1_tot_int);
+    Utilities::write_data(Hlig, time, Utilities::mpi_reduce_max(q.H_lig));
+    Utilities::write_data(m1_integral, time, Utilities::mpi_reduce_sum(q.m1_int));
+    Utilities::write_data(m1_d_integral, time, Utilities::mpi_reduce_sum(q.m1_d_int));
+    Utilities::write_data(alpha1_bar_integral, time, Utilities::mpi_reduce_sum(q.alpha1_bar_int));
+    Utilities::write_data(grad_alpha1_bar_integral, time, Utilities::mpi_reduce_sum(q.grad_alpha1_bar_int));
+    Utilities::write_data(Sigma_d_integral, time, Utilities::mpi_reduce_sum(q.Sigma_d_int));
+    Utilities::write_data(alpha1_d_integral, time, Utilities::mpi_reduce_sum(q.alpha1_d_int));
+    Utilities::write_data(grad_alpha1_d_integral, time, Utilities::mpi_reduce_sum(q.grad_alpha1_d_int));
+    Utilities::write_data(grad_alpha1_integral, time, Utilities::mpi_reduce_sum(q.grad_alpha1_int));
+    Utilities::write_data(grad_alpha1_tot_integral, time, Utilities::mpi_reduce_sum(q.grad_alpha1_tot_int));
   }
 
 private:

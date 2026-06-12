@@ -70,18 +70,18 @@ public:
 
   // Perform writing operation
   void write(const Number time, const IntegralQuantities<Number>& q) {
-    Utilities::write_data(Hlig, time, q.H_lig);
-    Utilities::write_data(m_l_integral, time, q.m_l_int);
-    Utilities::write_data(m_d_integral, time, q.m_d_int);
-    Utilities::write_data(alpha_l_integral, time, q.alpha_l_int);
-    Utilities::write_data(grad_alpha_l_integral, time, q.grad_alpha_l_int);
-    Utilities::write_data(Sigma_d_integral, time, q.Sigma_d_int);
-    Utilities::write_data(alpha_d_integral, time, q.alpha_d_int);
-    Utilities::write_data(grad_alpha_d_integral, time, q.grad_alpha_d_int);
-    Utilities::write_data(grad_alpha_liq_integral, time, q.grad_alpha_liq_int);
-    Utilities::write_data(alpha_l_bar_integral, time, q.alpha_l_bar_int);
-    Utilities::write_data(grad_alpha_l_bar_integral, time, q.grad_alpha_l_bar_int);
-    Utilities::write_data(Etot_integral, time, q.Etot_int);
+    Utilities::write_data(Hlig, time, Utilities::mpi_reduce_max(q.H_lig));
+    Utilities::write_data(m_l_integral, time, Utilities::mpi_reduce_sum(q.m_l_int));
+    Utilities::write_data(m_d_integral, time, Utilities::mpi_reduce_sum(q.m_d_int));
+    Utilities::write_data(alpha_l_integral, time, Utilities::mpi_reduce_sum(q.alpha_l_int));
+    Utilities::write_data(grad_alpha_l_integral, time, Utilities::mpi_reduce_sum(q.grad_alpha_l_int));
+    Utilities::write_data(Sigma_d_integral, time, Utilities::mpi_reduce_sum(q.Sigma_d_int));
+    Utilities::write_data(alpha_d_integral, time, Utilities::mpi_reduce_sum(q.alpha_d_int));
+    Utilities::write_data(grad_alpha_d_integral, time, Utilities::mpi_reduce_sum(q.grad_alpha_d_int));
+    Utilities::write_data(grad_alpha_liq_integral, time, Utilities::mpi_reduce_sum(q.grad_alpha_liq_int));
+    Utilities::write_data(alpha_l_bar_integral, time, Utilities::mpi_reduce_sum(q.alpha_l_bar_int));
+    Utilities::write_data(grad_alpha_l_bar_integral, time, Utilities::mpi_reduce_sum(q.grad_alpha_l_bar_int));
+    Utilities::write_data(Etot_integral, time, Utilities::mpi_reduce_sum(q.Etot_int));
   }
 
 private:
