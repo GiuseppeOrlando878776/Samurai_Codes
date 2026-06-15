@@ -1,0 +1,88 @@
+// Copyright 2021 SAMURAI TEAM. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+//
+// Author: Giuseppe Orlando, 2026
+//
+#pragma once
+
+/**
+ * Declare a struct with the simulation parameters
+ */
+template<typename T = double>
+struct Simulation_Parameters {
+  // Physical parameters
+  double xL;
+  double xR;
+  double yL;
+  double yR;
+
+  T t0;
+  T Tf;
+
+  T sigma;
+
+  bool apply_relaxation;
+  bool mass_transfer;
+  T    Hmax;
+  T    kappa;
+  T    alpha_d_max;
+  T    alpha_l_min;
+  T    alpha_l_max;
+
+  T x0;
+  T y0;
+  T U0;
+  T U1;
+  T V0;
+  T R;
+  T eps_over_R;
+  T p_init;
+  T rho_liq_init;
+  T rho_g_init;
+
+  // Numerical parameters
+  std::string num_flux_hyp;
+
+  T Courant;
+
+  T alpha_residual;
+  T mod_grad_alpha_l_min;
+
+  T           lambda;
+  T           atol_Newton;
+  T           rtol_Newton;
+  std::size_t max_Newton_iters;
+  T           p_ref;
+
+  // MR parameters
+  std::size_t min_level;
+  std::size_t max_level;
+  double      MR_param;
+  double      MR_regularity;
+
+  // Output parameters
+  std::string save_dir;
+  std::size_t nfiles;
+
+  // Restart file
+  std::string restart_file;
+};
+
+/**
+ * Declare a struct with EOS parameters
+ */
+template<typename T = double>
+struct EOS_Parameters {
+  // SG-EOS parameters liquid phase
+  T gamma_liq;
+  T pi_infty_liq;
+  T q_infty_liq;
+  T c_v_liq;
+
+  // SG-EOS parameters gas phase
+  T gamma_g;
+  T pi_infty_g;
+  T q_infty_g;
+  T c_v_g;
+};

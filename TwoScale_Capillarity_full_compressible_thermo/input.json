@@ -1,0 +1,51 @@
+{
+ "xL": 0.0,
+ "xR": 4.0,
+ "yL": 0.0,
+ "yR": 2.0,
+
+ "Tf": 2.5,
+
+ "sigma": 1e-2,
+
+ "apply_relaxation": true,
+ "mass_transfer": true,
+ "Hmax": 40.0,
+ "kappa": 1.0,
+ "alpha_d_max": 0.5,
+ "alpha_l_min": 0.01,
+ "alpha_l_max": 0.1,
+
+ "test_case": "liquid_column",
+ "test_case_param": "include/test_cases/cases/liquid_column/liquid_column.json",
+
+ "num_flux_hyp": "HLLC",
+
+ "cfl": 0.4,
+
+ "alpha_residual": 1e-8,
+ "mod_grad_alpha_l_min": 1e-3,
+
+ "lambda": 0.9,
+ "atol_Newton": 1e-12,
+ "rtol_Newton": 1e-10,
+ "max_Newton_iters": 60,
+ "p_ref": 1e5,
+
+ "min-level": 8,
+ "max-level": 8,
+ "MR_param": 1e-1,
+ "MR_regularity": 0,
+
+ "nfiles": 10,
+
+ "gamma_liq": 4.4,
+ "pi_infty_liq": 6e8,
+ "q_infty_liq": 0.0,
+ "c_v_liq": 951.3636363636363636363636363636,
+
+ "gamma_g": 1.4,
+ "pi_infty_g": 0.0,
+ "q_infty_g": 0.0,
+ "c_v_g": 717.5
+}
