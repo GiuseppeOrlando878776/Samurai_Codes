@@ -13,6 +13,7 @@
 #include "test_case.hpp"
 
 #include "cases/liquid_column/liquid_column.hpp"
+#include "cases/static_bubble/static_bubble.hpp"
 
 /**
  * @file test_case_factory.hpp
@@ -48,7 +49,10 @@ make_test_case(const std::string& name_tc,
   if(name_tc == "liquid_column") {
     return std::make_unique<LiquidColumn<Traits, AuxFields>>(param_file);
   }
+  if(name_tc == "static_bubble") {
+    return std::make_unique<StaticBubble<Traits, AuxFields>>(param_file);
+  }
 
   throw std::invalid_argument("make_test_case: unknown test case '" + name_tc + "'.\n"
-                              "Available cases: liquid_column");
+                              "Available cases: liquid_column, static_bubble");
 }
