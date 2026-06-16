@@ -15,7 +15,7 @@
 int main(int argc, char* argv[]) {
   using json = nlohmann::json;
 
-  auto& app = samurai::initialize("Finite volume example for the air-blasted liquid column configuration", argc, argv);
+  auto& app = samurai::initialize("Finite volume example for the two-scale model with capillarity and full thermodynamics", argc, argv);
 
   std::ifstream ifs("input.json"); // Read a JSON file
   json input = json::parse(ifs);
@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--max_Newton_iters", sim_param.max_Newton_iters,
                  "Maximum number of Newton iterations")->capture_default_str()->group("Numerical parameters");
   app.add_option("--p_ref", sim_param.p_ref,
-                 "Reference pressure for termination criterion dual-time stepping")->capture_default_str()->group("Numerical parameters");               
+                 "Reference pressure for termination criterion dual-time stepping")->capture_default_str()->group("Numerical parameters");
 
   // MR parameters
   app.add_option("--min-level", sim_param.min_level, "Minimum level of the AMR")->capture_default_str()->group("AMR parameter");

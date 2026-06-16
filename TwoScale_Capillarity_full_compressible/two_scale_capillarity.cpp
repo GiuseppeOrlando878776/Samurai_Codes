@@ -15,7 +15,7 @@
 int main(int argc, char* argv[]) {
   using json = nlohmann::json;
 
-  auto& app = samurai::initialize("Finite volume example for the air-blasted liquid column configuration", argc, argv);
+  auto& app = samurai::initialize("Finite volume example for the isothermal two-scale model with capillarity", argc, argv);
 
   json input;
   try {

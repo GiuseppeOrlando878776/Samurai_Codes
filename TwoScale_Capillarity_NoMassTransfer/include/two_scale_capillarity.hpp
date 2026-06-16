@@ -78,6 +78,10 @@ struct AuxiliaryFields {
   using gradient_type   = typename Traits::gradient_type;
   using divergence_type = typename Traits::divergence_type;
 
+  Field_Scalar p1, /*!< Phase 1 pressure */
+               p2, /*!< Phase 2 pressure */
+               p;  /*!< Mixture pressure */
+
   Field_Vect vel; /*!< Velocity field */
 };
 
@@ -329,7 +333,8 @@ TwoScaleCapillarity<dim>::TwoScaleCapillarity(const xt::xtensor_fixed<double, xt
     else {
       samurai::load(sim_param.restart_file, mesh, conserved_variables,
                                                   alpha1, grad_alpha1, normal, H,
-                                                  aux_fields.vel);
+                                                  aux_fields.vel,
+                                                  aux_fields.p1, aux_fields.p2, aux_fields.p);
       // TO DO: Likely periodic bcs will not work
     }
 
@@ -346,6 +351,10 @@ void TwoScaleCapillarity<dim>::create_fields() {
   conserved_variables_tmp = samurai::make_vector_field<Number, Field::n_comp>("conserved_tmp", mesh);
 
   aux_fields.vel = samurai::make_vector_field<Number, dim>("vel", mesh);
+
+  aux_fields.p1 = samurai::make_scalar_field<Number>("p1", mesh);
+  aux_fields.p2 = samurai::make_scalar_field<Number>("p2", mesh);
+  aux_fields.p  = samurai::make_scalar_field<Number>("p", mesh);
 
   alpha1      = samurai::make_scalar_field<Number>("alpha1", mesh);
   grad_alpha1 = samurai::make_vector_field<Number, dim>("grad_alpha1", mesh);
@@ -369,6 +378,9 @@ void TwoScaleCapillarity<dim>::resize_all_fields() {
   normal.resize();
   H.resize();
   aux_fields.vel.resize();
+  aux_fields.p1.resize();
+  aux_fields.p2.resize();
+  aux_fields.p.resize();
   dalpha1.resize();
   to_be_relaxed.resize();
   Newton_iterations.resize();
@@ -733,7 +745,8 @@ void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
   const std::string suffix_init = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(0) : "";
   save(suffix_init, conserved_variables,
                     alpha1, grad_alpha1, normal, H,
-                    aux_fields.vel);
+                    aux_fields.vel,
+                    aux_fields.p1, aux_fields.p2, aux_fields.p);
 
   // Save mesh size (so as to compute time step)
   const auto dx = static_cast<Number>(mesh.cell_length(mesh.max_level()));
@@ -847,6 +860,9 @@ void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
     if(t >= static_cast<Number>(nsave + 1)*dt_save || t == Tf) {
       // Resize all the fields not resized yet
       aux_fields.vel.resize();
+      aux_fields.p1.resize();
+      aux_fields.p2.resize();
+      aux_fields.p.resize();
 
       samurai::for_each_cell(mesh,
                              [&](const auto& cell)
@@ -854,14 +870,32 @@ void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
                                   // Pre-fetch local state
                                   const auto& local_conserved_variables = conserved_variables[cell];
 
+                                  const auto m1_loc = local_conserved_variables(M1_INDEX);
+                                  const auto m2_loc = local_conserved_variables(M2_INDEX);
+
                                   // Compute velocity
-                                  const auto rho_loc     = local_conserved_variables(M1_INDEX)
-                                                         + local_conserved_variables(M2_INDEX);
+                                  const auto rho_loc     = m1_loc + m2_loc;
                                   const auto inv_rho_loc = static_cast<Number>(1.0)/rho_loc;
                                   auto vel_loc           = aux_fields.vel[cell];
                                   for(std::size_t d = 0; d < dim; ++d) {
                                     vel_loc[d] = local_conserved_variables(RHO_U_INDEX + d)*inv_rho_loc;
                                   }
+
+                                  // Compute pressure phase 1
+                                  const auto alpha1_loc = local_conserved_variables(RHO_ALPHA1_INDEX)*inv_rho_loc;
+                                  const auto rho1_loc   = m1_loc/alpha1_loc; // TODO: Add a check in case of zero volume fraction
+                                  const auto p1_loc     = EOS_phase1.pres_value(rho1_loc);
+                                  aux_fields.p1[cell]   = p1_loc;
+
+                                  // Compute pressure phase 2
+                                  const auto alpha2_loc = static_cast<Number>(1.0) - alpha1_loc;
+                                  const auto rho2_loc   = m2_loc/alpha2_loc; // TODO: Add a check in case of zero volume fraction
+                                  const auto p2_loc     = EOS_phase2.pres_value(rho2_loc);
+                                  aux_fields.p2[cell]   = p2_loc;
+
+                                  // Compute mixture pressure
+                                  aux_fields.p[cell] = alpha1_loc*p1_loc
+                                                     + alpha2_loc*p2_loc;
                                 }
                             );
 
@@ -869,7 +903,9 @@ void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
       const std::string suffix = (nfiles != 1) ? "_ite_" + Utilities::unsigned_to_string(++nsave) : "";
       save(suffix, conserved_variables,
                    alpha1, grad_alpha1, normal, H,
-                   aux_fields.vel, Newton_iterations);
+                   aux_fields.vel,
+                   aux_fields.p1, aux_fields.p2, aux_fields.p,
+                   Newton_iterations);
     }
   }
 }

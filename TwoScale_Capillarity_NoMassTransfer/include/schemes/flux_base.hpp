@@ -16,7 +16,7 @@
 
 /*--- Preprocessor to define whether relaxation is desired after reconstruction for order 2 ---*/
 #ifdef ORDER_2
-  #define RELAX_RECONSTRUCTION
+  //#define RELAX_RECONSTRUCTION
 #endif
 
 namespace samurai {

@@ -249,43 +249,46 @@ void LiquidColumn<Traits, AuxFields>::init_variables(Context& ctx,
                               const auto r      = std::sqrt((x - x0)*(x - x0) + (y - y0)*(y - y0));
 
                               // Set mass phase 1
-                              Number p1;
                               if(r >= R + eps_R) {
-                                p1 = ctx.EOS_phase1.get_p0();
+                                ctx.aux.p1[cell] = ctx.EOS_phase1.get_p0();
                               }
                               else {
-                                p1 = ctx.EOS_phase2.get_p0();
+                                ctx.aux.p1[cell] = ctx.EOS_phase2.get_p0();
                                 if(r >= R && r < R + eps_R && !std::isnan(ctx.H[cell])) {
-                                  p1 += sigma*ctx.H[cell];
+                                  ctx.aux.p1[cell] += sigma*ctx.H[cell];
                                 }
                                 else {
-                                  p1 += sigma/R;
+                                  ctx.aux.p1[cell] += sigma/R;
                                 }
                               }
-                              const auto rho1 = ctx.EOS_phase1.rho_value(p1);
+                              const auto rho1_loc = ctx.EOS_phase1.rho_value(ctx.aux.p1[cell]);
 
-                              ctx.conserved_variables[cell](M1_INDEX) = ctx.alpha1[cell]*rho1;
+                              ctx.conserved_variables[cell](M1_INDEX) = ctx.alpha1[cell]*rho1_loc;
 
                               // Set mass phase 2
-                              const auto p2   = ctx.EOS_phase2.get_p0();
-                              const auto rho2 = ctx.EOS_phase2.rho_value(p2);
+                              ctx.aux.p2[cell]    = ctx.EOS_phase2.get_p0();
+                              const auto rho2_loc = ctx.EOS_phase2.rho_value(ctx.aux.p2[cell]);
 
-                              ctx.conserved_variables[cell](M2_INDEX) = (static_cast<Number>(1.0) - ctx.alpha1[cell])*rho2;
+                              ctx.conserved_variables[cell](M2_INDEX) = (static_cast<Number>(1.0) - ctx.alpha1[cell])*rho2_loc;
+
+                              // Save mixture pressure for post-processing
+                              ctx.aux.p[cell] = ctx.alpha1[cell]*ctx.aux.p1[cell]
+                                              + (static_cast<Number>(1.0) - ctx.alpha1[cell])*ctx.aux.p2[cell];
 
                               // Set conserved variable associated with volume fraction
-                              const auto rho = ctx.conserved_variables[cell](M1_INDEX)
-                                             + ctx.conserved_variables[cell](M2_INDEX);
+                              const auto rho_loc = ctx.conserved_variables[cell](M1_INDEX)
+                                                 + ctx.conserved_variables[cell](M2_INDEX);
 
-                              ctx.conserved_variables[cell](RHO_ALPHA1_INDEX) = rho*ctx.alpha1[cell];
+                              ctx.conserved_variables[cell](RHO_ALPHA1_INDEX) = rho_loc*ctx.alpha1[cell];
 
                               // Set momentum
                               ctx.conserved_variables[cell](RHO_U_INDEX)     = ctx.conserved_variables[cell](M1_INDEX)*U1
                                                                              + ctx.conserved_variables[cell](M2_INDEX)*U0;
-                              ctx.conserved_variables[cell](RHO_U_INDEX + 1) = rho*V0;
+                              ctx.conserved_variables[cell](RHO_U_INDEX + 1) = rho_loc*V0;
 
                               // Save velocity for post-processing
                               for(std::size_t d = 0; d < dim; ++d) {
-                                ctx.aux.vel[cell][d] = ctx.conserved_variables[cell](RHO_U_INDEX + d)/rho;
+                                ctx.aux.vel[cell][d] = ctx.conserved_variables[cell](RHO_U_INDEX + d)/rho_loc;
                               }
                             }
                         );
