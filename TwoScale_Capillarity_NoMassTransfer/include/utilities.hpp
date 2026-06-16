@@ -52,6 +52,32 @@ namespace Utilities {
     return lc_string;
   }
 
+  // Auxiliary function for sum with mpi
+  //
+  template<typename T>
+  inline T mpi_reduce_sum(const T local_val) {
+    #ifdef SAMURAI_WITH_MPI
+      double result;
+      MPI_Allreduce(&local_val, &result, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      return static_cast<T>(result);
+    #else
+      return local_val;
+    #endif
+  }
+
+  // Auxiliary function for max with mpi
+  //
+  template<typename T>
+  inline T mpi_reduce_max(const T local_val) {
+    #ifdef SAMURAI_WITH_MPI
+      double result;
+      MPI_Allreduce(&local_val, &result, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      return static_cast<T>(result);
+    #else
+      return local_val;
+    #endif
+  }
+
   // Reconstruction for second order scheme
   //
   template<class Field>

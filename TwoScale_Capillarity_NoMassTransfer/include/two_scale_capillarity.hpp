@@ -256,12 +256,6 @@ private:
    * @param relaxation_op numerical operator (cell-based scheme) for relaxation subsystem
    */
   void apply_relaxation(auto& relaxation_op);
-
-  /**
-   * Execute the postprocessing
-   * @param time current time
-   */
-  void execute_postprocess(const Number time);
 };
 
 /************************************************************
@@ -704,7 +698,6 @@ template<std::size_t dim>
 void TwoScaleCapillarity<dim>::run(const std::string& num_flux_hyp,
                                    const std::size_t nfiles) {
   // Default output arguments
-  path = fs::current_path();
   filename = "liquid_column_no_mass_transfer";
   filename += "_" + num_flux_hyp;
   #ifdef ORDER_2
