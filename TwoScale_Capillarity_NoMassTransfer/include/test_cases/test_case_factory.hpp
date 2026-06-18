@@ -12,6 +12,8 @@
 
 #include "test_case.hpp"
 
+#include "utilities.hpp"
+
 #include "cases/liquid_column/liquid_column.hpp"
 #include "cases/static_bubble/static_bubble.hpp"
 

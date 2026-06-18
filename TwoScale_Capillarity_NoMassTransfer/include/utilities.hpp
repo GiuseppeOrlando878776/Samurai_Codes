@@ -13,7 +13,7 @@
  */
 namespace EquationData {
   // Declare spatial dimension
-  static constexpr std::size_t dim = 2;
+  static constexpr std::size_t dim = 1;
 
   // Use auxiliary variables for the indices for the sake of generality
   static constexpr std::size_t M1_INDEX         = 0;

@@ -142,7 +142,7 @@ LiquidColumn<Traits, AuxFields>::LiquidColumn(const std::string& param_file) {
     eps_over_R = input_tc.value("eps_over_R", static_cast<Number>(0.2));
   }
   catch(const json::parse_error& e) {
-    // Defaults values in case file does not exist
+    // Default values in case file does not exist
     std::cerr << "LiquidColumn: cannot parse parameter file '" +
                   param_file + "': " + "using default values" << std::endl;
 
@@ -220,7 +220,7 @@ void LiquidColumn<Traits, AuxFields>::init_variables(Context& ctx,
                          [&](const auto& cell)
                             {
                               auto mod2_grad_alpha1_loc = static_cast<Number>(0.0);
-                              for(std::size_t d = 0; d < dim; ++d) {
+                              for(std::size_t d = 0; d < Field::dim; ++d) {
                                 mod2_grad_alpha1_loc += ctx.grad_alpha1[cell][d]*ctx.grad_alpha1[cell][d];
                               }
                               const auto mod_grad_alpha1_loc = std::sqrt(mod2_grad_alpha1_loc);
@@ -229,7 +229,7 @@ void LiquidColumn<Traits, AuxFields>::init_variables(Context& ctx,
                                 ctx.normal[cell] = ctx.grad_alpha1[cell]/mod_grad_alpha1_loc;
                               }
                               else {
-                                for(std::size_t d = 0; d < dim; ++d) {
+                                for(std::size_t d = 0; d < Field::dim; ++d) {
                                   ctx.normal[cell][d] = static_cast<Number>(nan(""));
                                 }
                               }
@@ -287,7 +287,7 @@ void LiquidColumn<Traits, AuxFields>::init_variables(Context& ctx,
                               ctx.conserved_variables[cell](RHO_U_INDEX + 1) = rho_loc*V0;
 
                               // Save velocity for post-processing
-                              for(std::size_t d = 0; d < dim; ++d) {
+                              for(std::size_t d = 0; d < Field::dim; ++d) {
                                 ctx.aux.vel[cell][d] = ctx.conserved_variables[cell](RHO_U_INDEX + d)/rho_loc;
                               }
                             }
@@ -300,12 +300,12 @@ template<typename Traits, typename AuxFields>
 void LiquidColumn<Traits, AuxFields>::apply_bcs(Field& conserved_variables,
                                                 const Number alpha_residual) {
   // Left boundary: prescribed inlet condition
-  const samurai::DirectionVector<dim> left = {-1, 0};
+  const samurai::DirectionVector<Field::dim> left = {-1, 0};
   samurai::make_bc<Default>(conserved_variables,
                             Inlet(conserved_variables, U0, V0, alpha_residual))->on(left);
 
   // Right boundary: homogeneous Neumann (free outflow)
-  const samurai::DirectionVector<dim> right = {1, 0};
+  const samurai::DirectionVector<Field::dim> right = {1, 0};
   samurai::make_bc<samurai::Neumann<1>>(conserved_variables,
                                         static_cast<Number>(0.0),
                                         static_cast<Number>(0.0),
