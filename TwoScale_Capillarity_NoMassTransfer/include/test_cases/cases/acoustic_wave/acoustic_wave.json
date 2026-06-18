@@ -1,0 +1,6 @@
+{
+ "x_shock": 0.3,
+ "x_interface": 0.7,
+ "eps_interface_over_dx": 0.25,
+ "eps_shock_over_dx": 3.0
+}
