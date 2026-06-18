@@ -98,7 +98,7 @@ namespace samurai {
            // Compute now the "discrete" flux function
            SurfaceTension_f[d].cons_flux_function = [&](FluxValue<cfg_st>& flux,
                                                         const StencilData<cfg_st>& /*data*/,
-                                                        const StencilValues<cfg_st> field)
+                                                        const StencilValues<cfg_st>& field)
                                                         {
                                                           // Compute the numerical flux
                                                           #ifdef ORDER_2

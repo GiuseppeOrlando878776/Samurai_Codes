@@ -727,7 +727,7 @@ namespace samurai {
            // Compute now the "discrete" flux function, in this case a Godunov flux
            Godunov_f[d].cons_flux_function = [&](FluxValue<cfg>& flux,
                                                  const StencilData<cfg>& data,
-                                                 const StencilValues<cfg> field)
+                                                 const StencilValues<cfg>& field)
                                                  {
                                                    #ifdef ORDER_2
                                                      // MUSCL reconstruction

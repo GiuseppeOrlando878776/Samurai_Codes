@@ -268,7 +268,7 @@ namespace samurai {
            // Compute now the "discrete" non-conservative flux function
            non_conservative_flux[d].flux_function = [&](FluxValuePair<cfg>& flux,
                                                         const StencilData<cfg>& data,
-                                                        const StencilValues<cfg> field)
+                                                        const StencilValues<cfg>& field)
                                                         {
                                                           #ifdef ORDER_2
                                                             // MUSCL recsontruction
