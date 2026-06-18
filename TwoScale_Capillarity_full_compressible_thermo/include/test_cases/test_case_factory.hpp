@@ -12,6 +12,8 @@
 
 #include "test_case.hpp"
 
+#include "utilities.hpp"
+
 #include "cases/liquid_column/liquid_column.hpp"
 
 /**

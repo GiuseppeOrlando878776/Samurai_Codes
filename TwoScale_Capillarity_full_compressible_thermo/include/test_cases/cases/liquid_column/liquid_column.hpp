@@ -153,7 +153,7 @@ LiquidColumn<Traits, AuxFields>::LiquidColumn(const std::string& param_file) {
     rho_g_init   = input_tc.value("rho_g_init", static_cast<Number>(1.0));
   }
   catch(const json::parse_error& e) {
-    // Defaults values in case file does not exist
+    // Default values in case file does not exist
     std::cerr << "LiquidColumn: cannot parse parameter file '" +
                   param_file + "': " + "using default values" << std::endl;
 
@@ -233,7 +233,7 @@ void LiquidColumn<Traits, AuxFields>::init_variables(Context& ctx,
                             {
                               const auto& grad_alpha_l_loc = ctx.grad_alpha_l[cell];
                               auto mod2_grad_alpha_l_loc   = static_cast<Number>(0.0);
-                              for(std::size_t d = 0; d < dim; ++d) {
+                              for(std::size_t d = 0; d < Field::dim; ++d) {
                                 mod2_grad_alpha_l_loc += grad_alpha_l_loc[d]*grad_alpha_l_loc[d];
                               }
                               const auto mod_grad_alpha_l_loc = std::sqrt(mod2_grad_alpha_l_loc);
@@ -242,7 +242,7 @@ void LiquidColumn<Traits, AuxFields>::init_variables(Context& ctx,
                                 ctx.normal[cell] = grad_alpha_l_loc/mod_grad_alpha_l_loc;
                               }
                               else {
-                                for(std::size_t d = 0; d < dim; ++d) {
+                                for(std::size_t d = 0; d < Field::dim; ++d) {
                                   ctx.normal[cell][d] = static_cast<Number>(nan(""));
                                 }
                               }
@@ -292,14 +292,14 @@ void LiquidColumn<Traits, AuxFields>::init_variables(Context& ctx,
 
                               // Save velocity for post-processing
                               auto norm2_vel_loc = static_cast<Number>(0.0);
-                              for(std::size_t d = 0; d < dim; ++d) {
+                              for(std::size_t d = 0; d < Field::dim; ++d) {
                                 ctx.aux.vel[cell][d] = ctx.conserved_variables[cell](RHO_U_INDEX + d)/rho_loc;
                                 norm2_vel_loc += ctx.aux.vel[cell][d]*ctx.aux.vel[cell][d];
                               }
 
                               // Set total energy liquid phase
                               auto mod2_grad_alpha_l_loc = static_cast<Number>(0.0);
-                              for(std::size_t d = 0; d < dim; ++d) {
+                              for(std::size_t d = 0; d < Field::dim; ++d) {
                                 mod2_grad_alpha_l_loc += ctx.grad_alpha_l[cell][d]*ctx.grad_alpha_l[cell][d];
                               }
                               const auto mod_grad_alpha_l_loc = std::sqrt(mod2_grad_alpha_l_loc);
@@ -360,7 +360,7 @@ void LiquidColumn<Traits, AuxFields>::apply_bcs(Context& ctx,
                                                 const Number sigma,
                                                 const Number alpha_residual) {
   // Left boundary: prescribed inlet condition
-  const samurai::DirectionVector<dim> left = {-1, 0};
+  const samurai::DirectionVector<Field::dim> left = {-1, 0};
   samurai::make_bc<Default>(ctx.conserved_variables,
                             Inlet(ctx.conserved_variables, ctx.grad_alpha_l, sigma,
                                   U0, V0, alpha_residual,
@@ -368,7 +368,7 @@ void LiquidColumn<Traits, AuxFields>::apply_bcs(Context& ctx,
                                   static_cast<Number>(0.0)))->on(left);
 
   // Right boundary: homogeneous Neumann (free outflow)
-  const samurai::DirectionVector<dim> right = {1, 0};
+  const samurai::DirectionVector<Field::dim> right = {1, 0};
   samurai::make_bc<samurai::Neumann<1>>(ctx.conserved_variables,
                                         static_cast<Number>(0.0),
                                         static_cast<Number>(0.0),

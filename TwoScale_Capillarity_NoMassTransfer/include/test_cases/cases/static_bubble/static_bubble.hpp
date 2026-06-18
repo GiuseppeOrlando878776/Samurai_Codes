@@ -185,7 +185,7 @@ void StaticBubble<Traits, AuxFields>::init_variables(Context& ctx,
                          [&](const auto& cell)
                             {
                               auto mod2_grad_alpha1_loc = static_cast<Number>(0.0);
-                              for(std::size_t d = 0; d < dim; ++d) {
+                              for(std::size_t d = 0; d < Field::dim; ++d) {
                                 mod2_grad_alpha1_loc += ctx.grad_alpha1[cell][d]*ctx.grad_alpha1[cell][d];
                               }
                               const auto mod_grad_alpha1_loc = std::sqrt(mod2_grad_alpha1_loc);
@@ -194,7 +194,7 @@ void StaticBubble<Traits, AuxFields>::init_variables(Context& ctx,
                                 ctx.normal[cell] = ctx.grad_alpha1[cell]/mod_grad_alpha1_loc;
                               }
                               else {
-                                for(std::size_t d = 0; d < dim; ++d) {
+                                for(std::size_t d = 0; d < Field::dim; ++d) {
                                   ctx.normal[cell][d] = static_cast<Number>(nan(""));
                                 }
                               }
@@ -248,7 +248,7 @@ void StaticBubble<Traits, AuxFields>::init_variables(Context& ctx,
                               ctx.conserved_variables[cell](RHO_U_INDEX + 1) = static_cast<Number>(0.0);
 
                               // Save velocity for post-processing
-                              for(std::size_t d = 0; d < dim; ++d) {
+                              for(std::size_t d = 0; d < Field::dim; ++d) {
                                 ctx.aux.vel[cell][d] = ctx.conserved_variables[cell](RHO_U_INDEX + d)/rho_loc;
                               }
                             }
