@@ -272,10 +272,10 @@ namespace samurai {
                                                         {
                                                           #ifdef ORDER_2
                                                             // MUSCL recsontruction
-                                                            const auto grad_alpha_l_LL = grad_alpha_l[data.cells[0]];
-                                                            const auto grad_alpha_l_L  = grad_alpha_l[data.cells[1]];
-                                                            const auto grad_alpha_l_R  = grad_alpha_l[data.cells[2]];
-                                                            const auto grad_alpha_l_RR = grad_alpha_l[data.cells[3]];
+                                                            const auto& grad_alpha_l_LL = grad_alpha_l[data.cells[0]];
+                                                            const auto& grad_alpha_l_L  = grad_alpha_l[data.cells[1]];
+                                                            const auto& grad_alpha_l_R  = grad_alpha_l[data.cells[2]];
+                                                            const auto& grad_alpha_l_RR = grad_alpha_l[data.cells[3]];
 
                                                             const FluxValue<cfg> primLL = this->cons2prim(field[0], grad_alpha_l_LL);
                                                             const FluxValue<cfg> primL  = this->cons2prim(field[1], grad_alpha_l_L);
@@ -299,35 +299,28 @@ namespace samurai {
                                                             but what about the approximation of \partial_{y}\alpha_{l_{i+1/2,j}}? I do not have access, e.g., to
                                                             \alpha_{l_{j+1,i}} reconstructed. With the first approach obviously, we 'decouple' w from \alpha_{l},
                                                             in the sense that it is no onleger computed directly as \grad\alpha_{l} */
-                                                            /*decltype(grad_alpha_l_L) grad_alpha_l_L_flux,
-                                                                                     grad_alpha_l_R_flux;
+                                                            auto grad_alpha_l_L_flux = xt::zeros_like(grad_alpha_l_L);
+                                                            auto grad_alpha_l_R_flux = xt::zeros_like(grad_alpha_l_R);
                                                             Utilities::perform_reconstruction<Field_Vect>(grad_alpha_l_LL, grad_alpha_l_L,
                                                                                                           grad_alpha_l_R, grad_alpha_l_RR,
-                                                                                                          grad_alpha_l_L_flux, grad_alpha_l_R_flux);*/
+                                                                                                          grad_alpha_l_L_flux, grad_alpha_l_R_flux);
 
-                                                            /*FluxValue<cfg> qL = this->prim2cons(primL_recon, grad_alpha_l_L_flux;
-                                                            FluxValue<cfg> qR = this->prim2cons(primR_recon, grad_alpha_l_R_flux);*/
-                                                            FluxValue<cfg> qL = this->prim2cons(primL_recon, grad_alpha_l_L);
-                                                            FluxValue<cfg> qR = this->prim2cons(primR_recon, grad_alpha_l_R);
+                                                            FluxValue<cfg> qL = this->prim2cons(primL_recon, grad_alpha_l_L_flux);
+                                                            FluxValue<cfg> qR = this->prim2cons(primR_recon, grad_alpha_l_R_flux);
                                                           #else
                                                             // Extract the states
                                                             const FluxValue<cfg>& qL = field[0];
                                                             const FluxValue<cfg>& qR = field[1];
 
-                                                            /*const auto& grad_alpha_l_L_flux = grad_alpha_l[data.cells[0]];
-                                                            const auto& grad_alpha_l_R_flux = grad_alpha_l[data.cells[1]];*/
-                                                            const auto& grad_alpha_l_L = grad_alpha_l[data.cells[0]];
-                                                            const auto& grad_alpha_l_R = grad_alpha_l[data.cells[1]];
+                                                            const auto& grad_alpha_l_L_flux = grad_alpha_l[data.cells[0]];
+                                                            const auto& grad_alpha_l_R_flux = grad_alpha_l[data.cells[1]];
                                                           #endif
 
                                                           FluxValue<cfg> T_minus,
                                                                          T_plus;
 
-                                                          /*compute_discrete_flux(qL, qR,
-                                                                                grad_alpha_l_L_flux, grad_alpha_l_R_flux,
-                                                                                d, T_minus, T_plus);*/
                                                           compute_discrete_flux(qL, qR,
-                                                                                grad_alpha_l_L, grad_alpha_l_R,
+                                                                                grad_alpha_l_L_flux, grad_alpha_l_R_flux,
                                                                                 d, T_minus, T_plus);
 
                                                           flux[0] = T_minus;

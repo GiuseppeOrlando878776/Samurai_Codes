@@ -48,13 +48,17 @@ template<typename Traits, typename AuxFields>
 std::unique_ptr<TestCaseBase<Traits, AuxFields>>
 make_test_case(const std::string& name_tc,
                const std::string& param_file = "") {
-  if(name_tc == "liquid_column") {
-    return std::make_unique<LiquidColumn<Traits, AuxFields>>(param_file);
-  }
-  if(name_tc == "static_bubble") {
-    return std::make_unique<StaticBubble<Traits, AuxFields>>(param_file);
+  if constexpr(EquationData::dim == 2) {
+    if(name_tc == "liquid_column") {
+      return std::make_unique<LiquidColumn<Traits, AuxFields>>(param_file);
+    }
+    if(name_tc == "static_bubble") {
+      return std::make_unique<StaticBubble<Traits, AuxFields>>(param_file);
+    }
+
+    throw std::invalid_argument("make_test_case: unknown test case '" + name_tc + "'.\n"
+                                "Available cases: liquid_column, static_bubble");
   }
 
-  throw std::invalid_argument("make_test_case: unknown test case '" + name_tc + "'.\n"
-                              "Available cases: liquid_column, static_bubble");
+  throw std::invalid_argument("No available test case in " + std::to_string(EquationData::dim) + " dimensions");
 }
