@@ -46,9 +46,9 @@ namespace samurai {
      * @param q current state
      * @param grad_alpha_l gradient of large-scale volume fraction
      * @param S estimate of speed of wave propagation
-     * @param S_star, estimate of speed of star wave propagation
+     * @param S_star estimate of speed of star wave propagation
      * @param curr_d current direction
-     * @return q_star, i.e. the middle state
+     * @return q_star i.e. the middle state
      */
     FluxValue<cfg> compute_middle_state(const FluxValue<cfg>& q,
                                         const auto& grad_alpha_l,
