@@ -677,9 +677,9 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
                               }
                               const auto mod_grad_alpha_l_loc = std::sqrt(mod2_grad_alpha_l_loc);
 
-                              const auto alpha_d_loc   = alpha_l_loc*m_d_loc/m_l_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto alpha_d_loc   = alpha_l_loc*m_d_loc/m_l_loc; // TODO: Add a check in case of zero volume fraction
                               const auto alpha_liq_loc = alpha_l_loc + alpha_d_loc;
-                              const auto rho_liq_loc   = m_liq_loc/alpha_liq_loc;
+                              const auto rho_liq_loc   = m_liq_loc/alpha_liq_loc; // TODO: Add a check in case of zero volume fraction
                               const auto Sigma_d_loc   = local_conserved_variables(RHO_Z_INDEX)/
                                                          std::cbrt(rho_liq_loc*rho_liq_loc);
 
@@ -704,7 +704,7 @@ void TwoScaleCapillarity<dim>::check_data(unsigned flag) {
 
                               // Sanity check for p_g
                               const auto alpha_g_loc = static_cast<Number>(1.0) - alpha_liq_loc;
-                              const auto rho_g_loc   = m_g_loc/alpha_g_loc;
+                              const auto rho_g_loc   = m_g_loc/alpha_g_loc; // TODO: Add a check in case of zero volume fraction
 
                               const auto Y_g_loc   = static_cast<Number>(1.0) - Y_liq_loc;
                               const auto chi_g_loc = Y_g_loc;
@@ -1047,7 +1047,7 @@ void TwoScaleCapillarity<dim>::execute_postprocess(const Number time) {
 
                               // Compute gas density
                               const auto alpha_g_loc = static_cast<Number>(1.0) - alpha_liq_loc;
-                              const auto rho_g_loc   = m_g_loc/alpha_g_loc; /*--- TODO: Add a check in case of zero volume fraction ---*/
+                              const auto rho_g_loc   = m_g_loc/alpha_g_loc; // TODO: Add a check in case of zero volume fraction
 
                               // Compute gas pressure
                               const auto Y_g_loc   = static_cast<Number>(1.0) - Y_liq_loc;
