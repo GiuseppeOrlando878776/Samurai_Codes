@@ -149,7 +149,7 @@ namespace samurai {
     const auto e_g_L   = mgEg_L/m_g_L
                        - static_cast<Number>(0.5)*norm2_vel_L
                        - this->sigma*inv_rho_L*(chi_g_L/Y_g_L)*(Sigma_d_L + mod_grad_alpha_l_L);
-                       /*--- TODO: Add a check in case of zero volume fraction ---*/
+                       // TODO: Add a check in case of zero volume fraction
     const auto p_g_L   = this->EOS_phase_gas.pres_value_Rhoe(rho_g_L, e_g_L);
 
     // Augmented pressure gas phase

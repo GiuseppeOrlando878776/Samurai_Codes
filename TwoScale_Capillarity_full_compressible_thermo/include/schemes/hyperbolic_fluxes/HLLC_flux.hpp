@@ -315,7 +315,7 @@ namespace samurai {
       if(m_d_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative mass small-scale liquid left state: " + std::to_string(m_d_L)));
       }
-      if(rho_alpha_l_L < static_cast<Number>(0.0)) {
+      if(alpha_l_L < static_cast<Number>(0.0)) {
         throw std::runtime_error(std::string("Negative volume fraction large-scale liquid left state: " + std::to_string(alpha_l_L)));
       }
       if(Sigma_d_L < static_cast<Number>(0.0)) {
